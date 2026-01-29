@@ -31,31 +31,6 @@ Built with a focus on performance and modern web standards.
 *   **Core Engine:** WebAssembly (`ffmpeg.wasm` for video, `@jsquash` for images).
 *   **Database:** PostgreSQL.
 
-## 🚀 Getting Started
-
-You can run the full stack locally using Docker.
-
-### Prerequisites
-*   Docker Desktop
-*   Git
-
-### Installation
-
-1.  **Clone the repository**
-    ```bash
-    git clone https://github.com/yourusername/vixely.git
-    cd vixely
-    ```
-
-2.  **Start the application**
-    ```bash
-    docker compose up -d
-    ```
-
-3.  **Access Vixely**
-    *   Frontend: `http://localhost:5173`
-    *   API: `http://localhost:8000`
-
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
