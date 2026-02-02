@@ -1,9 +1,3 @@
-C'est une excellente idée. Un README de présentation (type "Landing Page") est crucial si tu rends le projet public un jour, car il sert de vitrine pour ton portfolio ou pour attirer des utilisateurs/investisseurs.
-
-Voici une proposition moderne, punchy et orientée "produit", rédigée en anglais.
-
-***
-
 # ⚡️ Vixely
 
 ### The Local-First Media Suite for Creators.
