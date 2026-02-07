@@ -9,31 +9,3 @@ Thumbs.db
 docker-compose.override.yml
 .env.local
 .env.*.local
-
-# --- Front (Web) ---
-web/node_modules/
-web/dist/
-web/build/
-web/coverage/
-web/.env.local
-web/.env.development.local
-web/.env.test.local
-web/.env.production.local
-web/npm-debug.log*
-web/yarn-error.log*
-web/bun-debug.log*
-
-# --- Back (Api) ---
-api/vendor/
-api/var/
-api/public/bundles/
-api/public/build/
-api/.env.local
-api/.env.*.local
-api/config/secrets/*.decrypt.private.php
-api/.phpunit.result.cache
-api/coverage/
-api/composer.phar
-
-# --- Railway & Cloud ---
-.railway/
