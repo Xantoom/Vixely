@@ -4,8 +4,3 @@
 .DS_Store
 Thumbs.db
 *.swp
-
-# --- Docker & Environnement Local ---
-docker-compose.override.yml
-.env.local
-.env.*.local
