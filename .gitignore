@@ -4,3 +4,16 @@
 .DS_Store
 Thumbs.db
 *.swp
+
+# --- PROJET FILES ---
+node_modules/
+dist/
+build/
+coverage/
+logs/
+*.log
+.env
+*.env.local
+*.env.development
+*.env.test
+*.env.production
