@@ -5,7 +5,7 @@
 Thumbs.db
 *.swp
 
-# --- PROJET FILES ---
+# --- PROJECT FILES ---
 node_modules/
 dist/
 build/
@@ -17,3 +17,10 @@ logs/
 *.env.development
 *.env.test
 *.env.production
+
+# --- GENERATED ---
+src/routeTree.gen.ts
+src/wasm/
+
+# --- RUST ---
+vixely-core/target/

@@ -1,0 +1,87 @@
+{
+	"video": {
+		"twitch_clip": {
+			"name": "Twitch Clip 16:9",
+			"description": "Standard Twitch clip format",
+			"maxSizeMB": null,
+			"format": "mp4",
+			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "20"],
+			"width": 1920,
+			"height": 1080
+		},
+		"twitch_highlight": {
+			"name": "Twitch Highlight",
+			"description": "Highlight reel 1280x720",
+			"maxSizeMB": null,
+			"format": "mp4",
+			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "22"],
+			"width": 1280,
+			"height": 720
+		}
+	},
+	"image": {
+		"twitch_emote_1x": {
+			"name": "Twitch Emote 1x",
+			"description": "28x28 subscriber emote",
+			"width": 28,
+			"height": 28,
+			"format": "png",
+			"exportFormat": "png",
+			"exportQuality": 100
+		},
+		"twitch_emote_2x": {
+			"name": "Twitch Emote 2x",
+			"description": "56x56 subscriber emote",
+			"width": 56,
+			"height": 56,
+			"format": "png",
+			"exportFormat": "png",
+			"exportQuality": 100
+		},
+		"twitch_emote_3x": {
+			"name": "Twitch Emote 3x",
+			"description": "112x112 subscriber emote",
+			"width": 112,
+			"height": 112,
+			"format": "png",
+			"exportFormat": "png",
+			"exportQuality": 100
+		},
+		"twitch_panel": {
+			"name": "Twitch Panel",
+			"description": "Channel panel image 320x160",
+			"width": 320,
+			"height": 160,
+			"format": "png",
+			"exportFormat": "png",
+			"exportQuality": 100
+		},
+		"twitch_banner": {
+			"name": "Twitch Banner",
+			"description": "Profile banner 1200x480",
+			"width": 1200,
+			"height": 480,
+			"format": "png",
+			"exportFormat": "jpeg",
+			"exportQuality": 85
+		},
+		"twitch_offline": {
+			"name": "Twitch Offline Screen",
+			"description": "Offline screen 1920x1080",
+			"width": 1920,
+			"height": 1080,
+			"format": "png",
+			"exportFormat": "jpeg",
+			"exportQuality": 85
+		}
+	},
+	"gif": {
+		"twitch_emote": {
+			"name": "Twitch Animated Emote",
+			"description": "Animated emote 112x112",
+			"width": 112,
+			"fps": 24,
+			"maxDuration": null
+		}
+	}
+}

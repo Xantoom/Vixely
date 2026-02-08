@@ -1,0 +1,52 @@
+{
+	"video": {
+		"youtube_shorts": {
+			"name": "YouTube Shorts",
+			"description": "Vertical 1080x1920, max 60s",
+			"maxSizeMB": null,
+			"format": "mp4",
+			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "20", "-pix_fmt", "yuv420p"],
+			"width": 1080,
+			"height": 1920
+		},
+		"youtube_1080p": {
+			"name": "YouTube 1080p",
+			"description": "Standard HD upload",
+			"maxSizeMB": null,
+			"format": "mp4",
+			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p"],
+			"width": 1920,
+			"height": 1080
+		}
+	},
+	"image": {
+		"youtube_thumbnail": {
+			"name": "YouTube Thumbnail",
+			"description": "Video thumbnail 1280x720",
+			"width": 1280,
+			"height": 720,
+			"format": "png",
+			"exportFormat": "jpeg",
+			"exportQuality": 90
+		},
+		"youtube_banner": {
+			"name": "YouTube Channel Banner",
+			"description": "Channel art 2560x1440",
+			"width": 2560,
+			"height": 1440,
+			"format": "png",
+			"exportFormat": "jpeg",
+			"exportQuality": 85
+		},
+		"youtube_endscreen": {
+			"name": "YouTube End Screen",
+			"description": "End screen element 1920x1080",
+			"width": 1920,
+			"height": 1080,
+			"format": "png",
+			"exportFormat": "png",
+			"exportQuality": 100
+		}
+	},
+	"gif": {}
+}

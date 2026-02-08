@@ -1,0 +1,173 @@
+{
+	"video": {
+		"square": {
+			"name": "Square 1:1",
+			"description": "Instagram / TikTok square crop",
+			"maxSizeMB": null,
+			"format": "mp4",
+			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "23"],
+			"width": 720,
+			"height": 720
+		},
+		"portrait": {
+			"name": "Portrait 9:16",
+			"description": "Vertical video for Reels / Shorts / TikTok",
+			"maxSizeMB": null,
+			"format": "mp4",
+			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "23"],
+			"width": 720,
+			"height": 1280
+		},
+		"high_compression": {
+			"name": "High Compression",
+			"description": "Smallest file size, lower quality",
+			"maxSizeMB": null,
+			"format": "webm",
+			"ffmpegArgs": ["-c:v", "libvpx-vp9", "-crf", "45", "-b:v", "0"],
+			"width": null,
+			"height": null
+		},
+		"landscape_4k": {
+			"name": "4K Landscape",
+			"description": "Ultra HD 3840x2160",
+			"maxSizeMB": null,
+			"format": "mp4",
+			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "18"],
+			"width": 3840,
+			"height": 2160
+		}
+	},
+	"image": {
+		"og_image": {
+			"name": "OG Image",
+			"description": "Open Graph / link preview 1200x630",
+			"width": 1200,
+			"height": 630,
+			"format": "png",
+			"exportFormat": "jpeg",
+			"exportQuality": 85
+		},
+		"instagram_square": {
+			"name": "Instagram Square",
+			"description": "Square post 1080x1080",
+			"width": 1080,
+			"height": 1080,
+			"format": "png",
+			"exportFormat": "jpeg",
+			"exportQuality": 85
+		},
+		"instagram_portrait": {
+			"name": "Instagram Portrait",
+			"description": "Portrait post 1080x1350",
+			"width": 1080,
+			"height": 1350,
+			"format": "png",
+			"exportFormat": "jpeg",
+			"exportQuality": 85
+		},
+		"instagram_story": {
+			"name": "Instagram Story",
+			"description": "Story / Reel cover 1080x1920",
+			"width": 1080,
+			"height": 1920,
+			"format": "png",
+			"exportFormat": "jpeg",
+			"exportQuality": 85
+		},
+		"facebook_post": {
+			"name": "Facebook Post",
+			"description": "Shared image 1200x630",
+			"width": 1200,
+			"height": 630,
+			"format": "png",
+			"exportFormat": "jpeg",
+			"exportQuality": 85
+		},
+		"facebook_cover": {
+			"name": "Facebook Cover",
+			"description": "Page cover photo 820x312",
+			"width": 820,
+			"height": 312,
+			"format": "png",
+			"exportFormat": "jpeg",
+			"exportQuality": 85
+		},
+		"linkedin_post": {
+			"name": "LinkedIn Post",
+			"description": "Shared image 1200x627",
+			"width": 1200,
+			"height": 627,
+			"format": "png",
+			"exportFormat": "jpeg",
+			"exportQuality": 85
+		},
+		"linkedin_banner": {
+			"name": "LinkedIn Banner",
+			"description": "Profile background 1584x396",
+			"width": 1584,
+			"height": 396,
+			"format": "png",
+			"exportFormat": "jpeg",
+			"exportQuality": 85
+		},
+		"pinterest_pin": {
+			"name": "Pinterest Pin",
+			"description": "Optimal pin 1000x1500 (2:3)",
+			"width": 1000,
+			"height": 1500,
+			"format": "png",
+			"exportFormat": "jpeg",
+			"exportQuality": 85
+		},
+		"high_compression": {
+			"name": "High Compression",
+			"description": "Export as WebP with aggressive compression",
+			"width": null,
+			"height": null,
+			"format": "webp",
+			"exportFormat": "webp",
+			"exportQuality": 75
+		},
+		"wallpaper_1080p": {
+			"name": "Wallpaper 1080p",
+			"description": "Desktop wallpaper 1920x1080",
+			"width": 1920,
+			"height": 1080,
+			"format": "png",
+			"exportFormat": "png",
+			"exportQuality": 100
+		},
+		"wallpaper_4k": {
+			"name": "Wallpaper 4K",
+			"description": "4K desktop wallpaper 3840x2160",
+			"width": 3840,
+			"height": 2160,
+			"format": "png",
+			"exportFormat": "png",
+			"exportQuality": 100
+		}
+	},
+	"gif": {
+		"high_quality": {
+			"name": "High Quality",
+			"description": "800px wide, 24fps, full Bayer dithering",
+			"width": 800,
+			"fps": 24,
+			"maxDuration": null
+		},
+		"small_file": {
+			"name": "Small File",
+			"description": "320px wide, 10fps, aggressive optimization",
+			"width": 320,
+			"fps": 10,
+			"maxDuration": 10
+		},
+		"reaction_gif": {
+			"name": "Reaction GIF",
+			"description": "Quick loop 480px, 15fps, 3s max",
+			"width": 480,
+			"fps": 15,
+			"maxDuration": 3
+		}
+	}
+}

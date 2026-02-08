@@ -1,0 +1,42 @@
+{
+	"video": {
+		"tiktok_video": {
+			"name": "TikTok Video",
+			"description": "Vertical 1080x1920",
+			"maxSizeMB": null,
+			"format": "mp4",
+			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "22", "-pix_fmt", "yuv420p"],
+			"width": 1080,
+			"height": 1920
+		}
+	},
+	"image": {
+		"tiktok_profile": {
+			"name": "TikTok Profile",
+			"description": "Profile picture 200x200",
+			"width": 200,
+			"height": 200,
+			"format": "png",
+			"exportFormat": "jpeg",
+			"exportQuality": 90
+		},
+		"tiktok_cover": {
+			"name": "TikTok Video Cover",
+			"description": "Video cover image 1080x1920",
+			"width": 1080,
+			"height": 1920,
+			"format": "png",
+			"exportFormat": "jpeg",
+			"exportQuality": 85
+		}
+	},
+	"gif": {
+		"tiktok_gif": {
+			"name": "TikTok GIF",
+			"description": "Vertical GIF 540x960",
+			"width": 540,
+			"fps": 15,
+			"maxDuration": 10
+		}
+	}
+}

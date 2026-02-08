@@ -1,0 +1,33 @@
+{
+	"video": {},
+	"image": {
+		"bluesky_avatar": {
+			"name": "Bluesky Avatar",
+			"description": "Profile picture 1000x1000",
+			"width": 1000,
+			"height": 1000,
+			"format": "png",
+			"exportFormat": "jpeg",
+			"exportQuality": 85
+		},
+		"bluesky_banner": {
+			"name": "Bluesky Banner",
+			"description": "Profile banner 3000x1000",
+			"width": 3000,
+			"height": 1000,
+			"format": "png",
+			"exportFormat": "jpeg",
+			"exportQuality": 85
+		},
+		"bluesky_post": {
+			"name": "Bluesky Post",
+			"description": "In-feed image 2000x1125 (16:9)",
+			"width": 2000,
+			"height": 1125,
+			"format": "png",
+			"exportFormat": "jpeg",
+			"exportQuality": 85
+		}
+	},
+	"gif": {}
+}

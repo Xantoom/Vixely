@@ -1,0 +1,69 @@
+{
+	"video": {
+		"twitter_video_free": {
+			"name": "Twitter/X Free Video",
+			"description": "Free tier: max 512MB / 140s",
+			"maxSizeMB": 512,
+			"format": "mp4",
+			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "23", "-pix_fmt", "yuv420p"],
+			"width": 1280,
+			"height": 720
+		},
+		"twitter_video_premium": {
+			"name": "Twitter/X Premium Video",
+			"description": "Premium: longer uploads, 1080p",
+			"maxSizeMB": 512,
+			"format": "mp4",
+			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "20", "-pix_fmt", "yuv420p"],
+			"width": 1920,
+			"height": 1080
+		}
+	},
+	"image": {
+		"twitter_profile": {
+			"name": "Twitter/X Profile",
+			"description": "Profile picture 400x400",
+			"width": 400,
+			"height": 400,
+			"format": "png",
+			"exportFormat": "jpeg",
+			"exportQuality": 85
+		},
+		"twitter_header": {
+			"name": "Twitter/X Header",
+			"description": "Header image 1500x500",
+			"width": 1500,
+			"height": 500,
+			"format": "png",
+			"exportFormat": "jpeg",
+			"exportQuality": 85
+		},
+		"twitter_post": {
+			"name": "Twitter/X Post",
+			"description": "In-feed image 1200x675 (16:9)",
+			"width": 1200,
+			"height": 675,
+			"format": "png",
+			"exportFormat": "jpeg",
+			"exportQuality": 85
+		},
+		"twitter_card": {
+			"name": "Twitter/X Summary Card",
+			"description": "Summary card 800x418",
+			"width": 800,
+			"height": 418,
+			"format": "png",
+			"exportFormat": "jpeg",
+			"exportQuality": 85
+		}
+	},
+	"gif": {
+		"twitter_gif": {
+			"name": "Twitter/X GIF",
+			"description": "Optimized for Twitter feed (max 15MB)",
+			"width": 480,
+			"fps": 15,
+			"maxDuration": 60
+		}
+	}
+}

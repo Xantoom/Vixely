@@ -1,0 +1,101 @@
+{
+	"video": {
+		"discord_free": {
+			"name": "Discord Free (25MB)",
+			"description": "Fits free Discord upload limit",
+			"maxSizeMB": 25,
+			"format": "mp4",
+			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast"],
+			"width": null,
+			"height": null
+		},
+		"discord_nitro_basic": {
+			"name": "Discord Nitro Basic (50MB)",
+			"description": "Fits Nitro Basic upload limit",
+			"maxSizeMB": 50,
+			"format": "mp4",
+			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast"],
+			"width": null,
+			"height": null
+		},
+		"discord_nitro": {
+			"name": "Discord Nitro (500MB)",
+			"description": "Fits full Nitro upload limit",
+			"maxSizeMB": 500,
+			"format": "mp4",
+			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "18"],
+			"width": null,
+			"height": null
+		},
+		"discord_banner": {
+			"name": "Discord Banner",
+			"description": "Animated server banner 960x540",
+			"maxSizeMB": null,
+			"format": "mp4",
+			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "23"],
+			"width": 960,
+			"height": 540
+		}
+	},
+	"image": {
+		"discord_avatar": {
+			"name": "Discord Avatar",
+			"description": "Server / user avatar 128x128",
+			"width": 128,
+			"height": 128,
+			"format": "png",
+			"exportFormat": "png",
+			"exportQuality": 100
+		},
+		"discord_banner": {
+			"name": "Discord Banner",
+			"description": "Server banner 960x540",
+			"width": 960,
+			"height": 540,
+			"format": "png",
+			"exportFormat": "jpeg",
+			"exportQuality": 85
+		},
+		"discord_emoji": {
+			"name": "Discord Emoji",
+			"description": "Custom emoji 128x128 (max 256KB)",
+			"width": 128,
+			"height": 128,
+			"format": "png",
+			"exportFormat": "png",
+			"exportQuality": 100
+		},
+		"discord_splash": {
+			"name": "Discord Splash",
+			"description": "Server invite splash 1920x1080",
+			"width": 1920,
+			"height": 1080,
+			"format": "png",
+			"exportFormat": "jpeg",
+			"exportQuality": 85
+		}
+	},
+	"gif": {
+		"discord_emoji": {
+			"name": "Discord Emoji GIF",
+			"description": "Animated emoji 128x128 (max 256KB)",
+			"width": 128,
+			"fps": 15,
+			"maxDuration": 5
+		},
+		"discord_sticker": {
+			"name": "Discord Sticker",
+			"description": "Animated sticker 320x320 (max 500KB)",
+			"width": 320,
+			"fps": 15,
+			"maxDuration": 5
+		},
+		"discord_avatar": {
+			"name": "Discord Animated PFP",
+			"description": "Animated avatar 128x128",
+			"width": 128,
+			"fps": 20,
+			"maxDuration": null
+		}
+	}
+}
