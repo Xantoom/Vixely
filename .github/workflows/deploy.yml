@@ -1,4 +1,4 @@
-name: CI / Deploy
+name: CI
 
 on:
     push:
@@ -51,20 +51,3 @@ jobs:
                   name: dist
                   path: dist/
                   retention-days: 7
-
-    deploy-railway:
-        name: Deploy to Railway
-        needs: lint-build
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        runs-on: ubuntu-latest
-        environment: production
-        steps:
-            - uses: actions/checkout@v4
-
-            - name: Install Railway CLI
-              run: npm i -g @railway/cli
-
-            - name: Deploy
-              run: railway up --service ${{ vars.RAILWAY_SERVICE_NAME || 'vixely' }}
-              env:
-                  RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
