@@ -1,6 +1,6 @@
-import { useRef, useState, useCallback, useEffect, type RefObject } from "react";
-import { Play, Pause, Volume2, VolumeX, Maximize } from "lucide-react";
-import { formatTimecode } from "@/components/ui/index.ts";
+import { Play, Pause, Volume2, VolumeX, Maximize } from 'lucide-react';
+import { useRef, useState, useCallback, useEffect, type RefObject } from 'react';
+import { formatTimecode } from '@/components/ui/index.ts';
 
 interface VideoPlayerProps {
 	src: string;
@@ -72,26 +72,32 @@ export function VideoPlayer({
 		}
 	}, [videoRef]);
 
-	const handleSeek = useCallback((e: React.PointerEvent) => {
-		const bar = seekBarRef.current;
-		const v = videoRef.current;
-		if (!bar || !v) return;
-		const rect = bar.getBoundingClientRect();
-		const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-		const targetTime = ratio * duration;
-		// Use fastSeek for smoother scrubbing when available
-		if (typeof v.fastSeek === "function") {
-			v.fastSeek(targetTime);
-		} else {
-			v.currentTime = targetTime;
-		}
-		setCurrentTime(targetTime);
-	}, [videoRef, duration]);
+	const handleSeek = useCallback(
+		(e: React.PointerEvent) => {
+			const bar = seekBarRef.current;
+			const v = videoRef.current;
+			if (!bar || !v) return;
+			const rect = bar.getBoundingClientRect();
+			const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+			const targetTime = ratio * duration;
+			// Use fastSeek for smoother scrubbing when available
+			if (typeof v.fastSeek === 'function') {
+				v.fastSeek(targetTime);
+			} else {
+				v.currentTime = targetTime;
+			}
+			setCurrentTime(targetTime);
+		},
+		[videoRef, duration],
+	);
 
-	const handleSeekDrag = useCallback((e: React.PointerEvent) => {
-		if (e.buttons !== 1) return;
-		handleSeek(e);
-	}, [handleSeek]);
+	const handleSeekDrag = useCallback(
+		(e: React.PointerEvent) => {
+			if (e.buttons !== 1) return;
+			handleSeek(e);
+		},
+		[handleSeek],
+	);
 
 	const toggleMute = useCallback(() => {
 		const v = videoRef.current;
@@ -100,15 +106,23 @@ export function VideoPlayer({
 		setMuted(!muted);
 	}, [videoRef, muted]);
 
-	const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-		const v = videoRef.current;
-		if (!v) return;
-		const val = Number(e.target.value);
-		v.volume = val;
-		setVolume(val);
-		if (val === 0) { v.muted = true; setMuted(true); }
-		else if (muted) { v.muted = false; setMuted(false); }
-	}, [videoRef, muted]);
+	const handleVolumeChange = useCallback(
+		(e: React.ChangeEvent<HTMLInputElement>) => {
+			const v = videoRef.current;
+			if (!v) return;
+			const val = Number(e.target.value);
+			v.volume = val;
+			setVolume(val);
+			if (val === 0) {
+				v.muted = true;
+				setMuted(true);
+			} else if (muted) {
+				v.muted = false;
+				setMuted(false);
+			}
+		},
+		[videoRef, muted],
+	);
 
 	const toggleFullscreen = useCallback(() => {
 		const el = containerRef.current;
@@ -141,13 +155,13 @@ export function VideoPlayer({
 				onEnded={handleEnded}
 				onClick={togglePlay}
 				className="w-full rounded-xl bg-black cursor-pointer"
-				style={cssFilter && cssFilter !== "none" ? { filter: cssFilter } : undefined}
+				style={cssFilter && cssFilter !== 'none' ? { filter: cssFilter } : undefined}
 			/>
 
 			{/* Custom controls overlay */}
 			<div
 				className={`absolute bottom-0 left-0 right-0 rounded-b-xl bg-gradient-to-t from-black/80 to-transparent px-3 sm:px-4 pt-8 pb-3 transition-opacity duration-200 ${
-					showControls || !playing ? "opacity-100" : "opacity-0 pointer-events-none"
+					showControls || !playing ? 'opacity-100' : 'opacity-0 pointer-events-none'
 				}`}
 			>
 				{/* Seek bar */}
@@ -214,9 +228,7 @@ export function VideoPlayer({
 			{processing && (
 				<div className="absolute inset-0 flex flex-col items-center justify-center rounded-xl bg-black/80 backdrop-blur-sm">
 					<div className="h-10 w-10 rounded-full border-[3px] border-border border-t-accent animate-spin" />
-					<p className="mt-3 text-sm font-medium">
-						Exporting... {Math.round(progress * 100)}%
-					</p>
+					<p className="mt-3 text-sm font-medium">Exporting... {Math.round(progress * 100)}%</p>
 					<div className="mt-2 h-1 w-40 overflow-hidden rounded-full bg-surface-raised">
 						<div
 							className="h-full bg-accent transition-all duration-300"

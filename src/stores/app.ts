@@ -1,8 +1,8 @@
-import { create } from "zustand";
+import { create } from 'zustand';
 
 interface AppState {
-	activeModule: "video" | "image" | "gif" | null;
-	setActiveModule: (module: AppState["activeModule"]) => void;
+	activeModule: 'video' | 'image' | 'gif' | null;
+	setActiveModule: (module: AppState['activeModule']) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({

@@ -1,34 +1,32 @@
-import { useState, useCallback, type DragEvent } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Helmet } from "react-helmet-async";
-import { Button } from "@/components/ui/index.ts";
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { useState, useCallback, type DragEvent } from 'react';
+import { Helmet } from 'react-helmet-async';
+import { Button } from '@/components/ui/index.ts';
 
-export const Route = createFileRoute("/")({
-	component: HomePage,
-});
+export const Route = createFileRoute('/')({ component: HomePage });
 
-const VIDEO_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime", "video/x-matroska", "video/avi"]);
-const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif", "image/bmp", "image/tiff"]);
-const GIF_TYPE = "image/gif";
+const VIDEO_TYPES = new Set(['video/mp4', 'video/webm', 'video/quicktime', 'video/x-matroska', 'video/avi']);
+const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/bmp', 'image/tiff']);
+const GIF_TYPE = 'image/gif';
 
 const tools = [
 	{
-		title: "Video",
-		desc: "Trim, convert, and compress for any platform.",
-		href: "/tools/video" as const,
-		accent: "bg-violet-500",
+		title: 'Video',
+		desc: 'Trim, convert, and compress for any platform.',
+		href: '/tools/video' as const,
+		accent: 'bg-violet-500',
 	},
 	{
-		title: "Image",
-		desc: "Filters, resize, and export. Real-time preview.",
-		href: "/tools/image" as const,
-		accent: "bg-blue-500",
+		title: 'Image',
+		desc: 'Filters, resize, and export. Real-time preview.',
+		href: '/tools/image' as const,
+		accent: 'bg-blue-500',
 	},
 	{
-		title: "GIF",
-		desc: "Video to GIF with palette optimization.",
-		href: "/tools/gif" as const,
-		accent: "bg-emerald-500",
+		title: 'GIF',
+		desc: 'Video to GIF with palette optimization.',
+		href: '/tools/gif' as const,
+		accent: 'bg-emerald-500',
 	},
 ];
 
@@ -36,14 +34,14 @@ function HomePage() {
 	const navigate = useNavigate();
 	const [dragging, setDragging] = useState(false);
 
-	const detectRoute = useCallback((file: File): "/tools/video" | "/tools/image" | "/tools/gif" => {
-		if (file.type === GIF_TYPE) return "/tools/gif";
-		if (VIDEO_TYPES.has(file.type)) return "/tools/video";
-		if (IMAGE_TYPES.has(file.type)) return "/tools/image";
-		const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-		if (["mp4", "webm", "mov", "mkv", "avi"].includes(ext)) return "/tools/video";
-		if (["gif"].includes(ext)) return "/tools/gif";
-		return "/tools/image";
+	const detectRoute = useCallback((file: File): '/tools/video' | '/tools/image' | '/tools/gif' => {
+		if (file.type === GIF_TYPE) return '/tools/gif';
+		if (VIDEO_TYPES.has(file.type)) return '/tools/video';
+		if (IMAGE_TYPES.has(file.type)) return '/tools/image';
+		const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+		if (['mp4', 'webm', 'mov', 'mkv', 'avi'].includes(ext)) return '/tools/video';
+		if (['gif'].includes(ext)) return '/tools/gif';
+		return '/tools/image';
 	}, []);
 
 	const handleDrop = useCallback(
@@ -70,7 +68,10 @@ function HomePage() {
 		<>
 			<Helmet>
 				<title>Vixely — Private, Local-First Media Editing Suite</title>
-				<meta name="description" content="Edit video, images, and GIFs entirely in your browser. No uploads, no servers. Powered by WebAssembly." />
+				<meta
+					name="description"
+					content="Edit video, images, and GIFs entirely in your browser. No uploads, no servers. Powered by WebAssembly."
+				/>
 			</Helmet>
 
 			<div className="animate-fade-in bg-home-glow min-h-full">
@@ -94,8 +95,8 @@ function HomePage() {
 						</h1>
 
 						<p className="mt-5 text-base text-text-secondary leading-relaxed max-w-md mx-auto">
-							A private media suite that runs entirely in your browser.
-							No uploads. No accounts. Just your files.
+							A private media suite that runs entirely in your browser. No uploads. No accounts. Just your
+							files.
 						</p>
 
 						<div className="mt-8 flex items-center gap-3 justify-center">
@@ -109,11 +110,14 @@ function HomePage() {
 				{/* ── Drop Zone ── */}
 				<section className="mx-auto max-w-xl xl:max-w-2xl px-4 sm:px-8 pb-12 sm:pb-16">
 					<div
-						onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+						onDragOver={(e) => {
+							e.preventDefault();
+							setDragging(true);
+						}}
 						onDragLeave={() => setDragging(false)}
 						onDrop={handleDrop}
 						className={`relative flex flex-col items-center justify-center rounded-2xl p-6 sm:p-10 ${
-							dragging ? "drop-zone-active" : "drop-zone"
+							dragging ? 'drop-zone-active' : 'drop-zone'
 						}`}
 					>
 						<input
@@ -123,19 +127,27 @@ function HomePage() {
 							onChange={handleFileInput}
 						/>
 
-						<svg className="h-8 w-8 text-text-tertiary mb-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+						<svg
+							className="h-8 w-8 text-text-tertiary mb-3"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							strokeWidth="1.5"
+							strokeLinecap="round"
+							strokeLinejoin="round"
+						>
 							<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
 						</svg>
 
 						<p className="text-sm font-medium text-text-secondary">
-							{dragging ? "Release to open..." : "Drop a file or click to browse"}
+							{dragging ? 'Release to open...' : 'Drop a file or click to browse'}
 						</p>
 						<p className="mt-1.5 text-xs text-text-tertiary">
 							Videos, images, and GIFs auto-route to the right editor
 						</p>
 
 						<div className="mt-4 flex flex-wrap items-center justify-center gap-1.5">
-							{["MP4", "MOV", "WebM", "PNG", "JPG", "WebP", "GIF"].map((ext) => (
+							{['MP4', 'MOV', 'WebM', 'PNG', 'JPG', 'WebP', 'GIF'].map((ext) => (
 								<span
 									key={ext}
 									className="rounded bg-surface-raised px-1.5 py-0.5 text-[10px] font-mono text-text-tertiary"
@@ -156,8 +168,17 @@ function HomePage() {
 								to={tool.href}
 								className="group flex items-center gap-4 rounded-xl border border-border bg-surface p-4 transition-all hover:border-border/80 hover:bg-surface-raised"
 							>
-								<div className={`h-10 w-10 rounded-lg ${tool.accent} flex items-center justify-center shrink-0`}>
-									<svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+								<div
+									className={`h-10 w-10 rounded-lg ${tool.accent} flex items-center justify-center shrink-0`}
+								>
+									<svg
+										className="h-5 w-5 text-white"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										strokeWidth="2"
+										strokeLinecap="round"
+									>
 										<path d="M5 12h14M12 5l7 7-7 7" />
 									</svg>
 								</div>
@@ -167,7 +188,14 @@ function HomePage() {
 									</h3>
 									<p className="text-xs text-text-tertiary mt-0.5">{tool.desc}</p>
 								</div>
-								<svg className="h-4 w-4 text-text-tertiary group-hover:text-text-secondary transition-colors shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+								<svg
+									className="h-4 w-4 text-text-tertiary group-hover:text-text-secondary transition-colors shrink-0"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									strokeWidth="2"
+									strokeLinecap="round"
+								>
 									<path d="M9 18l6-6-6-6" />
 								</svg>
 							</Link>

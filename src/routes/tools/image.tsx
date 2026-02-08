@@ -1,34 +1,32 @@
-import { useRef, useEffect, useState, useCallback } from "react";
-import { createFileRoute } from "@tanstack/react-router";
-import { Helmet } from "react-helmet-async";
-import { toast } from "sonner";
-import { ImageIcon, Settings } from "lucide-react";
-import { Button } from "@/components/ui/index.ts";
-import { useImageProcessor } from "@/hooks/useImageProcessor.ts";
-import { useImageEditorStore } from "@/stores/imageEditor.ts";
-import { ImageCanvas } from "@/components/image/ImageCanvas.tsx";
-import { ImageToolbar } from "@/components/image/ImageToolbar.tsx";
-import { ImageSidebar } from "@/components/image/ImageSidebar.tsx";
-import { IMAGE_ACCEPT } from "@/config/presets.ts";
-import { ConfirmResetModal } from "@/components/ConfirmResetModal.tsx";
-import { Drawer } from "@/components/ui/Drawer.tsx";
+import { createFileRoute } from '@tanstack/react-router';
+import { ImageIcon, Settings } from 'lucide-react';
+import { useRef, useEffect, useState, useCallback } from 'react';
+import { Helmet } from 'react-helmet-async';
+import { toast } from 'sonner';
+import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
+import { ImageCanvas } from '@/components/image/ImageCanvas.tsx';
+import { ImageSidebar } from '@/components/image/ImageSidebar.tsx';
+import { ImageToolbar } from '@/components/image/ImageToolbar.tsx';
+import { Drawer } from '@/components/ui/Drawer.tsx';
+import { Button } from '@/components/ui/index.ts';
+import { IMAGE_ACCEPT } from '@/config/presets.ts';
+import { useImageProcessor } from '@/hooks/useImageProcessor.ts';
+import { useImageEditorStore } from '@/stores/imageEditor.ts';
 
 const ACCEPTED_TYPES = new Set(
-	IMAGE_ACCEPT.split(",").map((ext) => {
-		const e = ext.replace(".", "");
-		if (e === "jpg" || e === "jpeg") return "image/jpeg";
-		if (e === "tiff") return "image/tiff";
+	IMAGE_ACCEPT.split(',').map((ext) => {
+		const e = ext.replace('.', '');
+		if (e === 'jpg' || e === 'jpeg') return 'image/jpeg';
+		if (e === 'tiff') return 'image/tiff';
 		return `image/${e}`;
 	}),
 );
 
-export const Route = createFileRoute("/tools/image")({
-	component: ImageLab,
-});
+export const Route = createFileRoute('/tools/image')({ component: ImageLab });
 
 function ImageLab() {
 	const { ready, processImageData } = useImageProcessor();
-	const { originalData, loadImage, undo, redo, clearAll } = useImageEditorStore();
+	const { originalData, loadImage, undo, redo } = useImageEditorStore();
 
 	const canvasContainerRef = useRef<HTMLDivElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -46,18 +44,21 @@ function ImageLab() {
 		const handler = (e: BeforeUnloadEvent) => {
 			e.preventDefault();
 		};
-		window.addEventListener("beforeunload", handler);
-		return () => window.removeEventListener("beforeunload", handler);
+		window.addEventListener('beforeunload', handler);
+		return () => window.removeEventListener('beforeunload', handler);
 	});
 
-	const confirmAction = useCallback((action: () => void) => {
-		if (isDirty()) {
-			setPendingAction(() => action);
-			setShowResetModal(true);
-		} else {
-			action();
-		}
-	}, [isDirty]);
+	const confirmAction = useCallback(
+		(action: () => void) => {
+			if (isDirty()) {
+				setPendingAction(() => action);
+				setShowResetModal(true);
+			} else {
+				action();
+			}
+		},
+		[isDirty],
+	);
 
 	const handleConfirmReset = useCallback(() => {
 		setShowResetModal(false);
@@ -75,21 +76,24 @@ function ImageLab() {
 		confirmAction(() => clearAll());
 	}, [confirmAction]);
 
-	const handleLoadFile = useCallback((f: File) => {
-		const img = new Image();
-		img.onload = () => {
-			const tmp = document.createElement("canvas");
-			tmp.width = img.width;
-			tmp.height = img.height;
-			const ctx = tmp.getContext("2d", { willReadFrequently: true })!;
-			ctx.drawImage(img, 0, 0);
-			const imageData = ctx.getImageData(0, 0, img.width, img.height);
-			loadImage(f, imageData);
-			URL.revokeObjectURL(img.src);
-			toast.success("Image loaded", { description: `${img.width} \u00d7 ${img.height}` });
-		};
-		img.src = URL.createObjectURL(f);
-	}, [loadImage]);
+	const handleLoadFile = useCallback(
+		(f: File) => {
+			const img = new Image();
+			img.onload = () => {
+				const tmp = document.createElement('canvas');
+				tmp.width = img.width;
+				tmp.height = img.height;
+				const ctx = tmp.getContext('2d', { willReadFrequently: true })!;
+				ctx.drawImage(img, 0, 0);
+				const imageData = ctx.getImageData(0, 0, img.width, img.height);
+				loadImage(f, imageData);
+				URL.revokeObjectURL(img.src);
+				toast.success('Image loaded', { description: `${img.width} \u00d7 ${img.height}` });
+			};
+			img.src = URL.createObjectURL(f);
+		},
+		[loadImage],
+	);
 
 	const handleOpenFile = useCallback(() => {
 		fileInputRef.current?.click();
@@ -115,22 +119,25 @@ function ImageLab() {
 		e.stopPropagation();
 	}, []);
 
-	const handleDrop = useCallback((e: React.DragEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-		dragCounter.current = 0;
-		setIsDragging(false);
+	const handleDrop = useCallback(
+		(e: React.DragEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+			dragCounter.current = 0;
+			setIsDragging(false);
 
-		const file = e.dataTransfer.files[0];
-		if (!file) return;
+			const file = e.dataTransfer.files[0];
+			if (!file) return;
 
-		if (!file.type.startsWith("image/") && !ACCEPTED_TYPES.has(file.type)) {
-			toast.error("Invalid file type", { description: "Drop an image file (PNG, JPG, WebP, etc.)" });
-			return;
-		}
+			if (!file.type.startsWith('image/') && !ACCEPTED_TYPES.has(file.type)) {
+				toast.error('Invalid file type', { description: 'Drop an image file (PNG, JPG, WebP, etc.)' });
+				return;
+			}
 
-		handleLoadFile(file);
-	}, [handleLoadFile]);
+			handleLoadFile(file);
+		},
+		[handleLoadFile],
+	);
 
 	/* ── Keyboard shortcuts ── */
 	useEffect(() => {
@@ -138,27 +145,30 @@ function ImageLab() {
 			if (e.target instanceof HTMLInputElement) return;
 
 			const mod = e.ctrlKey || e.metaKey;
-			if (mod && e.key === "z" && !e.shiftKey) {
+			if (mod && e.key === 'z' && !e.shiftKey) {
 				e.preventDefault();
 				undo(processImageData);
-			} else if (mod && e.key === "z" && e.shiftKey) {
+			} else if (mod && e.key === 'z' && e.shiftKey) {
 				e.preventDefault();
 				redo(processImageData);
-			} else if (mod && e.key === "y") {
+			} else if (mod && e.key === 'y') {
 				e.preventDefault();
 				redo(processImageData);
 			}
 		};
 
-		window.addEventListener("keydown", onKeyDown);
-		return () => window.removeEventListener("keydown", onKeyDown);
+		window.addEventListener('keydown', onKeyDown);
+		return () => window.removeEventListener('keydown', onKeyDown);
 	}, [undo, redo, processImageData]);
 
 	return (
 		<>
 			<Helmet>
 				<title>Image — Vixely</title>
-				<meta name="description" content="Apply real-time image filters. Brightness, contrast, saturation — all client-side." />
+				<meta
+					name="description"
+					content="Apply real-time image filters. Brightness, contrast, saturation — all client-side."
+				/>
 			</Helmet>
 
 			{/* Shared file input */}
@@ -179,7 +189,7 @@ function ImageLab() {
 					<ImageToolbar processFn={processImageData} containerRef={canvasContainerRef} />
 					<div
 						ref={canvasContainerRef}
-						className={`flex-1 relative overflow-hidden checkerboard ${isDragging ? "drop-zone-active" : ""}`}
+						className={`flex-1 relative overflow-hidden checkerboard ${isDragging ? 'drop-zone-active' : ''}`}
 						onDragEnter={handleDragEnter}
 						onDragLeave={handleDragLeave}
 						onDragOver={handleDragOver}
@@ -214,51 +224,50 @@ function ImageLab() {
 
 				{/* ── Right sidebar (Desktop) ── */}
 				<div className="hidden md:flex">
-					<ImageSidebar processFn={processImageData} wasmReady={ready} onOpenFile={handleOpenFile} onNew={handleNew} />
+					<ImageSidebar
+						processFn={processImageData}
+						wasmReady={ready}
+						onOpenFile={handleOpenFile}
+						onNew={handleNew}
+					/>
 				</div>
 
 				{/* ── Mobile Sidebar Drawer ── */}
 				<Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
-					<ImageSidebar processFn={processImageData} wasmReady={ready} onOpenFile={handleOpenFile} onNew={handleNew} />
+					<ImageSidebar
+						processFn={processImageData}
+						wasmReady={ready}
+						onOpenFile={handleOpenFile}
+						onNew={handleNew}
+					/>
 				</Drawer>
 			</div>
 			{/* Confirm reset modal */}
-			{showResetModal && (
-				<ConfirmResetModal
-					onConfirm={handleConfirmReset}
-					onCancel={handleCancelReset}
-				/>
-			)}
+			{showResetModal && <ConfirmResetModal onConfirm={handleConfirmReset} onCancel={handleCancelReset} />}
 		</>
 	);
 }
 
 function EmptyState({ isDragging, onOpenFile }: { isDragging: boolean; onOpenFile: () => void }) {
 	return (
-		<div
-			className="flex flex-col items-center text-center"
-			onClick={(e) => e.stopPropagation()}
-		>
-			<div className={`rounded-2xl bg-surface border border-border p-8 mb-5 transition-all ${isDragging ? "border-accent scale-105" : ""}`}>
+		<div className="flex flex-col items-center text-center" onClick={(e) => e.stopPropagation()}>
+			<div
+				className={`rounded-2xl bg-surface border border-border p-8 mb-5 transition-all ${isDragging ? 'border-accent scale-105' : ''}`}
+			>
 				<ImageIcon
 					size={48}
 					strokeWidth={1.2}
-					className={`transition-colors ${isDragging ? "text-accent" : "text-text-tertiary/40"}`}
+					className={`transition-colors ${isDragging ? 'text-accent' : 'text-text-tertiary/40'}`}
 				/>
 			</div>
 			<p className="text-sm font-medium text-text-secondary">
-				{isDragging ? "Drop your image here" : "No image loaded"}
+				{isDragging ? 'Drop your image here' : 'No image loaded'}
 			</p>
 			<p className="mt-1 text-xs text-text-tertiary">
-				{isDragging ? "Release to load" : "Click or drag & drop to start editing"}
+				{isDragging ? 'Release to load' : 'Click or drag & drop to start editing'}
 			</p>
 			{!isDragging && (
-				<Button
-					variant="secondary"
-					size="sm"
-					className="mt-4"
-					onClick={onOpenFile}
-				>
+				<Button variant="secondary" size="sm" className="mt-4" onClick={onOpenFile}>
 					Choose File
 				</Button>
 			)}

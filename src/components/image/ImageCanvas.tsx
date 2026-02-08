@@ -1,8 +1,8 @@
-import { useRef, useEffect, useMemo, type RefObject } from "react";
-import { useImageEditorStore } from "@/stores/imageEditor.ts";
-import { usePanZoom } from "@/hooks/usePanZoom.ts";
-import { CropOverlay } from "./CropOverlay.tsx";
-import { CompareSlider } from "./CompareSlider.tsx";
+import { useRef, useEffect, useMemo, type RefObject } from 'react';
+import { usePanZoom } from '@/hooks/usePanZoom.ts';
+import { useImageEditorStore } from '@/stores/imageEditor.ts';
+import { CompareSlider } from './CompareSlider.tsx';
+import { CropOverlay } from './CropOverlay.tsx';
 
 interface ImageCanvasProps {
 	containerRef: RefObject<HTMLDivElement | null>;
@@ -11,10 +11,10 @@ interface ImageCanvasProps {
 /** Generate a 256x256 noise tile as a data URL (once on mount). */
 function generateGrainTile(): string {
 	const size = 256;
-	const canvas = document.createElement("canvas");
+	const canvas = document.createElement('canvas');
 	canvas.width = size;
 	canvas.height = size;
-	const ctx = canvas.getContext("2d")!;
+	const ctx = canvas.getContext('2d')!;
 	const img = ctx.createImageData(size, size);
 	const d = img.data;
 	for (let i = 0; i < d.length; i += 4) {
@@ -30,11 +30,19 @@ function generateGrainTile(): string {
 
 export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 	const {
-		originalData, filteredData, filters,
-		isDraggingSlider, isProcessing, showOriginal,
-		view, setView, zoomTo, fitToView,
+		originalData,
+		filteredData,
+		filters,
+		isDraggingSlider,
+		isProcessing,
+		showOriginal,
+		view,
+		setView,
+		zoomTo,
+		fitToView,
 		activeTool,
-		compareMode, comparePosition,
+		compareMode,
+		comparePosition,
 	} = useImageEditorStore();
 
 	const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -51,8 +59,8 @@ export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 		view,
 		setView,
 		zoomTo,
-		enabled: activeTool === "pointer" || activeTool === "crop",
-		leftClickPan: activeTool === "pointer" && !compareMode,
+		enabled: activeTool === 'pointer' || activeTool === 'crop',
+		leftClickPan: activeTool === 'pointer' && !compareMode,
 	});
 
 	/* ── Fit to view on first load / image change ── */
@@ -86,7 +94,7 @@ export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 		if (!c) return;
 		c.width = originalData.width;
 		c.height = originalData.height;
-		const ctx = c.getContext("2d")!;
+		const ctx = c.getContext('2d')!;
 		ctx.putImageData(originalData, 0, 0);
 	}, [originalData]);
 
@@ -101,13 +109,13 @@ export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 
 		c.width = source.width;
 		c.height = source.height;
-		const ctx = c.getContext("2d")!;
+		const ctx = c.getContext('2d')!;
 		ctx.putImageData(source, 0, 0);
 	}, [originalData, filteredData, isDraggingSlider]);
 
 	/* ── CSS filter for live 60fps preview during slider drag ── */
 	const cssFilter = useMemo(() => {
-		if (!isDraggingSlider) return "none";
+		if (!isDraggingSlider) return 'none';
 		const { exposure, brightness, contrast, saturation, hue, blur, sepia } = filters;
 		return `brightness(${exposure * (1 + brightness * 2)}) contrast(${contrast}) saturate(${saturation}) hue-rotate(${hue}deg) blur(${blur}px) sepia(${sepia})`;
 	}, [isDraggingSlider, filters]);
@@ -117,11 +125,11 @@ export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 
 	const transformStyle = {
 		transform: `translate(${view.panX}px, ${view.panY}px) scale(${view.zoom})`,
-		transformOrigin: "0 0" as const,
+		transformOrigin: '0 0' as const,
 	};
 
 	const isSplit = compareMode && !showOriginal;
-	const pixelated = view.zoom > 2 ? "pixelated" as const : "auto" as const;
+	const pixelated = view.zoom > 2 ? ('pixelated' as const) : ('auto' as const);
 
 	return (
 		<>
@@ -136,7 +144,7 @@ export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 					style={{
 						...transformStyle,
 						imageRendering: pixelated,
-						display: showOriginal || isSplit ? "block" : "none",
+						display: showOriginal || isSplit ? 'block' : 'none',
 					}}
 				/>
 			</div>
@@ -153,7 +161,7 @@ export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 						...transformStyle,
 						filter: cssFilter,
 						imageRendering: pixelated,
-						display: showOriginal ? "none" : "block",
+						display: showOriginal ? 'none' : 'block',
 					}}
 				/>
 
@@ -179,8 +187,8 @@ export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 							width: imgW,
 							height: imgH,
 							backgroundImage: `url(${grainTileRef.current})`,
-							backgroundRepeat: "repeat",
-							mixBlendMode: "overlay",
+							backgroundRepeat: 'repeat',
+							mixBlendMode: 'overlay',
 							opacity: (filters.grain / 100) * 0.4,
 						}}
 					/>
@@ -198,7 +206,7 @@ export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 			)}
 
 			{/* Crop overlay */}
-			{activeTool === "crop" && (
+			{activeTool === 'crop' && (
 				<CropOverlay
 					containerRef={containerRef}
 					view={view}

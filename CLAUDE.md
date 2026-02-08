@@ -4,7 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Vixely** is a local-first, privacy-focused media editing suite that runs entirely in the browser. Files never leave the user's device — all processing happens client-side using WebAssembly.
+**Vixely** is a local-first, privacy-focused media editing suite that runs entirely in the browser. Files never leave
+the user's device — all processing happens client-side using WebAssembly.
 
 Three main modules:
 

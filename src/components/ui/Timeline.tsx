@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState, type PointerEvent } from "react";
+import { useRef, useCallback, useState, type PointerEvent } from 'react';
 
 interface TimelineProps {
 	duration: number;
@@ -15,10 +15,10 @@ function formatTimecode(seconds: number): string {
 	const m = Math.floor(seconds / 60);
 	const s = Math.floor(seconds % 60);
 	const ms = Math.floor((seconds % 1) * 100);
-	return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(ms).padStart(2, "0")}`;
+	return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(ms).padStart(2, '0')}`;
 }
 
-type DragTarget = "start" | "end" | "playhead" | null;
+type DragTarget = 'start' | 'end' | 'playhead' | null;
 
 export function Timeline({
 	duration,
@@ -28,7 +28,7 @@ export function Timeline({
 	onTrimStartChange,
 	onTrimEndChange,
 	onSeek,
-	className = "",
+	className = '',
 }: TimelineProps) {
 	const trackRef = useRef<HTMLDivElement>(null);
 	const [dragging, setDragging] = useState<DragTarget>(null);
@@ -58,11 +58,11 @@ export function Timeline({
 		(e: PointerEvent) => {
 			if (!dragging) return;
 			const val = fromClientX(e.clientX);
-			if (dragging === "start") {
+			if (dragging === 'start') {
 				onTrimStartChange(Math.min(val, trimEnd - 0.1));
-			} else if (dragging === "end") {
+			} else if (dragging === 'end') {
 				onTrimEndChange(Math.max(val, trimStart + 0.1));
-			} else if (dragging === "playhead") {
+			} else if (dragging === 'playhead') {
 				onSeek(Math.max(trimStart, Math.min(trimEnd, val)));
 			}
 		},
@@ -124,10 +124,10 @@ export function Timeline({
 				{/* Start handle */}
 				<div
 					className={`absolute top-0 bottom-0 w-1.5 -translate-x-1/2 rounded-full cursor-ew-resize z-20 transition-colors ${
-						dragging === "start" ? "bg-accent" : "bg-accent/70 hover:bg-accent"
+						dragging === 'start' ? 'bg-accent' : 'bg-accent/70 hover:bg-accent'
 					}`}
 					style={{ left: startPct }}
-					onPointerDown={handlePointerDown("start")}
+					onPointerDown={handlePointerDown('start')}
 				>
 					<div className="absolute -top-1 -bottom-1 -left-3 -right-3" />
 				</div>
@@ -135,10 +135,10 @@ export function Timeline({
 				{/* End handle */}
 				<div
 					className={`absolute top-0 bottom-0 w-1.5 -translate-x-1/2 rounded-full cursor-ew-resize z-20 transition-colors ${
-						dragging === "end" ? "bg-accent" : "bg-accent/70 hover:bg-accent"
+						dragging === 'end' ? 'bg-accent' : 'bg-accent/70 hover:bg-accent'
 					}`}
 					style={{ left: endPct }}
-					onPointerDown={handlePointerDown("end")}
+					onPointerDown={handlePointerDown('end')}
 				>
 					<div className="absolute -top-1 -bottom-1 -left-3 -right-3" />
 				</div>
@@ -146,10 +146,10 @@ export function Timeline({
 				{/* Playhead */}
 				<div
 					className={`absolute top-0 bottom-0 w-0.5 -translate-x-1/2 z-30 cursor-ew-resize ${
-						dragging === "playhead" ? "bg-white" : "bg-white/80"
+						dragging === 'playhead' ? 'bg-white' : 'bg-white/80'
 					}`}
 					style={{ left: playheadPct }}
-					onPointerDown={handlePointerDown("playhead")}
+					onPointerDown={handlePointerDown('playhead')}
 				>
 					<div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-sm bg-white rotate-45" />
 					<div className="absolute -top-1 -bottom-1 -left-3 -right-3" />

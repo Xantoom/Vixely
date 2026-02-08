@@ -1,5 +1,5 @@
-import { useEffect, useRef, useCallback, type RefObject } from "react";
-import type { ViewTransform } from "@/stores/imageEditor.ts";
+import { useEffect, useRef, useCallback, type RefObject } from 'react';
+import type { ViewTransform } from '@/stores/imageEditor.ts';
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 10;
@@ -35,21 +35,21 @@ export function usePanZoom({ containerRef, view, setView, zoomTo, enabled, leftC
 	/* ── Spacebar tracking ── */
 	useEffect(() => {
 		const onKeyDown = (e: KeyboardEvent) => {
-			if (e.code === "Space" && !e.repeat && !(e.target instanceof HTMLInputElement)) {
+			if (e.code === 'Space' && !e.repeat && !(e.target instanceof HTMLInputElement)) {
 				e.preventDefault();
 				spaceHeld.current = true;
 			}
 		};
 		const onKeyUp = (e: KeyboardEvent) => {
-			if (e.code === "Space") {
+			if (e.code === 'Space') {
 				spaceHeld.current = false;
 			}
 		};
-		window.addEventListener("keydown", onKeyDown);
-		window.addEventListener("keyup", onKeyUp);
+		window.addEventListener('keydown', onKeyDown);
+		window.addEventListener('keyup', onKeyUp);
 		return () => {
-			window.removeEventListener("keydown", onKeyDown);
-			window.removeEventListener("keyup", onKeyUp);
+			window.removeEventListener('keydown', onKeyDown);
+			window.removeEventListener('keyup', onKeyUp);
 		};
 	}, []);
 
@@ -67,7 +67,7 @@ export function usePanZoom({ containerRef, view, setView, zoomTo, enabled, leftC
 				panningState.current = true;
 				lastPos.current = { x: e.clientX, y: e.clientY };
 				el.setPointerCapture(e.pointerId);
-				el.style.cursor = "grabbing";
+				el.style.cursor = 'grabbing';
 			}
 		};
 
@@ -85,20 +85,20 @@ export function usePanZoom({ containerRef, view, setView, zoomTo, enabled, leftC
 				isPanning.current = false;
 				panningState.current = false;
 				el.releasePointerCapture(e.pointerId);
-				el.style.cursor = "";
+				el.style.cursor = '';
 			}
 		};
 
-		el.addEventListener("pointerdown", onPointerDown);
-		el.addEventListener("pointermove", onPointerMove);
-		el.addEventListener("pointerup", onPointerUp);
-		el.addEventListener("pointercancel", onPointerUp);
+		el.addEventListener('pointerdown', onPointerDown);
+		el.addEventListener('pointermove', onPointerMove);
+		el.addEventListener('pointerup', onPointerUp);
+		el.addEventListener('pointercancel', onPointerUp);
 
 		return () => {
-			el.removeEventListener("pointerdown", onPointerDown);
-			el.removeEventListener("pointermove", onPointerMove);
-			el.removeEventListener("pointerup", onPointerUp);
-			el.removeEventListener("pointercancel", onPointerUp);
+			el.removeEventListener('pointerdown', onPointerDown);
+			el.removeEventListener('pointermove', onPointerMove);
+			el.removeEventListener('pointerup', onPointerUp);
+			el.removeEventListener('pointercancel', onPointerUp);
 		};
 	}, [containerRef, enabled]);
 
@@ -120,8 +120,8 @@ export function usePanZoom({ containerRef, view, setView, zoomTo, enabled, leftC
 			zoomToRef.current(newZoom, anchorX, anchorY);
 		};
 
-		el.addEventListener("wheel", onWheel, { passive: false });
-		return () => el.removeEventListener("wheel", onWheel);
+		el.addEventListener('wheel', onWheel, { passive: false });
+		return () => el.removeEventListener('wheel', onWheel);
 	}, [containerRef, enabled]);
 
 	const getIsPanning = useCallback(() => panningState.current, []);

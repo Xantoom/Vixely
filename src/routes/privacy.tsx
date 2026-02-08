@@ -1,9 +1,7 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { Helmet } from "react-helmet-async";
+import { createFileRoute, Link } from '@tanstack/react-router';
+import { Helmet } from 'react-helmet-async';
 
-export const Route = createFileRoute("/privacy")({
-	component: PrivacyPage,
-});
+export const Route = createFileRoute('/privacy')({ component: PrivacyPage });
 
 function PrivacyPage() {
 	return (
@@ -18,7 +16,14 @@ function PrivacyPage() {
 					to="/"
 					className="inline-flex items-center gap-1.5 text-xs text-text-tertiary hover:text-text-secondary transition-colors mb-8"
 				>
-					<svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+					<svg
+						className="h-3.5 w-3.5"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						strokeWidth="2"
+						strokeLinecap="round"
+					>
 						<path d="M19 12H5M12 19l-7-7 7-7" />
 					</svg>
 					Back to Vixely
@@ -30,64 +35,58 @@ function PrivacyPage() {
 				<div className="mt-10 flex flex-col gap-8 text-sm text-text-secondary leading-relaxed">
 					<Section title="The short version">
 						<p>
-							Vixely processes everything locally in your browser.
-							Your files <strong className="text-text">never leave your device</strong>.
-							We don't upload, store, or have access to any media you edit.
+							Vixely processes everything locally in your browser. Your files{' '}
+							<strong className="text-text">never leave your device</strong>. We don't upload, store, or
+							have access to any media you edit.
 						</p>
 					</Section>
 
 					<Section title="What data we collect">
 						<p>
-							<strong className="text-text">None of your files.</strong> All video,
-							image, and GIF processing runs client-side via WebAssembly.
-							No file data is transmitted to any server.
+							<strong className="text-text">None of your files.</strong> All video, image, and GIF
+							processing runs client-side via WebAssembly. No file data is transmitted to any server.
 						</p>
 						<p className="mt-2">
-							We may collect anonymous, aggregated usage analytics (e.g., page views,
-							feature usage counts) to improve the product. This data contains no
-							personally identifiable information.
+							We may collect anonymous, aggregated usage analytics (e.g., page views, feature usage
+							counts) to improve the product. This data contains no personally identifiable information.
 						</p>
 					</Section>
 
 					<Section title="Cookies">
 						<p>
-							Vixely uses minimal local storage entries to remember your
-							preferences (e.g., whether you've seen the privacy notice).
-							If third-party ads are displayed in the future, those providers
+							Vixely uses minimal local storage entries to remember your preferences (e.g., whether you've
+							seen the privacy notice). If third-party ads are displayed in the future, those providers
 							may set their own cookies subject to their own policies.
 						</p>
 					</Section>
 
 					<Section title="Third-party services">
 						<p>
-							Vixely loads open-source libraries (FFmpeg.wasm, Rust WASM modules)
-							from your local bundle — no CDN calls for processing.
-							Google Fonts are loaded for typography. Future ad integrations
-							(e.g., Google AdSense) will be clearly labeled and governed by
-							their respective privacy policies.
+							Vixely loads open-source libraries (FFmpeg.wasm, Rust WASM modules) from your local bundle —
+							no CDN calls for processing. Google Fonts are loaded for typography. Future ad integrations
+							(e.g., Google AdSense) will be clearly labeled and governed by their respective privacy
+							policies.
 						</p>
 					</Section>
 
 					<Section title="Data security">
 						<p>
-							Because your files never leave your browser, the risk of data
-							breach is inherently minimal. We use HTTPS for all page loads
-							and set appropriate security headers (COOP/COEP) for
+							Because your files never leave your browser, the risk of data breach is inherently minimal.
+							We use HTTPS for all page loads and set appropriate security headers (COOP/COEP) for
 							WebAssembly compatibility.
 						</p>
 					</Section>
 
 					<Section title="Your rights">
 						<p>
-							Since we don't collect personal data, there's nothing to request,
-							modify, or delete. You can clear your browser's local storage
-							at any time to reset all Vixely preferences.
+							Since we don't collect personal data, there's nothing to request, modify, or delete. You can
+							clear your browser's local storage at any time to reset all Vixely preferences.
 						</p>
 					</Section>
 
 					<Section title="Contact">
 						<p>
-							Questions about this policy? Open an issue on our{" "}
+							Questions about this policy? Open an issue on our{' '}
 							<a
 								href="https://github.com"
 								target="_blank"
@@ -95,7 +94,8 @@ function PrivacyPage() {
 								className="underline text-accent hover:text-accent/80 transition-colors"
 							>
 								GitHub repository
-							</a>.
+							</a>
+							.
 						</p>
 					</Section>
 				</div>

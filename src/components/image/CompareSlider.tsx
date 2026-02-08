@@ -1,6 +1,6 @@
-import { useCallback, useRef, type RefObject } from "react";
-import { MoveHorizontal } from "lucide-react";
-import { useImageEditorStore } from "@/stores/imageEditor.ts";
+import { MoveHorizontal } from 'lucide-react';
+import { useCallback, useRef, type RefObject } from 'react';
+import { useImageEditorStore } from '@/stores/imageEditor.ts';
 
 interface CompareSliderProps {
 	containerRef: RefObject<HTMLDivElement | null>;
@@ -59,10 +59,7 @@ export function CompareSlider({ containerRef }: CompareSliderProps) {
 	const lineX = imgLeft + comparePosition * imgScreenW;
 
 	return (
-		<div
-			className="absolute inset-0 z-20 pointer-events-none"
-			style={{ touchAction: "none" }}
-		>
+		<div className="absolute inset-0 z-20 pointer-events-none" style={{ touchAction: 'none' }}>
 			{/* Labels (positioned within image bounds) */}
 			<div
 				className="absolute rounded-md bg-bg/70 px-2 py-0.5 text-[10px] font-medium backdrop-blur-sm text-text-secondary pointer-events-none"
@@ -84,8 +81,8 @@ export function CompareSlider({ containerRef }: CompareSliderProps) {
 					left: lineX,
 					top: imgTop,
 					height: imgScreenH,
-					transform: "translateX(-50%)",
-					boxShadow: "0 0 4px rgba(0,0,0,0.5)",
+					transform: 'translateX(-50%)',
+					boxShadow: '0 0 4px rgba(0,0,0,0.5)',
 				}}
 			/>
 
@@ -95,9 +92,9 @@ export function CompareSlider({ containerRef }: CompareSliderProps) {
 				style={{
 					left: lineX,
 					top: imgTop + imgScreenH / 2,
-					transform: "translate(-50%, -50%)",
-					cursor: "ew-resize",
-					padding: "8px",
+					transform: 'translate(-50%, -50%)',
+					cursor: 'ew-resize',
+					padding: '8px',
 				}}
 				onPointerDown={onPointerDown}
 				onPointerMove={onPointerMove}

@@ -1,6 +1,6 @@
-import { create } from "zustand";
+import { create } from 'zustand';
 
-export type VideoMode = "presets" | "color" | "trim" | "export";
+export type VideoMode = 'presets' | 'color' | 'trim' | 'export';
 
 export interface VideoFilters {
 	brightness: number;
@@ -9,12 +9,7 @@ export interface VideoFilters {
 	hue: number;
 }
 
-export const DEFAULT_VIDEO_FILTERS: VideoFilters = {
-	brightness: 0,
-	contrast: 1,
-	saturation: 1,
-	hue: 0,
-};
+export const DEFAULT_VIDEO_FILTERS: VideoFilters = { brightness: 0, contrast: 1, saturation: 1, hue: 0 };
 
 export interface VideoEditorState {
 	mode: VideoMode;
@@ -33,14 +28,13 @@ export interface VideoEditorState {
 }
 
 export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
-	mode: "presets",
+	mode: 'presets',
 	filters: { ...DEFAULT_VIDEO_FILTERS },
 	cropAspectRatio: null,
 
 	setMode: (mode) => set({ mode }),
 
-	setFilter: (key, value) =>
-		set((s) => ({ filters: { ...s.filters, [key]: value } })),
+	setFilter: (key, value) => set((s) => ({ filters: { ...s.filters, [key]: value } })),
 
 	resetFilters: () => set({ filters: { ...DEFAULT_VIDEO_FILTERS } }),
 
@@ -53,16 +47,13 @@ export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
 		if (contrast !== 1) parts.push(`contrast(${contrast})`);
 		if (saturation !== 1) parts.push(`saturate(${saturation})`);
 		if (hue !== 0) parts.push(`hue-rotate(${hue}deg)`);
-		return parts.length > 0 ? parts.join(" ") : "none";
+		return parts.length > 0 ? parts.join(' ') : 'none';
 	},
 
 	ffmpegFilterArgs: () => {
 		const { brightness, contrast, saturation } = get().filters;
 		const needsEq = brightness !== 0 || contrast !== 1 || saturation !== 1;
 		if (!needsEq) return [];
-		return [
-			"-vf",
-			`eq=brightness=${brightness}:contrast=${contrast}:saturation=${saturation}`,
-		];
+		return ['-vf', `eq=brightness=${brightness}:contrast=${contrast}:saturation=${saturation}`];
 	},
 }));

@@ -1,13 +1,13 @@
-import type { InputHTMLAttributes } from "react";
+import type { InputHTMLAttributes } from 'react';
 
-interface SliderProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "type"> {
+interface SliderProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
 	label?: string;
 	displayValue?: string;
 	/** Fires on pointer/touch release — use for committing the final value */
 	onCommit?: () => void;
 }
 
-export function Slider({ label, displayValue, id, className = "", onCommit, ...props }: SliderProps) {
+export function Slider({ label, displayValue, id, className = '', onCommit, ...props }: SliderProps) {
 	return (
 		<div className={`flex flex-col gap-1.5 ${className}`}>
 			{(label || displayValue) && (
@@ -18,20 +18,11 @@ export function Slider({ label, displayValue, id, className = "", onCommit, ...p
 						</label>
 					)}
 					{displayValue && (
-						<span className="text-xs font-mono text-text-tertiary tabular-nums">
-							{displayValue}
-						</span>
+						<span className="text-xs font-mono text-text-tertiary tabular-nums">{displayValue}</span>
 					)}
 				</div>
 			)}
-			<input
-				id={id}
-				type="range"
-				className="w-full"
-				onPointerUp={onCommit}
-				onTouchEnd={onCommit}
-				{...props}
-			/>
+			<input id={id} type="range" className="w-full" onPointerUp={onCommit} onTouchEnd={onCommit} {...props} />
 		</div>
 	);
 }

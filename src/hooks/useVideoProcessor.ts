@@ -1,16 +1,16 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 // ── Worker Message Types ──
 
 interface TranscodeRequest {
-	type: "TRANSCODE";
+	type: 'TRANSCODE';
 	file: File;
 	args: string[];
 	outputName: string;
 }
 
 interface GifRequest {
-	type: "GIF";
+	type: 'GIF';
 	file: File;
 	fps: number;
 	width: number;
@@ -23,7 +23,7 @@ interface GifRequest {
 }
 
 interface ScreenshotRequest {
-	type: "SCREENSHOT";
+	type: 'SCREENSHOT';
 	file: File;
 	timestamp: number;
 }
@@ -31,28 +31,28 @@ interface ScreenshotRequest {
 type WorkerRequest = TranscodeRequest | GifRequest | ScreenshotRequest;
 
 interface ProgressResponse {
-	type: "PROGRESS";
+	type: 'PROGRESS';
 	progress: number;
 	time: number;
 }
 
 interface DoneResponse {
-	type: "DONE";
+	type: 'DONE';
 	data: Uint8Array;
 	outputName: string;
 }
 
 interface ErrorResponse {
-	type: "ERROR";
+	type: 'ERROR';
 	error: string;
 }
 
 interface ReadyResponse {
-	type: "READY";
+	type: 'READY';
 }
 
 interface LogResponse {
-	type: "LOG";
+	type: 'LOG';
 	message: string;
 }
 
@@ -102,38 +102,35 @@ export function useVideoProcessor() {
 	const rejectRef = useRef<((err: Error) => void) | null>(null);
 
 	useEffect(() => {
-		const worker = new Worker(
-			new URL("../workers/ffmpeg-worker.ts", import.meta.url),
-			{ type: "module" },
-		);
+		const worker = new Worker(new URL('../workers/ffmpeg-worker.ts', import.meta.url), { type: 'module' });
 
 		worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
 			const msg = e.data;
 
 			switch (msg.type) {
-				case "READY":
+				case 'READY':
 					setState((s) => ({ ...s, ready: true }));
 					break;
 
-				case "PROGRESS":
+				case 'PROGRESS':
 					setState((s) => ({ ...s, progress: msg.progress }));
 					break;
 
-				case "DONE":
+				case 'DONE':
 					setState((s) => ({ ...s, processing: false, progress: 1 }));
 					resolveRef.current?.(msg.data);
 					resolveRef.current = null;
 					rejectRef.current = null;
 					break;
 
-				case "ERROR":
+				case 'ERROR':
 					setState((s) => ({ ...s, processing: false, error: msg.error }));
 					rejectRef.current?.(new Error(msg.error));
 					resolveRef.current = null;
 					rejectRef.current = null;
 					break;
 
-				case "LOG":
+				case 'LOG':
 					// Available for debug; silently consumed by default
 					break;
 			}
@@ -150,7 +147,7 @@ export function useVideoProcessor() {
 	const sendCommand = useCallback((message: WorkerRequest): Promise<Uint8Array> => {
 		return new Promise<Uint8Array>((resolve, reject) => {
 			if (!workerRef.current) {
-				reject(new Error("Worker not initialized"));
+				reject(new Error('Worker not initialized'));
 				return;
 			}
 
@@ -163,12 +160,7 @@ export function useVideoProcessor() {
 
 	const transcode = useCallback(
 		(opts: TranscodeOptions): Promise<Uint8Array> => {
-			return sendCommand({
-				type: "TRANSCODE",
-				file: opts.file,
-				args: opts.args,
-				outputName: opts.outputName,
-			});
+			return sendCommand({ type: 'TRANSCODE', file: opts.file, args: opts.args, outputName: opts.outputName });
 		},
 		[sendCommand],
 	);
@@ -176,7 +168,7 @@ export function useVideoProcessor() {
 	const createGif = useCallback(
 		(opts: GifOptions): Promise<Uint8Array> => {
 			return sendCommand({
-				type: "GIF",
+				type: 'GIF',
 				file: opts.file,
 				fps: opts.fps ?? 15,
 				width: opts.width ?? 480,
@@ -193,19 +185,10 @@ export function useVideoProcessor() {
 
 	const captureFrame = useCallback(
 		(opts: ScreenshotOptions): Promise<Uint8Array> => {
-			return sendCommand({
-				type: "SCREENSHOT",
-				file: opts.file,
-				timestamp: opts.timestamp,
-			});
+			return sendCommand({ type: 'SCREENSHOT', file: opts.file, timestamp: opts.timestamp });
 		},
 		[sendCommand],
 	);
 
-	return {
-		...state,
-		transcode,
-		createGif,
-		captureFrame,
-	};
+	return { ...state, transcode, createGif, captureFrame };
 }

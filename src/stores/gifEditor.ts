@@ -1,6 +1,6 @@
-import { create } from "zustand";
+import { create } from 'zustand';
 
-export type GifMode = "settings" | "resize" | "speed" | "export";
+export type GifMode = 'settings' | 'resize' | 'speed' | 'export';
 
 export interface GifEditorState {
 	mode: GifMode;
@@ -16,7 +16,7 @@ export interface GifEditorState {
 }
 
 export const useGifEditorStore = create<GifEditorState>((set) => ({
-	mode: "settings",
+	mode: 'settings',
 	speed: 1,
 	reverse: false,
 	colorReduction: 256,
@@ -26,11 +26,5 @@ export const useGifEditorStore = create<GifEditorState>((set) => ({
 	setReverse: (reverse) => set({ reverse }),
 	setColorReduction: (colorReduction) => set({ colorReduction }),
 
-	resetAll: () =>
-		set({
-			mode: "settings",
-			speed: 1,
-			reverse: false,
-			colorReduction: 256,
-		}),
+	resetAll: () => set({ mode: 'settings', speed: 1, reverse: false, colorReduction: 256 }),
 }));

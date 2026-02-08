@@ -1,13 +1,12 @@
-import type { VideoPreset, ImagePreset, GifPreset, FilterPreset, PresetConfig } from "../presets.ts";
-
-import discord from "./discord.json";
-import twitch from "./twitch.json";
-import twitter from "./twitter.json";
-import youtube from "./youtube.json";
-import tiktok from "./tiktok.json";
-import bluesky from "./bluesky.json";
-import general from "./general.json";
-import filters from "./filters.json";
+import type { VideoPreset, ImagePreset, GifPreset, FilterPreset, PresetConfig } from '../presets.ts';
+import bluesky from './bluesky.json';
+import discord from './discord.json';
+import filters from './filters.json';
+import general from './general.json';
+import tiktok from './tiktok.json';
+import twitch from './twitch.json';
+import twitter from './twitter.json';
+import youtube from './youtube.json';
 
 // ── Merge helpers ──
 

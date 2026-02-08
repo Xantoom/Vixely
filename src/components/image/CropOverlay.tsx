@@ -1,8 +1,8 @@
-import { useRef, useCallback, useEffect, type RefObject } from "react";
-import { useImageEditorStore, type CropRect, type ViewTransform } from "@/stores/imageEditor.ts";
-import { formatDimensions } from "@/utils/format.ts";
+import { useRef, useCallback, useEffect, type RefObject } from 'react';
+import { useImageEditorStore, type CropRect, type ViewTransform } from '@/stores/imageEditor.ts';
+import { formatDimensions } from '@/utils/format.ts';
 
-type Handle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "move";
+type Handle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'move';
 
 const HANDLE_SIZE = 8;
 
@@ -26,22 +26,21 @@ function screenToImage(
 	};
 }
 
-function imageToScreen(
-	ix: number,
-	iy: number,
-	view: ViewTransform,
-): { x: number; y: number } {
-	return {
-		x: ix * view.zoom + view.panX,
-		y: iy * view.zoom + view.panY,
-	};
+function imageToScreen(ix: number, iy: number, view: ViewTransform): { x: number; y: number } {
+	return { x: ix * view.zoom + view.panX, y: iy * view.zoom + view.panY };
 }
 
 function clampRect(r: CropRect, imgW: number, imgH: number): CropRect {
 	let { x, y, width, height } = r;
 	// Ensure positive dimensions
-	if (width < 0) { x += width; width = -width; }
-	if (height < 0) { y += height; height = -height; }
+	if (width < 0) {
+		x += width;
+		width = -width;
+	}
+	if (height < 0) {
+		y += height;
+		height = -height;
+	}
 	// Clamp to image bounds
 	x = Math.max(0, Math.min(x, imgW));
 	y = Math.max(0, Math.min(y, imgH));
@@ -94,7 +93,7 @@ export function CropOverlay({ containerRef, view, imageWidth, imageHeight, getIs
 				const absW = Math.abs(w);
 				const absH = Math.abs(h);
 				if (absW / cropAspectRatio > absH) {
-					h = Math.sign(h || 1) * absW / cropAspectRatio;
+					h = (Math.sign(h || 1) * absW) / cropAspectRatio;
 				} else {
 					w = Math.sign(w || 1) * absH * cropAspectRatio;
 				}
@@ -113,70 +112,81 @@ export function CropOverlay({ containerRef, view, imageWidth, imageHeight, getIs
 			}
 		};
 
-		el.addEventListener("pointerdown", onPointerDown);
-		el.addEventListener("pointermove", onPointerMove);
-		el.addEventListener("pointerup", onPointerUp);
-		el.addEventListener("pointercancel", onPointerUp);
+		el.addEventListener('pointerdown', onPointerDown);
+		el.addEventListener('pointermove', onPointerMove);
+		el.addEventListener('pointerup', onPointerUp);
+		el.addEventListener('pointercancel', onPointerUp);
 		return () => {
-			el.removeEventListener("pointerdown", onPointerDown);
-			el.removeEventListener("pointermove", onPointerMove);
-			el.removeEventListener("pointerup", onPointerUp);
-			el.removeEventListener("pointercancel", onPointerUp);
+			el.removeEventListener('pointerdown', onPointerDown);
+			el.removeEventListener('pointermove', onPointerMove);
+			el.removeEventListener('pointerup', onPointerUp);
+			el.removeEventListener('pointercancel', onPointerUp);
 		};
 	}, [containerRef, view, imageWidth, imageHeight, crop, cropAspectRatio, setCrop, getRect, getIsPanning]);
 
 	/* ── Handle dragging (move / resize existing crop) ── */
-	const onHandlePointerDown = useCallback((e: React.PointerEvent, handle: Handle) => {
-		e.stopPropagation();
-		if (!crop) return;
-		dragging.current = {
-			handle,
-			startX: e.clientX,
-			startY: e.clientY,
-			startCrop: { ...crop },
-		};
-		(e.target as HTMLElement).setPointerCapture(e.pointerId);
-	}, [crop]);
+	const onHandlePointerDown = useCallback(
+		(e: React.PointerEvent, handle: Handle) => {
+			e.stopPropagation();
+			if (!crop) return;
+			dragging.current = { handle, startX: e.clientX, startY: e.clientY, startCrop: { ...crop } };
+			(e.target as HTMLElement).setPointerCapture(e.pointerId);
+		},
+		[crop],
+	);
 
-	const onHandlePointerMove = useCallback((e: React.PointerEvent) => {
-		if (!dragging.current || !crop) return;
-		const rect = getRect();
-		if (!rect) return;
+	const onHandlePointerMove = useCallback(
+		(e: React.PointerEvent) => {
+			if (!dragging.current || !crop) return;
+			const rect = getRect();
+			if (!rect) return;
 
-		const { handle, startCrop } = dragging.current;
-		const dx = (e.clientX - dragging.current.startX) / view.zoom;
-		const dy = (e.clientY - dragging.current.startY) / view.zoom;
+			const { handle, startCrop } = dragging.current;
+			const dx = (e.clientX - dragging.current.startX) / view.zoom;
+			const dy = (e.clientY - dragging.current.startY) / view.zoom;
 
-		let newCrop: CropRect;
+			let newCrop: CropRect;
 
-		if (handle === "move") {
-			newCrop = {
-				x: Math.max(0, Math.min(startCrop.x + dx, imageWidth - startCrop.width)),
-				y: Math.max(0, Math.min(startCrop.y + dy, imageHeight - startCrop.height)),
-				width: startCrop.width,
-				height: startCrop.height,
-			};
-		} else {
-			let { x, y, width, height } = startCrop;
+			if (handle === 'move') {
+				newCrop = {
+					x: Math.max(0, Math.min(startCrop.x + dx, imageWidth - startCrop.width)),
+					y: Math.max(0, Math.min(startCrop.y + dy, imageHeight - startCrop.height)),
+					width: startCrop.width,
+					height: startCrop.height,
+				};
+			} else {
+				let { x, y, width, height } = startCrop;
 
-			if (handle.includes("w")) { x += dx; width -= dx; }
-			if (handle.includes("e")) { width += dx; }
-			if (handle.includes("n")) { y += dy; height -= dy; }
-			if (handle.includes("s")) { height += dy; }
-
-			if (cropAspectRatio) {
-				if (handle === "n" || handle === "s") {
-					width = Math.abs(height) * cropAspectRatio;
-				} else {
-					height = Math.abs(width) / cropAspectRatio;
+				if (handle.includes('w')) {
+					x += dx;
+					width -= dx;
 				}
+				if (handle.includes('e')) {
+					width += dx;
+				}
+				if (handle.includes('n')) {
+					y += dy;
+					height -= dy;
+				}
+				if (handle.includes('s')) {
+					height += dy;
+				}
+
+				if (cropAspectRatio) {
+					if (handle === 'n' || handle === 's') {
+						width = Math.abs(height) * cropAspectRatio;
+					} else {
+						height = Math.abs(width) / cropAspectRatio;
+					}
+				}
+
+				newCrop = clampRect({ x, y, width, height }, imageWidth, imageHeight);
 			}
 
-			newCrop = clampRect({ x, y, width, height }, imageWidth, imageHeight);
-		}
-
-		setCrop(newCrop);
-	}, [crop, view.zoom, imageWidth, imageHeight, cropAspectRatio, setCrop, getRect]);
+			setCrop(newCrop);
+		},
+		[crop, view.zoom, imageWidth, imageHeight, cropAspectRatio, setCrop, getRect],
+	);
 
 	const onHandlePointerUp = useCallback(() => {
 		dragging.current = null;
@@ -197,14 +207,14 @@ export function CropOverlay({ containerRef, view, imageWidth, imageHeight, getIs
 	const imgBR = imageToScreen(imageWidth, imageHeight, view);
 
 	const handlePositions: { handle: Handle; x: number; y: number; cursor: string }[] = [
-		{ handle: "nw", x: sx, y: sy, cursor: "nwse-resize" },
-		{ handle: "n", x: sx + sw / 2, y: sy, cursor: "ns-resize" },
-		{ handle: "ne", x: sx + sw, y: sy, cursor: "nesw-resize" },
-		{ handle: "e", x: sx + sw, y: sy + sh / 2, cursor: "ew-resize" },
-		{ handle: "se", x: sx + sw, y: sy + sh, cursor: "nwse-resize" },
-		{ handle: "s", x: sx + sw / 2, y: sy + sh, cursor: "ns-resize" },
-		{ handle: "sw", x: sx, y: sy + sh, cursor: "nesw-resize" },
-		{ handle: "w", x: sx, y: sy + sh / 2, cursor: "ew-resize" },
+		{ handle: 'nw', x: sx, y: sy, cursor: 'nwse-resize' },
+		{ handle: 'n', x: sx + sw / 2, y: sy, cursor: 'ns-resize' },
+		{ handle: 'ne', x: sx + sw, y: sy, cursor: 'nesw-resize' },
+		{ handle: 'e', x: sx + sw, y: sy + sh / 2, cursor: 'ew-resize' },
+		{ handle: 'se', x: sx + sw, y: sy + sh, cursor: 'nwse-resize' },
+		{ handle: 's', x: sx + sw / 2, y: sy + sh, cursor: 'ns-resize' },
+		{ handle: 'sw', x: sx, y: sy + sh, cursor: 'nesw-resize' },
+		{ handle: 'w', x: sx, y: sy + sh / 2, cursor: 'ew-resize' },
 	];
 
 	return (
@@ -217,7 +227,7 @@ export function CropOverlay({ containerRef, view, imageWidth, imageHeight, getIs
 					top: imgTL.y,
 					width: imgBR.x - imgTL.x,
 					height: imgBR.y - imgTL.y,
-					background: "rgba(0, 0, 0, 0.55)",
+					background: 'rgba(0, 0, 0, 0.55)',
 					clipPath: `polygon(
 						0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%,
 						${sx - imgTL.x}px ${sy - imgTL.y}px,
@@ -232,13 +242,7 @@ export function CropOverlay({ containerRef, view, imageWidth, imageHeight, getIs
 			{/* Crop border */}
 			<div
 				className="absolute border border-white/80 pointer-events-none"
-				style={{
-					left: sx,
-					top: sy,
-					width: sw,
-					height: sh,
-					boxShadow: "0 0 0 1px rgba(0,0,0,0.3)",
-				}}
+				style={{ left: sx, top: sy, width: sw, height: sh, boxShadow: '0 0 0 1px rgba(0,0,0,0.3)' }}
 			>
 				{/* Rule of thirds grid */}
 				<div className="absolute inset-0">
@@ -254,7 +258,7 @@ export function CropOverlay({ containerRef, view, imageWidth, imageHeight, getIs
 				data-crop-area="true"
 				className="absolute pointer-events-auto cursor-move"
 				style={{ left: sx, top: sy, width: sw, height: sh }}
-				onPointerDown={(e) => onHandlePointerDown(e, "move")}
+				onPointerDown={(e) => onHandlePointerDown(e, 'move')}
 				onPointerMove={onHandlePointerMove}
 				onPointerUp={onHandlePointerUp}
 			/>
@@ -281,11 +285,7 @@ export function CropOverlay({ containerRef, view, imageWidth, imageHeight, getIs
 			{/* Crop dimensions label */}
 			<div
 				className="absolute text-[10px] font-mono text-white bg-black/60 rounded px-1.5 py-0.5 pointer-events-none"
-				style={{
-					left: sx + sw / 2,
-					top: sy + sh + 8,
-					transform: "translateX(-50%)",
-				}}
+				style={{ left: sx + sw / 2, top: sy + sh + 8, transform: 'translateX(-50%)' }}
 			>
 				{formatDimensions(Math.round(crop.width), Math.round(crop.height))}
 			</div>

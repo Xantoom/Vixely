@@ -1,9 +1,7 @@
-import { useCallback } from "react";
-import { toast } from "sonner";
-import { Button, Slider } from "@/components/ui/index.ts";
-import { gifPresetEntries } from "@/config/presets.ts";
-import { formatFileSize, formatNumber } from "@/utils/format.ts";
-import { useGifEditorStore } from "@/stores/gifEditor.ts";
+import { Button, Slider } from '@/components/ui/index.ts';
+import { gifPresetEntries } from '@/config/presets.ts';
+import { useGifEditorStore } from '@/stores/gifEditor.ts';
+import { formatFileSize, formatNumber } from '@/utils/format.ts';
 
 const GIF_PRESETS = gifPresetEntries();
 
@@ -124,12 +122,14 @@ export function GifSidebar({
 						<button
 							onClick={() => onLoopChange(!loop)}
 							className={`h-6 w-10 rounded-full transition-colors cursor-pointer ${
-								loop ? "bg-accent" : "bg-surface-raised"
+								loop ? 'bg-accent' : 'bg-surface-raised'
 							}`}
 						>
-							<div className={`h-4 w-4 rounded-full bg-white transition-transform mx-1 ${
-								loop ? "translate-x-4" : "translate-x-0"
-							}`} />
+							<div
+								className={`h-4 w-4 rounded-full bg-white transition-transform mx-1 ${
+									loop ? 'translate-x-4' : 'translate-x-0'
+								}`}
+							/>
 						</button>
 					</div>
 					<div className="flex items-center justify-between">
@@ -137,12 +137,14 @@ export function GifSidebar({
 						<button
 							onClick={() => setReverse(!reverse)}
 							className={`h-6 w-10 rounded-full transition-colors cursor-pointer ${
-								reverse ? "bg-accent" : "bg-surface-raised"
+								reverse ? 'bg-accent' : 'bg-surface-raised'
 							}`}
 						>
-							<div className={`h-4 w-4 rounded-full bg-white transition-transform mx-1 ${
-								reverse ? "translate-x-4" : "translate-x-0"
-							}`} />
+							<div
+								className={`h-4 w-4 rounded-full bg-white transition-transform mx-1 ${
+									reverse ? 'translate-x-4' : 'translate-x-0'
+								}`}
+							/>
 						</button>
 					</div>
 				</div>
@@ -162,12 +164,8 @@ export function GifSidebar({
 
 			{/* Actions */}
 			<div className="p-4 border-t border-border flex flex-col gap-2">
-				<Button
-					className="w-full"
-					disabled={!file || !ready || processing}
-					onClick={onGenerate}
-				>
-					{processing ? `Generating ${Math.round(progress * 100)}%` : "Generate GIF"}
+				<Button className="w-full" disabled={!file || !ready || processing} onClick={onGenerate}>
+					{processing ? `Generating ${Math.round(progress * 100)}%` : 'Generate GIF'}
 				</Button>
 
 				{resultUrl && (
@@ -176,9 +174,7 @@ export function GifSidebar({
 					</Button>
 				)}
 
-				{error && (
-					<p className="text-[11px] text-danger bg-danger/10 rounded-md px-2.5 py-1.5">{error}</p>
-				)}
+				{error && <p className="text-[11px] text-danger bg-danger/10 rounded-md px-2.5 py-1.5">{error}</p>}
 			</div>
 		</div>
 	);

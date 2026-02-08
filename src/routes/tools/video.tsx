@@ -1,39 +1,37 @@
-import { useState, useRef, useCallback, useEffect } from "react";
-import { createFileRoute } from "@tanstack/react-router";
-import { Helmet } from "react-helmet-async";
-import { toast } from "sonner";
-import { Camera, Video, ChevronRight, FilePlus2, Settings, Info } from "lucide-react";
-import { Button, Card, Timeline, formatTimecode } from "@/components/ui/index.ts";
-import { useVideoProcessor } from "@/hooks/useVideoProcessor.ts";
-import { videoPresetEntries, buildVideoArgs, VIDEO_ACCEPT } from "@/config/presets.ts";
-import { formatFileSize } from "@/utils/format.ts";
-import { VideoPlayer } from "@/components/video/VideoPlayer.tsx";
-import { FrameCaptureDialog } from "@/components/video/FrameCaptureDialog.tsx";
-import { useVideoEditorStore } from "@/stores/videoEditor.ts";
-import { ConfirmResetModal } from "@/components/ConfirmResetModal.tsx";
-import { FileMetadataModal } from "@/components/FileMetadataModal.tsx";
-import { Drawer } from "@/components/ui/Drawer.tsx";
+import { createFileRoute } from '@tanstack/react-router';
+import { Camera, Video, ChevronRight, FilePlus2, Settings, Info } from 'lucide-react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { Helmet } from 'react-helmet-async';
+import { toast } from 'sonner';
+import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
+import { FileMetadataModal } from '@/components/FileMetadataModal.tsx';
+import { Drawer } from '@/components/ui/Drawer.tsx';
+import { Button, Card, Timeline, formatTimecode } from '@/components/ui/index.ts';
+import { FrameCaptureDialog } from '@/components/video/FrameCaptureDialog.tsx';
+import { VideoPlayer } from '@/components/video/VideoPlayer.tsx';
+import { videoPresetEntries, buildVideoArgs, VIDEO_ACCEPT } from '@/config/presets.ts';
+import { useVideoProcessor } from '@/hooks/useVideoProcessor.ts';
+import { useVideoEditorStore } from '@/stores/videoEditor.ts';
+import { formatFileSize } from '@/utils/format.ts';
 
-export const Route = createFileRoute("/tools/video")({
-	component: VideoStudio,
-});
+export const Route = createFileRoute('/tools/video')({ component: VideoStudio });
 
 const VIDEO_PRESETS = videoPresetEntries();
 
 const PLATFORM_ICONS: Record<string, string> = {
-	discord: "D",
-	twitch: "T",
-	twitter: "X",
-	square: "1:1",
-	portrait: "9:16",
-	high: "HQ",
+	discord: 'D',
+	twitch: 'T',
+	twitter: 'X',
+	square: '1:1',
+	portrait: '9:16',
+	high: 'HQ',
 };
 
 function getPresetIcon(key: string): string {
 	for (const [prefix, icon] of Object.entries(PLATFORM_ICONS)) {
 		if (key.includes(prefix)) return icon;
 	}
-	return "V";
+	return 'V';
 }
 
 function VideoStudio() {
@@ -69,18 +67,21 @@ function VideoStudio() {
 		const handler = (e: BeforeUnloadEvent) => {
 			e.preventDefault();
 		};
-		window.addEventListener("beforeunload", handler);
-		return () => window.removeEventListener("beforeunload", handler);
+		window.addEventListener('beforeunload', handler);
+		return () => window.removeEventListener('beforeunload', handler);
 	}, [isDirty, processing]);
 
-	const confirmAction = useCallback((action: () => void) => {
-		if (isDirty) {
-			setPendingAction(() => action);
-			setShowResetModal(true);
-		} else {
-			action();
-		}
-	}, [isDirty]);
+	const confirmAction = useCallback(
+		(action: () => void) => {
+			if (isDirty) {
+				setPendingAction(() => action);
+				setShowResetModal(true);
+			} else {
+				action();
+			}
+		},
+		[isDirty],
+	);
 
 	const handleConfirmReset = useCallback(() => {
 		setShowResetModal(false);
@@ -115,7 +116,7 @@ function VideoStudio() {
 		setSelectedPreset(null);
 		setCapturedFrame(null);
 		setVideoUrl(URL.createObjectURL(f));
-		toast.success("Video loaded", { description: f.name });
+		toast.success('Video loaded', { description: f.name });
 	}, []);
 
 	const handleVideoLoaded = useCallback(() => {
@@ -172,61 +173,64 @@ function VideoStudio() {
 		e.stopPropagation();
 	}, []);
 
-	const handleDrop = useCallback((e: React.DragEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-		dragCounter.current = 0;
-		setIsDragging(false);
+	const handleDrop = useCallback(
+		(e: React.DragEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+			dragCounter.current = 0;
+			setIsDragging(false);
 
-		const f = e.dataTransfer.files[0];
-		if (!f) return;
+			const f = e.dataTransfer.files[0];
+			if (!f) return;
 
-		if (!f.type.startsWith("video/")) {
-			toast.error("Invalid file type", { description: "Drop a video file (MP4, WebM, MOV, etc.)" });
-			return;
-		}
+			if (!f.type.startsWith('video/')) {
+				toast.error('Invalid file type', { description: 'Drop a video file (MP4, WebM, MOV, etc.)' });
+				return;
+			}
 
-		handleFile(f);
-	}, [handleFile]);
+			handleFile(f);
+		},
+		[handleFile],
+	);
 
 	/* ── Keyboard shortcuts ── */
 	useEffect(() => {
 		const onKeyDown = (e: KeyboardEvent) => {
 			if (e.target instanceof HTMLInputElement) return;
 
-			if (e.key === " " && videoRef.current) {
+			if (e.key === ' ' && videoRef.current) {
 				e.preventDefault();
 				if (videoRef.current.paused) videoRef.current.play();
 				else videoRef.current.pause();
 			}
 		};
-		window.addEventListener("keydown", onKeyDown);
-		return () => window.removeEventListener("keydown", onKeyDown);
+		window.addEventListener('keydown', onKeyDown);
+		return () => window.removeEventListener('keydown', onKeyDown);
 	}, []);
 
 	const handleScreenshot = useCallback(async () => {
 		if (!file) return;
-		toast("Capturing frame...");
+		toast('Capturing frame...');
 		try {
 			const data = await captureFrame({ file, timestamp: currentTime });
 			setCapturedFrame(data);
 		} catch {
-			toast.error("Failed to capture frame");
+			toast.error('Failed to capture frame');
 		}
 	}, [file, currentTime, captureFrame]);
 
 	const handleExport = useCallback(async () => {
 		if (!file || !selectedPreset) return;
 
-		toast("Export started...");
+		toast('Export started...');
 		const clipDuration = Math.max(trimEnd - trimStart, 0.5);
 		const { args: presetArgs, format } = buildVideoArgs(selectedPreset, clipDuration);
 
 		const args: string[] = [];
-		if (trimStart > 0) args.push("-ss", trimStart.toFixed(3));
-		if (trimEnd < duration) args.push("-t", clipDuration.toFixed(3));
+		if (trimStart > 0) args.push('-ss', trimStart.toFixed(3));
+		if (trimEnd < duration) args.push('-t', clipDuration.toFixed(3));
 		args.push(...presetArgs);
-		args.push("-c:a", "libopus", "-b:a", "96k");
+		args.push('-c:a', 'libopus', '-b:a', '96k');
 
 		const outputName = `output.${format}`;
 
@@ -235,16 +239,16 @@ function VideoStudio() {
 			const blob = new Blob([result], { type: `video/${format}` });
 			const url = URL.createObjectURL(blob);
 			setResultUrl(url);
-			toast.success("Export complete", { description: formatFileSize(blob.size) });
+			toast.success('Export complete', { description: formatFileSize(blob.size) });
 		} catch {
-			toast.error("Export failed");
+			toast.error('Export failed');
 		}
 	}, [file, trimStart, trimEnd, duration, selectedPreset, transcode]);
 
 	const handleDownload = useCallback(() => {
 		if (!resultUrl || !selectedPreset) return;
 		const { format } = buildVideoArgs(selectedPreset, 1);
-		const a = document.createElement("a");
+		const a = document.createElement('a');
 		a.href = resultUrl;
 		a.download = `vixely-export.${format}`;
 		a.click();
@@ -271,38 +275,20 @@ function VideoStudio() {
 						className="flex-1 min-w-0"
 						onClick={() => fileInputRef.current?.click()}
 					>
-						{file ? (
-							<span className="truncate">{file.name}</span>
-						) : (
-							"Choose Video"
-						)}
+						{file ? <span className="truncate">{file.name}</span> : 'Choose Video'}
 					</Button>
 					{file && (
 						<>
-							<Button
-								variant="ghost"
-								size="icon"
-								onClick={handleNew}
-								title="New (discard current)"
-							>
+							<Button variant="ghost" size="icon" onClick={handleNew} title="New (discard current)">
 								<FilePlus2 size={16} />
 							</Button>
-							<Button
-								variant="ghost"
-								size="icon"
-								onClick={() => setShowInfo(true)}
-								title="File info"
-							>
+							<Button variant="ghost" size="icon" onClick={() => setShowInfo(true)} title="File info">
 								<Info size={16} />
 							</Button>
 						</>
 					)}
 				</div>
-				{file && (
-					<p className="mt-1.5 text-[11px] text-text-tertiary">
-						{formatFileSize(file.size)}
-					</p>
-				)}
+				{file && <p className="mt-1.5 text-[11px] text-text-tertiary">{formatFileSize(file.size)}</p>}
 			</div>
 
 			{/* Presets */}
@@ -317,15 +303,17 @@ function VideoStudio() {
 							onClick={() => setSelectedPreset(selectedPreset === key ? null : key)}
 							className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all cursor-pointer ${
 								selectedPreset === key
-									? "bg-accent/10 border border-accent/30 text-text"
-									: "bg-surface-raised/50 border border-transparent text-text-secondary hover:bg-surface-raised hover:text-text"
+									? 'bg-accent/10 border border-accent/30 text-text'
+									: 'bg-surface-raised/50 border border-transparent text-text-secondary hover:bg-surface-raised hover:text-text'
 							}`}
 						>
-							<div className={`h-8 w-8 rounded-md flex items-center justify-center text-[10px] font-bold shrink-0 ${
-								selectedPreset === key
-									? "bg-accent text-bg"
-									: "bg-surface-raised text-text-tertiary"
-							}`}>
+							<div
+								className={`h-8 w-8 rounded-md flex items-center justify-center text-[10px] font-bold shrink-0 ${
+									selectedPreset === key
+										? 'bg-accent text-bg'
+										: 'bg-surface-raised text-text-tertiary'
+								}`}
+							>
 								{getPresetIcon(key)}
 							</div>
 							<div className="min-w-0">
@@ -341,10 +329,7 @@ function VideoStudio() {
 					onClick={() => setShowAdvanced(!showAdvanced)}
 					className="mt-4 flex items-center gap-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider cursor-pointer hover:text-text-secondary transition-colors w-full"
 				>
-					<ChevronRight
-						size={12}
-						className={`transition-transform ${showAdvanced ? "rotate-90" : ""}`}
-					/>
+					<ChevronRight size={12} className={`transition-transform ${showAdvanced ? 'rotate-90' : ''}`} />
 					Advanced
 				</button>
 				{showAdvanced && (
@@ -377,24 +362,28 @@ function VideoStudio() {
 				<Button
 					className="w-full"
 					disabled={!file || !ready || processing || !selectedPreset}
-					onClick={() => { handleExport(); setDrawerOpen(false); }}
+					onClick={() => {
+						handleExport();
+						setDrawerOpen(false);
+					}}
 				>
-					{processing ? `Exporting ${Math.round(progress * 100)}%` : "Export"}
+					{processing ? `Exporting ${Math.round(progress * 100)}%` : 'Export'}
 				</Button>
 
 				{resultUrl && (
 					<Button
 						variant="secondary"
 						className="w-full"
-						onClick={() => { handleDownload(); setDrawerOpen(false); }}
+						onClick={() => {
+							handleDownload();
+							setDrawerOpen(false);
+						}}
 					>
 						Download
 					</Button>
 				)}
 
-				{error && (
-					<p className="text-[11px] text-danger bg-danger/10 rounded-md px-2.5 py-1.5">{error}</p>
-				)}
+				{error && <p className="text-[11px] text-danger bg-danger/10 rounded-md px-2.5 py-1.5">{error}</p>}
 			</div>
 		</>
 	);
@@ -416,7 +405,9 @@ function VideoStudio() {
 						onDragLeave={handleDragLeave}
 						onDragOver={handleDragOver}
 						onDrop={handleDrop}
-						onClick={() => { if (!videoUrl) fileInputRef.current?.click(); }}
+						onClick={() => {
+							if (!videoUrl) fileInputRef.current?.click();
+						}}
 					>
 						{videoUrl ? (
 							<VideoPlayer
@@ -493,9 +484,7 @@ function VideoStudio() {
 
 				{/* ── Mobile Sidebar Drawer ── */}
 				<Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
-					<div className="h-full flex flex-col bg-surface">
-						{sidebarContent}
-					</div>
+					<div className="h-full flex flex-col bg-surface">{sidebarContent}</div>
 				</Drawer>
 			</div>
 
@@ -503,7 +492,7 @@ function VideoStudio() {
 			{capturedFrame && (
 				<FrameCaptureDialog
 					pngData={capturedFrame}
-					timestamp={formatTimecode(currentTime).replace(/:/g, ".")}
+					timestamp={formatTimecode(currentTime).replace(/:/g, '.')}
 					onClose={() => setCapturedFrame(null)}
 				/>
 			)}
@@ -513,50 +502,42 @@ function VideoStudio() {
 				<FileMetadataModal
 					file={file}
 					fields={[
-						{ label: "Duration", value: duration > 0 ? `${duration.toFixed(1)}s` : null },
-						{ label: "Trim range", value: duration > 0 ? `${trimStart.toFixed(1)}s – ${trimEnd.toFixed(1)}s` : null },
+						{ label: 'Duration', value: duration > 0 ? `${duration.toFixed(1)}s` : null },
+						{
+							label: 'Trim range',
+							value: duration > 0 ? `${trimStart.toFixed(1)}s – ${trimEnd.toFixed(1)}s` : null,
+						},
 					]}
 					onClose={() => setShowInfo(false)}
 				/>
 			)}
 
 			{/* Confirm reset modal */}
-			{showResetModal && (
-				<ConfirmResetModal
-					onConfirm={handleConfirmReset}
-					onCancel={handleCancelReset}
-				/>
-			)}
+			{showResetModal && <ConfirmResetModal onConfirm={handleConfirmReset} onCancel={handleCancelReset} />}
 		</>
 	);
 }
 
 function EmptyState({ isDragging, onChooseFile }: { isDragging: boolean; onChooseFile: () => void }) {
 	return (
-		<div
-			className="flex flex-col items-center text-center"
-			onClick={(e) => e.stopPropagation()}
-		>
-			<div className={`rounded-2xl bg-surface border border-border p-8 mb-5 transition-all ${isDragging ? "border-accent scale-105" : ""}`}>
+		<div className="flex flex-col items-center text-center" onClick={(e) => e.stopPropagation()}>
+			<div
+				className={`rounded-2xl bg-surface border border-border p-8 mb-5 transition-all ${isDragging ? 'border-accent scale-105' : ''}`}
+			>
 				<Video
 					size={48}
 					strokeWidth={1.2}
-					className={`transition-colors ${isDragging ? "text-accent" : "text-text-tertiary/40"}`}
+					className={`transition-colors ${isDragging ? 'text-accent' : 'text-text-tertiary/40'}`}
 				/>
 			</div>
 			<p className="text-sm font-medium text-text-secondary">
-				{isDragging ? "Drop your video here" : "No video loaded"}
+				{isDragging ? 'Drop your video here' : 'No video loaded'}
 			</p>
 			<p className="mt-1 text-xs text-text-tertiary">
-				{isDragging ? "Release to load" : "Click or drag & drop to start editing"}
+				{isDragging ? 'Release to load' : 'Click or drag & drop to start editing'}
 			</p>
 			{!isDragging && (
-				<Button
-					variant="secondary"
-					size="sm"
-					className="mt-4"
-					onClick={onChooseFile}
-				>
+				<Button variant="secondary" size="sm" className="mt-4" onClick={onChooseFile}>
 					Choose File
 				</Button>
 			)}

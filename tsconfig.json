@@ -23,9 +23,7 @@
 		"noPropertyAccessFromIndexSignature": false,
 
 		"baseUrl": ".",
-		"paths": {
-			"@/*": ["./src/*"]
-		}
+		"paths": { "@/*": ["./src/*"] }
 	},
 	"include": ["src", "vite-env.d.ts"]
 }

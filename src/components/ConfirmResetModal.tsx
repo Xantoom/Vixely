@@ -1,4 +1,4 @@
-import { Button } from "@/components/ui/index.ts";
+import { Button } from '@/components/ui/index.ts';
 
 interface ConfirmResetModalProps {
 	onConfirm: () => void;
@@ -14,20 +14,10 @@ export function ConfirmResetModal({ onConfirm, onCancel }: ConfirmResetModalProp
 					All current changes will be lost. Are you sure you want to continue?
 				</p>
 				<div className="flex gap-2">
-					<Button
-						variant="ghost"
-						size="sm"
-						className="flex-1"
-						onClick={onCancel}
-					>
+					<Button variant="ghost" size="sm" className="flex-1" onClick={onCancel}>
 						Cancel
 					</Button>
-					<Button
-						variant="danger"
-						size="sm"
-						className="flex-1"
-						onClick={onConfirm}
-					>
+					<Button variant="danger" size="sm" className="flex-1" onClick={onConfirm}>
 						Discard Changes
 					</Button>
 				</div>

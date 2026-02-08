@@ -1,8 +1,8 @@
-import { useCallback } from "react";
-import { Undo2, Redo2, ZoomOut, ZoomIn, Maximize, MousePointer, Crop, Columns2 } from "lucide-react";
-import { useImageEditorStore } from "@/stores/imageEditor.ts";
-import { formatDimensions } from "@/utils/format.ts";
-import type { ActiveTool, Filters } from "@/stores/imageEditor.ts";
+import { Undo2, Redo2, ZoomOut, ZoomIn, Maximize, MousePointer, Crop, Columns2 } from 'lucide-react';
+import { useCallback } from 'react';
+import type { ActiveTool, Filters } from '@/stores/imageEditor.ts';
+import { useImageEditorStore } from '@/stores/imageEditor.ts';
+import { formatDimensions } from '@/utils/format.ts';
 
 function IconButton({
 	onClick,
@@ -23,8 +23,8 @@ function IconButton({
 			disabled={disabled}
 			title={title}
 			className={`h-7 w-7 flex items-center justify-center rounded-md transition-all cursor-pointer
-				${active ? "bg-accent/15 text-accent" : "text-text-tertiary hover:text-text hover:bg-surface-raised/60"}
-				${disabled ? "opacity-30 pointer-events-none" : ""}`}
+				${active ? 'bg-accent/15 text-accent' : 'text-text-tertiary hover:text-text hover:bg-surface-raised/60'}
+				${disabled ? 'opacity-30 pointer-events-none' : ''}`}
 		>
 			{children}
 		</button>
@@ -42,12 +42,22 @@ interface ImageToolbarProps {
 
 export function ImageToolbar({ processFn, containerRef }: ImageToolbarProps) {
 	const {
-		view, undoStack, redoStack,
-		activeTool, crop, originalData,
-		compareMode, setCompareMode,
-		undo, redo, resetAll,
-		setActiveTool, fitToView, zoomTo,
-		applyCrop, cancelCrop,
+		view,
+		undoStack,
+		redoStack,
+		activeTool,
+		crop,
+		originalData,
+		compareMode,
+		setCompareMode,
+		undo,
+		redo,
+		resetAll,
+		setActiveTool,
+		fitToView,
+		zoomTo,
+		applyCrop,
+		cancelCrop,
 	} = useImageEditorStore();
 
 	const handleUndo = useCallback(() => undo(processFn), [undo, processFn]);
@@ -76,9 +86,12 @@ export function ImageToolbar({ processFn, containerRef }: ImageToolbarProps) {
 		zoomTo(Math.max(0.1, view.zoom / 1.25), cx, cy);
 	}, [view.zoom, zoomTo, containerRef]);
 
-	const handleToolChange = useCallback((tool: ActiveTool) => {
-		setActiveTool(tool);
-	}, [setActiveTool]);
+	const handleToolChange = useCallback(
+		(tool: ActiveTool) => {
+			setActiveTool(tool);
+		},
+		[setActiveTool],
+	);
 
 	const handleToggleCompare = useCallback(() => {
 		const next = !compareMode;
@@ -115,10 +128,10 @@ export function ImageToolbar({ processFn, containerRef }: ImageToolbarProps) {
 			<Separator />
 
 			{/* Tool select */}
-			<IconButton onClick={() => handleToolChange("pointer")} active={activeTool === "pointer"} title="Pointer">
+			<IconButton onClick={() => handleToolChange('pointer')} active={activeTool === 'pointer'} title="Pointer">
 				<MousePointer size={14} />
 			</IconButton>
-			<IconButton onClick={() => handleToolChange("crop")} active={activeTool === "crop"} title="Crop">
+			<IconButton onClick={() => handleToolChange('crop')} active={activeTool === 'crop'} title="Crop">
 				<Crop size={14} />
 			</IconButton>
 
@@ -135,7 +148,7 @@ export function ImageToolbar({ processFn, containerRef }: ImageToolbarProps) {
 			</IconButton>
 
 			{/* Crop actions (shown when crop is active with a selection) */}
-			{activeTool === "crop" && crop && (
+			{activeTool === 'crop' && crop && (
 				<>
 					<Separator />
 					<button

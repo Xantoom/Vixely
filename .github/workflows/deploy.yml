@@ -1,59 +1,59 @@
 name: CI / Deploy
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    push:
+        branches: [main]
+    pull_request:
+        branches: [main]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
 
 jobs:
-  lint-build:
-    name: Lint & Build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    lint-build:
+        name: Lint & Build
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
 
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
+            - uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: latest
 
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
+            - name: Install dependencies
+              run: bun install --frozen-lockfile
 
-      - name: Lint
-        run: bun run lint
+            - name: Lint
+              run: bun run lint
 
-      - name: Format check
-        run: bun run fmt:check
+            - name: Format check
+              run: bun run fmt:check
 
-      - name: Build
-        run: bun run build
+            - name: Build
+              run: bun run build
 
-      - name: Upload build artifact
+            - name: Upload build artifact
+              if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+              uses: actions/upload-artifact@v4
+              with:
+                  name: dist
+                  path: dist/
+                  retention-days: 7
+
+    deploy-railway:
+        name: Deploy to Railway
+        needs: lint-build
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: dist/
-          retention-days: 7
+        runs-on: ubuntu-latest
+        environment: production
+        steps:
+            - uses: actions/checkout@v4
 
-  deploy-railway:
-    name: Deploy to Railway
-    needs: lint-build
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - uses: actions/checkout@v4
+            - name: Install Railway CLI
+              run: npm i -g @railway/cli
 
-      - name: Install Railway CLI
-        run: npm i -g @railway/cli
-
-      - name: Deploy
-        run: railway up --service ${{ vars.RAILWAY_SERVICE_NAME || 'vixely' }}
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+            - name: Deploy
+              run: railway up --service ${{ vars.RAILWAY_SERVICE_NAME || 'vixely' }}
+              env:
+                  RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}

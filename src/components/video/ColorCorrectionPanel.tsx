@@ -1,11 +1,39 @@
-import { Slider } from "@/components/ui/index.ts";
-import { useVideoEditorStore } from "@/stores/videoEditor.ts";
+import { Slider } from '@/components/ui/index.ts';
+import { useVideoEditorStore } from '@/stores/videoEditor.ts';
 
 const sliders = [
-	{ key: "brightness" as const, label: "Brightness", min: -0.5, max: 0.5, step: 0.01, fmt: (v: number) => `${v >= 0 ? "+" : ""}${(v * 100).toFixed(0)}` },
-	{ key: "contrast" as const, label: "Contrast", min: 0.2, max: 3, step: 0.01, fmt: (v: number) => `${(v * 100).toFixed(0)}` },
-	{ key: "saturation" as const, label: "Saturation", min: 0, max: 3, step: 0.01, fmt: (v: number) => `${(v * 100).toFixed(0)}` },
-	{ key: "hue" as const, label: "Hue", min: -180, max: 180, step: 1, fmt: (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(0)}\u00b0` },
+	{
+		key: 'brightness' as const,
+		label: 'Brightness',
+		min: -0.5,
+		max: 0.5,
+		step: 0.01,
+		fmt: (v: number) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)}`,
+	},
+	{
+		key: 'contrast' as const,
+		label: 'Contrast',
+		min: 0.2,
+		max: 3,
+		step: 0.01,
+		fmt: (v: number) => `${(v * 100).toFixed(0)}`,
+	},
+	{
+		key: 'saturation' as const,
+		label: 'Saturation',
+		min: 0,
+		max: 3,
+		step: 0.01,
+		fmt: (v: number) => `${(v * 100).toFixed(0)}`,
+	},
+	{
+		key: 'hue' as const,
+		label: 'Hue',
+		min: -180,
+		max: 180,
+		step: 1,
+		fmt: (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(0)}\u00b0`,
+	},
 ];
 
 export function ColorCorrectionPanel() {

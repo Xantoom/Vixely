@@ -1,33 +1,28 @@
-import { useState, useRef, useCallback, useEffect } from "react";
-import { createFileRoute } from "@tanstack/react-router";
-import { Helmet } from "react-helmet-async";
-import { toast } from "sonner";
-import {
-	Film, FilePlus2, Settings, Info,
-	Lock, Unlock, Gauge, Maximize2, Download,
-} from "lucide-react";
-import { Button, Slider, Timeline } from "@/components/ui/index.ts";
-import { Drawer } from "@/components/ui/Drawer.tsx";
-import { useVideoProcessor } from "@/hooks/useVideoProcessor.ts";
-import { gifPresetEntries, GIF_ACCEPT } from "@/config/presets.ts";
-import { formatFileSize, formatNumber } from "@/utils/format.ts";
-import { useGifEditorStore, type GifMode } from "@/stores/gifEditor.ts";
-import { ConfirmResetModal } from "@/components/ConfirmResetModal.tsx";
-import { FileMetadataModal } from "@/components/FileMetadataModal.tsx";
+import { createFileRoute } from '@tanstack/react-router';
+import { Film, FilePlus2, Settings, Info, Lock, Unlock, Gauge, Maximize2, Download } from 'lucide-react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { Helmet } from 'react-helmet-async';
+import { toast } from 'sonner';
+import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
+import { FileMetadataModal } from '@/components/FileMetadataModal.tsx';
+import { Drawer } from '@/components/ui/Drawer.tsx';
+import { Button, Slider, Timeline } from '@/components/ui/index.ts';
+import { gifPresetEntries, GIF_ACCEPT } from '@/config/presets.ts';
+import { useVideoProcessor } from '@/hooks/useVideoProcessor.ts';
+import { useGifEditorStore, type GifMode } from '@/stores/gifEditor.ts';
+import { formatFileSize, formatNumber } from '@/utils/format.ts';
 
-export const Route = createFileRoute("/tools/gif")({
-	component: GifFoundry,
-});
+export const Route = createFileRoute('/tools/gif')({ component: GifFoundry });
 
 const GIF_PRESETS = gifPresetEntries();
 
 /* ── Mode Tab Config ── */
 
 const MODE_TABS: { mode: GifMode; label: string; icon: typeof Gauge }[] = [
-	{ mode: "settings", label: "Settings", icon: Settings },
-	{ mode: "resize", label: "Resize", icon: Maximize2 },
-	{ mode: "speed", label: "Speed", icon: Gauge },
-	{ mode: "export", label: "Export", icon: Download },
+	{ mode: 'settings', label: 'Settings', icon: Settings },
+	{ mode: 'resize', label: 'Resize', icon: Maximize2 },
+	{ mode: 'speed', label: 'Speed', icon: Gauge },
+	{ mode: 'export', label: 'Export', icon: Download },
 ];
 
 /* ── Toggle Switch ── */
@@ -39,12 +34,14 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
 			<button
 				onClick={() => onChange(!checked)}
 				className={`h-6 w-10 rounded-full transition-colors cursor-pointer ${
-					checked ? "bg-accent" : "bg-surface-raised"
+					checked ? 'bg-accent' : 'bg-surface-raised'
 				}`}
 			>
-				<div className={`h-4 w-4 rounded-full bg-white transition-transform mx-1 ${
-					checked ? "translate-x-4" : "translate-x-0"
-				}`} />
+				<div
+					className={`h-4 w-4 rounded-full bg-white transition-transform mx-1 ${
+						checked ? 'translate-x-4' : 'translate-x-0'
+					}`}
+				/>
 			</button>
 		</div>
 	);
@@ -55,8 +52,15 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
 function GifFoundry() {
 	const { ready, processing, progress, error, createGif } = useVideoProcessor();
 	const {
-		mode, speed, reverse, colorReduction,
-		setMode, setSpeed, setReverse, setColorReduction, resetAll: resetStore,
+		mode,
+		speed,
+		reverse,
+		colorReduction,
+		setMode,
+		setSpeed,
+		setReverse,
+		setColorReduction,
+		resetAll: resetStore,
 	} = useGifEditorStore();
 
 	const [file, setFile] = useState<File | null>(null);
@@ -90,20 +94,25 @@ function GifFoundry() {
 	/* ── Beforeunload ── */
 	useEffect(() => {
 		if (!isDirty && !processing) return;
-		const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); };
-		window.addEventListener("beforeunload", handler);
-		return () => window.removeEventListener("beforeunload", handler);
+		const handler = (e: BeforeUnloadEvent) => {
+			e.preventDefault();
+		};
+		window.addEventListener('beforeunload', handler);
+		return () => window.removeEventListener('beforeunload', handler);
 	}, [isDirty, processing]);
 
 	/* ── Confirm Action ── */
-	const confirmAction = useCallback((action: () => void) => {
-		if (isDirty) {
-			setPendingAction(() => action);
-			setShowResetModal(true);
-		} else {
-			action();
-		}
-	}, [isDirty]);
+	const confirmAction = useCallback(
+		(action: () => void) => {
+			if (isDirty) {
+				setPendingAction(() => action);
+				setShowResetModal(true);
+			} else {
+				action();
+			}
+		},
+		[isDirty],
+	);
 
 	const handleConfirmReset = useCallback(() => {
 		setShowResetModal(false);
@@ -142,7 +151,7 @@ function GifFoundry() {
 		setResultUrl(null);
 		setResultSize(0);
 
-		const gifSource = f.type === "image/gif" || f.name.toLowerCase().endsWith(".gif");
+		const gifSource = f.type === 'image/gif' || f.name.toLowerCase().endsWith('.gif');
 		setIsGifSource(gifSource);
 		setVideoUrl(URL.createObjectURL(f));
 
@@ -152,7 +161,7 @@ function GifFoundry() {
 			setTrimEnd(5);
 		}
 
-		toast.success("File loaded", { description: f.name });
+		toast.success('File loaded', { description: f.name });
 	}, []);
 
 	const handleVideoLoaded = useCallback(() => {
@@ -211,72 +220,84 @@ function GifFoundry() {
 		e.stopPropagation();
 	}, []);
 
-	const handleDrop = useCallback((e: React.DragEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-		dragCounter.current = 0;
-		setIsDragging(false);
+	const handleDrop = useCallback(
+		(e: React.DragEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+			dragCounter.current = 0;
+			setIsDragging(false);
 
-		const f = e.dataTransfer.files[0];
-		if (!f) return;
+			const f = e.dataTransfer.files[0];
+			if (!f) return;
 
-		if (!f.type.startsWith("video/") && f.type !== "image/gif") {
-			toast.error("Invalid file type", { description: "Drop a video or GIF file" });
-			return;
-		}
+			if (!f.type.startsWith('video/') && f.type !== 'image/gif') {
+				toast.error('Invalid file type', { description: 'Drop a video or GIF file' });
+				return;
+			}
 
-		handleFile(f);
-	}, [handleFile]);
+			handleFile(f);
+		},
+		[handleFile],
+	);
 
 	/* ── Keyboard shortcuts ── */
 	useEffect(() => {
 		const onKeyDown = (e: KeyboardEvent) => {
 			if (e.target instanceof HTMLInputElement) return;
 
-			if (e.key === " " && videoRef.current && !isGifSource) {
+			if (e.key === ' ' && videoRef.current && !isGifSource) {
 				e.preventDefault();
 				if (videoRef.current.paused) videoRef.current.play();
 				else videoRef.current.pause();
 			}
 		};
-		window.addEventListener("keydown", onKeyDown);
-		return () => window.removeEventListener("keydown", onKeyDown);
+		window.addEventListener('keydown', onKeyDown);
+		return () => window.removeEventListener('keydown', onKeyDown);
 	}, [isGifSource]);
 
 	/* ── Resize Handlers ── */
-	const handleWidthChange = useCallback((w: number) => {
-		setWidth(w);
-		if (lockAspect) {
-			setHeight(Math.round(w / sourceAspect));
-		}
-	}, [lockAspect, sourceAspect]);
+	const handleWidthChange = useCallback(
+		(w: number) => {
+			setWidth(w);
+			if (lockAspect) {
+				setHeight(Math.round(w / sourceAspect));
+			}
+		},
+		[lockAspect, sourceAspect],
+	);
 
-	const handleHeightChange = useCallback((h: number) => {
-		setHeight(h);
-		if (lockAspect) {
-			setWidth(Math.round(h * sourceAspect));
-		}
-	}, [lockAspect, sourceAspect]);
+	const handleHeightChange = useCallback(
+		(h: number) => {
+			setHeight(h);
+			if (lockAspect) {
+				setWidth(Math.round(h * sourceAspect));
+			}
+		},
+		[lockAspect, sourceAspect],
+	);
 
 	/* ── Presets ── */
-	const applyPreset = useCallback((key: string) => {
-		const preset = GIF_PRESETS.find(([k]) => k === key);
-		if (!preset) return;
-		const [, cfg] = preset;
-		setFps(cfg.fps);
-		setWidth(cfg.width);
-		if (lockAspect) setHeight(Math.round(cfg.width / sourceAspect));
-		if (cfg.maxDuration != null) {
-			setTrimEnd(Math.min(trimStart + cfg.maxDuration, duration || cfg.maxDuration));
-		}
-		toast(`Applied "${cfg.name}"`);
-	}, [trimStart, duration, lockAspect, sourceAspect]);
+	const applyPreset = useCallback(
+		(key: string) => {
+			const preset = GIF_PRESETS.find(([k]) => k === key);
+			if (!preset) return;
+			const [, cfg] = preset;
+			setFps(cfg.fps);
+			setWidth(cfg.width);
+			if (lockAspect) setHeight(Math.round(cfg.width / sourceAspect));
+			if (cfg.maxDuration != null) {
+				setTrimEnd(Math.min(trimStart + cfg.maxDuration, duration || cfg.maxDuration));
+			}
+			toast(`Applied "${cfg.name}"`);
+		},
+		[trimStart, duration, lockAspect, sourceAspect],
+	);
 
 	/* ── Generate ── */
 	const handleGenerate = useCallback(async () => {
 		if (!file) return;
 
-		toast("Generating GIF...");
+		toast('Generating GIF...');
 		const clipDuration = Math.max(trimEnd - trimStart, 0.5);
 
 		try {
@@ -292,20 +313,20 @@ function GifFoundry() {
 				maxColors: colorReduction < 256 ? colorReduction : undefined,
 			});
 
-			const blob = new Blob([data], { type: "image/gif" });
+			const blob = new Blob([data], { type: 'image/gif' });
 			setResultSize(blob.size);
 			setResultUrl(URL.createObjectURL(blob));
-			toast.success("GIF ready", { description: formatFileSize(blob.size) });
+			toast.success('GIF ready', { description: formatFileSize(blob.size) });
 		} catch {
-			toast.error("Generation failed");
+			toast.error('Generation failed');
 		}
 	}, [file, fps, width, height, trimStart, trimEnd, speed, reverse, colorReduction, createGif]);
 
 	const handleDownload = useCallback(() => {
 		if (!resultUrl) return;
-		const a = document.createElement("a");
+		const a = document.createElement('a');
 		a.href = resultUrl;
-		a.download = "vixely-output.gif";
+		a.download = 'vixely-output.gif';
 		a.click();
 	}, [resultUrl]);
 
@@ -326,8 +347,8 @@ function GifFoundry() {
 							onClick={() => setMode(tab.mode)}
 							className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[9px] font-semibold uppercase tracking-wider transition-all cursor-pointer ${
 								isActive
-									? "text-accent border-b-2 border-accent"
-									: "text-text-tertiary hover:text-text-secondary"
+									? 'text-accent border-b-2 border-accent'
+									: 'text-text-tertiary hover:text-text-secondary'
 							}`}
 						>
 							<tab.icon size={14} />
@@ -355,7 +376,7 @@ function GifFoundry() {
 						className="flex-1 min-w-0"
 						onClick={() => fileInputRef.current?.click()}
 					>
-						{file ? <span className="truncate">{file.name}</span> : "Choose File"}
+						{file ? <span className="truncate">{file.name}</span> : 'Choose File'}
 					</Button>
 					{file && (
 						<>
@@ -368,14 +389,12 @@ function GifFoundry() {
 						</>
 					)}
 				</div>
-				{file && (
-					<p className="mt-1.5 text-[11px] text-text-tertiary">{formatFileSize(file.size)}</p>
-				)}
+				{file && <p className="mt-1.5 text-[11px] text-text-tertiary">{formatFileSize(file.size)}</p>}
 			</div>
 
 			{/* Mode Content */}
 			<div className="p-4 flex flex-col gap-4 flex-1 overflow-y-auto">
-				{mode === "settings" && (
+				{mode === 'settings' && (
 					<>
 						{/* Presets */}
 						<div>
@@ -429,13 +448,17 @@ function GifFoundry() {
 										/>
 									</div>
 									<div className="flex-1">
-										<label className="text-[10px] text-text-tertiary mb-1 block">Duration (s)</label>
+										<label className="text-[10px] text-text-tertiary mb-1 block">
+											Duration (s)
+										</label>
 										<input
 											type="number"
 											min={0.5}
 											step={0.5}
 											value={Number((trimEnd - trimStart).toFixed(1))}
-											onChange={(e) => setTrimEnd(trimStart + Math.max(0.5, Number(e.target.value)))}
+											onChange={(e) =>
+												setTrimEnd(trimStart + Math.max(0.5, Number(e.target.value)))
+											}
 											className="w-full h-7 px-2 rounded-md bg-surface-raised/60 border border-border text-xs font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
 										/>
 									</div>
@@ -445,7 +468,7 @@ function GifFoundry() {
 					</>
 				)}
 
-				{mode === "resize" && (
+				{mode === 'resize' && (
 					<>
 						{/* Width / Height */}
 						<div>
@@ -466,9 +489,9 @@ function GifFoundry() {
 								</div>
 								<button
 									onClick={() => setLockAspect(!lockAspect)}
-									title={lockAspect ? "Unlock aspect ratio" : "Lock aspect ratio"}
+									title={lockAspect ? 'Unlock aspect ratio' : 'Lock aspect ratio'}
 									className={`mt-4 h-7 w-7 flex items-center justify-center rounded-md transition-colors cursor-pointer ${
-										lockAspect ? "text-accent bg-accent/10" : "text-text-tertiary hover:text-text"
+										lockAspect ? 'text-accent bg-accent/10' : 'text-text-tertiary hover:text-text'
 									}`}
 								>
 									{lockAspect ? <Lock size={12} /> : <Unlock size={12} />}
@@ -503,20 +526,20 @@ function GifFoundry() {
 							<label className="text-[10px] text-text-tertiary mb-2 block">Common Sizes</label>
 							<div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
 								{[
-									{ label: "320", w: 320 },
-									{ label: "480", w: 480 },
-									{ label: "640", w: 640 },
-									{ label: "720", w: 720 },
-									{ label: "1080", w: 1080 },
-									{ label: "1280", w: 1280 },
+									{ label: '320', w: 320 },
+									{ label: '480', w: 480 },
+									{ label: '640', w: 640 },
+									{ label: '720', w: 720 },
+									{ label: '1080', w: 1080 },
+									{ label: '1280', w: 1280 },
 								].map((s) => (
 									<button
 										key={s.w}
 										onClick={() => handleWidthChange(s.w)}
 										className={`rounded-md py-1.5 text-[10px] font-medium transition-all cursor-pointer ${
 											width === s.w
-												? "bg-accent/15 text-accent border border-accent/30"
-												: "bg-surface-raised/60 text-text-tertiary border border-transparent hover:bg-surface-raised"
+												? 'bg-accent/15 text-accent border border-accent/30'
+												: 'bg-surface-raised/60 text-text-tertiary border border-transparent hover:bg-surface-raised'
 										}`}
 									>
 										{s.label}px
@@ -527,7 +550,7 @@ function GifFoundry() {
 					</>
 				)}
 
-				{mode === "speed" && (
+				{mode === 'speed' && (
 					<>
 						{/* Speed */}
 						<Slider
@@ -550,8 +573,8 @@ function GifFoundry() {
 										onClick={() => setSpeed(s)}
 										className={`rounded-md py-1.5 text-[10px] font-medium transition-all cursor-pointer ${
 											speed === s
-												? "bg-accent/15 text-accent border border-accent/30"
-												: "bg-surface-raised/60 text-text-tertiary border border-transparent hover:bg-surface-raised"
+												? 'bg-accent/15 text-accent border border-accent/30'
+												: 'bg-surface-raised/60 text-text-tertiary border border-transparent hover:bg-surface-raised'
 										}`}
 									>
 										{s}x
@@ -575,7 +598,7 @@ function GifFoundry() {
 					</>
 				)}
 
-				{mode === "export" && (
+				{mode === 'export' && (
 					<>
 						{/* Color Reduction */}
 						<Slider
@@ -610,7 +633,9 @@ function GifFoundry() {
 							</div>
 							<div className="flex justify-between text-[11px]">
 								<span className="text-text-tertiary">Speed</span>
-								<span className="font-mono text-text-secondary">{speed}x{reverse ? " (reversed)" : ""}</span>
+								<span className="font-mono text-text-secondary">
+									{speed}x{reverse ? ' (reversed)' : ''}
+								</span>
 							</div>
 							<div className="flex justify-between text-[11px]">
 								<span className="text-text-tertiary">Colors</span>
@@ -622,9 +647,7 @@ function GifFoundry() {
 						{resultUrl && (
 							<div className="rounded-lg bg-success/5 border border-success/20 px-3 py-2">
 								<p className="text-xs text-success font-medium">GIF ready</p>
-								<p className="text-[10px] text-text-tertiary mt-0.5">
-									{formatFileSize(resultSize)}
-								</p>
+								<p className="text-[10px] text-text-tertiary mt-0.5">{formatFileSize(resultSize)}</p>
 							</div>
 						)}
 					</>
@@ -636,20 +659,28 @@ function GifFoundry() {
 				<Button
 					className="w-full"
 					disabled={!file || !ready || processing}
-					onClick={() => { handleGenerate(); setDrawerOpen(false); }}
+					onClick={() => {
+						handleGenerate();
+						setDrawerOpen(false);
+					}}
 				>
-					{processing ? `Generating ${Math.round(progress * 100)}%` : "Generate GIF"}
+					{processing ? `Generating ${Math.round(progress * 100)}%` : 'Generate GIF'}
 				</Button>
 
 				{resultUrl && (
-					<Button variant="secondary" className="w-full" onClick={() => { handleDownload(); setDrawerOpen(false); }}>
+					<Button
+						variant="secondary"
+						className="w-full"
+						onClick={() => {
+							handleDownload();
+							setDrawerOpen(false);
+						}}
+					>
 						Download ({formatFileSize(resultSize)})
 					</Button>
 				)}
 
-				{error && (
-					<p className="text-[11px] text-danger bg-danger/10 rounded-md px-2.5 py-1.5">{error}</p>
-				)}
+				{error && <p className="text-[11px] text-danger bg-danger/10 rounded-md px-2.5 py-1.5">{error}</p>}
 			</div>
 		</>
 	);
@@ -671,7 +702,9 @@ function GifFoundry() {
 						onDragLeave={handleDragLeave}
 						onDragOver={handleDragOver}
 						onDrop={handleDrop}
-						onClick={() => { if (!videoUrl) fileInputRef.current?.click(); }}
+						onClick={() => {
+							if (!videoUrl) fileInputRef.current?.click();
+						}}
 					>
 						{videoUrl ? (
 							<div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 max-w-5xl w-full">
@@ -681,11 +714,7 @@ function GifFoundry() {
 										Source
 									</p>
 									{isGifSource ? (
-										<img
-											src={videoUrl}
-											alt="GIF source"
-											className="w-full rounded-lg bg-black"
-										/>
+										<img src={videoUrl} alt="GIF source" className="w-full rounded-lg bg-black" />
 									) : (
 										<video
 											ref={videoRef}
@@ -720,18 +749,14 @@ function GifFoundry() {
 								{processing && (
 									<div className="flex-1 flex flex-col items-center justify-center min-h-[200px]">
 										<div className="h-10 w-10 rounded-full border-[3px] border-border border-t-accent animate-spin" />
-										<p className="mt-3 text-sm font-medium">
-											{Math.round(progress * 100)}%
-										</p>
+										<p className="mt-3 text-sm font-medium">{Math.round(progress * 100)}%</p>
 										<div className="mt-2 h-1 w-40 overflow-hidden rounded-full bg-surface-raised">
 											<div
 												className="h-full bg-accent transition-all duration-300"
 												style={{ width: `${progress * 100}%` }}
 											/>
 										</div>
-										<p className="mt-2 text-[10px] text-text-tertiary">
-											Optimizing palette...
-										</p>
+										<p className="mt-2 text-[10px] text-text-tertiary">Optimizing palette...</p>
 									</div>
 								)}
 							</div>
@@ -780,9 +805,7 @@ function GifFoundry() {
 
 				{/* ── Mobile Sidebar Drawer ── */}
 				<Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
-					<div className="h-full flex flex-col bg-surface">
-						{sidebarContent}
-					</div>
+					<div className="h-full flex flex-col bg-surface">{sidebarContent}</div>
 				</Drawer>
 			</div>
 
@@ -791,23 +814,18 @@ function GifFoundry() {
 				<FileMetadataModal
 					file={file}
 					fields={[
-						{ label: "Source type", value: isGifSource ? "GIF" : "Video" },
-						{ label: "Duration", value: duration > 0 ? `${duration.toFixed(1)}s` : null },
-						{ label: "GIF settings", value: `${width}px @ ${fps}fps` },
-						{ label: "Speed", value: speed !== 1 ? `${speed}x${reverse ? " (reversed)" : ""}` : null },
-						{ label: "Est. frames", value: String(estimatedFrames) },
+						{ label: 'Source type', value: isGifSource ? 'GIF' : 'Video' },
+						{ label: 'Duration', value: duration > 0 ? `${duration.toFixed(1)}s` : null },
+						{ label: 'GIF settings', value: `${width}px @ ${fps}fps` },
+						{ label: 'Speed', value: speed !== 1 ? `${speed}x${reverse ? ' (reversed)' : ''}` : null },
+						{ label: 'Est. frames', value: String(estimatedFrames) },
 					]}
 					onClose={() => setShowInfo(false)}
 				/>
 			)}
 
 			{/* Confirm reset modal */}
-			{showResetModal && (
-				<ConfirmResetModal
-					onConfirm={handleConfirmReset}
-					onCancel={handleCancelReset}
-				/>
-			)}
+			{showResetModal && <ConfirmResetModal onConfirm={handleConfirmReset} onCancel={handleCancelReset} />}
 		</>
 	);
 }
@@ -816,30 +834,24 @@ function GifFoundry() {
 
 function EmptyState({ isDragging, onChooseFile }: { isDragging: boolean; onChooseFile: () => void }) {
 	return (
-		<div
-			className="flex flex-col items-center text-center"
-			onClick={(e) => e.stopPropagation()}
-		>
-			<div className={`rounded-2xl bg-surface border border-border p-8 mb-5 transition-all ${isDragging ? "border-accent scale-105" : ""}`}>
+		<div className="flex flex-col items-center text-center" onClick={(e) => e.stopPropagation()}>
+			<div
+				className={`rounded-2xl bg-surface border border-border p-8 mb-5 transition-all ${isDragging ? 'border-accent scale-105' : ''}`}
+			>
 				<Film
 					size={48}
 					strokeWidth={1.2}
-					className={`transition-colors ${isDragging ? "text-accent" : "text-text-tertiary/40"}`}
+					className={`transition-colors ${isDragging ? 'text-accent' : 'text-text-tertiary/40'}`}
 				/>
 			</div>
 			<p className="text-sm font-medium text-text-secondary">
-				{isDragging ? "Drop your file here" : "No file loaded"}
+				{isDragging ? 'Drop your file here' : 'No file loaded'}
 			</p>
 			<p className="mt-1 text-xs text-text-tertiary">
-				{isDragging ? "Release to load" : "Click or drag & drop to get started"}
+				{isDragging ? 'Release to load' : 'Click or drag & drop to get started'}
 			</p>
 			{!isDragging && (
-				<Button
-					variant="secondary"
-					size="sm"
-					className="mt-4"
-					onClick={onChooseFile}
-				>
+				<Button variant="secondary" size="sm" className="mt-4" onClick={onChooseFile}>
 					Choose File
 				</Button>
 			)}

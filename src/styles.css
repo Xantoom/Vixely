@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @theme {
 	/* ── Deep Flow: Palette ── */
@@ -21,8 +21,8 @@
 	--color-danger: #f87171;
 
 	/* ── Typography ── */
-	--font-sans: "DM Sans", system-ui, -apple-system, sans-serif;
-	--font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+	--font-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
+	--font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
 
 	/* ── Animations ── */
 	--animate-fade-in: fade-in 0.35s ease-out both;
@@ -36,38 +36,67 @@
 /* ── Keyframes ── */
 
 @keyframes fade-in {
-	from { opacity: 0; }
-	to { opacity: 1; }
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
 }
 
 @keyframes slide-up {
-	from { opacity: 0; transform: translateY(8px); }
-	to { opacity: 1; transform: translateY(0); }
+	from {
+		opacity: 0;
+		transform: translateY(8px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
 }
 
 @keyframes scale-in {
-	from { opacity: 0; transform: scale(0.96); }
-	to { opacity: 1; transform: scale(1); }
+	from {
+		opacity: 0;
+		transform: scale(0.96);
+	}
+	to {
+		opacity: 1;
+		transform: scale(1);
+	}
 }
 
 @keyframes pulse-soft {
-	0%, 100% { opacity: 0.5; }
-	50% { opacity: 1; }
+	0%,
+	100% {
+		opacity: 0.5;
+	}
+	50% {
+		opacity: 1;
+	}
 }
 
 @keyframes shimmer {
-	0% { background-position: -200% 0; }
-	100% { background-position: 200% 0; }
+	0% {
+		background-position: -200% 0;
+	}
+	100% {
+		background-position: 200% 0;
+	}
 }
 
 @keyframes spin {
-	to { transform: rotate(360deg); }
+	to {
+		transform: rotate(360deg);
+	}
 }
 
 /* ── Reduced Motion ── */
 
 @media (prefers-reduced-motion: reduce) {
-	*, *::before, *::after {
+	*,
+	*::before,
+	*::after {
 		animation-duration: 0.01ms !important;
 		animation-iteration-count: 1 !important;
 		transition-duration: 0.01ms !important;
@@ -80,8 +109,7 @@
 	background:
 		radial-gradient(ellipse 60% 40% at 20% 20%, rgba(167, 139, 250, 0.06) 0%, transparent 70%),
 		radial-gradient(ellipse 50% 50% at 80% 30%, rgba(96, 165, 250, 0.05) 0%, transparent 70%),
-		radial-gradient(ellipse 40% 30% at 50% 80%, rgba(52, 211, 153, 0.04) 0%, transparent 70%),
-		var(--color-bg);
+		radial-gradient(ellipse 40% 30% at 50% 80%, rgba(52, 211, 153, 0.04) 0%, transparent 70%), var(--color-bg);
 }
 
 /* ── Workspace Background ── */
@@ -136,12 +164,14 @@ body {
 
 .checkerboard {
 	background-image:
-		linear-gradient(45deg, #1c1c1f 25%, transparent 25%),
-		linear-gradient(-45deg, #1c1c1f 25%, transparent 25%),
-		linear-gradient(45deg, transparent 75%, #1c1c1f 75%),
-		linear-gradient(-45deg, transparent 75%, #1c1c1f 75%);
+		linear-gradient(45deg, #1c1c1f 25%, transparent 25%), linear-gradient(-45deg, #1c1c1f 25%, transparent 25%),
+		linear-gradient(45deg, transparent 75%, #1c1c1f 75%), linear-gradient(-45deg, transparent 75%, #1c1c1f 75%);
 	background-size: 16px 16px;
-	background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+	background-position:
+		0 0,
+		0 8px,
+		8px -8px,
+		-8px 0px;
 	background-color: #131315;
 }
 
@@ -179,7 +209,7 @@ body {
 
 /* ── Range Inputs ── */
 
-input[type="range"] {
+input[type='range'] {
 	-webkit-appearance: none;
 	appearance: none;
 	background: transparent;
@@ -188,13 +218,13 @@ input[type="range"] {
 	touch-action: none;
 }
 
-input[type="range"]::-webkit-slider-runnable-track {
+input[type='range']::-webkit-slider-runnable-track {
 	height: 3px;
 	border-radius: 2px;
 	background: var(--color-border);
 }
 
-input[type="range"]::-webkit-slider-thumb {
+input[type='range']::-webkit-slider-thumb {
 	-webkit-appearance: none;
 	width: 16px;
 	height: 16px;
@@ -206,18 +236,18 @@ input[type="range"]::-webkit-slider-thumb {
 	transition: box-shadow 0.15s ease;
 }
 
-input[type="range"]:hover::-webkit-slider-thumb,
-input[type="range"]:active::-webkit-slider-thumb {
+input[type='range']:hover::-webkit-slider-thumb,
+input[type='range']:active::-webkit-slider-thumb {
 	box-shadow: 0 0 0 4px rgba(167, 139, 250, 0.25);
 }
 
-input[type="range"]::-moz-range-track {
+input[type='range']::-moz-range-track {
 	height: 3px;
 	border-radius: 2px;
 	background: var(--color-border);
 }
 
-input[type="range"]::-moz-range-thumb {
+input[type='range']::-moz-range-thumb {
 	width: 16px;
 	height: 16px;
 	border-radius: 50%;
@@ -255,17 +285,17 @@ input[type="range"]::-moz-range-thumb {
 /* ── Touch-friendly overrides for mobile ── */
 
 @media (pointer: coarse) {
-	input[type="range"] {
+	input[type='range'] {
 		height: 36px;
 	}
 
-	input[type="range"]::-webkit-slider-thumb {
+	input[type='range']::-webkit-slider-thumb {
 		width: 20px;
 		height: 20px;
 		margin-top: -8.5px;
 	}
 
-	input[type="range"]::-moz-range-thumb {
+	input[type='range']::-moz-range-thumb {
 		width: 20px;
 		height: 20px;
 	}

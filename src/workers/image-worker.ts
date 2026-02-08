@@ -1,4 +1,4 @@
-import initWasm, { apply_filters } from "@/wasm/vixely_core.js";
+import initWasm, { apply_filters } from '@/wasm/vixely_core.js';
 
 // ── Types (mirrored from stores/imageEditor.ts) ──
 
@@ -19,14 +19,14 @@ interface Filters {
 }
 
 interface ProcessMessage {
-	type: "PROCESS";
+	type: 'PROCESS';
 	pixels: ArrayBuffer;
 	width: number;
 	height: number;
 	filters: Filters;
 }
 
-type WorkerMessage = { type: "INIT" } | ProcessMessage;
+type WorkerMessage = { type: 'INIT' } | ProcessMessage;
 
 // ── WASM state ──
 
@@ -94,13 +94,16 @@ function applyExtendedFilters(pixels: Uint8ClampedArray, filters: Filters): void
 			const rr = r;
 			const gg = g;
 			const bb = b;
-			r = (0.213 + 0.787 * cosH - 0.213 * sinH) * rr +
+			r =
+				(0.213 + 0.787 * cosH - 0.213 * sinH) * rr +
 				(0.715 - 0.715 * cosH - 0.715 * sinH) * gg +
 				(0.072 - 0.072 * cosH + 0.928 * sinH) * bb;
-			g = (0.213 - 0.213 * cosH + 0.143 * sinH) * rr +
-				(0.715 + 0.285 * cosH + 0.140 * sinH) * gg +
+			g =
+				(0.213 - 0.213 * cosH + 0.143 * sinH) * rr +
+				(0.715 + 0.285 * cosH + 0.14 * sinH) * gg +
 				(0.072 - 0.072 * cosH - 0.283 * sinH) * bb;
-			b = (0.213 - 0.213 * cosH - 0.787 * sinH) * rr +
+			b =
+				(0.213 - 0.213 * cosH - 0.787 * sinH) * rr +
 				(0.715 - 0.715 * cosH + 0.715 * sinH) * gg +
 				(0.072 + 0.928 * cosH + 0.072 * sinH) * bb;
 		}
@@ -125,20 +128,20 @@ function applyExtendedFilters(pixels: Uint8ClampedArray, filters: Filters): void
 self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
 	const msg = e.data;
 
-	if (msg.type === "INIT") {
+	if (msg.type === 'INIT') {
 		try {
 			await initWasm();
 			wasmReady = true;
-			self.postMessage({ type: "READY" });
+			self.postMessage({ type: 'READY' });
 		} catch (err) {
-			self.postMessage({ type: "ERROR", error: String(err) });
+			self.postMessage({ type: 'ERROR', error: String(err) });
 		}
 		return;
 	}
 
-	if (msg.type === "PROCESS") {
+	if (msg.type === 'PROCESS') {
 		if (!wasmReady) {
-			self.postMessage({ type: "ERROR", error: "WASM not initialized" });
+			self.postMessage({ type: 'ERROR', error: 'WASM not initialized' });
 			return;
 		}
 
@@ -154,12 +157,9 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
 			applyExtendedFilters(clamped, filters);
 
 			// Transfer buffer back (zero-copy)
-			self.postMessage(
-				{ type: "DONE", pixels: clamped.buffer, width, height },
-				[clamped.buffer],
-			);
+			self.postMessage({ type: 'DONE', pixels: clamped.buffer, width, height }, [clamped.buffer]);
 		} catch (err) {
-			self.postMessage({ type: "ERROR", error: String(err) });
+			self.postMessage({ type: 'ERROR', error: String(err) });
 		}
 	}
 };

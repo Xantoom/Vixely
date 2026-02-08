@@ -15,15 +15,10 @@ export function ExportProgressModal({ progress }: ExportProgressModalProps) {
 				<p className="mt-1 text-xs text-text-secondary">{pct}% complete</p>
 
 				<div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-surface-raised">
-					<div
-						className="h-full bg-accent transition-all duration-300"
-						style={{ width: `${pct}%` }}
-					/>
+					<div className="h-full bg-accent transition-all duration-300" style={{ width: `${pct}%` }} />
 				</div>
 
-				<p className="mt-3 text-[10px] text-text-tertiary">
-					Please do not close this tab while exporting.
-				</p>
+				<p className="mt-3 text-[10px] text-text-tertiary">Please do not close this tab while exporting.</p>
 			</div>
 		</div>
 	);

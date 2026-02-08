@@ -1,4 +1,4 @@
-import { create } from "zustand";
+import { create } from 'zustand';
 
 /* ── Types ── */
 
@@ -52,11 +52,11 @@ interface HistoryEntry {
 	filters: Filters;
 }
 
-export type ActiveTool = "pointer" | "crop";
+export type ActiveTool = 'pointer' | 'crop';
 
 type ProcessFn = (data: ImageData, filters: Filters) => Promise<ImageData>;
 
-export type ExportFormat = "png" | "jpeg" | "webp";
+export type ExportFormat = 'png' | 'jpeg' | 'webp';
 
 const MAX_HISTORY = 20;
 const MAX_HISTORY_BYTES = 512 * 1024 * 1024; // 512 MB
@@ -181,10 +181,7 @@ async function makeFilteredData(orig: ImageData, filters: Filters, processFn: Pr
 
 function currentEntry(state: ImageEditorState): HistoryEntry | null {
 	if (!state.originalData) return null;
-	return {
-		imageData: state.originalData,
-		filters: { ...state.committedFilters },
-	};
+	return { imageData: state.originalData, filters: { ...state.committedFilters } };
 }
 
 export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
@@ -204,7 +201,7 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 	view: { panX: 0, panY: 0, zoom: 1 },
 
 	// Tools
-	activeTool: "pointer",
+	activeTool: 'pointer',
 	crop: null,
 	cropAspectRatio: null,
 
@@ -214,7 +211,7 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 	resizeLockAspect: true,
 
 	// Export
-	exportFormat: "png",
+	exportFormat: 'png',
 	exportQuality: 90,
 	showOriginal: false,
 
@@ -230,10 +227,15 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 
 	loadImage: (file, imageData) => {
 		// Detect format from file MIME type
-		let fmt: ExportFormat = "png";
+		let fmt: ExportFormat = 'png';
 		let quality = 100;
-		if (file.type === "image/jpeg") { fmt = "jpeg"; quality = 85; }
-		else if (file.type === "image/webp") { fmt = "webp"; quality = 80; }
+		if (file.type === 'image/jpeg') {
+			fmt = 'jpeg';
+			quality = 85;
+		} else if (file.type === 'image/webp') {
+			fmt = 'webp';
+			quality = 80;
+		}
 
 		set({
 			file,
@@ -245,7 +247,7 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 			isDraggingSlider: false,
 			isProcessing: false,
 			view: { panX: 0, panY: 0, zoom: 1 },
-			activeTool: "pointer",
+			activeTool: 'pointer',
 			crop: null,
 			cropAspectRatio: null,
 			resizeWidth: imageData.width,
@@ -333,16 +335,10 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 		const img = s.originalData;
 		if (!img) return;
 		const zoom = Math.min((containerW - 48) / img.width, (containerH - 48) / img.height, 1);
-		set({
-			view: {
-				panX: (containerW - img.width * zoom) / 2,
-				panY: (containerH - img.height * zoom) / 2,
-				zoom,
-			},
-		});
+		set({ view: { panX: (containerW - img.width * zoom) / 2, panY: (containerH - img.height * zoom) / 2, zoom } });
 	},
 
-	setActiveTool: (tool) => set({ activeTool: tool, crop: tool === "pointer" ? null : get().crop }),
+	setActiveTool: (tool) => set({ activeTool: tool, crop: tool === 'pointer' ? null : get().crop }),
 	setCrop: (rect) => set({ crop: rect }),
 	setCropAspectRatio: (ratio) => set({ cropAspectRatio: ratio }),
 
@@ -361,16 +357,16 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 		const ch = Math.min(Math.round(height), source.height - cy);
 		if (cw <= 0 || ch <= 0) return;
 
-		const canvas = document.createElement("canvas");
+		const canvas = document.createElement('canvas');
 		canvas.width = cw;
 		canvas.height = ch;
-		const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+		const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
 
 		// Put source data then extract the cropped region
-		const tmpCanvas = document.createElement("canvas");
+		const tmpCanvas = document.createElement('canvas');
 		tmpCanvas.width = source.width;
 		tmpCanvas.height = source.height;
-		const tmpCtx = tmpCanvas.getContext("2d")!;
+		const tmpCtx = tmpCanvas.getContext('2d')!;
 		tmpCtx.putImageData(source, 0, 0);
 		ctx.drawImage(tmpCanvas, cx, cy, cw, ch, 0, 0, cw, ch);
 
@@ -382,7 +378,7 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 			filters: { ...DEFAULT_FILTERS },
 			committedFilters: { ...DEFAULT_FILTERS },
 			crop: null,
-			activeTool: "pointer",
+			activeTool: 'pointer',
 			resizeWidth: cw,
 			resizeHeight: ch,
 			undoStack: entry ? trimStack([...s.undoStack, entry], MAX_HISTORY, MAX_HISTORY_BYTES) : s.undoStack,
@@ -390,11 +386,14 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 		});
 	},
 
-	cancelCrop: () => set({ crop: null, activeTool: "pointer" }),
+	cancelCrop: () => set({ crop: null, activeTool: 'pointer' }),
 
 	setResizeWidth: (w) => {
 		const s = get();
-		if (w === null) { set({ resizeWidth: null }); return; }
+		if (w === null) {
+			set({ resizeWidth: null });
+			return;
+		}
 		if (s.resizeLockAspect && s.originalData) {
 			const aspect = s.originalData.width / s.originalData.height;
 			set({ resizeWidth: w, resizeHeight: Math.round(w / aspect) });
@@ -405,7 +404,10 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 
 	setResizeHeight: (h) => {
 		const s = get();
-		if (h === null) { set({ resizeHeight: null }); return; }
+		if (h === null) {
+			set({ resizeHeight: null });
+			return;
+		}
 		if (s.resizeLockAspect && s.originalData) {
 			const aspect = s.originalData.width / s.originalData.height;
 			set({ resizeHeight: h, resizeWidth: Math.round(h * aspect) });
@@ -427,16 +429,16 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 
 		// Bake filters then resize
 		const source = s.filteredData ?? s.originalData;
-		const srcCanvas = document.createElement("canvas");
+		const srcCanvas = document.createElement('canvas');
 		srcCanvas.width = source.width;
 		srcCanvas.height = source.height;
-		const srcCtx = srcCanvas.getContext("2d")!;
+		const srcCtx = srcCanvas.getContext('2d')!;
 		srcCtx.putImageData(source, 0, 0);
 
-		const dstCanvas = document.createElement("canvas");
+		const dstCanvas = document.createElement('canvas');
 		dstCanvas.width = w;
 		dstCanvas.height = h;
-		const dstCtx = dstCanvas.getContext("2d", { willReadFrequently: true })!;
+		const dstCtx = dstCanvas.getContext('2d', { willReadFrequently: true })!;
 		dstCtx.drawImage(srcCanvas, 0, 0, w, h);
 
 		const resizedData = dstCtx.getImageData(0, 0, w, h);
@@ -454,7 +456,7 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 	},
 
 	setExportFormat: (fmt) => {
-		const quality = fmt === "png" ? 100 : fmt === "jpeg" ? 85 : 80;
+		const quality = fmt === 'png' ? 100 : fmt === 'jpeg' ? 85 : 80;
 		set({ exportFormat: fmt, exportQuality: quality });
 	},
 	setExportQuality: (q) => set({ exportQuality: q }),
@@ -512,13 +514,13 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 			committedFilters: { ...DEFAULT_FILTERS },
 			isDraggingSlider: false,
 			isProcessing: false,
-			activeTool: "pointer",
+			activeTool: 'pointer',
 			crop: null,
 			cropAspectRatio: null,
 			resizeWidth: s.initialData.width,
 			resizeHeight: s.initialData.height,
 			resizeLockAspect: true,
-			exportFormat: "png",
+			exportFormat: 'png',
 			exportQuality: 90,
 			showOriginal: false,
 			compareMode: false,
@@ -539,13 +541,13 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 			isDraggingSlider: false,
 			isProcessing: false,
 			view: { panX: 0, panY: 0, zoom: 1 },
-			activeTool: "pointer",
+			activeTool: 'pointer',
 			crop: null,
 			cropAspectRatio: null,
 			resizeWidth: null,
 			resizeHeight: null,
 			resizeLockAspect: true,
-			exportFormat: "png",
+			exportFormat: 'png',
 			exportQuality: 90,
 			showOriginal: false,
 			compareMode: false,

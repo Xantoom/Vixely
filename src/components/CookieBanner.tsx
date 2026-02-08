@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from 'react';
 
-const STORAGE_KEY = "vixely-cookies-accepted";
+const STORAGE_KEY = 'vixely-cookies-accepted';
 
 export function CookieBanner() {
 	const [visible, setVisible] = useState(false);
@@ -14,12 +14,12 @@ export function CookieBanner() {
 	}, []);
 
 	const handleAccept = useCallback(() => {
-		localStorage.setItem(STORAGE_KEY, "1");
+		localStorage.setItem(STORAGE_KEY, '1');
 		setVisible(false);
 	}, []);
 
 	const handleDismiss = useCallback(() => {
-		localStorage.setItem(STORAGE_KEY, "1");
+		localStorage.setItem(STORAGE_KEY, '1');
 		setVisible(false);
 	}, []);
 
@@ -29,15 +29,23 @@ export function CookieBanner() {
 		<div className="fixed bottom-4 right-4 z-40 w-80 rounded-xl border border-border bg-surface p-4 shadow-xl animate-slide-up">
 			<div className="flex items-start gap-3">
 				<div className="shrink-0 mt-0.5">
-					<svg className="h-4 w-4 text-text-tertiary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+					<svg
+						className="h-4 w-4 text-text-tertiary"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						strokeWidth="2"
+						strokeLinecap="round"
+						strokeLinejoin="round"
+					>
 						<circle cx="12" cy="12" r="10" />
 						<path d="M12 16v-4M12 8h.01" />
 					</svg>
 				</div>
 				<div className="flex-1 min-w-0">
 					<p className="text-xs text-text-secondary leading-relaxed">
-						We use minimal cookies for analytics and future ad personalization.
-						No personal data is collected.{" "}
+						We use minimal cookies for analytics and future ad personalization. No personal data is
+						collected.{' '}
 						<a href="/privacy" className="underline text-text-secondary hover:text-text transition-colors">
 							Learn more
 						</a>

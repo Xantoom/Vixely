@@ -1,5 +1,5 @@
-import { X, FileText } from "lucide-react";
-import { formatFileSize } from "@/utils/format.ts";
+import { X, FileText } from 'lucide-react';
+import { formatFileSize } from '@/utils/format.ts';
 
 interface MetadataField {
 	label: string;
@@ -14,18 +14,18 @@ interface FileMetadataModalProps {
 
 export function FileMetadataModal({ file, fields, onClose }: FileMetadataModalProps) {
 	const lastModified = new Date(file.lastModified).toLocaleDateString(undefined, {
-		year: "numeric",
-		month: "short",
-		day: "numeric",
-		hour: "2-digit",
-		minute: "2-digit",
+		year: 'numeric',
+		month: 'short',
+		day: 'numeric',
+		hour: '2-digit',
+		minute: '2-digit',
 	});
 
 	const allFields: MetadataField[] = [
-		{ label: "File name", value: file.name },
-		{ label: "File size", value: formatFileSize(file.size) },
-		{ label: "Type", value: file.type || "Unknown" },
-		{ label: "Last modified", value: lastModified },
+		{ label: 'File name', value: file.name },
+		{ label: 'File size', value: formatFileSize(file.size) },
+		{ label: 'Type', value: file.type || 'Unknown' },
+		{ label: 'Last modified', value: lastModified },
 		...fields,
 	];
 

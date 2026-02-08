@@ -1,6 +1,6 @@
-import { X, FileImage } from "lucide-react";
-import { Button } from "@/components/ui/index.ts";
-import { formatFileSize, formatDimensions } from "@/utils/format.ts";
+import { X, FileImage } from 'lucide-react';
+import { Button } from '@/components/ui/index.ts';
+import { formatFileSize, formatDimensions } from '@/utils/format.ts';
 
 interface ImageInfoModalProps {
 	file: File;
@@ -11,11 +11,11 @@ interface ImageInfoModalProps {
 
 export function ImageInfoModal({ file, width, height, onClose }: ImageInfoModalProps) {
 	const rows = [
-		["Filename", file.name],
-		["Size", formatFileSize(file.size)],
-		["Dimensions", formatDimensions(width, height)],
-		["MIME Type", file.type || "unknown"],
-		["Last Modified", new Date(file.lastModified).toLocaleString()],
+		['Filename', file.name],
+		['Size', formatFileSize(file.size)],
+		['Dimensions', formatDimensions(width, height)],
+		['MIME Type', file.type || 'unknown'],
+		['Last Modified', new Date(file.lastModified).toLocaleString()],
 	];
 
 	return (
@@ -42,17 +42,14 @@ export function ImageInfoModal({ file, width, height, onClose }: ImageInfoModalP
 					{rows.map(([label, value]) => (
 						<div key={label} className="flex items-center justify-between">
 							<span className="text-xs text-text-tertiary">{label}</span>
-							<span className="text-xs font-medium text-text-secondary truncate ml-4 max-w-[200px] text-right">{value}</span>
+							<span className="text-xs font-medium text-text-secondary truncate ml-4 max-w-[200px] text-right">
+								{value}
+							</span>
 						</div>
 					))}
 				</div>
 
-				<Button
-					variant="secondary"
-					size="sm"
-					className="w-full mt-5"
-					onClick={onClose}
-				>
+				<Button variant="secondary" size="sm" className="w-full mt-5" onClick={onClose}>
 					Close
 				</Button>
 			</div>

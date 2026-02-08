@@ -2,7 +2,8 @@
 
 ## Overview
 
-Vixely is a static SPA that requires specific HTTP headers for multi-threaded FFmpeg.wasm (SharedArrayBuffer). This guide covers Railway + GitHub Actions deployment.
+Vixely is a static SPA that requires specific HTTP headers for multi-threaded FFmpeg.wasm (SharedArrayBuffer). This
+guide covers Railway + GitHub Actions deployment.
 
 ## Prerequisites
 
@@ -41,10 +42,10 @@ Visit `http://localhost:8080` to verify.
 
 ### Environment Variables
 
-| Variable          | Value                     | Notes                    |
-|-------------------|---------------------------|--------------------------|
-| `PORT`            | `80`                      | Railway sets this        |
-| `NODE_ENV`        | `production`              | Build optimization       |
+| Variable   | Value        | Notes              |
+| ---------- | ------------ | ------------------ |
+| `PORT`     | `80`         | Railway sets this  |
+| `NODE_ENV` | `production` | Build optimization |
 
 ### Railway Setup
 
@@ -93,12 +94,14 @@ The `nginx.conf` handles:
 ### SharedArrayBuffer not available
 
 Check browser console for COOP/COEP header issues. Both headers must be present:
+
 - `Cross-Origin-Opener-Policy: same-origin`
 - `Cross-Origin-Embedder-Policy: require-corp`
 
 ### FFmpeg.wasm fails to load
 
 The WASM core is loaded from unpkg CDN. Verify:
+
 - No CSP blocking `unpkg.com`
 - `crossorigin` attribute on external resources
 - COEP `require-corp` may block cross-origin resources without CORS headers
@@ -110,5 +113,6 @@ bun run build 2>&1 | head -50
 ```
 
 Common issues:
+
 - Missing WASM bindings: run `wasm-pack build` in `vixely-core/`
 - TypeScript errors: check `bun run build` output

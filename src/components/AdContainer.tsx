@@ -1,13 +1,13 @@
-import { useEffect, useRef } from "react";
-import { useAdBlockDetector } from "@/hooks/useAdBlockDetector.ts";
+import { useEffect, useRef } from 'react';
+import { useAdBlockDetector } from '@/hooks/useAdBlockDetector.ts';
 
 interface AdContainerProps {
 	slot: string;
 	className?: string;
-	format?: "auto" | "horizontal" | "rectangle";
+	format?: 'auto' | 'horizontal' | 'rectangle';
 }
 
-export function AdContainer({ slot, className = "", format = "auto" }: AdContainerProps) {
+export function AdContainer({ slot, className = '', format = 'auto' }: AdContainerProps) {
 	const { isBlocked, checked } = useAdBlockDetector();
 	const adRef = useRef<HTMLModElement>(null);
 	const pushed = useRef(false);
@@ -30,7 +30,7 @@ export function AdContainer({ slot, className = "", format = "auto" }: AdContain
 			<ins
 				ref={adRef}
 				className="adsbygoogle"
-				style={{ display: "block" }}
+				style={{ display: 'block' }}
 				data-ad-client="ca-pub-XXXXXXXXXXXXXXXX"
 				data-ad-slot={slot}
 				data-ad-format={format}

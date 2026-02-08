@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
-import { Shield, Check } from "lucide-react";
-import { Button } from "@/components/ui/index.ts";
+import { Shield, Check } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Button } from '@/components/ui/index.ts';
 
-const STORAGE_KEY = "vixely-privacy-acknowledged";
+const STORAGE_KEY = 'vixely-privacy-acknowledged';
 
 export function PrivacyModal() {
 	const [open, setOpen] = useState(false);
@@ -14,7 +14,7 @@ export function PrivacyModal() {
 	}, []);
 
 	const handleAccept = useCallback(() => {
-		localStorage.setItem(STORAGE_KEY, "1");
+		localStorage.setItem(STORAGE_KEY, '1');
 		setOpen(false);
 	}, []);
 
@@ -31,16 +31,16 @@ export function PrivacyModal() {
 				<h2 className="text-center text-lg font-bold">Your files stay with you</h2>
 
 				<p className="mt-3 text-center text-sm text-text-secondary leading-relaxed">
-					Vixely is a <strong className="text-text">local-first</strong> tool.
-					Your files <strong className="text-text">never</strong> leave your device.
-					All processing happens right here in your browser using WebAssembly.
+					Vixely is a <strong className="text-text">local-first</strong> tool. Your files{' '}
+					<strong className="text-text">never</strong> leave your device. All processing happens right here in
+					your browser using WebAssembly.
 				</p>
 
 				<ul className="mt-5 flex flex-col gap-2">
 					{[
-						"No uploads — everything runs client-side",
-						"No accounts or tracking required",
-						"No data is collected or stored on any server",
+						'No uploads — everything runs client-side',
+						'No accounts or tracking required',
+						'No data is collected or stored on any server',
 					].map((item) => (
 						<li key={item} className="flex items-start gap-2.5 text-xs text-text-secondary">
 							<Check size={16} className="shrink-0 text-success mt-0.5" />
@@ -49,15 +49,12 @@ export function PrivacyModal() {
 					))}
 				</ul>
 
-				<Button
-					className="mt-6 w-full"
-					onClick={handleAccept}
-				>
+				<Button className="mt-6 w-full" onClick={handleAccept}>
 					Got it
 				</Button>
 
 				<p className="mt-3 text-center text-[10px] text-text-tertiary">
-					Read our full{" "}
+					Read our full{' '}
 					<a href="/privacy" className="underline hover:text-text-secondary transition-colors">
 						Privacy Policy
 					</a>

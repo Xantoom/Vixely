@@ -1,4 +1,4 @@
-import { aggregatedPresets as data } from "./presets/index.ts";
+import { aggregatedPresets as data } from './presets/index.ts';
 
 // ── Types ──
 
@@ -6,7 +6,7 @@ export interface VideoPreset {
 	name: string;
 	description: string;
 	maxSizeMB: number | null;
-	format: "mp4" | "webm";
+	format: 'mp4' | 'webm';
 	ffmpegArgs: string[];
 	width: number | null;
 	height: number | null;
@@ -17,8 +17,8 @@ export interface ImagePreset {
 	description: string;
 	width: number | null;
 	height: number | null;
-	format: "png" | "webp" | "jpeg";
-	exportFormat?: "png" | "jpeg" | "webp";
+	format: 'png' | 'webp' | 'jpeg';
+	exportFormat?: 'png' | 'jpeg' | 'webp';
 	exportQuality?: number;
 }
 
@@ -85,10 +85,7 @@ export function filterPresetEntries(): [string, FilterPreset][] {
  * Build FFmpeg args for a video preset with size-constrained encoding.
  * Calculates target bitrate from maxSizeMB and clip duration.
  */
-export function buildVideoArgs(
-	presetKey: string,
-	clipDuration: number,
-): { args: string[]; format: string } {
+export function buildVideoArgs(presetKey: string, clipDuration: number): { args: string[]; format: string } {
 	const preset = videoPresets[presetKey];
 	if (!preset) throw new Error(`Unknown video preset: ${presetKey}`);
 
@@ -97,21 +94,22 @@ export function buildVideoArgs(
 	// Scale filter if dimensions specified
 	if (preset.width != null && preset.height != null) {
 		args.push(
-			"-vf",
+			'-vf',
 			`scale=${preset.width}:${preset.height}:force_original_aspect_ratio=decrease,pad=${preset.width}:${preset.height}:(ow-iw)/2:(oh-ih)/2`,
 		);
 	}
 
 	// Size-constrained encoding
 	if (preset.maxSizeMB != null) {
-		const targetBitrate = Math.floor(
-			(preset.maxSizeMB * 8 * 1024) / Math.max(clipDuration, 0.5),
-		);
+		const targetBitrate = Math.floor((preset.maxSizeMB * 8 * 1024) / Math.max(clipDuration, 0.5));
 		args.push(
 			...preset.ffmpegArgs,
-			"-b:v", `${targetBitrate}k`,
-			"-maxrate", `${targetBitrate}k`,
-			"-bufsize", `${targetBitrate * 2}k`,
+			'-b:v',
+			`${targetBitrate}k`,
+			'-maxrate',
+			`${targetBitrate}k`,
+			'-bufsize',
+			`${targetBitrate * 2}k`,
 		);
 	} else {
 		args.push(...preset.ffmpegArgs);
@@ -122,7 +120,7 @@ export function buildVideoArgs(
 
 // ── Accepted File Types ──
 
-export const VIDEO_ACCEPT = ".mp4,.webm,.mov,.mkv,.avi,.m4v,.ts,.flv";
-export const IMAGE_ACCEPT = ".png,.jpg,.jpeg,.webp,.bmp,.tiff,.avif";
+export const VIDEO_ACCEPT = '.mp4,.webm,.mov,.mkv,.avi,.m4v,.ts,.flv';
+export const IMAGE_ACCEPT = '.png,.jpg,.jpeg,.webp,.bmp,.tiff,.avif';
 export const GIF_ACCEPT = `${VIDEO_ACCEPT},.gif`;
 export const ALL_MEDIA_ACCEPT = `${VIDEO_ACCEPT},${IMAGE_ACCEPT},.gif`;
