@@ -30,5 +30,8 @@
 		".claude",
 		".github",
 		".tanstack",
+		".agents",
+		".vscode",
+		".idea",
 	],
 }
