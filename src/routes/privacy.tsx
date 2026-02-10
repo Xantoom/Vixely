@@ -55,17 +55,16 @@ function PrivacyPage() {
 					<Section title="Cookies">
 						<p>
 							Vixely uses minimal local storage entries to remember your preferences (e.g., whether you've
-							seen the privacy notice). If third-party ads are displayed in the future, those providers
-							may set their own cookies subject to their own policies.
+							seen the privacy notice). Our ad partner, Monetag, may set cookies for ad delivery and
+							performance measurement, subject to their own privacy policy.
 						</p>
 					</Section>
 
 					<Section title="Third-party services">
 						<p>
 							Vixely loads open-source libraries (FFmpeg.wasm, Rust WASM modules) from your local bundle —
-							no CDN calls for processing. Google Fonts are loaded for typography. Future ad integrations
-							(e.g., Google AdSense) will be clearly labeled and governed by their respective privacy
-							policies.
+							no CDN calls for processing. Google Fonts are loaded for typography. Ads are served by
+							Monetag and governed by their privacy policy.
 						</p>
 					</Section>
 

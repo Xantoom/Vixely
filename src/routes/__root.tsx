@@ -2,16 +2,17 @@ import { createRootRoute, Outlet, Link, useRouterState } from '@tanstack/react-r
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools';
 import { Video, ImageIcon, Film, Home } from 'lucide-react';
 import { Toaster } from 'sonner';
-import { AdContainer } from '@/components/AdContainer.tsx';
+import { MonetagAd } from '@/components/AdContainer.tsx';
+import { MONETAG_ZONES } from '@/config/monetag.ts';
 import { CookieBanner } from '@/components/CookieBanner.tsx';
 import { PrivacyModal } from '@/components/PrivacyModal.tsx';
 
 export const Route = createRootRoute({ component: RootLayout });
 
 const navItems = [
-	{ to: '/tools/video' as const, label: 'Video', icon: Video },
-	{ to: '/tools/image' as const, label: 'Image', icon: ImageIcon },
-	{ to: '/tools/gif' as const, label: 'GIF', icon: Film },
+	{ to: '/tools/video' as const, label: 'Video', icon: Video, activeText: 'text-blue-500', activeBg: 'bg-blue-500/10', indicator: 'bg-blue-500' },
+	{ to: '/tools/image' as const, label: 'Image', icon: ImageIcon, activeText: 'text-amber-500', activeBg: 'bg-amber-500/10', indicator: 'bg-amber-500' },
+	{ to: '/tools/gif' as const, label: 'GIF', icon: Film, activeText: 'text-emerald-500', activeBg: 'bg-emerald-500/10', indicator: 'bg-emerald-500' },
 ];
 
 function RootLayout() {
@@ -47,14 +48,14 @@ function RootLayout() {
 								to={item.to}
 								className={`group relative flex flex-col items-center gap-0.5 rounded-lg py-2.5 transition-all ${
 									isActive
-										? 'bg-accent/10 text-accent'
+										? `${item.activeBg} ${item.activeText}`
 										: 'text-text-tertiary hover:text-text-secondary hover:bg-white/[0.03]'
 								}`}
 							>
 								<item.icon className="h-5 w-5" />
 								<span className="text-[9px] font-semibold tracking-wide uppercase">{item.label}</span>
 								{isActive && (
-									<div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-accent" />
+									<div className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full ${item.indicator}`} />
 								)}
 							</Link>
 						);
@@ -77,7 +78,7 @@ function RootLayout() {
 				</div>
 				{isHome && (
 					<div className="shrink-0 px-8 pb-6 hidden md:block">
-						<AdContainer slot="footer-banner" className="h-16 w-full max-w-xl mx-auto" />
+						<MonetagAd zoneId={MONETAG_ZONES.footer} className="h-16 w-full max-w-xl mx-auto" />
 					</div>
 				)}
 			</main>
@@ -100,7 +101,7 @@ function RootLayout() {
 							key={item.to}
 							to={item.to}
 							className={`flex flex-col items-center gap-0.5 py-3 px-4 min-w-[3rem] transition-all ${
-								isActive ? 'text-accent' : 'text-text-tertiary'
+								isActive ? item.activeText : 'text-text-tertiary'
 							}`}
 						>
 							<item.icon className="h-5 w-5" />

@@ -1,10 +1,12 @@
-import { ChevronRight, Lock, Unlock, Info, FilePlus2 } from 'lucide-react';
+import { Lock, Unlock, Info, FilePlus2, Palette, SlidersHorizontal, Sparkles, Download } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 import { Button, Slider } from '@/components/ui/index.ts';
 import { filterPresetEntries, imagePresetEntries } from '@/config/presets.ts';
 import { useImageEditorStore, type Filters, type ExportFormat } from '@/stores/imageEditor.ts';
 import { formatFileSize, estimateImageSize } from '@/utils/format.ts';
+import { MonetagAd } from '@/components/AdContainer.tsx';
+import { MONETAG_ZONES } from '@/config/monetag.ts';
 import { ImageInfoModal } from './ImageInfoModal.tsx';
 
 const FILTER_PRESETS = filterPresetEntries();
@@ -98,7 +100,16 @@ const FORMAT_OPTIONS: { value: ExportFormat; label: string }[] = [
 	{ value: 'webp', label: 'WebP' },
 ];
 
-type SectionKey = 'presets' | 'light' | 'color' | 'effects' | 'resize' | 'export';
+/* ── Mode Tab Config ── */
+
+type ImageMode = 'presets' | 'adjust' | 'effects' | 'export';
+
+const IMAGE_MODE_TABS: { mode: ImageMode; label: string; icon: typeof Palette }[] = [
+	{ mode: 'presets', label: 'Presets', icon: Palette },
+	{ mode: 'adjust', label: 'Adjust', icon: SlidersHorizontal },
+	{ mode: 'effects', label: 'Effects', icon: Sparkles },
+	{ mode: 'export', label: 'Export', icon: Download },
+];
 
 export function ImageSidebar({ processFn, wasmReady, onOpenFile, onNew }: ImageSidebarProps) {
 	const {
@@ -125,20 +136,8 @@ export function ImageSidebar({ processFn, wasmReady, onOpenFile, onNew }: ImageS
 		applyResize,
 	} = useImageEditorStore();
 
-	const [collapsed, setCollapsed] = useState<Record<SectionKey, boolean>>({
-		presets: false,
-		light: false,
-		color: false,
-		effects: false,
-		resize: false,
-		export: false,
-	});
-
+	const [mode, setMode] = useState<ImageMode>('presets');
 	const [showInfo, setShowInfo] = useState(false);
-
-	const toggleSection = useCallback((key: SectionKey) => {
-		setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
-	}, []);
 
 	const handleSliderDown = useCallback(() => {
 		setSliderDragging(true);
@@ -236,53 +235,22 @@ export function ImageSidebar({ processFn, wasmReady, onOpenFile, onNew }: ImageS
 		[setResizeWidth, setResizeHeight, setExportFormat, setExportQuality],
 	);
 
-	const sectionHeader = (key: SectionKey, label: string, extra?: React.ReactNode) => (
-		<div className="flex items-center gap-1.5 w-full">
-			<div
-				role="button"
-				tabIndex={0}
-				onClick={() => toggleSection(key)}
-				onKeyDown={(e) => {
-					if (e.key === 'Enter' || e.key === ' ') {
-						e.preventDefault();
-						toggleSection(key);
-					}
-				}}
-				className="flex items-center gap-1.5 flex-1 text-left cursor-pointer group"
-			>
-				<ChevronRight
-					size={12}
-					className={`text-text-tertiary transition-transform ${collapsed[key] ? '' : 'rotate-90'}`}
+	const renderSliders = (sliders: SliderDef[]) => (
+		<div className="flex flex-col gap-3">
+			{sliders.map((s) => (
+				<Slider
+					key={s.key}
+					label={s.label}
+					displayValue={s.format(filters[s.key])}
+					min={s.min}
+					max={s.max}
+					step={s.step}
+					value={filters[s.key]}
+					onChange={(e) => setFilter(s.key, Number((e.target as HTMLInputElement).value))}
+					onPointerDown={handleSliderDown}
+					onCommit={handleSliderCommit}
 				/>
-				<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider flex-1">
-					{label}
-				</h3>
-			</div>
-			{extra}
-		</div>
-	);
-
-	const renderSliderGroup = (key: SectionKey, label: string, sliders: SliderDef[]) => (
-		<div className="p-4 flex flex-col gap-3 border-b border-border">
-			{sectionHeader(key, label)}
-			{!collapsed[key] && (
-				<div className="flex flex-col gap-3 mt-1">
-					{sliders.map((s) => (
-						<Slider
-							key={s.key}
-							label={s.label}
-							displayValue={s.format(filters[s.key])}
-							min={s.min}
-							max={s.max}
-							step={s.step}
-							value={filters[s.key]}
-							onChange={(e) => setFilter(s.key, Number((e.target as HTMLInputElement).value))}
-							onPointerDown={handleSliderDown}
-							onCommit={handleSliderCommit}
-						/>
-					))}
-				</div>
-			)}
+			))}
 		</div>
 	);
 
@@ -298,11 +266,32 @@ export function ImageSidebar({ processFn, wasmReady, onOpenFile, onNew }: ImageS
 
 	return (
 		<aside
-			className="w-72 xl:w-80 shrink-0 min-h-0 overflow-y-auto border-l border-border bg-surface flex flex-col"
+			className="w-72 xl:w-80 shrink-0 min-h-0 overflow-hidden border-l border-border bg-surface flex flex-col"
 			style={{ overscrollBehavior: 'contain' }}
 		>
+			{/* Mode Tabs */}
+			<div className="flex border-b border-border bg-surface overflow-x-auto shrink-0">
+				{IMAGE_MODE_TABS.map((tab) => {
+					const isActive = mode === tab.mode;
+					return (
+						<button
+							key={tab.mode}
+							onClick={() => setMode(tab.mode)}
+							className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[9px] font-semibold uppercase tracking-wider transition-all cursor-pointer ${
+								isActive
+									? 'text-accent border-b-2 border-accent'
+									: 'text-text-tertiary hover:text-text-secondary'
+							}`}
+						>
+							<tab.icon size={14} />
+							{tab.label}
+						</button>
+					);
+				})}
+			</div>
+
 			{/* File */}
-			<div className="p-4 border-b border-border">
+			<div className="p-4 border-b border-border shrink-0">
 				<div className="flex gap-2">
 					<Button variant="secondary" className="flex-1 min-w-0" onClick={onOpenFile}>
 						{file ? <span className="truncate">{file.name}</span> : 'Choose Image'}
@@ -328,124 +317,135 @@ export function ImageSidebar({ processFn, wasmReady, onOpenFile, onNew }: ImageS
 				{!wasmReady && <p className="mt-1.5 text-[11px] text-accent animate-pulse-soft">Loading engine...</p>}
 			</div>
 
-			{/* Color Presets */}
-			<div className="p-4 border-b border-border">
-				<div className="flex items-center justify-between mb-3">
-					{sectionHeader(
-						'presets',
-						'Color Presets',
-						<button
-							onClick={(e) => {
-								e.stopPropagation();
-								resetFilters();
-							}}
-							className="text-[10px] text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
-						>
-							Reset
-						</button>,
-					)}
-				</div>
-				{!collapsed.presets && (
-					<div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
-						{FILTER_PRESETS.map(([key, preset]) => (
+			{/* Tab Content */}
+			<div className="p-4 flex flex-col gap-4 flex-1 overflow-y-auto">
+				{mode === 'presets' && (
+					<>
+						<div className="flex items-center justify-between">
+							<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
+								Color Presets
+							</h3>
 							<button
-								key={key}
-								onClick={() => applyFilterPreset(preset, processFn)}
-								className="rounded-md bg-surface-raised/60 py-2 text-[10px] font-medium text-text-tertiary hover:bg-surface-raised hover:text-text transition-all cursor-pointer"
+								onClick={resetFilters}
+								className="text-[10px] text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
 							>
-								{preset.name}
+								Reset
 							</button>
-						))}
-					</div>
-				)}
-			</div>
-
-			{/* Light */}
-			{renderSliderGroup('light', 'Light', LIGHT_SLIDERS)}
-
-			{/* Color */}
-			{renderSliderGroup('color', 'Color', COLOR_SLIDERS)}
-
-			{/* Effects */}
-			{renderSliderGroup('effects', 'Effects', EFFECTS_SLIDERS)}
-
-			{/* Resize */}
-			{originalData && (
-				<div className="p-4 border-b border-border">
-					{sectionHeader('resize', 'Resize')}
-					{!collapsed.resize && (
-						<div className="mt-3">
-							{/* Resize presets */}
-							<div className="flex flex-wrap gap-1 mb-3">
-								{IMAGE_PRESETS.map(([key, preset]) => (
-									<button
-										key={key}
-										onClick={() => handleApplyPreset(key)}
-										className="rounded-md bg-surface-raised/60 px-2 py-1 text-[9px] font-medium text-text-tertiary hover:bg-surface-raised hover:text-text transition-all cursor-pointer"
-										title={preset.description}
-									>
-										{preset.name}
-									</button>
-								))}
-							</div>
-
-							<div className="flex items-center gap-2">
-								<div className="flex-1">
-									<label className="text-[10px] text-text-tertiary mb-1 block">W</label>
-									<input
-										type="number"
-										min={1}
-										max={8192}
-										value={resizeWidth ?? ''}
-										onChange={(e) => setResizeWidth(e.target.value ? Number(e.target.value) : null)}
-										className="w-full h-7 px-2 rounded-md bg-surface-raised/60 border border-border text-xs font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
-									/>
-								</div>
-								<button
-									onClick={() => setResizeLockAspect(!resizeLockAspect)}
-									title={resizeLockAspect ? 'Unlock aspect ratio' : 'Lock aspect ratio'}
-									className={`mt-4 h-7 w-7 flex items-center justify-center rounded-md transition-colors cursor-pointer ${
-										resizeLockAspect
-											? 'text-accent bg-accent/10'
-											: 'text-text-tertiary hover:text-text'
-									}`}
-								>
-									{resizeLockAspect ? <Lock size={12} /> : <Unlock size={12} />}
-								</button>
-								<div className="flex-1">
-									<label className="text-[10px] text-text-tertiary mb-1 block">H</label>
-									<input
-										type="number"
-										min={1}
-										max={8192}
-										value={resizeHeight ?? ''}
-										onChange={(e) =>
-											setResizeHeight(e.target.value ? Number(e.target.value) : null)
-										}
-										className="w-full h-7 px-2 rounded-md bg-surface-raised/60 border border-border text-xs font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
-									/>
-								</div>
-							</div>
-							<Button
-								variant="secondary"
-								size="sm"
-								className="w-full mt-2"
-								onClick={handleApplyResize}
-								disabled={!resizeWidth || !resizeHeight}
-							>
-								Apply Resize
-							</Button>
 						</div>
-					)}
-				</div>
-			)}
+						<div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
+							{FILTER_PRESETS.map(([key, preset]) => (
+								<button
+									key={key}
+									onClick={() => applyFilterPreset(preset, processFn)}
+									className="rounded-md bg-surface-raised/60 py-2 text-[10px] font-medium text-text-tertiary hover:bg-surface-raised hover:text-text transition-all cursor-pointer"
+								>
+									{preset.name}
+								</button>
+							))}
+						</div>
+					</>
+				)}
 
-			{/* Export Format + Quality */}
-			<div className="p-4 border-b border-border">
-				{sectionHeader('export', 'Export')}
-				{!collapsed.export && (
-					<div className="mt-3">
-						<div className="flex gap-1.5 mb-3">
+				{mode === 'adjust' && (
+					<>
+						<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
+							Light
+						</h3>
+						{renderSliders(LIGHT_SLIDERS)}
+
+						<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mt-2">
+							Color
+						</h3>
+						{renderSliders(COLOR_SLIDERS)}
+					</>
+				)}
+
+				{mode === 'effects' && (
+					<>
+						<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
+							Effects
+						</h3>
+						{renderSliders(EFFECTS_SLIDERS)}
+					</>
+				)}
+
+				{mode === 'export' && (
+					<>
+						{/* Resize */}
+						{originalData && (
+							<>
+								<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
+									Resize
+								</h3>
+								<div className="flex flex-wrap gap-1">
+									{IMAGE_PRESETS.map(([key, preset]) => (
+										<button
+											key={key}
+											onClick={() => handleApplyPreset(key)}
+											className="rounded-md bg-surface-raised/60 px-2 py-1 text-[9px] font-medium text-text-tertiary hover:bg-surface-raised hover:text-text transition-all cursor-pointer"
+											title={preset.description}
+										>
+											{preset.name}
+										</button>
+									))}
+								</div>
+
+								<div className="flex items-center gap-2">
+									<div className="flex-1">
+										<label className="text-[10px] text-text-tertiary mb-1 block">W</label>
+										<input
+											type="number"
+											min={1}
+											max={8192}
+											value={resizeWidth ?? ''}
+											onChange={(e) =>
+												setResizeWidth(e.target.value ? Number(e.target.value) : null)
+											}
+											className="w-full h-7 px-2 rounded-md bg-surface-raised/60 border border-border text-xs font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
+										/>
+									</div>
+									<button
+										onClick={() => setResizeLockAspect(!resizeLockAspect)}
+										title={resizeLockAspect ? 'Unlock aspect ratio' : 'Lock aspect ratio'}
+										className={`mt-4 h-7 w-7 flex items-center justify-center rounded-md transition-colors cursor-pointer ${
+											resizeLockAspect
+												? 'text-accent bg-accent/10'
+												: 'text-text-tertiary hover:text-text'
+										}`}
+									>
+										{resizeLockAspect ? <Lock size={12} /> : <Unlock size={12} />}
+									</button>
+									<div className="flex-1">
+										<label className="text-[10px] text-text-tertiary mb-1 block">H</label>
+										<input
+											type="number"
+											min={1}
+											max={8192}
+											value={resizeHeight ?? ''}
+											onChange={(e) =>
+												setResizeHeight(e.target.value ? Number(e.target.value) : null)
+											}
+											className="w-full h-7 px-2 rounded-md bg-surface-raised/60 border border-border text-xs font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
+										/>
+									</div>
+								</div>
+								<Button
+									variant="secondary"
+									size="sm"
+									className="w-full"
+									onClick={handleApplyResize}
+									disabled={!resizeWidth || !resizeHeight}
+								>
+									Apply Resize
+								</Button>
+							</>
+						)}
+
+						{/* Format + Quality */}
+						<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mt-1">
+							Format
+						</h3>
+						<div className="flex gap-1.5">
 							{FORMAT_OPTIONS.map((opt) => (
 								<button
 									key={opt.value}
@@ -472,14 +472,14 @@ export function ImageSidebar({ processFn, wasmReady, onOpenFile, onNew }: ImageS
 							/>
 						)}
 						{estSize != null && (
-							<p className="mt-2 text-[10px] text-text-tertiary">Est. {formatFileSize(estSize)}</p>
+							<p className="text-[10px] text-text-tertiary">Est. {formatFileSize(estSize)}</p>
 						)}
-					</div>
+					</>
 				)}
 			</div>
 
-			{/* Actions */}
-			<div className="p-4 border-t border-border flex flex-col gap-2 mt-auto">
+			{/* Actions (always visible at bottom) */}
+			<div className="p-4 border-t border-border flex flex-col gap-2 shrink-0">
 				{originalData && (
 					<Button
 						variant="ghost"
@@ -496,6 +496,8 @@ export function ImageSidebar({ processFn, wasmReady, onOpenFile, onNew }: ImageS
 				<Button className="w-full" disabled={!originalData} onClick={handleExport}>
 					Export
 				</Button>
+
+				{originalData && <MonetagAd zoneId={MONETAG_ZONES.export} className="mt-1" />}
 			</div>
 
 			{/* Info modal */}

@@ -9,6 +9,8 @@ import { ImageSidebar } from '@/components/image/ImageSidebar.tsx';
 import { ImageToolbar } from '@/components/image/ImageToolbar.tsx';
 import { Drawer } from '@/components/ui/Drawer.tsx';
 import { Button } from '@/components/ui/index.ts';
+import { MonetagAd } from '@/components/AdContainer.tsx';
+import { MONETAG_ZONES } from '@/config/monetag.ts';
 import { IMAGE_ACCEPT } from '@/config/presets.ts';
 import { useImageProcessor } from '@/hooks/useImageProcessor.ts';
 import { useImageEditorStore } from '@/stores/imageEditor.ts';
@@ -162,7 +164,7 @@ function ImageLab() {
 	}, [undo, redo, processImageData]);
 
 	return (
-		<>
+		<div data-editor="image" className="h-full flex flex-col">
 			<Helmet>
 				<title>Image — Vixely</title>
 				<meta
@@ -183,7 +185,8 @@ function ImageLab() {
 				}}
 			/>
 
-			<div className="flex h-full animate-fade-in">
+			<div className="h-[2px] gradient-accent shrink-0" />
+			<div className="flex flex-1 min-h-0 animate-fade-in">
 				{/* ── Left panel: Toolbar + Canvas ── */}
 				<div className="flex-1 flex flex-col min-w-0">
 					<ImageToolbar processFn={processImageData} containerRef={canvasContainerRef} />
@@ -198,8 +201,9 @@ function ImageLab() {
 						{originalData ? (
 							<ImageCanvas containerRef={canvasContainerRef} />
 						) : (
-							<div className="flex-1 flex items-center justify-center h-full">
+							<div className="flex-1 flex flex-col items-center justify-center h-full gap-6">
 								<EmptyState isDragging={isDragging} onOpenFile={handleOpenFile} />
+								<MonetagAd zoneId={MONETAG_ZONES.sidebar} className="w-full max-w-xs" />
 							</div>
 						)}
 
@@ -244,27 +248,27 @@ function ImageLab() {
 			</div>
 			{/* Confirm reset modal */}
 			{showResetModal && <ConfirmResetModal onConfirm={handleConfirmReset} onCancel={handleCancelReset} />}
-		</>
+		</div>
 	);
 }
 
 function EmptyState({ isDragging, onOpenFile }: { isDragging: boolean; onOpenFile: () => void }) {
 	return (
-		<div className="flex flex-col items-center text-center" onClick={(e) => e.stopPropagation()}>
+		<div className="flex flex-col items-center text-center">
 			<div
-				className={`rounded-2xl bg-surface border border-border p-8 mb-5 transition-all ${isDragging ? 'border-accent scale-105' : ''}`}
+				className={`rounded-2xl bg-surface border border-border p-8 mb-5 transition-all ${isDragging ? 'border-accent scale-105 shadow-[0_0_40px_var(--color-accent-glow)]' : ''}`}
 			>
 				<ImageIcon
 					size={48}
 					strokeWidth={1.2}
-					className={`transition-colors ${isDragging ? 'text-accent' : 'text-text-tertiary/40'}`}
+					className={`transition-colors ${isDragging ? 'text-accent' : 'text-accent/25'}`}
 				/>
 			</div>
 			<p className="text-sm font-medium text-text-secondary">
 				{isDragging ? 'Drop your image here' : 'No image loaded'}
 			</p>
 			<p className="mt-1 text-xs text-text-tertiary">
-				{isDragging ? 'Release to load' : 'Click or drag & drop to start editing'}
+				{isDragging ? 'Release to load' : 'Drop a file or click to get started'}
 			</p>
 			{!isDragging && (
 				<Button variant="secondary" size="sm" className="mt-4" onClick={onOpenFile}>

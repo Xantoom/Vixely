@@ -141,7 +141,7 @@ export function VideoPlayer({
 	return (
 		<div
 			ref={containerRef}
-			className="relative w-full max-w-7xl group"
+			className="relative max-w-full max-h-full group"
 			onPointerMove={resetHideTimer}
 			onPointerLeave={() => playing && setShowControls(false)}
 		>
@@ -154,7 +154,7 @@ export function VideoPlayer({
 				onPause={() => setPlaying(false)}
 				onEnded={handleEnded}
 				onClick={togglePlay}
-				className="w-full rounded-xl bg-black cursor-pointer"
+				className="block max-w-full max-h-full rounded-xl bg-black cursor-pointer"
 				style={cssFilter && cssFilter !== 'none' ? { filter: cssFilter } : undefined}
 			/>
 

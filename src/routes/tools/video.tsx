@@ -1,17 +1,19 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { Camera, Video, ChevronRight, FilePlus2, Settings, Info } from 'lucide-react';
+import { Camera, Video, FilePlus2, Settings, Info, Layers, Palette, Scissors, Download } from 'lucide-react';
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { toast } from 'sonner';
 import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
 import { FileMetadataModal } from '@/components/FileMetadataModal.tsx';
 import { Drawer } from '@/components/ui/Drawer.tsx';
-import { Button, Card, Timeline, formatTimecode } from '@/components/ui/index.ts';
+import { Button, Slider, Timeline, formatTimecode } from '@/components/ui/index.ts';
 import { FrameCaptureDialog } from '@/components/video/FrameCaptureDialog.tsx';
 import { VideoPlayer } from '@/components/video/VideoPlayer.tsx';
 import { videoPresetEntries, buildVideoArgs, VIDEO_ACCEPT } from '@/config/presets.ts';
 import { useVideoProcessor } from '@/hooks/useVideoProcessor.ts';
-import { useVideoEditorStore } from '@/stores/videoEditor.ts';
+import { useVideoEditorStore, type VideoMode, type VideoFilters } from '@/stores/videoEditor.ts';
+import { MonetagAd } from '@/components/AdContainer.tsx';
+import { MONETAG_ZONES } from '@/config/monetag.ts';
 import { formatFileSize } from '@/utils/format.ts';
 
 export const Route = createFileRoute('/tools/video')({ component: VideoStudio });
@@ -34,9 +36,26 @@ function getPresetIcon(key: string): string {
 	return 'V';
 }
 
+/* ── Mode Tab Config ── */
+
+const VIDEO_MODE_TABS: { mode: VideoMode; label: string; icon: typeof Layers }[] = [
+	{ mode: 'presets', label: 'Presets', icon: Layers },
+	{ mode: 'color', label: 'Color', icon: Palette },
+	{ mode: 'trim', label: 'Trim', icon: Scissors },
+	{ mode: 'export', label: 'Export', icon: Download },
+];
+
 function VideoStudio() {
 	const { ready, processing, progress, error, transcode, captureFrame } = useVideoProcessor();
-	const videoEditorCssFilter = useVideoEditorStore((s) => s.cssFilter());
+	const {
+		mode: videoMode,
+		setMode: setVideoMode,
+		filters: videoFilters,
+		setFilter: setVideoFilter,
+		resetFilters: resetVideoFilters,
+		cssFilter,
+	} = useVideoEditorStore();
+	const videoEditorCssFilter = cssFilter();
 
 	const [file, setFile] = useState<File | null>(null);
 	const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -46,7 +65,6 @@ function VideoStudio() {
 	const [trimEnd, setTrimEnd] = useState(0);
 	const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
 	const [resultUrl, setResultUrl] = useState<string | null>(null);
-	const [showAdvanced, setShowAdvanced] = useState(false);
 	const [customCrf, setCustomCrf] = useState(23);
 	const [capturedFrame, setCapturedFrame] = useState<Uint8Array | null>(null);
 	const [showResetModal, setShowResetModal] = useState(false);
@@ -255,8 +273,30 @@ function VideoStudio() {
 	}, [resultUrl, selectedPreset]);
 
 	/* ── Sidebar content (shared between desktop + mobile) ── */
+	const clipDuration = Math.max(trimEnd - trimStart, 0);
 	const sidebarContent = (
 		<>
+			{/* Mode Tabs */}
+			<div className="flex border-b border-border bg-surface overflow-x-auto">
+				{VIDEO_MODE_TABS.map((tab) => {
+					const isActive = videoMode === tab.mode;
+					return (
+						<button
+							key={tab.mode}
+							onClick={() => setVideoMode(tab.mode)}
+							className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[9px] font-semibold uppercase tracking-wider transition-all cursor-pointer ${
+								isActive
+									? 'text-accent border-b-2 border-accent'
+									: 'text-text-tertiary hover:text-text-secondary'
+							}`}
+						>
+							<tab.icon size={14} />
+							{tab.label}
+						</button>
+					);
+				})}
+			</div>
+
 			{/* File picker */}
 			<div className="p-4 border-b border-border">
 				<input
@@ -291,73 +331,227 @@ function VideoStudio() {
 				{file && <p className="mt-1.5 text-[11px] text-text-tertiary">{formatFileSize(file.size)}</p>}
 			</div>
 
-			{/* Presets */}
-			<div className="p-4 flex-1 overflow-y-auto">
-				<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">
-					One-Click Presets
-				</h3>
-				<div className="flex flex-col gap-2">
-					{VIDEO_PRESETS.map(([key, preset]) => (
-						<button
-							key={key}
-							onClick={() => setSelectedPreset(selectedPreset === key ? null : key)}
-							className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all cursor-pointer ${
-								selectedPreset === key
-									? 'bg-accent/10 border border-accent/30 text-text'
-									: 'bg-surface-raised/50 border border-transparent text-text-secondary hover:bg-surface-raised hover:text-text'
-							}`}
-						>
-							<div
-								className={`h-8 w-8 rounded-md flex items-center justify-center text-[10px] font-bold shrink-0 ${
-									selectedPreset === key
-										? 'bg-accent text-bg'
-										: 'bg-surface-raised text-text-tertiary'
-								}`}
-							>
-								{getPresetIcon(key)}
-							</div>
-							<div className="min-w-0">
-								<p className="text-xs font-medium truncate">{preset.name}</p>
-								<p className="text-[10px] text-text-tertiary truncate">{preset.description}</p>
-							</div>
-						</button>
-					))}
-				</div>
+			{/* Tab Content */}
+			<div className="p-4 flex flex-col gap-4 flex-1 overflow-y-auto">
+				{videoMode === 'presets' && (
+					<>
+						<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-1">
+							One-Click Presets
+						</h3>
+						<div className="flex flex-col gap-2">
+							{VIDEO_PRESETS.map(([key, preset]) => (
+								<button
+									key={key}
+									onClick={() => setSelectedPreset(selectedPreset === key ? null : key)}
+									className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all cursor-pointer ${
+										selectedPreset === key
+											? 'bg-accent/10 border border-accent/30 text-text'
+											: 'bg-surface-raised/50 border border-transparent text-text-secondary hover:bg-surface-raised hover:text-text'
+									}`}
+								>
+									<div
+										className={`h-8 w-8 rounded-md flex items-center justify-center text-[10px] font-bold shrink-0 ${
+											selectedPreset === key
+												? 'bg-accent text-bg'
+												: 'bg-surface-raised text-text-tertiary'
+										}`}
+									>
+										{getPresetIcon(key)}
+									</div>
+									<div className="min-w-0">
+										<p className="text-xs font-medium truncate">{preset.name}</p>
+										<p className="text-[10px] text-text-tertiary truncate">
+											{preset.description}
+										</p>
+									</div>
+								</button>
+							))}
+						</div>
+					</>
+				)}
 
-				{/* Advanced (collapsible) */}
-				<button
-					onClick={() => setShowAdvanced(!showAdvanced)}
-					className="mt-4 flex items-center gap-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider cursor-pointer hover:text-text-secondary transition-colors w-full"
-				>
-					<ChevronRight size={12} className={`transition-transform ${showAdvanced ? 'rotate-90' : ''}`} />
-					Advanced
-				</button>
-				{showAdvanced && (
-					<Card className="mt-2 p-3 flex flex-col gap-3">
-						<div className="flex flex-col gap-1.5">
-							<div className="flex items-center justify-between">
-								<label className="text-xs text-text-secondary">Quality</label>
-								<span className="text-[10px] font-mono text-text-tertiary">{customCrf}</span>
-							</div>
-							<input
-								type="range"
-								min={15}
-								max={45}
-								step={1}
-								value={customCrf}
-								onChange={(e) => setCustomCrf(Number(e.target.value))}
-								className="w-full"
+				{videoMode === 'color' && (
+					<>
+						<div className="flex items-center justify-between">
+							<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
+								Color Correction
+							</h3>
+							<button
+								onClick={resetVideoFilters}
+								className="text-[10px] text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
+							>
+								Reset
+							</button>
+						</div>
+						<div className="flex flex-col gap-3">
+							<Slider
+								label="Brightness"
+								displayValue={`${videoFilters.brightness >= 0 ? '+' : ''}${(videoFilters.brightness * 100).toFixed(0)}`}
+								min={-0.5}
+								max={0.5}
+								step={0.01}
+								value={videoFilters.brightness}
+								onChange={(e) =>
+									setVideoFilter('brightness', Number(e.target.value))
+								}
 							/>
-							<div className="flex justify-between text-[9px] text-text-tertiary">
-								<span>Higher quality</span>
-								<span>Smaller file</span>
+							<Slider
+								label="Contrast"
+								displayValue={`${(videoFilters.contrast * 100).toFixed(0)}`}
+								min={0.2}
+								max={3}
+								step={0.01}
+								value={videoFilters.contrast}
+								onChange={(e) =>
+									setVideoFilter('contrast', Number(e.target.value))
+								}
+							/>
+							<Slider
+								label="Saturation"
+								displayValue={`${(videoFilters.saturation * 100).toFixed(0)}`}
+								min={0}
+								max={3}
+								step={0.01}
+								value={videoFilters.saturation}
+								onChange={(e) =>
+									setVideoFilter('saturation', Number(e.target.value))
+								}
+							/>
+							<Slider
+								label="Hue"
+								displayValue={`${videoFilters.hue >= 0 ? '+' : ''}${videoFilters.hue.toFixed(0)}\u00b0`}
+								min={-180}
+								max={180}
+								step={1}
+								value={videoFilters.hue}
+								onChange={(e) =>
+									setVideoFilter('hue', Number(e.target.value))
+								}
+							/>
+						</div>
+					</>
+				)}
+
+				{videoMode === 'trim' && (
+					<>
+						<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
+							Trim Range
+						</h3>
+						<div className="flex items-center gap-2">
+							<div className="flex-1">
+								<label className="text-[10px] text-text-tertiary mb-1 block">Start (s)</label>
+								<input
+									type="number"
+									min={0}
+									max={duration}
+									step={0.1}
+									value={Number(trimStart.toFixed(1))}
+									onChange={(e) =>
+										setTrimStart(
+											Math.max(0, Math.min(Number(e.target.value), trimEnd - 0.5)),
+										)
+									}
+									className="w-full h-7 px-2 rounded-md bg-surface-raised/60 border border-border text-xs font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
+								/>
+							</div>
+							<div className="flex-1">
+								<label className="text-[10px] text-text-tertiary mb-1 block">End (s)</label>
+								<input
+									type="number"
+									min={0}
+									max={duration}
+									step={0.1}
+									value={Number(trimEnd.toFixed(1))}
+									onChange={(e) =>
+										setTrimEnd(
+											Math.min(
+												duration,
+												Math.max(Number(e.target.value), trimStart + 0.5),
+											),
+										)
+									}
+									className="w-full h-7 px-2 rounded-md bg-surface-raised/60 border border-border text-xs font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
+								/>
 							</div>
 						</div>
-					</Card>
+
+						<div className="rounded-lg bg-bg/50 p-3 flex flex-col gap-1.5">
+							<div className="flex justify-between text-[11px]">
+								<span className="text-text-tertiary">Clip duration</span>
+								<span className="font-mono text-text-secondary">
+									{clipDuration.toFixed(1)}s
+								</span>
+							</div>
+							<div className="flex justify-between text-[11px]">
+								<span className="text-text-tertiary">Total</span>
+								<span className="font-mono text-text-secondary">
+									{duration.toFixed(1)}s
+								</span>
+							</div>
+							<div className="flex justify-between text-[11px]">
+								<span className="text-text-tertiary">Current</span>
+								<span className="font-mono text-text-secondary">
+									{formatTimecode(currentTime)}
+								</span>
+							</div>
+							<div className="flex justify-between text-[11px]">
+								<span className="text-text-tertiary">Frame</span>
+								<span className="font-mono text-text-secondary">
+									{Math.round(currentTime * 30)} / {Math.round(duration * 30)}
+								</span>
+							</div>
+						</div>
+					</>
+				)}
+
+				{videoMode === 'export' && (
+					<>
+						<Slider
+							label="Quality (CRF)"
+							displayValue={`${customCrf}`}
+							min={15}
+							max={45}
+							step={1}
+							value={customCrf}
+							onChange={(e) => setCustomCrf(Number(e.target.value))}
+						/>
+						<div className="flex justify-between text-[9px] text-text-tertiary -mt-2">
+							<span>Higher quality</span>
+							<span>Smaller file</span>
+						</div>
+
+						<div className="rounded-lg bg-bg/50 p-3 flex flex-col gap-1.5">
+							<div className="flex justify-between text-[11px]">
+								<span className="text-text-tertiary">Preset</span>
+								<span className="font-mono text-text-secondary">
+									{selectedPreset
+										? VIDEO_PRESETS.find(([k]) => k === selectedPreset)?.[1]
+												?.name ?? '—'
+										: 'None'}
+								</span>
+							</div>
+							<div className="flex justify-between text-[11px]">
+								<span className="text-text-tertiary">Clip duration</span>
+								<span className="font-mono text-text-secondary">
+									{clipDuration.toFixed(1)}s
+								</span>
+							</div>
+							<div className="flex justify-between text-[11px]">
+								<span className="text-text-tertiary">CRF</span>
+								<span className="font-mono text-text-secondary">{customCrf}</span>
+							</div>
+						</div>
+
+						{resultUrl && (
+							<div className="rounded-lg bg-success/5 border border-success/20 px-3 py-2">
+								<p className="text-xs text-success font-medium">Export ready</p>
+							</div>
+						)}
+					</>
 				)}
 			</div>
 
-			{/* Export actions */}
+			{/* Actions (always visible at bottom) */}
 			<div className="p-4 border-t border-border flex flex-col gap-2">
 				<Button
 					className="w-full"
@@ -384,18 +578,21 @@ function VideoStudio() {
 				)}
 
 				{error && <p className="text-[11px] text-danger bg-danger/10 rounded-md px-2.5 py-1.5">{error}</p>}
+
+				{resultUrl && <MonetagAd zoneId={MONETAG_ZONES.export} className="mt-1" />}
 			</div>
 		</>
 	);
 
 	return (
-		<>
+		<div data-editor="video" className="h-full flex flex-col">
 			<Helmet>
 				<title>Video — Vixely</title>
 				<meta name="description" content="Trim, crop, and convert videos locally in your browser." />
 			</Helmet>
 
-			<div className="flex h-full animate-fade-in">
+			<div className="h-[2px] gradient-accent shrink-0" />
+			<div className="flex flex-1 min-h-0 animate-fade-in">
 				{/* ── Main Area ── */}
 				<div className="flex-1 flex flex-col min-w-0">
 					{/* Player */}
@@ -405,9 +602,6 @@ function VideoStudio() {
 						onDragLeave={handleDragLeave}
 						onDragOver={handleDragOver}
 						onDrop={handleDrop}
-						onClick={() => {
-							if (!videoUrl) fileInputRef.current?.click();
-						}}
 					>
 						{videoUrl ? (
 							<VideoPlayer
@@ -420,7 +614,10 @@ function VideoStudio() {
 								cssFilter={videoEditorCssFilter}
 							/>
 						) : (
-							<EmptyState isDragging={isDragging} onChooseFile={() => fileInputRef.current?.click()} />
+							<div className="flex flex-col items-center gap-6">
+								<EmptyState isDragging={isDragging} onChooseFile={() => fileInputRef.current?.click()} />
+								<MonetagAd zoneId={MONETAG_ZONES.sidebar} className="w-full max-w-xs" />
+							</div>
 						)}
 
 						{/* Drag overlay when video is loaded */}
@@ -514,27 +711,27 @@ function VideoStudio() {
 
 			{/* Confirm reset modal */}
 			{showResetModal && <ConfirmResetModal onConfirm={handleConfirmReset} onCancel={handleCancelReset} />}
-		</>
+		</div>
 	);
 }
 
 function EmptyState({ isDragging, onChooseFile }: { isDragging: boolean; onChooseFile: () => void }) {
 	return (
-		<div className="flex flex-col items-center text-center" onClick={(e) => e.stopPropagation()}>
+		<div className="flex flex-col items-center text-center">
 			<div
-				className={`rounded-2xl bg-surface border border-border p-8 mb-5 transition-all ${isDragging ? 'border-accent scale-105' : ''}`}
+				className={`rounded-2xl bg-surface border border-border p-8 mb-5 transition-all ${isDragging ? 'border-accent scale-105 shadow-[0_0_40px_var(--color-accent-glow)]' : ''}`}
 			>
 				<Video
 					size={48}
 					strokeWidth={1.2}
-					className={`transition-colors ${isDragging ? 'text-accent' : 'text-text-tertiary/40'}`}
+					className={`transition-colors ${isDragging ? 'text-accent' : 'text-accent/25'}`}
 				/>
 			</div>
 			<p className="text-sm font-medium text-text-secondary">
 				{isDragging ? 'Drop your video here' : 'No video loaded'}
 			</p>
 			<p className="mt-1 text-xs text-text-tertiary">
-				{isDragging ? 'Release to load' : 'Click or drag & drop to start editing'}
+				{isDragging ? 'Release to load' : 'Drop a file or click to get started'}
 			</p>
 			{!isDragging && (
 				<Button variant="secondary" size="sm" className="mt-4" onClick={onChooseFile}>

@@ -24,6 +24,14 @@
 	--font-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
 	--font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
 
+	/* ── Editor Accent Overrides (set via data-editor attribute) ── */
+	--color-editor-video: #3b82f6;
+	--color-editor-video-dim: #2563eb;
+	--color-editor-image: #f59e0b;
+	--color-editor-image-dim: #d97706;
+	--color-editor-gif: #10b981;
+	--color-editor-gif-dim: #059669;
+
 	/* ── Animations ── */
 	--animate-fade-in: fade-in 0.35s ease-out both;
 	--animate-slide-up: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -31,6 +39,29 @@
 	--animate-pulse-soft: pulse-soft 2.5s ease-in-out infinite;
 	--animate-shimmer: shimmer 2s linear infinite;
 	--animate-spin: spin 0.8s linear infinite;
+}
+
+/* ── Per-Editor Color Themes ── */
+
+[data-editor='video'] {
+	--color-accent: #3b82f6;
+	--color-accent-dim: #2563eb;
+	--color-accent-glow: rgba(59, 130, 246, 0.15);
+	--color-accent-surface: rgba(59, 130, 246, 0.08);
+}
+
+[data-editor='image'] {
+	--color-accent: #f59e0b;
+	--color-accent-dim: #d97706;
+	--color-accent-glow: rgba(245, 158, 11, 0.15);
+	--color-accent-surface: rgba(245, 158, 11, 0.08);
+}
+
+[data-editor='gif'] {
+	--color-accent: #10b981;
+	--color-accent-dim: #059669;
+	--color-accent-glow: rgba(16, 185, 129, 0.15);
+	--color-accent-surface: rgba(16, 185, 129, 0.08);
 }
 
 /* ── Keyframes ── */
@@ -116,7 +147,7 @@
 
 .workspace-bg {
 	background:
-		radial-gradient(ellipse 80% 60% at 50% 50%, rgba(167, 139, 250, 0.02) 0%, transparent 70%),
+		radial-gradient(ellipse 80% 60% at 50% 50%, var(--color-accent-surface) 0%, transparent 70%),
 		linear-gradient(180deg, var(--color-bg) 0%, rgba(24, 24, 27, 0.5) 100%);
 }
 
@@ -238,7 +269,7 @@ input[type='range']::-webkit-slider-thumb {
 
 input[type='range']:hover::-webkit-slider-thumb,
 input[type='range']:active::-webkit-slider-thumb {
-	box-shadow: 0 0 0 4px rgba(167, 139, 250, 0.25);
+	box-shadow: 0 0 0 4px var(--color-accent-glow);
 }
 
 input[type='range']::-moz-range-track {
