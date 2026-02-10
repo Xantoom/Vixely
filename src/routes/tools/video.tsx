@@ -3,17 +3,17 @@ import { Camera, Video, FilePlus2, Settings, Info, Layers, Palette, Scissors, Do
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { toast } from 'sonner';
+import { MonetagAd } from '@/components/AdContainer.tsx';
 import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
 import { FileMetadataModal } from '@/components/FileMetadataModal.tsx';
 import { Drawer } from '@/components/ui/Drawer.tsx';
 import { Button, Slider, Timeline, formatTimecode } from '@/components/ui/index.ts';
 import { FrameCaptureDialog } from '@/components/video/FrameCaptureDialog.tsx';
 import { VideoPlayer } from '@/components/video/VideoPlayer.tsx';
+import { MONETAG_ZONES } from '@/config/monetag.ts';
 import { videoPresetEntries, buildVideoArgs, VIDEO_ACCEPT } from '@/config/presets.ts';
 import { useVideoProcessor } from '@/hooks/useVideoProcessor.ts';
-import { useVideoEditorStore, type VideoMode, type VideoFilters } from '@/stores/videoEditor.ts';
-import { MonetagAd } from '@/components/AdContainer.tsx';
-import { MONETAG_ZONES } from '@/config/monetag.ts';
+import { useVideoEditorStore, type VideoMode } from '@/stores/videoEditor.ts';
 import { formatFileSize } from '@/utils/format.ts';
 
 export const Route = createFileRoute('/tools/video')({ component: VideoStudio });
@@ -122,7 +122,6 @@ function VideoStudio() {
 			setTrimEnd(0);
 			setSelectedPreset(null);
 			setResultUrl(null);
-			setShowAdvanced(false);
 			setCustomCrf(23);
 			setCapturedFrame(null);
 		});
@@ -360,9 +359,7 @@ function VideoStudio() {
 									</div>
 									<div className="min-w-0">
 										<p className="text-xs font-medium truncate">{preset.name}</p>
-										<p className="text-[10px] text-text-tertiary truncate">
-											{preset.description}
-										</p>
+										<p className="text-[10px] text-text-tertiary truncate">{preset.description}</p>
 									</div>
 								</button>
 							))}
@@ -391,9 +388,7 @@ function VideoStudio() {
 								max={0.5}
 								step={0.01}
 								value={videoFilters.brightness}
-								onChange={(e) =>
-									setVideoFilter('brightness', Number(e.target.value))
-								}
+								onChange={(e) => setVideoFilter('brightness', Number(e.target.value))}
 							/>
 							<Slider
 								label="Contrast"
@@ -402,9 +397,7 @@ function VideoStudio() {
 								max={3}
 								step={0.01}
 								value={videoFilters.contrast}
-								onChange={(e) =>
-									setVideoFilter('contrast', Number(e.target.value))
-								}
+								onChange={(e) => setVideoFilter('contrast', Number(e.target.value))}
 							/>
 							<Slider
 								label="Saturation"
@@ -413,9 +406,7 @@ function VideoStudio() {
 								max={3}
 								step={0.01}
 								value={videoFilters.saturation}
-								onChange={(e) =>
-									setVideoFilter('saturation', Number(e.target.value))
-								}
+								onChange={(e) => setVideoFilter('saturation', Number(e.target.value))}
 							/>
 							<Slider
 								label="Hue"
@@ -424,9 +415,7 @@ function VideoStudio() {
 								max={180}
 								step={1}
 								value={videoFilters.hue}
-								onChange={(e) =>
-									setVideoFilter('hue', Number(e.target.value))
-								}
+								onChange={(e) => setVideoFilter('hue', Number(e.target.value))}
 							/>
 						</div>
 					</>
@@ -447,9 +436,7 @@ function VideoStudio() {
 									step={0.1}
 									value={Number(trimStart.toFixed(1))}
 									onChange={(e) =>
-										setTrimStart(
-											Math.max(0, Math.min(Number(e.target.value), trimEnd - 0.5)),
-										)
+										setTrimStart(Math.max(0, Math.min(Number(e.target.value), trimEnd - 0.5)))
 									}
 									className="w-full h-7 px-2 rounded-md bg-surface-raised/60 border border-border text-xs font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
 								/>
@@ -464,10 +451,7 @@ function VideoStudio() {
 									value={Number(trimEnd.toFixed(1))}
 									onChange={(e) =>
 										setTrimEnd(
-											Math.min(
-												duration,
-												Math.max(Number(e.target.value), trimStart + 0.5),
-											),
+											Math.min(duration, Math.max(Number(e.target.value), trimStart + 0.5)),
 										)
 									}
 									className="w-full h-7 px-2 rounded-md bg-surface-raised/60 border border-border text-xs font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
@@ -478,21 +462,15 @@ function VideoStudio() {
 						<div className="rounded-lg bg-bg/50 p-3 flex flex-col gap-1.5">
 							<div className="flex justify-between text-[11px]">
 								<span className="text-text-tertiary">Clip duration</span>
-								<span className="font-mono text-text-secondary">
-									{clipDuration.toFixed(1)}s
-								</span>
+								<span className="font-mono text-text-secondary">{clipDuration.toFixed(1)}s</span>
 							</div>
 							<div className="flex justify-between text-[11px]">
 								<span className="text-text-tertiary">Total</span>
-								<span className="font-mono text-text-secondary">
-									{duration.toFixed(1)}s
-								</span>
+								<span className="font-mono text-text-secondary">{duration.toFixed(1)}s</span>
 							</div>
 							<div className="flex justify-between text-[11px]">
 								<span className="text-text-tertiary">Current</span>
-								<span className="font-mono text-text-secondary">
-									{formatTimecode(currentTime)}
-								</span>
+								<span className="font-mono text-text-secondary">{formatTimecode(currentTime)}</span>
 							</div>
 							<div className="flex justify-between text-[11px]">
 								<span className="text-text-tertiary">Frame</span>
@@ -525,16 +503,13 @@ function VideoStudio() {
 								<span className="text-text-tertiary">Preset</span>
 								<span className="font-mono text-text-secondary">
 									{selectedPreset
-										? VIDEO_PRESETS.find(([k]) => k === selectedPreset)?.[1]
-												?.name ?? '—'
+										? (VIDEO_PRESETS.find(([k]) => k === selectedPreset)?.[1]?.name ?? '—')
 										: 'None'}
 								</span>
 							</div>
 							<div className="flex justify-between text-[11px]">
 								<span className="text-text-tertiary">Clip duration</span>
-								<span className="font-mono text-text-secondary">
-									{clipDuration.toFixed(1)}s
-								</span>
+								<span className="font-mono text-text-secondary">{clipDuration.toFixed(1)}s</span>
 							</div>
 							<div className="flex justify-between text-[11px]">
 								<span className="text-text-tertiary">CRF</span>
@@ -615,7 +590,10 @@ function VideoStudio() {
 							/>
 						) : (
 							<div className="flex flex-col items-center gap-6">
-								<EmptyState isDragging={isDragging} onChooseFile={() => fileInputRef.current?.click()} />
+								<EmptyState
+									isDragging={isDragging}
+									onChooseFile={() => fileInputRef.current?.click()}
+								/>
 								<MonetagAd zoneId={MONETAG_ZONES.sidebar} className="w-full max-w-xs" />
 							</div>
 						)}

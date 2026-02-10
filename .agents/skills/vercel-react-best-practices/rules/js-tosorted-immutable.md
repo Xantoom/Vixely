@@ -7,7 +7,8 @@ tags: javascript, arrays, immutability, react, state, mutation
 
 ## Use toSorted() Instead of sort() for Immutability
 
-`.sort()` mutates the array in place, which can cause bugs with React state and props. Use `.toSorted()` to create a new sorted array without mutation.
+`.sort()` mutates the array in place, which can cause bugs with React state and props. Use `.toSorted()` to create a new
+sorted array without mutation.
 
 **Incorrect (mutates original array):**
 
@@ -42,11 +43,12 @@ function UserList({ users }: { users: User[] }) {
 
 **Browser support (fallback for older browsers):**
 
-`.toSorted()` is available in all modern browsers (Chrome 110+, Safari 16+, Firefox 115+, Node.js 20+). For older environments, use spread operator:
+`.toSorted()` is available in all modern browsers (Chrome 110+, Safari 16+, Firefox 115+, Node.js 20+). For older
+environments, use spread operator:
 
 ```typescript
 // Fallback for older browsers
-const sorted = [...items].sort((a, b) => a.value - b.value)
+const sorted = [...items].sort((a, b) => a.value - b.value);
 ```
 
 **Other immutable array methods:**

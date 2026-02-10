@@ -1,12 +1,12 @@
 import { Lock, Unlock, Info, FilePlus2, Palette, SlidersHorizontal, Sparkles, Download } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
+import { MonetagAd } from '@/components/AdContainer.tsx';
 import { Button, Slider } from '@/components/ui/index.ts';
+import { MONETAG_ZONES } from '@/config/monetag.ts';
 import { filterPresetEntries, imagePresetEntries } from '@/config/presets.ts';
 import { useImageEditorStore, type Filters, type ExportFormat } from '@/stores/imageEditor.ts';
 import { formatFileSize, estimateImageSize } from '@/utils/format.ts';
-import { MonetagAd } from '@/components/AdContainer.tsx';
-import { MONETAG_ZONES } from '@/config/monetag.ts';
 import { ImageInfoModal } from './ImageInfoModal.tsx';
 
 const FILTER_PRESETS = filterPresetEntries();
@@ -348,9 +348,7 @@ export function ImageSidebar({ processFn, wasmReady, onOpenFile, onNew }: ImageS
 
 				{mode === 'adjust' && (
 					<>
-						<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
-							Light
-						</h3>
+						<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">Light</h3>
 						{renderSliders(LIGHT_SLIDERS)}
 
 						<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mt-2">

@@ -3,16 +3,37 @@ import { TanStackRouterDevtools } from '@tanstack/react-router-devtools';
 import { Video, ImageIcon, Film, Home } from 'lucide-react';
 import { Toaster } from 'sonner';
 import { MonetagAd } from '@/components/AdContainer.tsx';
-import { MONETAG_ZONES } from '@/config/monetag.ts';
 import { CookieBanner } from '@/components/CookieBanner.tsx';
 import { PrivacyModal } from '@/components/PrivacyModal.tsx';
+import { MONETAG_ZONES } from '@/config/monetag.ts';
 
 export const Route = createRootRoute({ component: RootLayout });
 
 const navItems = [
-	{ to: '/tools/video' as const, label: 'Video', icon: Video, activeText: 'text-blue-500', activeBg: 'bg-blue-500/10', indicator: 'bg-blue-500' },
-	{ to: '/tools/image' as const, label: 'Image', icon: ImageIcon, activeText: 'text-amber-500', activeBg: 'bg-amber-500/10', indicator: 'bg-amber-500' },
-	{ to: '/tools/gif' as const, label: 'GIF', icon: Film, activeText: 'text-emerald-500', activeBg: 'bg-emerald-500/10', indicator: 'bg-emerald-500' },
+	{
+		to: '/tools/video' as const,
+		label: 'Video',
+		icon: Video,
+		activeText: 'text-blue-500',
+		activeBg: 'bg-blue-500/10',
+		indicator: 'bg-blue-500',
+	},
+	{
+		to: '/tools/image' as const,
+		label: 'Image',
+		icon: ImageIcon,
+		activeText: 'text-amber-500',
+		activeBg: 'bg-amber-500/10',
+		indicator: 'bg-amber-500',
+	},
+	{
+		to: '/tools/gif' as const,
+		label: 'GIF',
+		icon: Film,
+		activeText: 'text-emerald-500',
+		activeBg: 'bg-emerald-500/10',
+		indicator: 'bg-emerald-500',
+	},
 ];
 
 function RootLayout() {
@@ -55,7 +76,9 @@ function RootLayout() {
 								<item.icon className="h-5 w-5" />
 								<span className="text-[9px] font-semibold tracking-wide uppercase">{item.label}</span>
 								{isActive && (
-									<div className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full ${item.indicator}`} />
+									<div
+										className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full ${item.indicator}`}
+									/>
 								)}
 							</Link>
 						);

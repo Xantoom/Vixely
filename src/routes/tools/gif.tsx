@@ -3,15 +3,15 @@ import { Film, FilePlus2, Settings, Info, Lock, Unlock, Gauge, Maximize2, Downlo
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { toast } from 'sonner';
+import { MonetagAd } from '@/components/AdContainer.tsx';
 import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
 import { FileMetadataModal } from '@/components/FileMetadataModal.tsx';
 import { Drawer } from '@/components/ui/Drawer.tsx';
 import { Button, Slider, Timeline } from '@/components/ui/index.ts';
+import { MONETAG_ZONES } from '@/config/monetag.ts';
 import { gifPresetEntries, GIF_ACCEPT } from '@/config/presets.ts';
 import { useVideoProcessor } from '@/hooks/useVideoProcessor.ts';
 import { useGifEditorStore, type GifMode } from '@/stores/gifEditor.ts';
-import { MonetagAd } from '@/components/AdContainer.tsx';
-import { MONETAG_ZONES } from '@/config/monetag.ts';
 import { formatFileSize, formatNumber } from '@/utils/format.ts';
 
 export const Route = createFileRoute('/tools/gif')({ component: GifFoundry });
@@ -716,7 +716,11 @@ function GifFoundry() {
 										Source
 									</p>
 									{isGifSource ? (
-										<img src={videoUrl} alt="GIF source" className="max-w-full max-h-full rounded-lg bg-black object-contain" />
+										<img
+											src={videoUrl}
+											alt="GIF source"
+											className="max-w-full max-h-full rounded-lg bg-black object-contain"
+										/>
 									) : (
 										<video
 											ref={videoRef}
@@ -742,7 +746,11 @@ function GifFoundry() {
 											</span>
 										</div>
 										<div className="rounded-lg border border-success/20 bg-surface overflow-hidden max-h-full">
-											<img src={resultUrl} alt="Generated GIF" className="max-w-full max-h-full object-contain" />
+											<img
+												src={resultUrl}
+												alt="Generated GIF"
+												className="max-w-full max-h-full object-contain"
+											/>
 										</div>
 									</div>
 								)}
@@ -764,7 +772,10 @@ function GifFoundry() {
 							</div>
 						) : (
 							<div className="flex flex-col items-center gap-6">
-								<EmptyState isDragging={isDragging} onChooseFile={() => fileInputRef.current?.click()} />
+								<EmptyState
+									isDragging={isDragging}
+									onChooseFile={() => fileInputRef.current?.click()}
+								/>
 								<MonetagAd zoneId={MONETAG_ZONES.sidebar} className="w-full max-w-xs" />
 							</div>
 						)}
