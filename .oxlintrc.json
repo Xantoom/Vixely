@@ -175,6 +175,9 @@
 		"docs",
 		".claude",
 		".github",
-		".tanstack"
+		".tanstack",
+		".agents",
+		".vscode",
+		".idea"
 	]
 }

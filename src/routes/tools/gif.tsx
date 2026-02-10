@@ -3,10 +3,12 @@ import { Film, FilePlus2, Settings, Info, Lock, Unlock, Gauge, Maximize2, Downlo
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { toast } from 'sonner';
+import { MonetagAd } from '@/components/AdContainer.tsx';
 import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
 import { FileMetadataModal } from '@/components/FileMetadataModal.tsx';
 import { Drawer } from '@/components/ui/Drawer.tsx';
 import { Button, Slider, Timeline } from '@/components/ui/index.ts';
+import { MONETAG_ZONES } from '@/config/monetag.ts';
 import { gifPresetEntries, GIF_ACCEPT } from '@/config/presets.ts';
 import { useVideoProcessor } from '@/hooks/useVideoProcessor.ts';
 import { useGifEditorStore, type GifMode } from '@/stores/gifEditor.ts';
@@ -681,18 +683,21 @@ function GifFoundry() {
 				)}
 
 				{error && <p className="text-[11px] text-danger bg-danger/10 rounded-md px-2.5 py-1.5">{error}</p>}
+
+				{resultUrl && <MonetagAd zoneId={MONETAG_ZONES.export} className="mt-1" />}
 			</div>
 		</>
 	);
 
 	return (
-		<>
+		<div data-editor="gif" className="h-full flex flex-col">
 			<Helmet>
 				<title>GIF — Vixely</title>
 				<meta name="description" content="Convert videos to optimized GIFs. All local, all private." />
 			</Helmet>
 
-			<div className="flex h-full animate-fade-in">
+			<div className="h-[2px] gradient-accent shrink-0" />
+			<div className="flex flex-1 min-h-0 animate-fade-in">
 				{/* ── Main Area ── */}
 				<div className="flex-1 flex flex-col min-w-0">
 					{/* Workspace */}
@@ -702,19 +707,20 @@ function GifFoundry() {
 						onDragLeave={handleDragLeave}
 						onDragOver={handleDragOver}
 						onDrop={handleDrop}
-						onClick={() => {
-							if (!videoUrl) fileInputRef.current?.click();
-						}}
 					>
 						{videoUrl ? (
-							<div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 max-w-5xl w-full">
+							<div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 max-w-full max-h-full w-full overflow-auto">
 								{/* Source */}
-								<div className="flex-1 min-w-0">
-									<p className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
+								<div className="flex-1 min-w-0 max-h-full flex flex-col">
+									<p className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wider mb-2 shrink-0">
 										Source
 									</p>
 									{isGifSource ? (
-										<img src={videoUrl} alt="GIF source" className="w-full rounded-lg bg-black" />
+										<img
+											src={videoUrl}
+											alt="GIF source"
+											className="max-w-full max-h-full rounded-lg bg-black object-contain"
+										/>
 									) : (
 										<video
 											ref={videoRef}
@@ -723,15 +729,15 @@ function GifFoundry() {
 											onTimeUpdate={handleTimeUpdate}
 											loop={loop}
 											controls
-											className="w-full rounded-lg bg-black"
+											className="max-w-full max-h-full rounded-lg bg-black"
 										/>
 									)}
 								</div>
 
 								{/* Result */}
 								{resultUrl && !processing && (
-									<div className="flex-1 min-w-0">
-										<div className="flex items-center justify-between mb-2">
+									<div className="flex-1 min-w-0 max-h-full flex flex-col">
+										<div className="flex items-center justify-between mb-2 shrink-0">
 											<p className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wider">
 												Result
 											</p>
@@ -739,8 +745,12 @@ function GifFoundry() {
 												{formatFileSize(resultSize)}
 											</span>
 										</div>
-										<div className="rounded-lg border border-success/20 bg-surface overflow-hidden">
-											<img src={resultUrl} alt="Generated GIF" className="w-full" />
+										<div className="rounded-lg border border-success/20 bg-surface overflow-hidden max-h-full">
+											<img
+												src={resultUrl}
+												alt="Generated GIF"
+												className="max-w-full max-h-full object-contain"
+											/>
 										</div>
 									</div>
 								)}
@@ -761,7 +771,13 @@ function GifFoundry() {
 								)}
 							</div>
 						) : (
-							<EmptyState isDragging={isDragging} onChooseFile={() => fileInputRef.current?.click()} />
+							<div className="flex flex-col items-center gap-6">
+								<EmptyState
+									isDragging={isDragging}
+									onChooseFile={() => fileInputRef.current?.click()}
+								/>
+								<MonetagAd zoneId={MONETAG_ZONES.sidebar} className="w-full max-w-xs" />
+							</div>
 						)}
 
 						{/* Drag overlay when file is loaded */}
@@ -826,7 +842,7 @@ function GifFoundry() {
 
 			{/* Confirm reset modal */}
 			{showResetModal && <ConfirmResetModal onConfirm={handleConfirmReset} onCancel={handleCancelReset} />}
-		</>
+		</div>
 	);
 }
 
@@ -834,21 +850,21 @@ function GifFoundry() {
 
 function EmptyState({ isDragging, onChooseFile }: { isDragging: boolean; onChooseFile: () => void }) {
 	return (
-		<div className="flex flex-col items-center text-center" onClick={(e) => e.stopPropagation()}>
+		<div className="flex flex-col items-center text-center">
 			<div
-				className={`rounded-2xl bg-surface border border-border p-8 mb-5 transition-all ${isDragging ? 'border-accent scale-105' : ''}`}
+				className={`rounded-2xl bg-surface border border-border p-8 mb-5 transition-all ${isDragging ? 'border-accent scale-105 shadow-[0_0_40px_var(--color-accent-glow)]' : ''}`}
 			>
 				<Film
 					size={48}
 					strokeWidth={1.2}
-					className={`transition-colors ${isDragging ? 'text-accent' : 'text-text-tertiary/40'}`}
+					className={`transition-colors ${isDragging ? 'text-accent' : 'text-accent/25'}`}
 				/>
 			</div>
 			<p className="text-sm font-medium text-text-secondary">
 				{isDragging ? 'Drop your file here' : 'No file loaded'}
 			</p>
 			<p className="mt-1 text-xs text-text-tertiary">
-				{isDragging ? 'Release to load' : 'Click or drag & drop to get started'}
+				{isDragging ? 'Release to load' : 'Drop a file or click to get started'}
 			</p>
 			{!isDragging && (
 				<Button variant="secondary" size="sm" className="mt-4" onClick={onChooseFile}>

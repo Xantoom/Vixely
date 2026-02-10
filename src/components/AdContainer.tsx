@@ -1,41 +1,46 @@
 import { useEffect, useRef } from 'react';
 import { useAdBlockDetector } from '@/hooks/useAdBlockDetector.ts';
 
-interface AdContainerProps {
-	slot: string;
+interface MonetagAdProps {
+	zoneId: string;
 	className?: string;
-	format?: 'auto' | 'horizontal' | 'rectangle';
 }
 
-export function AdContainer({ slot, className = '', format = 'auto' }: AdContainerProps) {
+/**
+ * Renders a Monetag ad unit for the given zone ID.
+ * Dynamically loads the zone script and creates a container.
+ * Gracefully collapses when an adblocker is detected.
+ */
+export function MonetagAd({ zoneId, className = '' }: MonetagAdProps) {
 	const { isBlocked, checked } = useAdBlockDetector();
-	const adRef = useRef<HTMLModElement>(null);
-	const pushed = useRef(false);
+	const containerRef = useRef<HTMLDivElement>(null);
+	const loaded = useRef(false);
 
 	useEffect(() => {
-		if (!checked || isBlocked || pushed.current) return;
-		try {
-			((window as any).adsbygoogle = (window as any).adsbygoogle || []).push({});
-			pushed.current = true;
-		} catch {
-			// AdSense not available
-		}
-	}, [checked, isBlocked]);
+		if (!zoneId || !checked || isBlocked || loaded.current) return;
 
-	// Gracefully collapse when adblocker is active
+		const container = containerRef.current;
+		if (!container) return;
+
+		const script = document.createElement('script');
+		script.async = true;
+		script.setAttribute('data-cfasync', 'false');
+		script.src = `//thubanoa.com/1/${zoneId}`;
+
+		container.appendChild(script);
+		loaded.current = true;
+
+		return () => {
+			script.remove();
+		};
+	}, [zoneId, checked, isBlocked]);
+
+	if (!zoneId) return null;
 	if (checked && isBlocked) return null;
 
 	return (
 		<div className={`overflow-hidden ${className}`}>
-			<ins
-				ref={adRef}
-				className="adsbygoogle"
-				style={{ display: 'block' }}
-				data-ad-client="ca-pub-XXXXXXXXXXXXXXXX"
-				data-ad-slot={slot}
-				data-ad-format={format}
-				data-full-width-responsive="true"
-			/>
+			<div ref={containerRef} id={`container-${zoneId}`} />
 		</div>
 	);
 }

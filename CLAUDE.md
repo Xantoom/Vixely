@@ -25,8 +25,12 @@ Three main modules:
 - **Indentation:** Tabs (size 4) for all files; spaces for YAML
 - **Line endings:** LF (enforced via `.gitattributes` and `.editorconfig`)
 - **License:** MIT
+- Oxlint and Oxfmt
 
 ## GUIDELINES
 
 - Use Frontend design skills when doing front or design
-- Think about SEO, performance, and 60fps target
+- Think about SEO, performance, and 60fps target.
+- **Always** use skills, like vercel-react-best-pratices.
+- Don't write comments if unnecessary.
+- Write performant code.
