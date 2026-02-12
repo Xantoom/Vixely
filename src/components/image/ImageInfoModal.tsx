@@ -24,7 +24,7 @@ export function ImageInfoModal({ file, width, height, onClose }: ImageInfoModalP
 				{/* Close */}
 				<button
 					onClick={onClose}
-					className="absolute top-4 right-4 h-7 w-7 flex items-center justify-center rounded-md text-text-tertiary hover:text-text hover:bg-surface-raised/60 transition-colors cursor-pointer"
+					className="absolute top-4 right-4 h-8 w-8 flex items-center justify-center rounded-md text-text-tertiary hover:text-text hover:bg-surface-raised/60 transition-colors cursor-pointer"
 				>
 					<X size={16} />
 				</button>
@@ -34,7 +34,7 @@ export function ImageInfoModal({ file, width, height, onClose }: ImageInfoModalP
 					<div className="h-10 w-10 rounded-xl gradient-accent flex items-center justify-center">
 						<FileImage size={20} className="text-white" />
 					</div>
-					<h2 className="text-sm font-bold">File Info</h2>
+					<h2 className="text-base font-bold">File Info</h2>
 				</div>
 
 				{/* Info rows */}

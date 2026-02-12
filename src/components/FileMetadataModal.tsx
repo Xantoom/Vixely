@@ -35,7 +35,7 @@ export function FileMetadataModal({ file, fields, onClose }: FileMetadataModalPr
 				{/* Close */}
 				<button
 					onClick={onClose}
-					className="absolute top-4 right-4 h-7 w-7 flex items-center justify-center rounded-md text-text-tertiary hover:text-text hover:bg-surface-raised/60 transition-colors cursor-pointer"
+					className="absolute top-4 right-4 h-8 w-8 flex items-center justify-center rounded-md text-text-tertiary hover:text-text hover:bg-surface-raised/60 transition-colors cursor-pointer"
 				>
 					<X size={16} />
 				</button>
@@ -45,7 +45,7 @@ export function FileMetadataModal({ file, fields, onClose }: FileMetadataModalPr
 					<div className="h-10 w-10 rounded-xl gradient-accent flex items-center justify-center">
 						<FileText size={20} className="text-white" />
 					</div>
-					<h2 className="text-sm font-bold">File Info</h2>
+					<h2 className="text-base font-bold">File Info</h2>
 				</div>
 
 				{/* Metadata rows */}
@@ -54,8 +54,8 @@ export function FileMetadataModal({ file, fields, onClose }: FileMetadataModalPr
 						(field) =>
 							field.value != null && (
 								<div key={field.label} className="flex items-start justify-between gap-3">
-									<span className="text-[11px] text-text-tertiary shrink-0">{field.label}</span>
-									<span className="text-[11px] text-text-secondary font-mono text-right break-all">
+									<span className="text-[13px] text-text-tertiary shrink-0">{field.label}</span>
+									<span className="text-[13px] text-text-secondary font-mono text-right break-all">
 										{String(field.value)}
 									</span>
 								</div>

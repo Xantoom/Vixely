@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { Film, FilePlus2, Settings, Info, Lock, Unlock, Gauge, Maximize2, Download } from 'lucide-react';
+import { Film, FilePlus2, Settings, Info, Lock, Unlock, Maximize2, Download } from 'lucide-react';
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { toast } from 'sonner';
@@ -20,10 +20,9 @@ const GIF_PRESETS = gifPresetEntries();
 
 /* ── Mode Tab Config ── */
 
-const MODE_TABS: { mode: GifMode; label: string; icon: typeof Gauge }[] = [
+const MODE_TABS: { mode: GifMode; label: string; icon: typeof Settings }[] = [
 	{ mode: 'settings', label: 'Settings', icon: Settings },
 	{ mode: 'resize', label: 'Resize', icon: Maximize2 },
-	{ mode: 'speed', label: 'Speed', icon: Gauge },
 	{ mode: 'export', label: 'Export', icon: Download },
 ];
 
@@ -347,13 +346,13 @@ function GifFoundry() {
 						<button
 							key={tab.mode}
 							onClick={() => setMode(tab.mode)}
-							className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[9px] font-semibold uppercase tracking-wider transition-all cursor-pointer ${
+							className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-semibold uppercase tracking-wider transition-all cursor-pointer ${
 								isActive
 									? 'text-accent border-b-2 border-accent'
 									: 'text-text-tertiary hover:text-text-secondary'
 							}`}
 						>
-							<tab.icon size={14} />
+							<tab.icon size={16} />
 							{tab.label}
 						</button>
 					);
@@ -391,7 +390,7 @@ function GifFoundry() {
 						</>
 					)}
 				</div>
-				{file && <p className="mt-1.5 text-[11px] text-text-tertiary">{formatFileSize(file.size)}</p>}
+				{file && <p className="mt-1.5 text-[13px] text-text-tertiary">{formatFileSize(file.size)}</p>}
 			</div>
 
 			{/* Mode Content */}
@@ -400,7 +399,7 @@ function GifFoundry() {
 					<>
 						{/* Presets */}
 						<div>
-							<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">
+							<h3 className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">
 								Quick Presets
 							</h3>
 							<div className="grid grid-cols-2 gap-1.5">
@@ -410,8 +409,8 @@ function GifFoundry() {
 										onClick={() => applyPreset(key)}
 										className="rounded-lg px-2.5 py-2 text-left cursor-pointer bg-surface-raised/50 border border-transparent text-text-secondary hover:bg-surface-raised hover:text-text transition-all"
 									>
-										<p className="text-[11px] font-medium truncate">{preset.name}</p>
-										<p className="text-[9px] text-text-tertiary truncate">{preset.description}</p>
+										<p className="text-[13px] font-medium truncate">{preset.name}</p>
+										<p className="text-[11px] text-text-tertiary truncate">{preset.description}</p>
 									</button>
 								))}
 							</div>
@@ -431,26 +430,40 @@ function GifFoundry() {
 						{/* Loop */}
 						<Toggle checked={loop} onChange={setLoop} label="Loop" />
 
+						{/* Speed */}
+						<Slider
+							label="Speed"
+							displayValue={`${speed}x`}
+							min={0.25}
+							max={4}
+							step={0.25}
+							value={speed}
+							onChange={(e) => setSpeed(Number(e.target.value))}
+						/>
+
+						{/* Reverse */}
+						<Toggle checked={reverse} onChange={setReverse} label="Reverse" />
+
 						{/* GIF source trim inputs */}
 						{isGifSource && (
 							<div>
-								<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
+								<h3 className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
 									Trim
 								</h3>
 								<div className="flex items-center gap-2">
 									<div className="flex-1">
-										<label className="text-[10px] text-text-tertiary mb-1 block">Start (s)</label>
+										<label className="text-[12px] text-text-tertiary mb-1 block">Start (s)</label>
 										<input
 											type="number"
 											min={0}
 											step={0.1}
 											value={trimStart}
 											onChange={(e) => setTrimStart(Math.max(0, Number(e.target.value)))}
-											className="w-full h-7 px-2 rounded-md bg-surface-raised/60 border border-border text-xs font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
+											className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-xs font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
 										/>
 									</div>
 									<div className="flex-1">
-										<label className="text-[10px] text-text-tertiary mb-1 block">
+										<label className="text-[12px] text-text-tertiary mb-1 block">
 											Duration (s)
 										</label>
 										<input
@@ -461,7 +474,7 @@ function GifFoundry() {
 											onChange={(e) =>
 												setTrimEnd(trimStart + Math.max(0.5, Number(e.target.value)))
 											}
-											className="w-full h-7 px-2 rounded-md bg-surface-raised/60 border border-border text-xs font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
+											className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-xs font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
 										/>
 									</div>
 								</div>
@@ -474,39 +487,39 @@ function GifFoundry() {
 					<>
 						{/* Width / Height */}
 						<div>
-							<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">
+							<h3 className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">
 								Dimensions
 							</h3>
 							<div className="flex items-center gap-2">
 								<div className="flex-1">
-									<label className="text-[10px] text-text-tertiary mb-1 block">Width</label>
+									<label className="text-[12px] text-text-tertiary mb-1 block">Width</label>
 									<input
 										type="number"
 										min={16}
 										max={1920}
 										value={width}
 										onChange={(e) => handleWidthChange(Math.max(16, Number(e.target.value)))}
-										className="w-full h-7 px-2 rounded-md bg-surface-raised/60 border border-border text-xs font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
+										className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-xs font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
 									/>
 								</div>
 								<button
 									onClick={() => setLockAspect(!lockAspect)}
 									title={lockAspect ? 'Unlock aspect ratio' : 'Lock aspect ratio'}
-									className={`mt-4 h-7 w-7 flex items-center justify-center rounded-md transition-colors cursor-pointer ${
+									className={`mt-4 h-8 w-8 flex items-center justify-center rounded-md transition-colors cursor-pointer ${
 										lockAspect ? 'text-accent bg-accent/10' : 'text-text-tertiary hover:text-text'
 									}`}
 								>
 									{lockAspect ? <Lock size={12} /> : <Unlock size={12} />}
 								</button>
 								<div className="flex-1">
-									<label className="text-[10px] text-text-tertiary mb-1 block">Height</label>
+									<label className="text-[12px] text-text-tertiary mb-1 block">Height</label>
 									<input
 										type="number"
 										min={16}
 										max={1920}
 										value={height ?? Math.round(width / sourceAspect)}
 										onChange={(e) => handleHeightChange(Math.max(16, Number(e.target.value)))}
-										className="w-full h-7 px-2 rounded-md bg-surface-raised/60 border border-border text-xs font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
+										className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-xs font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
 									/>
 								</div>
 							</div>
@@ -525,7 +538,7 @@ function GifFoundry() {
 
 						{/* Common size presets */}
 						<div>
-							<label className="text-[10px] text-text-tertiary mb-2 block">Common Sizes</label>
+							<label className="text-[12px] text-text-tertiary mb-2 block">Common Sizes</label>
 							<div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
 								{[
 									{ label: '320', w: 320 },
@@ -538,7 +551,7 @@ function GifFoundry() {
 									<button
 										key={s.w}
 										onClick={() => handleWidthChange(s.w)}
-										className={`rounded-md py-1.5 text-[10px] font-medium transition-all cursor-pointer ${
+										className={`rounded-md py-1.5 text-[12px] font-medium transition-all cursor-pointer ${
 											width === s.w
 												? 'bg-accent/15 text-accent border border-accent/30'
 												: 'bg-surface-raised/60 text-text-tertiary border border-transparent hover:bg-surface-raised'
@@ -547,54 +560,6 @@ function GifFoundry() {
 										{s.label}px
 									</button>
 								))}
-							</div>
-						</div>
-					</>
-				)}
-
-				{mode === 'speed' && (
-					<>
-						{/* Speed */}
-						<Slider
-							label="Speed"
-							displayValue={`${speed}x`}
-							min={0.25}
-							max={4}
-							step={0.25}
-							value={speed}
-							onChange={(e) => setSpeed(Number(e.target.value))}
-						/>
-
-						{/* Speed presets */}
-						<div>
-							<label className="text-[10px] text-text-tertiary mb-2 block">Quick Speed</label>
-							<div className="grid grid-cols-3 sm:grid-cols-4 gap-1">
-								{[0.25, 0.5, 1, 1.5, 2, 3, 4].map((s) => (
-									<button
-										key={s}
-										onClick={() => setSpeed(s)}
-										className={`rounded-md py-1.5 text-[10px] font-medium transition-all cursor-pointer ${
-											speed === s
-												? 'bg-accent/15 text-accent border border-accent/30'
-												: 'bg-surface-raised/60 text-text-tertiary border border-transparent hover:bg-surface-raised'
-										}`}
-									>
-										{s}x
-									</button>
-								))}
-							</div>
-						</div>
-
-						{/* Reverse */}
-						<Toggle checked={reverse} onChange={setReverse} label="Reverse" />
-
-						{/* Effective Duration */}
-						<div className="rounded-lg bg-bg/50 p-3">
-							<div className="flex justify-between text-[11px]">
-								<span className="text-text-tertiary">Effective duration</span>
-								<span className="font-mono text-text-secondary">
-									{formatNumber(clipDuration / speed, 1)}s
-								</span>
 							</div>
 						</div>
 					</>
@@ -612,34 +577,34 @@ function GifFoundry() {
 							value={colorReduction}
 							onChange={(e) => setColorReduction(Number(e.target.value))}
 						/>
-						<div className="flex justify-between text-[9px] text-text-tertiary -mt-2">
+						<div className="flex justify-between text-[11px] text-text-tertiary -mt-2">
 							<span>Smaller file</span>
 							<span>Better quality</span>
 						</div>
 
 						{/* Estimates */}
 						<div className="rounded-lg bg-bg/50 p-3 flex flex-col gap-1.5">
-							<div className="flex justify-between text-[11px]">
+							<div className="flex justify-between text-[13px]">
 								<span className="text-text-tertiary">Frames</span>
 								<span className="font-mono text-text-secondary">{formatNumber(estimatedFrames)}</span>
 							</div>
-							<div className="flex justify-between text-[11px]">
+							<div className="flex justify-between text-[13px]">
 								<span className="text-text-tertiary">Duration</span>
 								<span className="font-mono text-text-secondary">{formatNumber(clipDuration, 1)}s</span>
 							</div>
-							<div className="flex justify-between text-[11px]">
+							<div className="flex justify-between text-[13px]">
 								<span className="text-text-tertiary">Resolution</span>
 								<span className="font-mono text-text-secondary">
 									{width} x {height ?? Math.round(width / sourceAspect)}
 								</span>
 							</div>
-							<div className="flex justify-between text-[11px]">
+							<div className="flex justify-between text-[13px]">
 								<span className="text-text-tertiary">Speed</span>
 								<span className="font-mono text-text-secondary">
 									{speed}x{reverse ? ' (reversed)' : ''}
 								</span>
 							</div>
-							<div className="flex justify-between text-[11px]">
+							<div className="flex justify-between text-[13px]">
 								<span className="text-text-tertiary">Colors</span>
 								<span className="font-mono text-text-secondary">{colorReduction}</span>
 							</div>
@@ -649,7 +614,7 @@ function GifFoundry() {
 						{resultUrl && (
 							<div className="rounded-lg bg-success/5 border border-success/20 px-3 py-2">
 								<p className="text-xs text-success font-medium">GIF ready</p>
-								<p className="text-[10px] text-text-tertiary mt-0.5">{formatFileSize(resultSize)}</p>
+								<p className="text-[12px] text-text-tertiary mt-0.5">{formatFileSize(resultSize)}</p>
 							</div>
 						)}
 					</>
@@ -682,7 +647,7 @@ function GifFoundry() {
 					</Button>
 				)}
 
-				{error && <p className="text-[11px] text-danger bg-danger/10 rounded-md px-2.5 py-1.5">{error}</p>}
+				{error && <p className="text-[13px] text-danger bg-danger/10 rounded-md px-2.5 py-1.5">{error}</p>}
 
 				{resultUrl && <MonetagAd zoneId={MONETAG_ZONES.export} className="mt-1" />}
 			</div>
@@ -712,7 +677,7 @@ function GifFoundry() {
 							<div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 max-w-full max-h-full w-full overflow-auto">
 								{/* Source */}
 								<div className="flex-1 min-w-0 max-h-full flex flex-col">
-									<p className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wider mb-2 shrink-0">
+									<p className="text-[12px] font-semibold text-text-tertiary uppercase tracking-wider mb-2 shrink-0">
 										Source
 									</p>
 									{isGifSource ? (
@@ -738,10 +703,10 @@ function GifFoundry() {
 								{resultUrl && !processing && (
 									<div className="flex-1 min-w-0 max-h-full flex flex-col">
 										<div className="flex items-center justify-between mb-2 shrink-0">
-											<p className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wider">
+											<p className="text-[12px] font-semibold text-text-tertiary uppercase tracking-wider">
 												Result
 											</p>
-											<span className="text-[10px] font-mono text-success">
+											<span className="text-[12px] font-mono text-success">
 												{formatFileSize(resultSize)}
 											</span>
 										</div>
@@ -766,7 +731,7 @@ function GifFoundry() {
 												style={{ width: `${progress * 100}%` }}
 											/>
 										</div>
-										<p className="mt-2 text-[10px] text-text-tertiary">Optimizing palette...</p>
+										<p className="mt-2 text-[12px] text-text-tertiary">Optimizing palette...</p>
 									</div>
 								)}
 							</div>

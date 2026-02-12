@@ -53,7 +53,7 @@ export function PrivacyModal() {
 					Got it
 				</Button>
 
-				<p className="mt-3 text-center text-[10px] text-text-tertiary">
+				<p className="mt-3 text-center text-[12px] text-text-tertiary">
 					Read our full{' '}
 					<a href="/privacy" className="underline hover:text-text-secondary transition-colors">
 						Privacy Policy

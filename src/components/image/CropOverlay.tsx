@@ -284,7 +284,7 @@ export function CropOverlay({ containerRef, view, imageWidth, imageHeight, getIs
 
 			{/* Crop dimensions label */}
 			<div
-				className="absolute text-[10px] font-mono text-white bg-black/60 rounded px-1.5 py-0.5 pointer-events-none"
+				className="absolute text-[12px] font-mono text-white bg-black/60 rounded px-1.5 py-0.5 pointer-events-none"
 				style={{ left: sx + sw / 2, top: sy + sh + 8, transform: 'translateX(-50%)' }}
 			>
 				{formatDimensions(Math.round(crop.width), Math.round(crop.height))}

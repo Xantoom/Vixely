@@ -22,7 +22,7 @@ function IconButton({
 			onClick={onClick}
 			disabled={disabled}
 			title={title}
-			className={`h-7 w-7 flex items-center justify-center rounded-md transition-all cursor-pointer
+			className={`h-8 w-8 flex items-center justify-center rounded-md transition-all cursor-pointer
 				${active ? 'bg-accent/15 text-accent' : 'text-text-tertiary hover:text-text hover:bg-surface-raised/60'}
 				${disabled ? 'opacity-30 pointer-events-none' : ''}`}
 		>
@@ -100,39 +100,39 @@ export function ImageToolbar({ processFn, containerRef }: ImageToolbarProps) {
 	}, [compareMode, setCompareMode, handleFit]);
 
 	return (
-		<div className="h-10 flex items-center px-2 gap-0.5 border-b border-border bg-surface shrink-0 select-none overflow-x-auto">
+		<div className="h-11 flex items-center px-2 gap-0.5 border-b border-border bg-surface shrink-0 select-none overflow-x-auto">
 			{/* Undo / Redo */}
 			<IconButton onClick={handleUndo} disabled={undoStack.length === 0} title="Undo (Ctrl+Z)">
-				<Undo2 size={14} />
+				<Undo2 size={16} />
 			</IconButton>
 			<IconButton onClick={handleRedo} disabled={redoStack.length === 0} title="Redo (Ctrl+Shift+Z)">
-				<Redo2 size={14} />
+				<Redo2 size={16} />
 			</IconButton>
 
 			<Separator />
 
 			{/* Zoom controls */}
 			<IconButton onClick={handleZoomOut} title="Zoom out">
-				<ZoomOut size={14} />
+				<ZoomOut size={16} />
 			</IconButton>
-			<span className="text-[10px] font-mono text-text-tertiary tabular-nums w-10 text-center">
+			<span className="text-[12px] font-mono text-text-tertiary tabular-nums w-10 text-center">
 				{Math.round(view.zoom * 100)}%
 			</span>
 			<IconButton onClick={handleZoomIn} title="Zoom in">
-				<ZoomIn size={14} />
+				<ZoomIn size={16} />
 			</IconButton>
 			<IconButton onClick={handleFit} title="Fit to view">
-				<Maximize size={14} />
+				<Maximize size={16} />
 			</IconButton>
 
 			<Separator />
 
 			{/* Tool select */}
 			<IconButton onClick={() => handleToolChange('pointer')} active={activeTool === 'pointer'} title="Pointer">
-				<MousePointer size={14} />
+				<MousePointer size={16} />
 			</IconButton>
 			<IconButton onClick={() => handleToolChange('crop')} active={activeTool === 'crop'} title="Crop">
-				<Crop size={14} />
+				<Crop size={16} />
 			</IconButton>
 
 			<Separator />
@@ -144,7 +144,7 @@ export function ImageToolbar({ processFn, containerRef }: ImageToolbarProps) {
 				disabled={!originalData}
 				title="Split compare"
 			>
-				<Columns2 size={14} />
+				<Columns2 size={16} />
 			</IconButton>
 
 			{/* Crop actions (shown when crop is active with a selection) */}
@@ -153,13 +153,13 @@ export function ImageToolbar({ processFn, containerRef }: ImageToolbarProps) {
 					<Separator />
 					<button
 						onClick={handleApplyCrop}
-						className="h-6 px-2 rounded-md text-[10px] font-medium bg-accent/15 text-accent hover:bg-accent/25 transition-colors cursor-pointer"
+						className="h-6 px-2 rounded-md text-[12px] font-medium bg-accent/15 text-accent hover:bg-accent/25 transition-colors cursor-pointer"
 					>
 						Apply
 					</button>
 					<button
 						onClick={cancelCrop}
-						className="h-6 px-2 rounded-md text-[10px] font-medium text-text-tertiary hover:text-text hover:bg-surface-raised/60 transition-colors cursor-pointer"
+						className="h-6 px-2 rounded-md text-[12px] font-medium text-text-tertiary hover:text-text hover:bg-surface-raised/60 transition-colors cursor-pointer"
 					>
 						Cancel
 					</button>
@@ -171,7 +171,7 @@ export function ImageToolbar({ processFn, containerRef }: ImageToolbarProps) {
 
 			{/* Dimensions display */}
 			{originalData && (
-				<span className="text-[10px] font-mono text-text-tertiary tabular-nums mr-2">
+				<span className="text-[12px] font-mono text-text-tertiary tabular-nums mr-2">
 					{formatDimensions(originalData.width, originalData.height)}
 				</span>
 			)}
@@ -180,7 +180,7 @@ export function ImageToolbar({ processFn, containerRef }: ImageToolbarProps) {
 			<button
 				onClick={resetAll}
 				disabled={!originalData}
-				className="h-6 px-2 rounded-md text-[10px] font-medium text-text-tertiary hover:text-danger hover:bg-danger/10 transition-colors cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
+				className="h-6 px-2 rounded-md text-[12px] font-medium text-text-tertiary hover:text-danger hover:bg-danger/10 transition-colors cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
 				title="Reset all changes"
 			>
 				Reset All

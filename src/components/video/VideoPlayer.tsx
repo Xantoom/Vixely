@@ -7,9 +7,9 @@ interface VideoPlayerProps {
 	videoRef: RefObject<HTMLVideoElement | null>;
 	onLoadedMetadata?: () => void;
 	onTimeUpdate?: () => void;
+	onSeek?: (time: number) => void;
 	processing?: boolean;
 	progress?: number;
-	cssFilter?: string;
 }
 
 export function VideoPlayer({
@@ -17,9 +17,9 @@ export function VideoPlayer({
 	videoRef,
 	onLoadedMetadata,
 	onTimeUpdate,
+	onSeek,
 	processing,
 	progress = 0,
-	cssFilter,
 }: VideoPlayerProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const seekBarRef = useRef<HTMLDivElement>(null);
@@ -80,15 +80,15 @@ export function VideoPlayer({
 			const rect = bar.getBoundingClientRect();
 			const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
 			const targetTime = ratio * duration;
-			// Use fastSeek for smoother scrubbing when available
 			if (typeof v.fastSeek === 'function') {
 				v.fastSeek(targetTime);
 			} else {
 				v.currentTime = targetTime;
 			}
 			setCurrentTime(targetTime);
+			onSeek?.(targetTime);
 		},
-		[videoRef, duration],
+		[videoRef, duration, onSeek],
 	);
 
 	const handleSeekDrag = useCallback(
@@ -141,7 +141,7 @@ export function VideoPlayer({
 	return (
 		<div
 			ref={containerRef}
-			className="relative max-w-full max-h-full group"
+			className="relative max-w-full max-h-full group overflow-hidden rounded-xl bg-black"
 			onPointerMove={resetHideTimer}
 			onPointerLeave={() => playing && setShowControls(false)}
 		>
@@ -154,8 +154,7 @@ export function VideoPlayer({
 				onPause={() => setPlaying(false)}
 				onEnded={handleEnded}
 				onClick={togglePlay}
-				className="block max-w-full max-h-full rounded-xl bg-black cursor-pointer"
-				style={cssFilter && cssFilter !== 'none' ? { filter: cssFilter } : undefined}
+				className="block max-w-full max-h-full cursor-pointer"
 			/>
 
 			{/* Custom controls overlay */}
@@ -171,10 +170,7 @@ export function VideoPlayer({
 					onPointerDown={handleSeek}
 					onPointerMove={handleSeekDrag}
 				>
-					<div
-						className="absolute inset-y-0 left-0 bg-accent rounded-full transition-[width] duration-75"
-						style={{ width: `${pct}%` }}
-					/>
+					<div className="absolute inset-y-0 left-0 bg-accent rounded-full" style={{ width: `${pct}%` }} />
 					<div
 						className="absolute top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-white shadow-md opacity-0 group-hover/seek:opacity-100 transition-opacity"
 						style={{ left: `${pct}%`, transform: `translate(-50%, -50%)` }}
@@ -191,7 +187,7 @@ export function VideoPlayer({
 					</button>
 
 					{/* Time */}
-					<span className="text-[11px] font-mono text-white/80 tabular-nums">
+					<span className="text-[13px] font-mono text-white/80 tabular-nums">
 						{formatTimecode(currentTime)} / {formatTimecode(duration)}
 					</span>
 

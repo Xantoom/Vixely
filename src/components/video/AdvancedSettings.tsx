@@ -25,17 +25,18 @@ export const DEFAULT_ADVANCED: AdvancedVideoSettings = {
 	container: 'mp4',
 	crf: 23,
 	preset: 'fast',
-	audioCodec: 'libopus',
+	audioCodec: 'aac',
 	audioBitrate: '96k',
 };
 
 interface AdvancedSettingsProps {
 	settings: AdvancedVideoSettings;
 	onChange: (settings: AdvancedVideoSettings) => void;
+	defaultExpanded?: boolean;
 }
 
-export function AdvancedSettings({ settings, onChange }: AdvancedSettingsProps) {
-	const [expanded, setExpanded] = useState(false);
+export function AdvancedSettings({ settings, onChange, defaultExpanded = false }: AdvancedSettingsProps) {
+	const [expanded, setExpanded] = useState(defaultExpanded);
 
 	const update = <K extends keyof AdvancedVideoSettings>(key: K, value: AdvancedVideoSettings[K]) => {
 		const next = { ...settings, [key]: value };
@@ -63,7 +64,7 @@ export function AdvancedSettings({ settings, onChange }: AdvancedSettingsProps) 
 		<div className="flex flex-col">
 			<button
 				onClick={() => setExpanded(!expanded)}
-				className="flex items-center gap-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider cursor-pointer hover:text-text-secondary transition-colors w-full"
+				className="flex items-center gap-2 text-[13px] font-semibold text-text-tertiary uppercase tracking-wider cursor-pointer hover:text-text-secondary transition-colors w-full"
 			>
 				<ChevronRight size={12} className={`transition-transform ${expanded ? 'rotate-90' : ''}`} />
 				Advanced Encoding
@@ -73,13 +74,13 @@ export function AdvancedSettings({ settings, onChange }: AdvancedSettingsProps) 
 				<div className="mt-3 flex flex-col gap-4">
 					{/* Codec */}
 					<div>
-						<label className="text-[10px] text-text-tertiary mb-1.5 block">Video Codec</label>
+						<label className="text-[12px] text-text-tertiary mb-1.5 block">Video Codec</label>
 						<div className="grid grid-cols-2 gap-1">
 							{VIDEO_CODECS.map((c) => (
 								<button
 									key={c.ffmpegLib}
 									onClick={() => update('codec', c.ffmpegLib)}
-									className={`rounded-md py-1.5 text-[10px] font-medium transition-all cursor-pointer ${
+									className={`rounded-md py-1.5 text-[12px] font-medium transition-all cursor-pointer ${
 										settings.codec === c.ffmpegLib
 											? 'bg-accent/15 text-accent border border-accent/30'
 											: 'bg-surface-raised/60 text-text-tertiary border border-transparent hover:bg-surface-raised'
@@ -93,7 +94,7 @@ export function AdvancedSettings({ settings, onChange }: AdvancedSettingsProps) 
 
 					{/* Container */}
 					<div>
-						<label className="text-[10px] text-text-tertiary mb-1.5 block">Container</label>
+						<label className="text-[12px] text-text-tertiary mb-1.5 block">Container</label>
 						<div className="flex gap-1">
 							{CONTAINERS.map((c) => {
 								const valid = isValidCombo(settings.codec, c.ext);
@@ -102,7 +103,7 @@ export function AdvancedSettings({ settings, onChange }: AdvancedSettingsProps) 
 										key={c.ext}
 										onClick={() => update('container', c.ext)}
 										disabled={!valid}
-										className={`flex-1 rounded-md py-1.5 text-[10px] font-medium transition-all cursor-pointer ${
+										className={`flex-1 rounded-md py-1.5 text-[12px] font-medium transition-all cursor-pointer ${
 											settings.container === c.ext
 												? 'bg-accent/15 text-accent border border-accent/30'
 												: valid
@@ -127,18 +128,18 @@ export function AdvancedSettings({ settings, onChange }: AdvancedSettingsProps) 
 						value={settings.crf}
 						onChange={(e) => update('crf', Number((e.target as HTMLInputElement).value))}
 					/>
-					<div className="flex justify-between text-[9px] text-text-tertiary -mt-2">
+					<div className="flex justify-between text-[11px] text-text-tertiary -mt-2">
 						<span>Higher quality</span>
 						<span>Smaller file</span>
 					</div>
 
 					{/* Encoding Speed */}
 					<div>
-						<label className="text-[10px] text-text-tertiary mb-1.5 block">Encoding Speed</label>
+						<label className="text-[12px] text-text-tertiary mb-1.5 block">Encoding Speed</label>
 						<select
 							value={settings.preset}
 							onChange={(e) => update('preset', e.target.value)}
-							className="w-full h-7 px-2 rounded-md bg-surface-raised/60 border border-border text-xs text-text cursor-pointer focus:outline-none focus:border-accent/50"
+							className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-xs text-text cursor-pointer focus:outline-none focus:border-accent/50"
 						>
 							{ENCODING_PRESETS.map((p) => (
 								<option key={p.value} value={p.value}>
@@ -150,7 +151,7 @@ export function AdvancedSettings({ settings, onChange }: AdvancedSettingsProps) 
 
 					{/* Audio Codec */}
 					<div>
-						<label className="text-[10px] text-text-tertiary mb-1.5 block">Audio Codec</label>
+						<label className="text-[12px] text-text-tertiary mb-1.5 block">Audio Codec</label>
 						<div className="flex gap-1">
 							{AUDIO_CODECS.map((c) => {
 								const valid = isValidAudioCombo(c.ffmpegLib, settings.container);
@@ -159,7 +160,7 @@ export function AdvancedSettings({ settings, onChange }: AdvancedSettingsProps) 
 										key={c.ffmpegLib}
 										onClick={() => update('audioCodec', c.ffmpegLib)}
 										disabled={!valid}
-										className={`flex-1 rounded-md py-1.5 text-[10px] font-medium transition-all cursor-pointer ${
+										className={`flex-1 rounded-md py-1.5 text-[12px] font-medium transition-all cursor-pointer ${
 											settings.audioCodec === c.ffmpegLib
 												? 'bg-accent/15 text-accent border border-accent/30'
 												: valid
@@ -177,13 +178,13 @@ export function AdvancedSettings({ settings, onChange }: AdvancedSettingsProps) 
 					{/* Audio Bitrate */}
 					{settings.audioCodec !== 'none' && (
 						<div>
-							<label className="text-[10px] text-text-tertiary mb-1.5 block">Audio Bitrate</label>
+							<label className="text-[12px] text-text-tertiary mb-1.5 block">Audio Bitrate</label>
 							<div className="grid grid-cols-3 gap-1">
 								{AUDIO_BITRATES.map((b) => (
 									<button
 										key={b.value}
 										onClick={() => update('audioBitrate', b.value)}
-										className={`rounded-md py-1 text-[10px] font-medium transition-all cursor-pointer ${
+										className={`rounded-md py-1 text-[12px] font-medium transition-all cursor-pointer ${
 											settings.audioBitrate === b.value
 												? 'bg-accent/15 text-accent border border-accent/30'
 												: 'bg-surface-raised/60 text-text-tertiary border border-transparent hover:bg-surface-raised'

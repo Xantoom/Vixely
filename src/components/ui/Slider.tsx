@@ -13,12 +13,12 @@ export function Slider({ label, displayValue, id, className = '', onCommit, ...p
 			{(label || displayValue) && (
 				<div className="flex items-center justify-between">
 					{label && (
-						<label htmlFor={id} className="text-xs font-medium text-text-secondary">
+						<label htmlFor={id} className="text-sm font-medium text-text-secondary">
 							{label}
 						</label>
 					)}
 					{displayValue && (
-						<span className="text-xs font-mono text-text-tertiary tabular-nums">{displayValue}</span>
+						<span className="text-sm font-mono text-text-tertiary tabular-nums">{displayValue}</span>
 					)}
 				</div>
 			)}

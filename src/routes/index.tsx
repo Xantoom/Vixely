@@ -1,69 +1,52 @@
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { useState, useCallback, type DragEvent } from 'react';
+import { createFileRoute, Link } from '@tanstack/react-router';
+import { Video, ImageIcon, Film, ArrowRight } from 'lucide-react';
 import { Helmet } from 'react-helmet-async';
-import { Button } from '@/components/ui/index.ts';
 
 export const Route = createFileRoute('/')({ component: HomePage });
 
-const VIDEO_TYPES = new Set(['video/mp4', 'video/webm', 'video/quicktime', 'video/x-matroska', 'video/avi']);
-const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/bmp', 'image/tiff']);
-const GIF_TYPE = 'image/gif';
-
-const tools = [
+const editors = [
 	{
 		title: 'Video',
-		desc: 'Trim, convert, and compress for any platform.',
+		desc: 'Cut, trim, resize, color correction & effects. Export with full codec and quality control.',
+		features: ['Cut/Trim', 'Resize', 'Color Grading', 'Export'],
 		href: '/tools/video' as const,
-		accent: 'bg-violet-500',
+		icon: Video,
+		accent: 'border-t-blue-500',
+		hoverBorder: 'hover:border-blue-500/20',
+		hoverGlow: 'group-hover:shadow-[0_4px_40px_-4px_rgba(59,130,246,0.25)]',
+		iconColor: 'text-blue-400',
+		iconBg: 'bg-blue-500/10',
+		tagColor: 'bg-blue-500/[0.08] text-blue-400/80',
 	},
 	{
 		title: 'Image',
-		desc: 'Filters, resize, and export. Real-time preview.',
+		desc: 'Resize, adjust brightness, contrast, saturation & more. Export as PNG, JPEG, or WebP.',
+		features: ['Resize', 'Color Correction', 'Effects', 'Multi-format'],
 		href: '/tools/image' as const,
-		accent: 'bg-blue-500',
+		icon: ImageIcon,
+		accent: 'border-t-amber-500',
+		hoverBorder: 'hover:border-amber-500/20',
+		hoverGlow: 'group-hover:shadow-[0_4px_40px_-4px_rgba(245,158,11,0.25)]',
+		iconColor: 'text-amber-400',
+		iconBg: 'bg-amber-500/10',
+		tagColor: 'bg-amber-500/[0.08] text-amber-400/80',
 	},
 	{
 		title: 'GIF',
-		desc: 'Video to GIF with palette optimization.',
+		desc: 'Create GIFs from video. Control frames, framerate, speed, and palette optimization.',
+		features: ['Video to GIF', 'Frame Control', 'Speed', 'Palette'],
 		href: '/tools/gif' as const,
-		accent: 'bg-emerald-500',
+		icon: Film,
+		accent: 'border-t-emerald-500',
+		hoverBorder: 'hover:border-emerald-500/20',
+		hoverGlow: 'group-hover:shadow-[0_4px_40px_-4px_rgba(16,185,129,0.25)]',
+		iconColor: 'text-emerald-400',
+		iconBg: 'bg-emerald-500/10',
+		tagColor: 'bg-emerald-500/[0.08] text-emerald-400/80',
 	},
 ];
 
 function HomePage() {
-	const navigate = useNavigate();
-	const [dragging, setDragging] = useState(false);
-
-	const detectRoute = useCallback((file: File): '/tools/video' | '/tools/image' | '/tools/gif' => {
-		if (file.type === GIF_TYPE) return '/tools/gif';
-		if (VIDEO_TYPES.has(file.type)) return '/tools/video';
-		if (IMAGE_TYPES.has(file.type)) return '/tools/image';
-		const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
-		if (['mp4', 'webm', 'mov', 'mkv', 'avi'].includes(ext)) return '/tools/video';
-		if (['gif'].includes(ext)) return '/tools/gif';
-		return '/tools/image';
-	}, []);
-
-	const handleDrop = useCallback(
-		(e: DragEvent<HTMLDivElement>) => {
-			e.preventDefault();
-			setDragging(false);
-			const file = e.dataTransfer.files[0];
-			if (!file) return;
-			navigate({ to: detectRoute(file) });
-		},
-		[detectRoute, navigate],
-	);
-
-	const handleFileInput = useCallback(
-		(e: React.ChangeEvent<HTMLInputElement>) => {
-			const file = e.target.files?.[0];
-			if (!file) return;
-			navigate({ to: detectRoute(file) });
-		},
-		[detectRoute, navigate],
-	);
-
 	return (
 		<>
 			<Helmet>
@@ -74,134 +57,59 @@ function HomePage() {
 				/>
 			</Helmet>
 
-			<div className="animate-fade-in bg-home-glow min-h-full">
-				{/* ── Hero ── */}
-				<section className="relative flex flex-col items-center px-4 sm:px-8 pt-16 sm:pt-24 pb-12 sm:pb-16 text-center overflow-hidden">
-					{/* Glow orbs */}
-					<div className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 h-[min(480px,60vh)] w-[min(640px,90vw)] rounded-full bg-accent/[0.08] blur-[120px]" />
-					<div className="pointer-events-none absolute top-20 -left-32 h-[min(320px,40vh)] w-[min(320px,40vw)] rounded-full bg-blue-500/[0.04] blur-[100px]" />
-					<div className="pointer-events-none absolute -bottom-20 right-0 h-[min(280px,35vh)] w-[min(280px,35vw)] rounded-full bg-emerald-500/[0.03] blur-[80px]" />
-
-					<div className="relative max-w-2xl">
-						<div className="mb-5 inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-1.5 text-xs text-text-secondary">
-							<span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse-soft" />
-							Everything stays on your device
-						</div>
-
-						<h1 className="text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl lg:text-6xl leading-[1.1]">
-							<span className="text-gradient">Edit media</span>
-							<br />
-							<span className="text-text">without the cloud.</span>
-						</h1>
-
-						<p className="mt-5 text-base text-text-secondary leading-relaxed max-w-md mx-auto">
-							A private media suite that runs entirely in your browser. No uploads. No accounts. Just your
-							files.
-						</p>
-
-						<div className="mt-8 flex items-center gap-3 justify-center">
-							<Link to="/tools/video">
-								<Button size="lg">Open Editor</Button>
-							</Link>
-						</div>
+			<div className="h-full flex flex-col items-center justify-center overflow-hidden bg-home-glow animate-fade-in">
+				{/* Header */}
+				<div className="shrink-0 text-center mb-6 sm:mb-10 px-4">
+					<div className="inline-flex items-center gap-2 mb-4 rounded-full border border-border bg-surface/80 px-3.5 py-1.5 text-xs text-text-secondary">
+						<span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse-soft" />
+						Everything stays on your device
 					</div>
-				</section>
+					<h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight leading-tight">
+						<span className="text-gradient">What are you editing?</span>
+					</h1>
+				</div>
 
-				{/* ── Drop Zone ── */}
-				<section className="mx-auto max-w-xl xl:max-w-2xl px-4 sm:px-8 pb-12 sm:pb-16">
-					<div
-						onDragOver={(e) => {
-							e.preventDefault();
-							setDragging(true);
-						}}
-						onDragLeave={() => setDragging(false)}
-						onDrop={handleDrop}
-						className={`relative flex flex-col items-center justify-center rounded-2xl p-6 sm:p-10 ${
-							dragging ? 'drop-zone-active' : 'drop-zone'
-						}`}
-					>
-						<input
-							type="file"
-							className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-							accept="video/*,image/*"
-							onChange={handleFileInput}
-						/>
-
-						<svg
-							className="h-8 w-8 text-text-tertiary mb-3"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							strokeWidth="1.5"
-							strokeLinecap="round"
-							strokeLinejoin="round"
+				{/* Cards */}
+				<div className="w-full max-w-5xl px-4 sm:px-8 grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-5">
+					{editors.map((editor) => (
+						<Link
+							key={editor.href}
+							to={editor.href}
+							className={`group relative flex flex-col rounded-2xl border-t-2 ${editor.accent} border border-border bg-surface/50 backdrop-blur-sm p-5 sm:p-7 transition-all duration-300 ${editor.hoverBorder} ${editor.hoverGlow}`}
 						>
-							<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
-						</svg>
-
-						<p className="text-sm font-medium text-text-secondary">
-							{dragging ? 'Release to open...' : 'Drop a file or click to browse'}
-						</p>
-						<p className="mt-1.5 text-xs text-text-tertiary">
-							Videos, images, and GIFs auto-route to the right editor
-						</p>
-
-						<div className="mt-4 flex flex-wrap items-center justify-center gap-1.5">
-							{['MP4', 'MOV', 'WebM', 'PNG', 'JPG', 'WebP', 'GIF'].map((ext) => (
-								<span
-									key={ext}
-									className="rounded bg-surface-raised px-1.5 py-0.5 text-[10px] font-mono text-text-tertiary"
-								>
-									.{ext.toLowerCase()}
-								</span>
-							))}
-						</div>
-					</div>
-				</section>
-
-				{/* ── Tools ── */}
-				<section className="mx-auto max-w-xl xl:max-w-2xl px-4 sm:px-8 pb-20 sm:pb-24">
-					<div className="flex flex-col gap-3">
-						{tools.map((tool) => (
-							<Link
-								key={tool.href}
-								to={tool.href}
-								className="group flex items-center gap-4 rounded-xl border border-border bg-surface p-4 transition-all hover:border-border/80 hover:bg-surface-raised"
+							{/* Icon */}
+							<div
+								className={`h-11 w-11 rounded-xl ${editor.iconBg} flex items-center justify-center mb-4`}
 							>
-								<div
-									className={`h-10 w-10 rounded-lg ${tool.accent} flex items-center justify-center shrink-0`}
-								>
-									<svg
-										className="h-5 w-5 text-white"
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-										strokeWidth="2"
-										strokeLinecap="round"
+								<editor.icon className={`h-5 w-5 ${editor.iconColor}`} strokeWidth={1.8} />
+							</div>
+
+							{/* Title + Arrow */}
+							<div className="flex items-center gap-2 mb-2">
+								<h2 className="text-lg font-bold tracking-tight">{editor.title}</h2>
+								<ArrowRight
+									size={16}
+									className="text-text-tertiary opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200"
+								/>
+							</div>
+
+							{/* Description */}
+							<p className="text-[15px] text-text-secondary leading-relaxed">{editor.desc}</p>
+
+							{/* Feature tags */}
+							<div className="mt-auto pt-5 flex flex-wrap gap-1.5">
+								{editor.features.map((f) => (
+									<span
+										key={f}
+										className={`rounded-md px-2 py-0.5 text-[12px] font-medium ${editor.tagColor}`}
 									>
-										<path d="M5 12h14M12 5l7 7-7 7" />
-									</svg>
-								</div>
-								<div className="flex-1 min-w-0">
-									<h3 className="text-sm font-semibold group-hover:text-accent transition-colors">
-										{tool.title}
-									</h3>
-									<p className="text-xs text-text-tertiary mt-0.5">{tool.desc}</p>
-								</div>
-								<svg
-									className="h-4 w-4 text-text-tertiary group-hover:text-text-secondary transition-colors shrink-0"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									strokeWidth="2"
-									strokeLinecap="round"
-								>
-									<path d="M9 18l6-6-6-6" />
-								</svg>
-							</Link>
-						))}
-					</div>
-				</section>
+										{f}
+									</span>
+								))}
+							</div>
+						</Link>
+					))}
+				</div>
 			</div>
 		</>
 	);

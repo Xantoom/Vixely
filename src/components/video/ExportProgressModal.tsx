@@ -18,7 +18,7 @@ export function ExportProgressModal({ progress }: ExportProgressModalProps) {
 					<div className="h-full bg-accent transition-all duration-300" style={{ width: `${pct}%` }} />
 				</div>
 
-				<p className="mt-3 text-[10px] text-text-tertiary">Please do not close this tab while exporting.</p>
+				<p className="mt-3 text-[12px] text-text-tertiary">Please do not close this tab while exporting.</p>
 			</div>
 		</div>
 	);
