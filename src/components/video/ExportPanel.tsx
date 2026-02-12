@@ -25,7 +25,7 @@ export function ExportPanel({
 }: ExportPanelProps) {
 	return (
 		<div className="flex flex-col gap-4">
-			<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">Export</h3>
+			<h3 className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider">Export</h3>
 
 			{!selectedPreset && (
 				<p className="text-xs text-text-tertiary">Select a preset from the Presets tab first.</p>
@@ -34,7 +34,7 @@ export function ExportPanel({
 			{selectedPreset && (
 				<div className="rounded-lg bg-accent/5 border border-accent/20 px-3 py-2">
 					<p className="text-xs text-accent font-medium">Preset selected</p>
-					<p className="text-[10px] text-text-tertiary mt-0.5">
+					<p className="text-[12px] text-text-tertiary mt-0.5">
 						Ready to export. Color corrections will be baked in.
 					</p>
 				</div>
@@ -50,7 +50,7 @@ export function ExportPanel({
 							style={{ width: `${progress * 100}%` }}
 						/>
 					</div>
-					<p className="mt-2 text-[10px] text-text-tertiary">Do not close this tab during export.</p>
+					<p className="mt-2 text-[12px] text-text-tertiary">Do not close this tab during export.</p>
 				</div>
 			)}
 
@@ -64,7 +64,7 @@ export function ExportPanel({
 				</Button>
 			)}
 
-			{error && <p className="text-[11px] text-danger bg-danger/10 rounded-md px-2.5 py-1.5">{error}</p>}
+			{error && <p className="text-[13px] text-danger bg-danger/10 rounded-md px-2.5 py-1.5">{error}</p>}
 		</div>
 	);
 }

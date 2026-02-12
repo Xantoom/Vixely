@@ -91,7 +91,7 @@ export function Timeline({
 	return (
 		<div className={`flex flex-col gap-2 select-none ${className}`}>
 			{/* Timecodes */}
-			<div className="flex items-center justify-between text-[11px] font-mono text-text-tertiary tabular-nums">
+			<div className="flex items-center justify-between text-[13px] font-mono text-text-tertiary tabular-nums">
 				<span>{formatTimecode(trimStart)}</span>
 				<span className="text-text-secondary font-semibold">{formatTimecode(currentTime)}</span>
 				<span>{formatTimecode(trimEnd)}</span>
@@ -100,7 +100,7 @@ export function Timeline({
 			{/* Track */}
 			<div
 				ref={trackRef}
-				className="relative h-10 rounded-lg bg-surface-raised cursor-pointer touch-none"
+				className="relative h-12 rounded-lg bg-surface-raised cursor-pointer touch-none"
 				onClick={handleTrackClick}
 				onPointerMove={handlePointerMove}
 				onPointerUp={handlePointerUp}
@@ -157,7 +157,7 @@ export function Timeline({
 			</div>
 
 			{/* Duration info */}
-			<div className="flex items-center justify-between text-[10px] text-text-tertiary">
+			<div className="flex items-center justify-between text-[12px] text-text-tertiary">
 				<span>Selection: {formatTimecode(clipDuration)}</span>
 				<span>Total: {formatTimecode(duration)}</span>
 			</div>

@@ -2,10 +2,8 @@ import { createRootRoute, Outlet, Link, useRouterState } from '@tanstack/react-r
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools';
 import { Video, ImageIcon, Film, Home } from 'lucide-react';
 import { Toaster } from 'sonner';
-import { MonetagAd } from '@/components/AdContainer.tsx';
 import { CookieBanner } from '@/components/CookieBanner.tsx';
 import { PrivacyModal } from '@/components/PrivacyModal.tsx';
-import { MONETAG_ZONES } from '@/config/monetag.ts';
 
 export const Route = createRootRoute({ component: RootLayout });
 
@@ -74,7 +72,7 @@ function RootLayout() {
 								}`}
 							>
 								<item.icon className="h-5 w-5" />
-								<span className="text-[9px] font-semibold tracking-wide uppercase">{item.label}</span>
+								<span className="text-[11px] font-semibold tracking-wide uppercase">{item.label}</span>
 								{isActive && (
 									<div
 										className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full ${item.indicator}`}
@@ -95,15 +93,10 @@ function RootLayout() {
 			</aside>
 
 			{/* ── Main Content ── */}
-			<main className={`flex-1 flex flex-col overflow-hidden min-h-0 ${isHome ? 'overflow-y-auto' : ''}`}>
+			<main className="flex-1 flex flex-col overflow-hidden min-h-0">
 				<div className="flex-1 min-h-0">
 					<Outlet />
 				</div>
-				{isHome && (
-					<div className="shrink-0 px-8 pb-6 hidden md:block">
-						<MonetagAd zoneId={MONETAG_ZONES.footer} className="h-16 w-full max-w-xl mx-auto" />
-					</div>
-				)}
 			</main>
 
 			{/* ── Mobile Bottom Tab Bar ── */}
@@ -115,7 +108,7 @@ function RootLayout() {
 					}`}
 				>
 					<Home className="h-5 w-5" />
-					<span className="text-[9px] font-semibold tracking-wide uppercase">Home</span>
+					<span className="text-[11px] font-semibold tracking-wide uppercase">Home</span>
 				</Link>
 				{navItems.map((item) => {
 					const isActive = pathname.startsWith(item.to);
@@ -128,7 +121,7 @@ function RootLayout() {
 							}`}
 						>
 							<item.icon className="h-5 w-5" />
-							<span className="text-[9px] font-semibold tracking-wide uppercase">{item.label}</span>
+							<span className="text-[11px] font-semibold tracking-wide uppercase">{item.label}</span>
 						</Link>
 					);
 				})}

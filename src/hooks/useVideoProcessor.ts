@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import type { ProbeResultData } from '@/workers/ffmpeg-worker.ts';
 
 // ── Worker Message Types ──
 
@@ -28,7 +29,12 @@ interface ScreenshotRequest {
 	timestamp: number;
 }
 
-type WorkerRequest = TranscodeRequest | GifRequest | ScreenshotRequest;
+interface ProbeRequest {
+	type: 'PROBE';
+	file: File;
+}
+
+type WorkerRequest = TranscodeRequest | GifRequest | ScreenshotRequest | ProbeRequest;
 
 interface ProgressResponse {
 	type: 'PROGRESS';
@@ -56,7 +62,18 @@ interface LogResponse {
 	message: string;
 }
 
-type WorkerResponse = ProgressResponse | DoneResponse | ErrorResponse | ReadyResponse | LogResponse;
+interface ProbeResultResponse {
+	type: 'PROBE_RESULT';
+	result: ProbeResultData;
+}
+
+type WorkerResponse =
+	| ProgressResponse
+	| DoneResponse
+	| ErrorResponse
+	| ReadyResponse
+	| LogResponse
+	| ProbeResultResponse;
 
 // ── Hook State ──
 
@@ -100,12 +117,17 @@ export function useVideoProcessor() {
 	const workerRef = useRef<Worker | null>(null);
 	const resolveRef = useRef<((data: Uint8Array) => void) | null>(null);
 	const rejectRef = useRef<((err: Error) => void) | null>(null);
+	const probeResolveRef = useRef<((data: ProbeResultData) => void) | null>(null);
+	const probeRejectRef = useRef<((err: Error) => void) | null>(null);
 
 	useEffect(() => {
 		const worker = new Worker(new URL('../workers/ffmpeg-worker.ts', import.meta.url), { type: 'module' });
 
 		worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
 			const msg = e.data;
+			if (msg.type !== 'LOG' && msg.type !== 'PROGRESS') {
+				console.log('[hook] worker message:', msg.type, msg);
+			}
 
 			switch (msg.type) {
 				case 'READY':
@@ -123,17 +145,30 @@ export function useVideoProcessor() {
 					rejectRef.current = null;
 					break;
 
+				case 'PROBE_RESULT':
+					probeResolveRef.current?.(msg.result);
+					probeResolveRef.current = null;
+					probeRejectRef.current = null;
+					break;
+
 				case 'ERROR':
+					console.error('[hook] worker ERROR:', msg.error);
 					setState((s) => ({ ...s, processing: false, error: msg.error }));
 					rejectRef.current?.(new Error(msg.error));
 					resolveRef.current = null;
 					rejectRef.current = null;
+					probeRejectRef.current?.(new Error(msg.error));
+					probeResolveRef.current = null;
+					probeRejectRef.current = null;
 					break;
 
 				case 'LOG':
-					// Available for debug; silently consumed by default
 					break;
 			}
+		};
+
+		worker.onerror = (e) => {
+			console.error('[hook] worker onerror:', e.message, e);
 		};
 
 		workerRef.current = worker;
@@ -190,5 +225,17 @@ export function useVideoProcessor() {
 		[sendCommand],
 	);
 
-	return { ...state, transcode, createGif, captureFrame };
+	const probe = useCallback((file: File): Promise<ProbeResultData> => {
+		return new Promise<ProbeResultData>((resolve, reject) => {
+			if (!workerRef.current) {
+				reject(new Error('Worker not initialized'));
+				return;
+			}
+			probeResolveRef.current = resolve;
+			probeRejectRef.current = reject;
+			workerRef.current.postMessage({ type: 'PROBE', file });
+		});
+	}, []);
+
+	return { ...state, transcode, createGif, captureFrame, probe };
 }

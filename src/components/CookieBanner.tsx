@@ -53,13 +53,13 @@ export function CookieBanner() {
 					<div className="mt-3 flex items-center gap-2">
 						<button
 							onClick={handleAccept}
-							className="rounded-md bg-accent px-3 py-1.5 text-[11px] font-semibold text-bg transition-colors hover:bg-accent/90 cursor-pointer"
+							className="rounded-md bg-accent px-3 py-1.5 text-[13px] font-semibold text-bg transition-colors hover:bg-accent/90 cursor-pointer"
 						>
 							Accept
 						</button>
 						<button
 							onClick={handleDismiss}
-							className="rounded-md px-3 py-1.5 text-[11px] font-medium text-text-tertiary transition-colors hover:text-text-secondary cursor-pointer"
+							className="rounded-md px-3 py-1.5 text-[13px] font-medium text-text-tertiary transition-colors hover:text-text-secondary cursor-pointer"
 						>
 							Dismiss
 						</button>

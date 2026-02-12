@@ -29,7 +29,12 @@ interface ScreenshotMessage {
 	timestamp: number;
 }
 
-type WorkerMessage = TranscodeMessage | GifMessage | ScreenshotMessage;
+interface ProbeMessage {
+	type: 'PROBE';
+	file: File;
+}
+
+type WorkerMessage = TranscodeMessage | GifMessage | ScreenshotMessage | ProbeMessage;
 
 interface ProgressPayload {
 	type: 'PROGRESS';
@@ -57,15 +62,42 @@ interface LogPayload {
 	message: string;
 }
 
-type WorkerResponse = ProgressPayload | DonePayload | ErrorPayload | ReadyPayload | LogPayload;
+interface ProbeResultPayload {
+	type: 'PROBE_RESULT';
+	result: ProbeResultData;
+}
+
+export interface ProbeStreamInfo {
+	index: number;
+	type: 'video' | 'audio' | 'subtitle';
+	codec: string;
+	width?: number;
+	height?: number;
+	fps?: number;
+	sampleRate?: number;
+	channels?: number;
+	language?: string;
+	bitrate?: number;
+}
+
+export interface ProbeResultData {
+	duration: number;
+	bitrate: number;
+	format: string;
+	streams: ProbeStreamInfo[];
+}
+
+type WorkerResponse = ProgressPayload | DonePayload | ErrorPayload | ReadyPayload | LogPayload | ProbeResultPayload;
 
 // ── FFmpeg Instance ──
 
 const ffmpeg = new FFmpeg();
 let loaded = false;
+let logBuffer: string[] = [];
+let collectLogs = false;
 
 const CORE_VERSION = '0.12.10';
-const CORE_MT_BASE = `https://unpkg.com/@ffmpeg/core-mt@${CORE_VERSION}/dist/esm`;
+const CORE_BASE = `https://unpkg.com/@ffmpeg/core@${CORE_VERSION}/dist/esm`;
 
 async function ensureLoaded(): Promise<void> {
 	if (loaded) return;
@@ -75,13 +107,13 @@ async function ensureLoaded(): Promise<void> {
 	});
 
 	ffmpeg.on('log', ({ message }) => {
+		if (collectLogs) logBuffer.push(message);
 		post({ type: 'LOG', message });
 	});
 
 	await ffmpeg.load({
-		coreURL: await toBlobURL(`${CORE_MT_BASE}/ffmpeg-core.js`, 'text/javascript'),
-		wasmURL: await toBlobURL(`${CORE_MT_BASE}/ffmpeg-core.wasm`, 'application/wasm'),
-		workerURL: await toBlobURL(`${CORE_MT_BASE}/ffmpeg-core.worker.js`, 'text/javascript'),
+		coreURL: await toBlobURL(`${CORE_BASE}/ffmpeg-core.js`, 'text/javascript'),
+		wasmURL: await toBlobURL(`${CORE_BASE}/ffmpeg-core.wasm`, 'application/wasm'),
 	});
 
 	loaded = true;
@@ -95,7 +127,11 @@ function post(payload: WorkerResponse): void {
 }
 
 async function mountFile(file: File, mountPoint: string): Promise<string> {
-	await ffmpeg.createDir(mountPoint);
+	try {
+		await ffmpeg.createDir(mountPoint);
+	} catch {
+		// directory may already exist from a previous operation
+	}
 	await ffmpeg.mount('WORKERFS' as any, { files: [file] }, mountPoint);
 	return `${mountPoint}/${file.name}`;
 }
@@ -104,7 +140,7 @@ async function unmountFile(mountPoint: string): Promise<void> {
 	try {
 		await ffmpeg.unmount(mountPoint);
 	} catch {
-		// mount point may already be cleaned up
+		// may already be unmounted
 	}
 }
 
@@ -116,20 +152,118 @@ async function readAndCleanup(outputName: string): Promise<Uint8Array> {
 	return new TextEncoder().encode(data as string);
 }
 
+async function tryDeleteFile(name: string): Promise<void> {
+	try {
+		await ffmpeg.deleteFile(name);
+	} catch {
+		// ignore
+	}
+}
+
+// ── Probe Parser ──
+
+function parseProbeOutput(logs: string[]): ProbeResultData {
+	const result: ProbeResultData = { duration: 0, bitrate: 0, format: '', streams: [] };
+	const fullLog = logs.join('\n');
+
+	const durationMatch = fullLog.match(/Duration:\s*(\d+):(\d+):(\d+)\.(\d+)/);
+	if (durationMatch) {
+		result.duration =
+			Number(durationMatch[1]) * 3600 +
+			Number(durationMatch[2]) * 60 +
+			Number(durationMatch[3]) +
+			Number(durationMatch[4]) / 100;
+	}
+
+	const bitrateMatch = fullLog.match(/bitrate:\s*(\d+)\s*kb\/s/);
+	if (bitrateMatch) result.bitrate = Number(bitrateMatch[1]);
+
+	const formatMatch = fullLog.match(/Input #0,\s*(\w+)/);
+	if (formatMatch) result.format = formatMatch[1] ?? result.format;
+
+	const streamRegex =
+		/Stream #0:(\d+)(?:\((\w+)\))?:\s*(Video|Audio|Subtitle):\s*(\S+)(?:.*?(\d{2,5})x(\d{2,5}))?(?:.*?(\d+(?:\.\d+)?)\s*fps)?(?:.*?(\d+)\s*Hz)?(?:.*?(mono|stereo|\d+\.\d+|\d+ channels))?(?:.*?(\d+)\s*kb\/s)?/g;
+
+	let match;
+	while ((match = streamRegex.exec(fullLog)) !== null) {
+		// some capture groups may be undefined — skip entries that don't include a type
+		if (!match[3]) continue;
+		const streamType = match[3].toLowerCase() as 'video' | 'audio' | 'subtitle';
+		const stream: ProbeStreamInfo = {
+			index: Number(match[1]),
+			type: streamType,
+			// codec must be a string on ProbeStreamInfo — provide a safe fallback
+			codec: match[4] ?? 'unknown',
+			language: match[2],
+		};
+
+		if (streamType === 'video') {
+			if (match[5] && match[6]) {
+				stream.width = Number(match[5]);
+				stream.height = Number(match[6]);
+			}
+			if (match[7]) stream.fps = Number(Number(match[7]).toFixed(2));
+		}
+
+		if (streamType === 'audio') {
+			if (match[8]) stream.sampleRate = Number(match[8]);
+			if (match[9]) {
+				const ch = match[9];
+				if (ch === 'mono') stream.channels = 1;
+				else if (ch === 'stereo') stream.channels = 2;
+				else {
+					const parsed = Number.parseInt(ch, 10);
+					if (!Number.isNaN(parsed)) stream.channels = parsed;
+				}
+			}
+		}
+
+		if (match[10]) stream.bitrate = Number(match[10]);
+
+		result.streams.push(stream);
+	}
+
+	return result;
+}
+
 // ── Command Handlers ──
 
 async function handleTranscode(msg: TranscodeMessage): Promise<void> {
+	console.log('[worker] handleTranscode start, file:', msg.file.name, msg.file.size, 'bytes');
+	console.log('[worker] args:', ['-y', '-i', '<input>', ...msg.args, msg.outputName].join(' '));
+
 	const mountPoint = '/input';
+	console.log('[worker] mountFile start');
 	const inputPath = await mountFile(msg.file, mountPoint);
+	console.log('[worker] mountFile done:', inputPath);
 
 	try {
-		const exitCode = await ffmpeg.exec(['-i', inputPath, ...msg.args, msg.outputName]);
+		// Extract -ss (seek) from args and place it BEFORE -i for fast native seeking.
+		// Without this, FFmpeg decodes and discards all frames up to the seek point (very slow).
+		const seekArgs: string[] = [];
+		const outputArgs: string[] = [];
+		let idx = 0;
+		while (idx < msg.args.length) {
+			if (msg.args[idx] === '-ss') {
+				seekArgs.push('-ss', msg.args[idx + 1] ?? '0');
+				idx += 2;
+			} else {
+				outputArgs.push(msg.args[idx]!);
+				idx++;
+			}
+		}
+		const fullArgs = ['-y', ...seekArgs, '-i', inputPath, ...outputArgs, msg.outputName];
+		console.log('[worker] ffmpeg.exec start:', fullArgs);
+		const exitCode = await ffmpeg.exec(fullArgs);
+		console.log('[worker] ffmpeg.exec done, exitCode:', exitCode);
 
 		if (exitCode !== 0) {
+			await tryDeleteFile(msg.outputName);
 			throw new Error(`FFmpeg exited with code ${exitCode}`);
 		}
 
 		const result = await readAndCleanup(msg.outputName);
+		console.log('[worker] readAndCleanup done, size:', result.byteLength);
 		post({ type: 'DONE', data: result, outputName: msg.outputName });
 	} finally {
 		await unmountFile(mountPoint);
@@ -138,7 +272,7 @@ async function handleTranscode(msg: TranscodeMessage): Promise<void> {
 
 async function handleGif(msg: GifMessage): Promise<void> {
 	const mountPoint = '/input';
-	const inputPath = await mountFile(msg.file, mountPoint);
+	const inputName = await mountFile(msg.file, mountPoint);
 
 	const speed = msg.speed ?? 1;
 	const maxColors = msg.maxColors ?? 256;
@@ -154,9 +288,10 @@ async function handleGif(msg: GifMessage): Promise<void> {
 	try {
 		// Step 1: Generate optimized palette
 		const paletteArgs = [
-			'-i',
-			inputPath,
+			'-y',
 			...(msg.startTime != null ? ['-ss', String(msg.startTime)] : []),
+			'-i',
+			inputName,
 			...(msg.duration != null ? ['-t', String(msg.duration)] : []),
 			'-vf',
 			`${vfChain},palettegen=max_colors=${maxColors}:stats_mode=diff`,
@@ -168,11 +303,12 @@ async function handleGif(msg: GifMessage): Promise<void> {
 
 		// Step 2: Apply palette to produce GIF
 		const gifArgs = [
+			'-y',
+			...(msg.startTime != null ? ['-ss', String(msg.startTime)] : []),
 			'-i',
-			inputPath,
+			inputName,
 			'-i',
 			'palette.png',
-			...(msg.startTime != null ? ['-ss', String(msg.startTime)] : []),
 			...(msg.duration != null ? ['-t', String(msg.duration)] : []),
 			'-lavfi',
 			`${vfChain}[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=5`,
@@ -198,6 +334,7 @@ async function handleScreenshot(msg: ScreenshotMessage): Promise<void> {
 
 	try {
 		const exitCode = await ffmpeg.exec([
+			'-y',
 			'-ss',
 			String(msg.timestamp),
 			'-i',
@@ -220,6 +357,25 @@ async function handleScreenshot(msg: ScreenshotMessage): Promise<void> {
 	}
 }
 
+async function handleProbe(msg: ProbeMessage): Promise<void> {
+	const mountPoint = '/probe';
+	const inputPath = await mountFile(msg.file, mountPoint);
+
+	try {
+		logBuffer = [];
+		collectLogs = true;
+		// ffmpeg -i exits code 1 (no output specified) — this is expected
+		await ffmpeg.exec(['-i', inputPath]);
+	} finally {
+		collectLogs = false;
+		await unmountFile(mountPoint);
+	}
+
+	const result = parseProbeOutput(logBuffer);
+	logBuffer = [];
+	post({ type: 'PROBE_RESULT', result });
+}
+
 // ── Message Router ──
 
 self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
@@ -235,6 +391,9 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
 				break;
 			case 'SCREENSHOT':
 				await handleScreenshot(e.data);
+				break;
+			case 'PROBE':
+				await handleProbe(e.data);
 				break;
 			default:
 				post({ type: 'ERROR', error: `Unknown message type: ${(e.data as any).type}` });

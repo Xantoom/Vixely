@@ -64,7 +64,7 @@ export function FrameCaptureDialog({ pngData, timestamp, onClose }: FrameCapture
 				{/* Close */}
 				<button
 					onClick={onClose}
-					className="absolute top-4 right-4 h-7 w-7 flex items-center justify-center rounded-md text-text-tertiary hover:text-text hover:bg-surface-raised/60 transition-colors cursor-pointer"
+					className="absolute top-4 right-4 h-8 w-8 flex items-center justify-center rounded-md text-text-tertiary hover:text-text hover:bg-surface-raised/60 transition-colors cursor-pointer"
 				>
 					<X size={16} />
 				</button>
@@ -74,17 +74,17 @@ export function FrameCaptureDialog({ pngData, timestamp, onClose }: FrameCapture
 					<div className="h-10 w-10 rounded-xl gradient-accent flex items-center justify-center">
 						<ImageIcon size={20} className="text-white" />
 					</div>
-					<h2 className="text-sm font-bold">Save Frame</h2>
+					<h2 className="text-base font-bold">Save Frame</h2>
 				</div>
 
 				<div className="flex flex-col gap-2">
 					<Button variant="secondary" className="w-full justify-between" onClick={() => download('png')}>
 						<span>Lossless PNG</span>
-						<span className="text-[10px] text-text-tertiary font-mono">{formatFileSize(pngSize)}</span>
+						<span className="text-[12px] text-text-tertiary font-mono">{formatFileSize(pngSize)}</span>
 					</Button>
 					<Button variant="secondary" className="w-full justify-between" onClick={() => download('jpeg')}>
 						<span>Optimized JPEG</span>
-						<span className="text-[10px] text-text-tertiary font-mono">
+						<span className="text-[12px] text-text-tertiary font-mono">
 							~{formatFileSize(jpegEstimate)}
 						</span>
 					</Button>

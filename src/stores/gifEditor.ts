@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type GifMode = 'settings' | 'resize' | 'speed' | 'export';
+export type GifMode = 'settings' | 'resize' | 'export';
 
 export interface GifEditorState {
 	mode: GifMode;

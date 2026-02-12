@@ -5,13 +5,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 **Vixely** is a local-first, privacy-focused media editing suite that runs entirely in the browser. Files never leave
-the user's device — all processing happens client-side using WebAssembly.
+the user's device.
 
-Three main modules:
+Left sidebar on every page. Upper bar et right sidebar on editors pages. Three main editors with real-time preview:
 
-- **Video Studio** — Trim, crop, convert video (MKV, MP4, MOV → WebM). Discord Nitro file-size optimizer.
-- **Image Lab** — Filters, color correction, smart export (PNG → MozJPG/Jpegli). Twitch-ready presets.
-- **GIF Foundry** — Video-to-GIF with custom palette generation, frame skipping, speed control.
+- **Video:** (Blue) Cut/trim, resize, adjustable sliders (color correction, effects etc.), export (codec, container,
+  bitrate or cq, etc.).
+- **Image:** (Orange) Resize, adjustable sliders (color correction, effects etc.), export (format, quality).
+- **GIF:** (Green) Create GIF from Video, Resize, edit settings (frames, framerate, etc.), adjustable sliders (color
+  correction, effects etc.), export (quality etc.)
 
 ## Tech Stack
 
@@ -19,18 +21,14 @@ Three main modules:
 - **Image Core:** Custom Rust → WebAssembly modules for pixel manipulation
 - **Video Core:** Multi-threaded FFmpeg.wasm with virtual file system (zero-copy mounting)
 - **Processing:** Web Workers + SharedArrayBuffer for off-main-thread work
-
-## Code Style
-
-- **Indentation:** Tabs (size 4) for all files; spaces for YAML
-- **Line endings:** LF (enforced via `.gitattributes` and `.editorconfig`)
-- **License:** MIT
-- Oxlint and Oxfmt
+- **Libraries:** Zustand, Tanstack Router, Tanstack Query, Bun + Vite.
 
 ## GUIDELINES
 
+- Use oxlint (.oxlintrc.json) and Oxfmt (.oxfmtrc.jsonc)
 - Use Frontend design skills when doing front or design
-- Think about SEO, performance, and 60fps target.
+- Think about SEO, performance (every action should be the fastest for user), and 60fps target.
 - **Always** use skills, like vercel-react-best-pratices.
 - Don't write comments if unnecessary.
-- Write performant code.
+- Be careful about UI and UX design, always think about User experience.
+- Be careful about repsonsive (should work on ANY device).

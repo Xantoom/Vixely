@@ -200,7 +200,7 @@ export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 
 			{/* "Original" badge */}
 			{showOriginal && (
-				<div className="absolute top-3 left-3 rounded-md bg-bg/70 px-2.5 py-1 text-[11px] font-medium backdrop-blur-sm z-10">
+				<div className="absolute top-3 left-3 rounded-md bg-bg/70 px-2.5 py-1 text-[13px] font-medium backdrop-blur-sm z-10">
 					Original
 				</div>
 			)}
@@ -218,7 +218,7 @@ export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 
 			{/* Processing indicator */}
 			{isProcessing && (
-				<div className="absolute top-3 right-3 rounded-md bg-bg/80 px-2.5 py-1.5 text-[11px] font-medium backdrop-blur-sm z-10 flex items-center gap-2">
+				<div className="absolute top-3 right-3 rounded-md bg-bg/80 px-2.5 py-1.5 text-[13px] font-medium backdrop-blur-sm z-10 flex items-center gap-2">
 					<div className="h-3 w-3 rounded-full border-2 border-border border-t-accent animate-spin" />
 					Processing...
 				</div>

@@ -16,10 +16,10 @@ const variantStyles: Record<Variant, string> = {
 };
 
 const sizeStyles: Record<Size, string> = {
-	sm: 'h-7 px-2.5 text-xs gap-1.5 rounded-md',
-	md: 'h-9 px-3.5 text-sm gap-2 rounded-lg',
-	lg: 'h-11 px-5 text-sm gap-2.5 rounded-lg',
-	icon: 'h-9 w-9 rounded-lg justify-center',
+	sm: 'h-8 px-3 text-xs gap-1.5 rounded-md',
+	md: 'h-10 px-4 text-sm gap-2 rounded-lg',
+	lg: 'h-12 px-5 text-sm gap-2.5 rounded-lg',
+	icon: 'h-10 w-10 rounded-lg justify-center',
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(

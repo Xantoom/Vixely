@@ -56,7 +56,7 @@ export function GifSidebar({
 		<div className="flex flex-col h-full">
 			{/* Presets */}
 			<div className="p-4 border-b border-border">
-				<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">
+				<h3 className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">
 					Quick Presets
 				</h3>
 				<div className="grid grid-cols-2 gap-1.5">
@@ -66,8 +66,8 @@ export function GifSidebar({
 							onClick={() => onApplyPreset(key)}
 							className="rounded-lg px-2.5 py-2 text-left cursor-pointer bg-surface-raised/50 border border-transparent text-text-secondary hover:bg-surface-raised hover:text-text transition-all"
 						>
-							<p className="text-[11px] font-medium truncate">{preset.name}</p>
-							<p className="text-[9px] text-text-tertiary truncate">{preset.description}</p>
+							<p className="text-[13px] font-medium truncate">{preset.name}</p>
+							<p className="text-[11px] text-text-tertiary truncate">{preset.description}</p>
 						</button>
 					))}
 				</div>
@@ -151,11 +151,11 @@ export function GifSidebar({
 
 				{/* Estimate */}
 				<div className="rounded-lg bg-bg/50 p-3 flex flex-col gap-1">
-					<div className="flex justify-between text-[11px]">
+					<div className="flex justify-between text-[13px]">
 						<span className="text-text-tertiary">Frames</span>
 						<span className="font-mono text-text-secondary">{formatNumber(estimatedFrames)}</span>
 					</div>
-					<div className="flex justify-between text-[11px]">
+					<div className="flex justify-between text-[13px]">
 						<span className="text-text-tertiary">Duration</span>
 						<span className="font-mono text-text-secondary">{formatNumber(clipDuration, 1)}s</span>
 					</div>
@@ -174,7 +174,7 @@ export function GifSidebar({
 					</Button>
 				)}
 
-				{error && <p className="text-[11px] text-danger bg-danger/10 rounded-md px-2.5 py-1.5">{error}</p>}
+				{error && <p className="text-[13px] text-danger bg-danger/10 rounded-md px-2.5 py-1.5">{error}</p>}
 			</div>
 		</div>
 	);
