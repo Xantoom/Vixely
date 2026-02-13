@@ -81,6 +81,7 @@ export interface ProbeStreamInfo {
 	channels?: number;
 	language?: string;
 	bitrate?: number;
+	isDefault?: boolean;
 }
 
 export interface ProbeResultData {
@@ -96,7 +97,6 @@ type WorkerResponse = ProgressPayload | DonePayload | ErrorPayload | ReadyPayloa
 
 let ffmpeg = new FFmpeg();
 let loaded = false;
-let multiThreadActive = false;
 let logBuffer: string[] = [];
 let collectLogs = false;
 let encodingStats = { fps: 0, frame: 0, speed: 0 };
@@ -122,6 +122,17 @@ function attachListeners(instance: FFmpeg): void {
 	});
 }
 
+async function loadSingleThread(baseUrl: string): Promise<void> {
+	ffmpeg = new FFmpeg();
+	attachListeners(ffmpeg);
+	await ffmpeg.load({
+		coreURL: await toBlobURL(`${baseUrl}/ffmpeg/ffmpeg-core-st.js`, 'text/javascript'),
+		wasmURL: await toBlobURL(`${baseUrl}/ffmpeg/ffmpeg-core-st.wasm`, 'application/wasm'),
+	});
+	loaded = true;
+	post({ type: 'LOG', message: '[ffmpeg] Single-threaded core loaded' });
+}
+
 async function ensureLoaded(): Promise<void> {
 	if (loaded) return;
 
@@ -135,28 +146,33 @@ async function ensureLoaded(): Promise<void> {
 				wasmURL: await toBlobURL(`${baseUrl}/ffmpeg/ffmpeg-core.wasm`, 'application/wasm'),
 				workerURL: await toBlobURL(`${baseUrl}/ffmpeg/ffmpeg-core.worker.js`, 'text/javascript'),
 			});
-			loaded = true;
-			multiThreadActive = true;
-			post({
-				type: 'LOG',
-				message: `[ffmpeg] Multi-threaded core loaded (${navigator.hardwareConcurrency || 4} threads)`,
-			});
-			post({ type: 'READY' });
-			return;
+
+			// Smoke-test: run a trivial exec to verify MT actually works.
+			// MT can load fine but deadlock during real exec calls.
+			const ok = await Promise.race([
+				ffmpeg.exec(['-version']).then(() => true),
+				new Promise<false>((r) => setTimeout(() => r(false), 5000)),
+			]);
+
+			if (!ok) {
+				post({ type: 'LOG', message: '[ffmpeg] MT smoke-test timed out, falling back to ST' });
+				ffmpeg.terminate();
+				await loadSingleThread(baseUrl);
+			} else {
+				loaded = true;
+				post({
+					type: 'LOG',
+					message: `[ffmpeg] Multi-threaded core loaded (${navigator.hardwareConcurrency || 4} threads)`,
+				});
+			}
 		} catch (err) {
 			post({ type: 'LOG', message: `[ffmpeg] MT core failed, falling back to ST: ${err}` });
-			ffmpeg = new FFmpeg();
+			await loadSingleThread(baseUrl);
 		}
+	} else {
+		await loadSingleThread(baseUrl);
 	}
 
-	attachListeners(ffmpeg);
-	await ffmpeg.load({
-		coreURL: await toBlobURL(`${baseUrl}/ffmpeg/ffmpeg-core-st.js`, 'text/javascript'),
-		wasmURL: await toBlobURL(`${baseUrl}/ffmpeg/ffmpeg-core-st.wasm`, 'application/wasm'),
-	});
-
-	loaded = true;
-	post({ type: 'LOG', message: '[ffmpeg] Single-threaded core loaded' });
 	post({ type: 'READY' });
 }
 
@@ -166,21 +182,21 @@ function post(payload: WorkerResponse): void {
 	self.postMessage(payload);
 }
 
-async function mountFile(file: File, mountPoint: string): Promise<string> {
-	try {
-		await ffmpeg.createDir(mountPoint);
-	} catch {
-		// directory may already exist from a previous operation
-	}
-	await ffmpeg.mount('WORKERFS' as any, { files: [file] }, mountPoint);
-	return `${mountPoint}/${file.name}`;
+const INPUT_NAME = 'input';
+
+async function writeInputFile(file: File): Promise<string> {
+	const ext = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : '';
+	const name = `${INPUT_NAME}${ext}`;
+	const data = new Uint8Array(await file.arrayBuffer());
+	await ffmpeg.writeFile(name, data);
+	return name;
 }
 
-async function unmountFile(mountPoint: string): Promise<void> {
+async function removeInputFile(name: string): Promise<void> {
 	try {
-		await ffmpeg.unmount(mountPoint);
+		await ffmpeg.deleteFile(name);
 	} catch {
-		// may already be unmounted
+		// may already be deleted
 	}
 }
 
@@ -204,6 +220,7 @@ async function tryDeleteFile(name: string): Promise<void> {
 
 function parseProbeOutput(logs: string[]): ProbeResultData {
 	const result: ProbeResultData = { duration: 0, bitrate: 0, format: '', streams: [] };
+	console.log('[probe] raw logs:', logs.join('\n'));
 	const fullLog = logs.join('\n');
 
 	const durationMatch = fullLog.match(/Duration:\s*(\d+):(\d+):(\d+)\.(\d+)/);
@@ -221,44 +238,43 @@ function parseProbeOutput(logs: string[]): ProbeResultData {
 	const formatMatch = fullLog.match(/Input #0,\s*(\w+)/);
 	if (formatMatch) result.format = formatMatch[1] ?? result.format;
 
-	const streamRegex =
-		/Stream #0:(\d+)(?:\((\w+)\))?:\s*(Video|Audio|Subtitle):\s*(\S+)(?:.*?(\d{2,5})x(\d{2,5}))?(?:.*?(\d+(?:\.\d+)?)\s*fps)?(?:.*?(\d+)\s*Hz)?(?:.*?(mono|stereo|\d+\.\d+|\d+ channels))?(?:.*?(\d+)\s*kb\/s)?/g;
+	const streamBaseRegex = /Stream #0:(\d+)(?:\((\w+)\))?[^:]*:\s*(Video|Audio|Subtitle):\s*(\S+)/;
 
-	let match;
-	while ((match = streamRegex.exec(fullLog)) !== null) {
-		// some capture groups may be undefined — skip entries that don't include a type
-		if (!match[3]) continue;
-		const streamType = match[3].toLowerCase() as 'video' | 'audio' | 'subtitle';
+	for (const line of logs) {
+		const m = line.match(streamBaseRegex);
+		if (!m) continue;
+
+		const streamType = m[3]!.toLowerCase() as 'video' | 'audio' | 'subtitle';
 		const stream: ProbeStreamInfo = {
-			index: Number(match[1]),
+			index: Number(m[1]),
 			type: streamType,
-			// codec must be a string on ProbeStreamInfo — provide a safe fallback
-			codec: match[4] ?? 'unknown',
-			language: match[2],
+			codec: m[4] ?? 'unknown',
+			language: m[2],
 		};
 
 		if (streamType === 'video') {
-			if (match[5] && match[6]) {
-				stream.width = Number(match[5]);
-				stream.height = Number(match[6]);
+			const res = line.match(/(\d{2,5})x(\d{2,5})/);
+			if (res) {
+				stream.width = Number(res[1]);
+				stream.height = Number(res[2]);
 			}
-			if (match[7]) stream.fps = Number(Number(match[7]).toFixed(2));
+			const fps = line.match(/(\d+(?:\.\d+)?)\s*fps/);
+			if (fps) stream.fps = Number(Number(fps[1]).toFixed(2));
 		}
 
 		if (streamType === 'audio') {
-			if (match[8]) stream.sampleRate = Number(match[8]);
-			if (match[9]) {
-				const ch = match[9];
-				if (ch === 'mono') stream.channels = 1;
-				else if (ch === 'stereo') stream.channels = 2;
-				else {
-					const parsed = Number.parseInt(ch, 10);
-					if (!Number.isNaN(parsed)) stream.channels = parsed;
-				}
+			const hz = line.match(/(\d+)\s*Hz/);
+			if (hz) stream.sampleRate = Number(hz[1]);
+			if (line.includes('mono')) stream.channels = 1;
+			else if (line.includes('stereo')) stream.channels = 2;
+			else {
+				const ch = line.match(/(\d+)\s*channels/);
+				if (ch) stream.channels = Number(ch[1]);
 			}
 		}
 
-		if (match[10]) stream.bitrate = Number(match[10]);
+		const br = line.match(/(\d+)\s*kb\/s/);
+		if (br) stream.bitrate = Number(br[1]);
 
 		result.streams.push(stream);
 	}
@@ -270,17 +286,10 @@ function parseProbeOutput(logs: string[]): ProbeResultData {
 
 async function handleTranscode(msg: TranscodeMessage): Promise<void> {
 	encodingStats = { fps: 0, frame: 0, speed: 0 };
-	console.log('[worker] handleTranscode start, file:', msg.file.name, msg.file.size, 'bytes');
-	console.log('[worker] args:', ['-y', '-i', '<input>', ...msg.args, msg.outputName].join(' '));
-
-	const mountPoint = '/input';
-	console.log('[worker] mountFile start');
-	const inputPath = await mountFile(msg.file, mountPoint);
-	console.log('[worker] mountFile done:', inputPath);
+	const inputName = await writeInputFile(msg.file);
 
 	try {
 		// Extract -ss (seek) from args and place it BEFORE -i for fast native seeking.
-		// Without this, FFmpeg decodes and discards all frames up to the seek point (very slow).
 		const seekArgs: string[] = [];
 		const outputArgs: string[] = [];
 		let idx = 0;
@@ -293,11 +302,8 @@ async function handleTranscode(msg: TranscodeMessage): Promise<void> {
 				idx++;
 			}
 		}
-		const threadArgs = multiThreadActive ? ['-threads', String(navigator.hardwareConcurrency || 4)] : [];
-		const fullArgs = ['-y', ...seekArgs, '-i', inputPath, ...threadArgs, ...outputArgs, msg.outputName];
-		console.log('[worker] ffmpeg.exec start:', fullArgs);
+		const fullArgs = ['-y', ...seekArgs, '-i', inputName, ...outputArgs, msg.outputName];
 		const exitCode = await ffmpeg.exec(fullArgs);
-		console.log('[worker] ffmpeg.exec done, exitCode:', exitCode);
 
 		if (exitCode !== 0) {
 			await tryDeleteFile(msg.outputName);
@@ -305,38 +311,32 @@ async function handleTranscode(msg: TranscodeMessage): Promise<void> {
 		}
 
 		const result = await readAndCleanup(msg.outputName);
-		console.log('[worker] readAndCleanup done, size:', result.byteLength);
 		post({ type: 'DONE', data: result, outputName: msg.outputName });
 	} finally {
-		await unmountFile(mountPoint);
+		await removeInputFile(inputName);
 	}
 }
 
 async function handleGif(msg: GifMessage): Promise<void> {
 	encodingStats = { fps: 0, frame: 0, speed: 0 };
-	const mountPoint = '/input';
-	const inputName = await mountFile(msg.file, mountPoint);
+	const inputName = await writeInputFile(msg.file);
 
 	const speed = msg.speed ?? 1;
 	const maxColors = msg.maxColors ?? 256;
 	const scaleExpr =
 		msg.height != null ? `scale=${msg.width}:${msg.height}:flags=lanczos` : `scale=${msg.width}:-1:flags=lanczos`;
 
-	// Build the video filter chain
 	const vfParts: string[] = [`fps=${msg.fps}`, scaleExpr];
 	if (speed !== 1) vfParts.push(`setpts=PTS/${speed}`);
 	if (msg.reverse) vfParts.push('reverse');
 	const vfChain = vfParts.join(',');
 
 	try {
-		// Step 1: Generate optimized palette
-		const threadArgs = multiThreadActive ? ['-threads', String(navigator.hardwareConcurrency || 4)] : [];
 		const paletteArgs = [
 			'-y',
 			...(msg.startTime != null ? ['-ss', String(msg.startTime)] : []),
 			'-i',
 			inputName,
-			...threadArgs,
 			...(msg.duration != null ? ['-t', String(msg.duration)] : []),
 			'-vf',
 			`${vfChain},palettegen=max_colors=${maxColors}:stats_mode=diff`,
@@ -346,7 +346,6 @@ async function handleGif(msg: GifMessage): Promise<void> {
 		let exitCode = await ffmpeg.exec(paletteArgs);
 		if (exitCode !== 0) throw new Error(`Palette generation failed (code ${exitCode})`);
 
-		// Step 2: Apply palette to produce GIF
 		const gifArgs = [
 			'-y',
 			...(msg.startTime != null ? ['-ss', String(msg.startTime)] : []),
@@ -354,7 +353,6 @@ async function handleGif(msg: GifMessage): Promise<void> {
 			inputName,
 			'-i',
 			'palette.png',
-			...threadArgs,
 			...(msg.duration != null ? ['-t', String(msg.duration)] : []),
 			'-lavfi',
 			`${vfChain}[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=5`,
@@ -364,19 +362,17 @@ async function handleGif(msg: GifMessage): Promise<void> {
 		exitCode = await ffmpeg.exec(gifArgs);
 		if (exitCode !== 0) throw new Error(`GIF generation failed (code ${exitCode})`);
 
-		// Cleanup palette
 		await ffmpeg.deleteFile('palette.png');
 
 		const result = await readAndCleanup('output.gif');
 		post({ type: 'DONE', data: result, outputName: 'output.gif' });
 	} finally {
-		await unmountFile(mountPoint);
+		await removeInputFile(inputName);
 	}
 }
 
 async function handleScreenshot(msg: ScreenshotMessage): Promise<void> {
-	const mountPoint = '/input';
-	const inputPath = await mountFile(msg.file, mountPoint);
+	const inputName = await writeInputFile(msg.file);
 
 	try {
 		const exitCode = await ffmpeg.exec([
@@ -384,7 +380,7 @@ async function handleScreenshot(msg: ScreenshotMessage): Promise<void> {
 			'-ss',
 			String(msg.timestamp),
 			'-i',
-			inputPath,
+			inputName,
 			'-frames:v',
 			'1',
 			'-q:v',
@@ -399,22 +395,21 @@ async function handleScreenshot(msg: ScreenshotMessage): Promise<void> {
 		const result = await readAndCleanup('screenshot.png');
 		post({ type: 'DONE', data: result, outputName: 'screenshot.png' });
 	} finally {
-		await unmountFile(mountPoint);
+		await removeInputFile(inputName);
 	}
 }
 
 async function handleProbe(msg: ProbeMessage): Promise<void> {
-	const mountPoint = '/probe';
-	const inputPath = await mountFile(msg.file, mountPoint);
+	const inputName = await writeInputFile(msg.file);
 
 	try {
 		logBuffer = [];
 		collectLogs = true;
 		// ffmpeg -i exits code 1 (no output specified) — this is expected
-		await ffmpeg.exec(['-i', inputPath]);
+		await ffmpeg.exec(['-i', inputName]);
 	} finally {
 		collectLogs = false;
-		await unmountFile(mountPoint);
+		await removeInputFile(inputName);
 	}
 
 	const result = parseProbeOutput(logBuffer);
@@ -422,29 +417,47 @@ async function handleProbe(msg: ProbeMessage): Promise<void> {
 	post({ type: 'PROBE_RESULT', result });
 }
 
+// ── Command Queue ──
+// FFmpeg.wasm does NOT support concurrent exec calls.  Because onmessage is
+// async, a second message (e.g. TRANSCODE) can start executing while a prior
+// one (e.g. PROBE) is still awaiting ffmpeg.exec, causing a deadlock.
+// We serialise every operation through a simple promise-chain queue.
+
+let commandQueue: Promise<void> = Promise.resolve();
+
+function enqueue(fn: () => Promise<void>): void {
+	commandQueue = commandQueue.then(fn, fn);
+}
+
+// ── Eager Init ──
+// Load FFmpeg immediately so the hook receives READY without needing a message.
+enqueue(() => ensureLoaded());
+
 // ── Message Router ──
 
-self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
-	try {
-		await ensureLoaded();
+self.onmessage = (e: MessageEvent<WorkerMessage>) => {
+	enqueue(async () => {
+		try {
+			await ensureLoaded();
 
-		switch (e.data.type) {
-			case 'TRANSCODE':
-				await handleTranscode(e.data);
-				break;
-			case 'GIF':
-				await handleGif(e.data);
-				break;
-			case 'SCREENSHOT':
-				await handleScreenshot(e.data);
-				break;
-			case 'PROBE':
-				await handleProbe(e.data);
-				break;
-			default:
-				post({ type: 'ERROR', error: `Unknown message type: ${(e.data as any).type}` });
+			switch (e.data.type) {
+				case 'TRANSCODE':
+					await handleTranscode(e.data);
+					break;
+				case 'GIF':
+					await handleGif(e.data);
+					break;
+				case 'SCREENSHOT':
+					await handleScreenshot(e.data);
+					break;
+				case 'PROBE':
+					await handleProbe(e.data);
+					break;
+				default:
+					post({ type: 'ERROR', error: `Unknown message type: ${(e.data as any).type}` });
+			}
+		} catch (err) {
+			post({ type: 'ERROR', error: err instanceof Error ? err.message : String(err) });
 		}
-	} catch (err) {
-		post({ type: 'ERROR', error: err instanceof Error ? err.message : String(err) });
-	}
+	});
 };

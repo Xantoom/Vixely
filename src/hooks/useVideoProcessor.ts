@@ -118,12 +118,18 @@ interface ScreenshotOptions {
 	timestamp: number;
 }
 
+const INITIAL_STATS: ExportStats = { fps: 0, frame: 0, speed: 0, elapsedMs: 0 };
+
+function createWorker() {
+	return new Worker(new URL('../workers/ffmpeg-worker.ts', import.meta.url), { type: 'module' });
+}
+
 export function useVideoProcessor() {
 	const [state, setState] = useState<VideoProcessorState>({
 		ready: false,
 		processing: false,
 		progress: 0,
-		exportStats: { fps: 0, frame: 0, speed: 0, elapsedMs: 0 },
+		exportStats: INITIAL_STATS,
 		error: null,
 	});
 	const workerRef = useRef<Worker | null>(null);
@@ -133,14 +139,9 @@ export function useVideoProcessor() {
 	const probeRejectRef = useRef<((err: Error) => void) | null>(null);
 	const exportStartRef = useRef<number>(0);
 
-	useEffect(() => {
-		const worker = new Worker(new URL('../workers/ffmpeg-worker.ts', import.meta.url), { type: 'module' });
-
+	const attachWorker = useCallback((worker: Worker) => {
 		worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
 			const msg = e.data;
-			if (msg.type !== 'LOG' && msg.type !== 'PROGRESS') {
-				console.log('[hook] worker message:', msg.type, msg);
-			}
 
 			switch (msg.type) {
 				case 'READY':
@@ -191,15 +192,49 @@ export function useVideoProcessor() {
 
 		worker.onerror = (e) => {
 			console.error('[hook] worker onerror:', e.message, e);
+			const err = new Error(e.message ?? 'Worker crashed');
+			setState((s) => ({ ...s, processing: false, error: err.message }));
+			resolveRef.current = null;
+			rejectRef.current?.(err);
+			rejectRef.current = null;
+			probeResolveRef.current = null;
+			probeRejectRef.current?.(err);
+			probeRejectRef.current = null;
 		};
 
 		workerRef.current = worker;
+	}, []);
+
+	useEffect(() => {
+		const worker = createWorker();
+		attachWorker(worker);
 
 		return () => {
 			worker.terminate();
 			workerRef.current = null;
 		};
-	}, []);
+	}, [attachWorker]);
+
+	const cancel = useCallback(() => {
+		const old = workerRef.current;
+		if (!old) return;
+
+		// Reject pending promises
+		const err = new Error('Cancelled');
+		rejectRef.current?.(err);
+		resolveRef.current = null;
+		rejectRef.current = null;
+		probeRejectRef.current?.(err);
+		probeResolveRef.current = null;
+		probeRejectRef.current = null;
+
+		// Kill the stuck worker and spin up a fresh one
+		old.terminate();
+		setState((s) => ({ ...s, ready: false, processing: false, progress: 0, exportStats: INITIAL_STATS, error: null }));
+
+		const next = createWorker();
+		attachWorker(next);
+	}, [attachWorker]);
 
 	const sendCommand = useCallback((message: WorkerRequest): Promise<Uint8Array> => {
 		return new Promise<Uint8Array>((resolve, reject) => {
@@ -213,7 +248,7 @@ export function useVideoProcessor() {
 				...s,
 				processing: true,
 				progress: 0,
-				exportStats: { fps: 0, frame: 0, speed: 0, elapsedMs: 0 },
+				exportStats: INITIAL_STATS,
 				error: null,
 			}));
 			resolveRef.current = resolve;
@@ -266,5 +301,5 @@ export function useVideoProcessor() {
 		});
 	}, []);
 
-	return { ...state, transcode, createGif, captureFrame, probe };
+	return { ...state, transcode, createGif, captureFrame, probe, cancel };
 }

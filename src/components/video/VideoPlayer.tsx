@@ -1,6 +1,7 @@
-import { Play, Pause, Volume2, VolumeX, Maximize } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, Maximize, Languages, AudioLines } from 'lucide-react';
 import { useRef, useState, useCallback, useEffect, type RefObject } from 'react';
 import { formatTimecode } from '@/components/ui/index.ts';
+import { useVideoEditorStore } from '@/stores/videoEditor.ts';
 
 interface VideoPlayerProps {
 	src: string;
@@ -29,7 +30,16 @@ export function VideoPlayer({
 	const [volume, setVolume] = useState(1);
 	const [muted, setMuted] = useState(false);
 	const [showControls, setShowControls] = useState(true);
-	const hideTimeout = useRef<ReturnType<typeof setTimeout>>();
+	const [openMenu, setOpenMenu] = useState<'audio' | 'subtitle' | null>(null);
+	const hideTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+	const probeResult = useVideoEditorStore((s) => s.probeResult);
+	const tracks = useVideoEditorStore((s) => s.tracks);
+	const setTracks = useVideoEditorStore((s) => s.setTracks);
+	const audioStreams = probeResult?.streams.filter((s) => s.type === 'audio') ?? [];
+	const subtitleStreams = probeResult?.streams.filter((s) => s.type === 'subtitle') ?? [];
+	const hasAudio = audioStreams.length > 0;
+	const hasSubtitles = subtitleStreams.length > 0;
 
 	const resetHideTimer = useCallback(() => {
 		setShowControls(true);
@@ -43,6 +53,10 @@ export function VideoPlayer({
 		resetHideTimer();
 		return () => clearTimeout(hideTimeout.current);
 	}, [playing, resetHideTimer]);
+
+	useEffect(() => {
+		if (!showControls) setOpenMenu(null);
+	}, [showControls]);
 
 	const handleMetadata = useCallback(() => {
 		const v = videoRef.current;
@@ -141,7 +155,7 @@ export function VideoPlayer({
 	return (
 		<div
 			ref={containerRef}
-			className="relative max-w-full max-h-full group overflow-hidden rounded-xl bg-black [&>video]:pointer-events-auto"
+			className="relative w-full h-full group overflow-hidden rounded-xl bg-black flex items-center justify-center [&>video]:pointer-events-auto"
 			onPointerMove={resetHideTimer}
 			onPointerLeave={() => playing && setShowControls(false)}
 			onDragOver={(e) => e.preventDefault()}
@@ -157,7 +171,7 @@ export function VideoPlayer({
 				onClick={togglePlay}
 				draggable={false}
 				onDragStart={(e) => e.preventDefault()}
-				className="block max-w-full max-h-full cursor-pointer"
+				className="max-w-full max-h-full object-contain cursor-pointer"
 			/>
 
 			{/* Custom controls overlay */}
@@ -196,6 +210,68 @@ export function VideoPlayer({
 
 					<div className="flex-1" />
 
+					{/* Audio track selector */}
+					<div className="relative">
+						<button
+							onClick={hasAudio ? () => setOpenMenu(openMenu === 'audio' ? null : 'audio') : undefined}
+							className={`h-8 w-8 flex items-center justify-center rounded-full transition-colors ${
+								!hasAudio
+									? 'text-white/30 cursor-not-allowed'
+									: openMenu === 'audio'
+										? 'bg-white/20 text-white cursor-pointer'
+										: 'text-white hover:bg-white/10 cursor-pointer'
+							} ${hasAudio && !tracks.audioEnabled ? 'opacity-50' : ''}`}
+							title="Audio tracks"
+							disabled={!hasAudio}
+						>
+							<AudioLines size={16} />
+						</button>
+						{hasAudio && openMenu === 'audio' && (
+							<TrackMenu
+								label="Audio"
+								enabled={tracks.audioEnabled}
+								onToggle={() => setTracks({ audioEnabled: !tracks.audioEnabled })}
+								canDisable
+								selectedIndex={tracks.audioTrackIndex}
+								onSelect={(i) => setTracks({ audioTrackIndex: i })}
+								streams={audioStreams.map((s, i) => ({
+									label: `Track ${i + 1}${s.language ? ` (${s.language})` : ''} — ${s.codec}`,
+								}))}
+							/>
+						)}
+					</div>
+
+					{/* Subtitle track selector */}
+					<div className="relative">
+						<button
+							onClick={hasSubtitles ? () => setOpenMenu(openMenu === 'subtitle' ? null : 'subtitle') : undefined}
+							className={`h-8 w-8 flex items-center justify-center rounded-full transition-colors ${
+								!hasSubtitles
+									? 'text-white/30 cursor-not-allowed'
+									: openMenu === 'subtitle'
+										? 'bg-white/20 text-white cursor-pointer'
+										: 'text-white hover:bg-white/10 cursor-pointer'
+							} ${hasSubtitles && !tracks.subtitleEnabled ? 'opacity-50' : ''}`}
+							title="Subtitle tracks"
+							disabled={!hasSubtitles}
+						>
+							<Languages size={16} />
+						</button>
+						{hasSubtitles && openMenu === 'subtitle' && (
+							<TrackMenu
+								label="Subtitles"
+								enabled={tracks.subtitleEnabled}
+								onToggle={() => setTracks({ subtitleEnabled: !tracks.subtitleEnabled })}
+								canDisable
+								selectedIndex={tracks.subtitleTrackIndex}
+								onSelect={(i) => setTracks({ subtitleTrackIndex: i })}
+								streams={subtitleStreams.map((s, i) => ({
+									label: `Track ${i + 1}${s.language ? ` (${s.language})` : ''} — ${s.codec}`,
+								}))}
+							/>
+						)}
+					</div>
+
 					{/* Volume */}
 					<button
 						onClick={toggleMute}
@@ -227,15 +303,70 @@ export function VideoPlayer({
 			{processing && (
 				<div className="absolute inset-0 flex flex-col items-center justify-center rounded-xl bg-black/80 backdrop-blur-sm">
 					<div className="h-10 w-10 rounded-full border-[3px] border-border border-t-accent animate-spin" />
-					<p className="mt-3 text-sm font-medium">Exporting... {Math.round(progress * 100)}%</p>
+					<p className="mt-3 text-sm font-medium font-mono tabular-nums">
+						Exporting... {(Math.max(0, progress) * 100).toFixed(2)}%
+					</p>
 					<div className="mt-2 h-1 w-40 overflow-hidden rounded-full bg-surface-raised">
 						<div
 							className="h-full bg-accent transition-all duration-300"
-							style={{ width: `${progress * 100}%` }}
+							style={{ width: `${Math.max(0, progress) * 100}%` }}
 						/>
 					</div>
 				</div>
 			)}
+		</div>
+	);
+}
+
+function TrackMenu({
+	label,
+	enabled,
+	onToggle,
+	canDisable,
+	selectedIndex,
+	onSelect,
+	streams,
+}: {
+	label: string;
+	enabled: boolean;
+	onToggle: () => void;
+	canDisable: boolean;
+	selectedIndex: number;
+	onSelect: (index: number) => void;
+	streams: { label: string }[];
+}) {
+	return (
+		<div className="absolute bottom-full right-0 mb-2 min-w-48 rounded-lg bg-black/90 backdrop-blur-md border border-white/10 py-1.5 shadow-xl animate-fade-in">
+			<div className="px-3 py-1.5 text-[11px] font-semibold text-white/50 uppercase tracking-wider">{label}</div>
+
+			{canDisable && (
+				<button
+					onClick={onToggle}
+					className={`w-full text-left px-3 py-1.5 text-[13px] transition-colors cursor-pointer ${
+						!enabled ? 'text-white bg-white/10' : 'text-white/70 hover:bg-white/5 hover:text-white'
+					}`}
+				>
+					Off
+				</button>
+			)}
+
+			{streams.map((stream, i) => {
+				const isActive = enabled && selectedIndex === i;
+				return (
+					<button
+						key={i}
+						onClick={() => {
+							if (!enabled) onToggle();
+							onSelect(i);
+						}}
+						className={`w-full text-left px-3 py-1.5 text-[13px] transition-colors cursor-pointer ${
+							isActive ? 'text-white bg-white/10' : 'text-white/70 hover:bg-white/5 hover:text-white'
+						}`}
+					>
+						{stream.label}
+					</button>
+				);
+			})}
 		</div>
 	);
 }

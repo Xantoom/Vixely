@@ -23,7 +23,6 @@ import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
 import { Drawer } from '@/components/ui/Drawer.tsx';
 import { Button, Slider, Timeline, formatTimecode } from '@/components/ui/index.ts';
 import { AdvancedSettings } from '@/components/video/AdvancedSettings.tsx';
-import { ExportModal } from '@/components/video/ExportModal.tsx';
 import { FrameCaptureDialog } from '@/components/video/FrameCaptureDialog.tsx';
 import {
 	getPlatformIcon,
@@ -68,7 +67,8 @@ function groupPresetsByPlatform(presets: [string, { name: string; description: s
 }
 
 function VideoStudio() {
-	const { ready, processing, progress, exportStats, error, transcode, captureFrame, probe } = useVideoProcessor();
+	const { ready, processing, progress, exportStats, error, transcode, captureFrame, probe, cancel } =
+		useVideoProcessor();
 	const store = useVideoEditorStore();
 	const {
 		mode: videoMode,
@@ -107,13 +107,11 @@ function VideoStudio() {
 	const [drawerOpen, setDrawerOpen] = useState(false);
 	const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 	const [isDragging, setIsDragging] = useState(false);
-	const [showExportModal, setShowExportModal] = useState(false);
-	const [exportResultSize, setExportResultSize] = useState<number | null>(null);
-	const [exportIsStreamCopy, setExportIsStreamCopy] = useState(false);
 
 	const videoRef = useRef<HTMLVideoElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const dragCounter = useRef(0);
+	const progressRef = useRef(0);
 
 	const isDirty = file !== null;
 
@@ -130,6 +128,10 @@ function VideoStudio() {
 	);
 
 	const groupedPresets = useMemo(() => groupPresetsByPlatform(VIDEO_PRESETS), []);
+
+	useEffect(() => {
+		progressRef.current = progress;
+	}, [progress]);
 
 	useEffect(() => {
 		if (!isDirty && !processing) return;
@@ -328,13 +330,15 @@ function VideoStudio() {
 		}
 	}, [file, currentTime, captureFrame]);
 
+	const exportStartRef = useRef<number>(0);
+
 	const handleExport = useCallback(async () => {
 		if (!file) return;
 
 		const isCustom = useCustomExport || !selectedPreset;
 
-		setShowExportModal(true);
-		setExportResultSize(null);
+		setResultUrl(null);
+		exportStartRef.current = Date.now();
 		const clipDuration = Math.max(trimEnd - trimStart, 0.5);
 
 		const args: string[] = [];
@@ -347,7 +351,6 @@ function VideoStudio() {
 		if (!tracks.audioEnabled) {
 			args.push('-an');
 		} else if (probeResult && audioStreams.length > 1) {
-			// Multiple audio tracks: map video + chosen audio explicitly
 			args.push('-map', '0:v:0', '-map', `0:a:${tracks.audioTrackIndex}`);
 		}
 		args.push('-sn');
@@ -360,7 +363,6 @@ function VideoStudio() {
 		const sourceAudioCodec = probeResult?.streams.find((s) => s.type === 'audio')?.codec;
 		const noVideoFilters = vfParts.length === 0;
 
-		// Map source codec names to ffmpeg lib names for comparison
 		const codecToLib: Record<string, string> = {
 			h264: 'libx264',
 			hevc: 'libx265',
@@ -370,9 +372,9 @@ function VideoStudio() {
 		const audioCodecToLib: Record<string, string> = { aac: 'aac', opus: 'libopus' };
 
 		let outputName: string;
+		let ext: string;
 
 		if (isCustom) {
-			// Custom export: use advanced settings
 			const s = advancedSettings;
 			const sourceLib = sourceVideoCodec ? codecToLib[sourceVideoCodec] : undefined;
 			const sourceAudioLib = sourceAudioCodec ? audioCodecToLib[sourceAudioCodec] : undefined;
@@ -402,15 +404,11 @@ function VideoStudio() {
 				}
 			}
 
-			setExportIsStreamCopy(canCopyVideo);
-
-			outputName = `output.${s.container}`;
+			ext = s.container;
+			outputName = `output.${ext}`;
 		} else {
-			// Preset export
-			setExportIsStreamCopy(false);
 			const { args: presetArgs, format } = buildVideoArgs(selectedPreset!, clipDuration);
 
-			// Combine user filters with preset -vf if any
 			const presetVfIdx = presetArgs.indexOf('-vf');
 			if (presetVfIdx !== -1 && vfParts.length > 0) {
 				const presetVf = presetArgs[presetVfIdx + 1]!;
@@ -429,18 +427,33 @@ function VideoStudio() {
 				args.push('-c:a', audioCodecForFormat, '-b:a', '96k');
 			}
 
-			outputName = `output.${format}`;
+			ext = format;
+			outputName = `output.${ext}`;
 		}
+
+		// 10s timeout: cancel if no progress at all
+		const timeoutId = setTimeout(() => {
+			if (progressRef.current <= 0) {
+				cancel();
+				toast.error('Export timed out', { description: 'No progress after 10 seconds — worker restarted' });
+			}
+		}, 10_000);
 
 		try {
 			const result = await transcode({ file, args, outputName });
-			const ext = outputName.split('.').pop() ?? 'mp4';
+			clearTimeout(timeoutId);
 			const blob = new Blob([result], { type: `video/${ext}` });
 			const url = URL.createObjectURL(blob);
 			setResultUrl(url);
-			setExportResultSize(blob.size);
+			toast.success('Export complete', { description: `vixely-export.${ext}` });
+
+			// Auto-download
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = `vixely-export.${ext}`;
+			a.click();
 		} catch {
-			setShowExportModal(false);
+			clearTimeout(timeoutId);
 			toast.error('Export failed');
 		}
 	}, [
@@ -455,6 +468,7 @@ function VideoStudio() {
 		tracks,
 		audioStreams,
 		transcode,
+		cancel,
 		resizeFilterArgs,
 		ffmpegFilterArgs,
 	]);
@@ -1005,16 +1019,53 @@ function VideoStudio() {
 
 			{/* Actions */}
 			<div className="p-4 border-t border-border flex flex-col gap-2">
-				<Button
-					className="w-full"
-					disabled={!file || !ready || processing}
-					onClick={() => {
-						handleExport();
-						setDrawerOpen(false);
-					}}
-				>
-					Export
-				</Button>
+				{processing && (
+					<div className="flex flex-col gap-1.5">
+						<div className="flex items-center justify-between text-sm">
+							<span className="text-text-tertiary">Exporting...</span>
+							<span className="font-mono font-medium tabular-nums text-accent">
+								{(Math.max(0, progress) * 100).toFixed(2)}%
+							</span>
+						</div>
+						<div className="h-1.5 rounded-full bg-border overflow-hidden">
+							<div
+								className="h-full rounded-full bg-accent transition-[width] duration-300"
+								style={{ width: `${Math.max(0, progress) * 100}%` }}
+							/>
+						</div>
+						{exportStats.fps > 0 && (
+							<div className="flex gap-3 text-[11px] text-text-tertiary font-mono tabular-nums">
+								<span>{exportStats.fps.toFixed(1)} fps</span>
+								<span>{exportStats.speed.toFixed(1)}x</span>
+								<span>frame {exportStats.frame}</span>
+							</div>
+						)}
+					</div>
+				)}
+
+				<div className="flex gap-2">
+					<Button
+						className="flex-1"
+						disabled={!file || !ready || processing}
+						onClick={() => {
+							handleExport();
+							setDrawerOpen(false);
+						}}
+					>
+						Export
+					</Button>
+					{processing && (
+						<Button
+							variant="danger"
+							onClick={() => {
+								cancel();
+								toast('Export cancelled');
+							}}
+						>
+							Cancel
+						</Button>
+					)}
+				</div>
 
 				{resultUrl && (
 					<Button
@@ -1157,21 +1208,6 @@ function VideoStudio() {
 					onClose={() => setShowInfo(false)}
 				/>
 			)}
-
-			{/* Export modal */}
-			<ExportModal
-				open={showExportModal}
-				progress={progress}
-				stats={exportStats}
-				isStreamCopy={exportIsStreamCopy}
-				resultSize={exportResultSize}
-				onCancel={() => setShowExportModal(false)}
-				onDownload={() => {
-					handleDownload();
-					setShowExportModal(false);
-				}}
-				onClose={() => setShowExportModal(false)}
-			/>
 
 			{/* Confirm reset modal */}
 			{showResetModal && <ConfirmResetModal onConfirm={handleConfirmReset} onCancel={handleCancelReset} />}

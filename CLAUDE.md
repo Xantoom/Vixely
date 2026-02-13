@@ -21,7 +21,7 @@ Left sidebar on every page. Upper bar et right sidebar on editors pages. Three m
 - **Image Core:** Custom Rust → WebAssembly modules for pixel manipulation
 - **Video Core:** Multi-threaded FFmpeg.wasm with virtual file system (zero-copy mounting)
 - **Processing:** Web Workers + SharedArrayBuffer for off-main-thread work
-- **Libraries:** Zustand, Tanstack Router, Tanstack Query, Bun + Vite.
+- **Libraries:** Zustand, Tanstack Router, Tanstack Query, Bun + Vite. Using Bun as a package manager.
 - **Production:** Deployed on Railway, Code on Github, DNS on Cloudflare, Domain name on Hostinger.
 - **Environment Variables:** On Railway, NODE_ENV=PRODUCTION, and PORT=80.
 
