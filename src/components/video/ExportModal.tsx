@@ -1,7 +1,7 @@
 import { X, Download, CheckCircle2, Copy } from 'lucide-react';
+import type { ExportStats } from '@/hooks/useVideoProcessor.ts';
 import { Button } from '@/components/ui/index.ts';
 import { formatFileSize } from '@/utils/format.ts';
-import type { ExportStats } from '@/hooks/useVideoProcessor.ts';
 
 interface ExportModalProps {
 	open: boolean;
@@ -61,9 +61,7 @@ export function ExportModal({
 					<X size={16} />
 				</button>
 
-				<h2 className="text-base font-bold mb-6">
-					{done ? 'Export Complete' : 'Exporting...'}
-				</h2>
+				<h2 className="text-base font-bold mb-6">{done ? 'Export Complete' : 'Exporting...'}</h2>
 
 				{/* Progress ring */}
 				<div className="flex justify-center mb-6">
@@ -121,12 +119,11 @@ export function ExportModal({
 						<StatCell label="FPS" value={stats.fps > 0 ? stats.fps.toFixed(1) : '--'} />
 						<StatCell label="Frames" value={stats.frame > 0 ? String(stats.frame) : '--'} />
 						<StatCell label="Speed" value={stats.speed > 0 ? `${stats.speed.toFixed(1)}x` : '--'} />
-						<StatCell label="Elapsed" value={stats.elapsedMs > 500 ? formatElapsed(stats.elapsedMs) : '--'} />
 						<StatCell
-							label="ETA"
-							value={formatEta(progress, stats.elapsedMs)}
-							span={2}
+							label="Elapsed"
+							value={stats.elapsedMs > 500 ? formatElapsed(stats.elapsedMs) : '--'}
 						/>
+						<StatCell label="ETA" value={formatEta(progress, stats.elapsedMs)} span={2} />
 					</div>
 				) : (
 					<div className="rounded-lg bg-bg/50 p-3 flex flex-col gap-1.5 mb-6">
@@ -170,9 +167,7 @@ export function ExportModal({
 
 function StatCell({ label, value, span }: { label: string; value: string; span?: number }) {
 	return (
-		<div
-			className={`bg-surface px-3 py-2.5 flex flex-col items-center gap-0.5 ${span === 2 ? 'col-span-2' : ''}`}
-		>
+		<div className={`bg-surface px-3 py-2.5 flex flex-col items-center gap-0.5 ${span === 2 ? 'col-span-2' : ''}`}>
 			<span className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">{label}</span>
 			<span className="text-sm font-mono font-medium tabular-nums text-text">{value}</span>
 		</div>

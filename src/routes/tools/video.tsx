@@ -23,6 +23,7 @@ import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
 import { Drawer } from '@/components/ui/Drawer.tsx';
 import { Button, Slider, Timeline, formatTimecode } from '@/components/ui/index.ts';
 import { AdvancedSettings } from '@/components/video/AdvancedSettings.tsx';
+import { ExportModal } from '@/components/video/ExportModal.tsx';
 import { FrameCaptureDialog } from '@/components/video/FrameCaptureDialog.tsx';
 import {
 	getPlatformIcon,
@@ -31,7 +32,6 @@ import {
 	PlatformIconComponent,
 } from '@/components/video/PlatformIcons.tsx';
 import { ResizePanel } from '@/components/video/ResizePanel.tsx';
-import { ExportModal } from '@/components/video/ExportModal.tsx';
 import { VideoInfoModal } from '@/components/video/VideoInfoModal.tsx';
 import { VideoPlayer } from '@/components/video/VideoPlayer.tsx';
 import { MONETAG_ZONES } from '@/config/monetag.ts';
@@ -367,10 +367,7 @@ function VideoStudio() {
 			vp9: 'libvpx-vp9',
 			av1: 'libaom-av1',
 		};
-		const audioCodecToLib: Record<string, string> = {
-			aac: 'aac',
-			opus: 'libopus',
-		};
+		const audioCodecToLib: Record<string, string> = { aac: 'aac', opus: 'libopus' };
 
 		let outputName: string;
 
@@ -867,7 +864,9 @@ function VideoStudio() {
 										</div>
 										<div className="flex justify-between text-sm">
 											<span className="text-text-tertiary">Clip duration</span>
-											<span className="font-mono text-text-secondary">{clipDuration.toFixed(1)}s</span>
+											<span className="font-mono text-text-secondary">
+												{clipDuration.toFixed(1)}s
+											</span>
 										</div>
 									</div>
 								) : (
@@ -943,7 +942,9 @@ function VideoStudio() {
 										{tracks.subtitleEnabled && subtitleStreams.length > 1 && (
 											<select
 												value={tracks.subtitleTrackIndex}
-												onChange={(e) => setTracks({ subtitleTrackIndex: Number(e.target.value) })}
+												onChange={(e) =>
+													setTracks({ subtitleTrackIndex: Number(e.target.value) })
+												}
 												className="h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[13px] text-text cursor-pointer focus:outline-none focus:border-accent/50"
 											>
 												{subtitleStreams.map((s, i) => (

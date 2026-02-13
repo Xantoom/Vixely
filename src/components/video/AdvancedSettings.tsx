@@ -35,7 +35,12 @@ interface AdvancedSettingsProps {
 	hasAudio?: boolean;
 }
 
-export function AdvancedSettings({ settings, onChange, defaultExpanded = false, hasAudio = true }: AdvancedSettingsProps) {
+export function AdvancedSettings({
+	settings,
+	onChange,
+	defaultExpanded = false,
+	hasAudio = true,
+}: AdvancedSettingsProps) {
 	const [expanded, setExpanded] = useState(defaultExpanded);
 
 	const update = <K extends keyof AdvancedVideoSettings>(key: K, value: AdvancedVideoSettings[K]) => {

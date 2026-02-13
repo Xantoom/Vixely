@@ -137,7 +137,10 @@ async function ensureLoaded(): Promise<void> {
 			});
 			loaded = true;
 			multiThreadActive = true;
-			post({ type: 'LOG', message: `[ffmpeg] Multi-threaded core loaded (${navigator.hardwareConcurrency || 4} threads)` });
+			post({
+				type: 'LOG',
+				message: `[ffmpeg] Multi-threaded core loaded (${navigator.hardwareConcurrency || 4} threads)`,
+			});
 			post({ type: 'READY' });
 			return;
 		} catch (err) {
