@@ -30,7 +30,7 @@ export const CONTAINERS: ContainerDef[] = [
 
 export const AUDIO_CODECS: AudioCodecDef[] = [
 	{ name: 'AAC', ffmpegLib: 'aac', containers: ['mp4', 'mkv'] },
-	{ name: 'Opus', ffmpegLib: 'libopus', containers: ['webm', 'mkv'] },
+	{ name: 'Opus', ffmpegLib: 'libopus', containers: ['webm', 'mkv', 'mp4'] },
 	{ name: 'No Audio', ffmpegLib: 'none', containers: ['mp4', 'mkv', 'webm'] },
 ];
 

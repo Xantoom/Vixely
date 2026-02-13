@@ -41,7 +41,7 @@ function RootLayout() {
 	return (
 		<div className="flex flex-col md:flex-row h-full bg-bg text-text">
 			{/* ── Desktop Sidebar ── */}
-			<aside className="hidden md:flex w-16 shrink-0 flex-col items-center border-r border-border-subtle bg-bg py-4 gap-1">
+			<aside className="hidden md:flex w-16 shrink-0 flex-col items-center border-r border-border-subtle bg-bg py-4 gap-1.5">
 				{/* Logo */}
 				<Link to="/" className="mb-6 group flex items-center justify-center">
 					<div className="h-9 w-9 rounded-xl gradient-accent flex items-center justify-center transition-transform group-hover:scale-105">
@@ -72,7 +72,7 @@ function RootLayout() {
 								}`}
 							>
 								<item.icon className="h-5 w-5" />
-								<span className="text-[11px] font-semibold tracking-wide uppercase">{item.label}</span>
+								<span className="text-[12px] font-semibold tracking-wide uppercase">{item.label}</span>
 								{isActive && (
 									<div
 										className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full ${item.indicator}`}
@@ -121,7 +121,7 @@ function RootLayout() {
 							}`}
 						>
 							<item.icon className="h-5 w-5" />
-							<span className="text-[11px] font-semibold tracking-wide uppercase">{item.label}</span>
+							<span className="text-[12px] font-semibold tracking-wide uppercase">{item.label}</span>
 						</Link>
 					);
 				})}

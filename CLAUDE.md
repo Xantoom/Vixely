@@ -22,13 +22,15 @@ Left sidebar on every page. Upper bar et right sidebar on editors pages. Three m
 - **Video Core:** Multi-threaded FFmpeg.wasm with virtual file system (zero-copy mounting)
 - **Processing:** Web Workers + SharedArrayBuffer for off-main-thread work
 - **Libraries:** Zustand, Tanstack Router, Tanstack Query, Bun + Vite.
+- **Production:** Deployed on Railway, Code on Github, DNS on Cloudflare, Domain name on Hostinger.
+- **Environment Variables:** On Railway, NODE_ENV=PRODUCTION, and PORT=80.
 
 ## GUIDELINES
 
 - Use oxlint (.oxlintrc.json) and Oxfmt (.oxfmtrc.jsonc)
 - Use Frontend design skills when doing front or design
 - Think about SEO, performance (every action should be the fastest for user), and 60fps target.
-- **Always** use skills, like vercel-react-best-pratices.
+- **Always** use skills, like vercel-react-best-practices.
 - Don't write comments if unnecessary.
 - Be careful about UI and UX design, always think about User experience.
 - Be careful about repsonsive (should work on ANY device).

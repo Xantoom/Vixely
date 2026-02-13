@@ -21,6 +21,7 @@ logs/
 # --- GENERATED ---
 src/routeTree.gen.ts
 src/wasm/
+public/ffmpeg/
 
 # --- RUST ---
 vixely-core/target/

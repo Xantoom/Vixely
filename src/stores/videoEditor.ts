@@ -70,7 +70,7 @@ export const DEFAULT_ADVANCED_SETTINGS: AdvancedVideoSettings = {
 	codec: 'libx264',
 	container: 'mp4',
 	crf: 23,
-	preset: 'fast',
+	preset: 'veryfast',
 	audioCodec: 'aac',
 	audioBitrate: '96k',
 };

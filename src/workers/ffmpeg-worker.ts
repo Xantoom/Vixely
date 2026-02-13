@@ -40,6 +40,9 @@ interface ProgressPayload {
 	type: 'PROGRESS';
 	progress: number;
 	time: number;
+	fps: number;
+	frame: number;
+	speed: number;
 }
 
 interface DonePayload {
@@ -91,32 +94,66 @@ type WorkerResponse = ProgressPayload | DonePayload | ErrorPayload | ReadyPayloa
 
 // ── FFmpeg Instance ──
 
-const ffmpeg = new FFmpeg();
+let ffmpeg = new FFmpeg();
 let loaded = false;
+let multiThreadActive = false;
 let logBuffer: string[] = [];
 let collectLogs = false;
+let encodingStats = { fps: 0, frame: 0, speed: 0 };
 
-const CORE_VERSION = '0.12.10';
-const CORE_BASE = `https://unpkg.com/@ffmpeg/core@${CORE_VERSION}/dist/esm`;
+const supportsMultiThread = typeof SharedArrayBuffer !== 'undefined';
+
+function attachListeners(instance: FFmpeg): void {
+	instance.on('progress', ({ progress, time }) => {
+		post({ type: 'PROGRESS', progress, time, ...encodingStats });
+	});
+
+	instance.on('log', ({ message }) => {
+		if (collectLogs) logBuffer.push(message);
+
+		const fpsMatch = message.match(/fps=\s*([\d.]+)/);
+		const frameMatch = message.match(/frame=\s*(\d+)/);
+		const speedMatch = message.match(/speed=\s*([\d.]+)x/);
+		if (fpsMatch) encodingStats.fps = Number(fpsMatch[1]);
+		if (frameMatch) encodingStats.frame = Number(frameMatch[1]);
+		if (speedMatch) encodingStats.speed = Number(speedMatch[1]);
+
+		post({ type: 'LOG', message });
+	});
+}
 
 async function ensureLoaded(): Promise<void> {
 	if (loaded) return;
 
-	ffmpeg.on('progress', ({ progress, time }) => {
-		post({ type: 'PROGRESS', progress, time });
-	});
+	const baseUrl = self.location.origin;
 
-	ffmpeg.on('log', ({ message }) => {
-		if (collectLogs) logBuffer.push(message);
-		post({ type: 'LOG', message });
-	});
+	if (supportsMultiThread) {
+		try {
+			attachListeners(ffmpeg);
+			await ffmpeg.load({
+				coreURL: await toBlobURL(`${baseUrl}/ffmpeg/ffmpeg-core.js`, 'text/javascript'),
+				wasmURL: await toBlobURL(`${baseUrl}/ffmpeg/ffmpeg-core.wasm`, 'application/wasm'),
+				workerURL: await toBlobURL(`${baseUrl}/ffmpeg/ffmpeg-core.worker.js`, 'text/javascript'),
+			});
+			loaded = true;
+			multiThreadActive = true;
+			post({ type: 'LOG', message: `[ffmpeg] Multi-threaded core loaded (${navigator.hardwareConcurrency || 4} threads)` });
+			post({ type: 'READY' });
+			return;
+		} catch (err) {
+			post({ type: 'LOG', message: `[ffmpeg] MT core failed, falling back to ST: ${err}` });
+			ffmpeg = new FFmpeg();
+		}
+	}
 
+	attachListeners(ffmpeg);
 	await ffmpeg.load({
-		coreURL: await toBlobURL(`${CORE_BASE}/ffmpeg-core.js`, 'text/javascript'),
-		wasmURL: await toBlobURL(`${CORE_BASE}/ffmpeg-core.wasm`, 'application/wasm'),
+		coreURL: await toBlobURL(`${baseUrl}/ffmpeg/ffmpeg-core-st.js`, 'text/javascript'),
+		wasmURL: await toBlobURL(`${baseUrl}/ffmpeg/ffmpeg-core-st.wasm`, 'application/wasm'),
 	});
 
 	loaded = true;
+	post({ type: 'LOG', message: '[ffmpeg] Single-threaded core loaded' });
 	post({ type: 'READY' });
 }
 
@@ -229,6 +266,7 @@ function parseProbeOutput(logs: string[]): ProbeResultData {
 // ── Command Handlers ──
 
 async function handleTranscode(msg: TranscodeMessage): Promise<void> {
+	encodingStats = { fps: 0, frame: 0, speed: 0 };
 	console.log('[worker] handleTranscode start, file:', msg.file.name, msg.file.size, 'bytes');
 	console.log('[worker] args:', ['-y', '-i', '<input>', ...msg.args, msg.outputName].join(' '));
 
@@ -252,7 +290,8 @@ async function handleTranscode(msg: TranscodeMessage): Promise<void> {
 				idx++;
 			}
 		}
-		const fullArgs = ['-y', ...seekArgs, '-i', inputPath, ...outputArgs, msg.outputName];
+		const threadArgs = multiThreadActive ? ['-threads', String(navigator.hardwareConcurrency || 4)] : [];
+		const fullArgs = ['-y', ...seekArgs, '-i', inputPath, ...threadArgs, ...outputArgs, msg.outputName];
 		console.log('[worker] ffmpeg.exec start:', fullArgs);
 		const exitCode = await ffmpeg.exec(fullArgs);
 		console.log('[worker] ffmpeg.exec done, exitCode:', exitCode);
@@ -271,6 +310,7 @@ async function handleTranscode(msg: TranscodeMessage): Promise<void> {
 }
 
 async function handleGif(msg: GifMessage): Promise<void> {
+	encodingStats = { fps: 0, frame: 0, speed: 0 };
 	const mountPoint = '/input';
 	const inputName = await mountFile(msg.file, mountPoint);
 
@@ -287,11 +327,13 @@ async function handleGif(msg: GifMessage): Promise<void> {
 
 	try {
 		// Step 1: Generate optimized palette
+		const threadArgs = multiThreadActive ? ['-threads', String(navigator.hardwareConcurrency || 4)] : [];
 		const paletteArgs = [
 			'-y',
 			...(msg.startTime != null ? ['-ss', String(msg.startTime)] : []),
 			'-i',
 			inputName,
+			...threadArgs,
 			...(msg.duration != null ? ['-t', String(msg.duration)] : []),
 			'-vf',
 			`${vfChain},palettegen=max_colors=${maxColors}:stats_mode=diff`,
@@ -309,6 +351,7 @@ async function handleGif(msg: GifMessage): Promise<void> {
 			inputName,
 			'-i',
 			'palette.png',
+			...threadArgs,
 			...(msg.duration != null ? ['-t', String(msg.duration)] : []),
 			'-lavfi',
 			`${vfChain}[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=5`,
