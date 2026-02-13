@@ -40,6 +40,9 @@ interface ProgressResponse {
 	type: 'PROGRESS';
 	progress: number;
 	time: number;
+	fps: number;
+	frame: number;
+	speed: number;
 }
 
 interface DoneResponse {
@@ -77,10 +80,18 @@ type WorkerResponse =
 
 // ── Hook State ──
 
+export interface ExportStats {
+	fps: number;
+	frame: number;
+	speed: number;
+	elapsedMs: number;
+}
+
 interface VideoProcessorState {
 	ready: boolean;
 	processing: boolean;
 	progress: number;
+	exportStats: ExportStats;
 	error: string | null;
 }
 
@@ -112,6 +123,7 @@ export function useVideoProcessor() {
 		ready: false,
 		processing: false,
 		progress: 0,
+		exportStats: { fps: 0, frame: 0, speed: 0, elapsedMs: 0 },
 		error: null,
 	});
 	const workerRef = useRef<Worker | null>(null);
@@ -119,6 +131,7 @@ export function useVideoProcessor() {
 	const rejectRef = useRef<((err: Error) => void) | null>(null);
 	const probeResolveRef = useRef<((data: ProbeResultData) => void) | null>(null);
 	const probeRejectRef = useRef<((err: Error) => void) | null>(null);
+	const exportStartRef = useRef<number>(0);
 
 	useEffect(() => {
 		const worker = new Worker(new URL('../workers/ffmpeg-worker.ts', import.meta.url), { type: 'module' });
@@ -135,7 +148,16 @@ export function useVideoProcessor() {
 					break;
 
 				case 'PROGRESS':
-					setState((s) => ({ ...s, progress: msg.progress }));
+					setState((s) => ({
+						...s,
+						progress: msg.progress,
+						exportStats: {
+							fps: msg.fps,
+							frame: msg.frame,
+							speed: msg.speed,
+							elapsedMs: Date.now() - exportStartRef.current,
+						},
+					}));
 					break;
 
 				case 'DONE':
@@ -186,7 +208,14 @@ export function useVideoProcessor() {
 				return;
 			}
 
-			setState((s) => ({ ...s, processing: true, progress: 0, error: null }));
+			exportStartRef.current = Date.now();
+			setState((s) => ({
+				...s,
+				processing: true,
+				progress: 0,
+				exportStats: { fps: 0, frame: 0, speed: 0, elapsedMs: 0 },
+				error: null,
+			}));
 			resolveRef.current = resolve;
 			rejectRef.current = reject;
 			workerRef.current.postMessage(message);

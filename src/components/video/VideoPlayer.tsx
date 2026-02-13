@@ -141,9 +141,10 @@ export function VideoPlayer({
 	return (
 		<div
 			ref={containerRef}
-			className="relative max-w-full max-h-full group overflow-hidden rounded-xl bg-black"
+			className="relative max-w-full max-h-full group overflow-hidden rounded-xl bg-black [&>video]:pointer-events-auto"
 			onPointerMove={resetHideTimer}
 			onPointerLeave={() => playing && setShowControls(false)}
+			onDragOver={(e) => e.preventDefault()}
 		>
 			<video
 				ref={videoRef}
@@ -154,6 +155,8 @@ export function VideoPlayer({
 				onPause={() => setPlaying(false)}
 				onEnded={handleEnded}
 				onClick={togglePlay}
+				draggable={false}
+				onDragStart={(e) => e.preventDefault()}
 				className="block max-w-full max-h-full cursor-pointer"
 			/>
 
