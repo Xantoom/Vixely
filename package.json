@@ -21,6 +21,7 @@
 		"@ffmpeg/util": "^0.12.2",
 		"@tanstack/react-query": "^5.90.21",
 		"@tanstack/react-router": "^1.159.5",
+		"jassub": "^2.4.1",
 		"lucide-react": "^0.563.0",
 		"react": "^19.2.4",
 		"react-dom": "^19.2.4",

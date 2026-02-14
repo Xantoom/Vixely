@@ -25,6 +25,8 @@ export interface StreamInfo {
 	channels?: number;
 	language?: string;
 	bitrate?: number;
+	isDefault?: boolean;
+	isForced?: boolean;
 }
 
 export interface ProbeResult {

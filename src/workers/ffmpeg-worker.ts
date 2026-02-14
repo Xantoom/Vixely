@@ -34,7 +34,15 @@ interface ProbeMessage {
 	file: File;
 }
 
-type WorkerMessage = TranscodeMessage | GifMessage | ScreenshotMessage | ProbeMessage;
+interface SubtitlePreviewMessage {
+	type: 'SUBTITLE_PREVIEW';
+	requestId: number;
+	file: File;
+	streamIndex: number;
+	subtitleCodec?: string;
+}
+
+type WorkerMessage = TranscodeMessage | GifMessage | ScreenshotMessage | ProbeMessage | SubtitlePreviewMessage;
 
 interface ProgressPayload {
 	type: 'PROGRESS';
@@ -70,6 +78,14 @@ interface ProbeResultPayload {
 	result: ProbeResultData;
 }
 
+interface SubtitlePreviewResultPayload {
+	type: 'SUBTITLE_PREVIEW_RESULT';
+	requestId: number;
+	format: 'ass' | 'webvtt';
+	content: string;
+	fallbackWebVtt?: string;
+}
+
 export interface ProbeStreamInfo {
 	index: number;
 	type: 'video' | 'audio' | 'subtitle';
@@ -82,6 +98,7 @@ export interface ProbeStreamInfo {
 	language?: string;
 	bitrate?: number;
 	isDefault?: boolean;
+	isForced?: boolean;
 }
 
 export interface ProbeResultData {
@@ -91,7 +108,14 @@ export interface ProbeResultData {
 	streams: ProbeStreamInfo[];
 }
 
-type WorkerResponse = ProgressPayload | DonePayload | ErrorPayload | ReadyPayload | LogPayload | ProbeResultPayload;
+type WorkerResponse =
+	| ProgressPayload
+	| DonePayload
+	| ErrorPayload
+	| ReadyPayload
+	| LogPayload
+	| ProbeResultPayload
+	| SubtitlePreviewResultPayload;
 
 // ── FFmpeg Instance ──
 
@@ -216,6 +240,85 @@ async function tryDeleteFile(name: string): Promise<void> {
 	}
 }
 
+function splitAssFields(raw: string, expectedCount: number): string[] {
+	const parts: string[] = [];
+	let rest = raw;
+	for (let i = 0; i < expectedCount - 1; i++) {
+		const comma = rest.indexOf(',');
+		if (comma === -1) {
+			parts.push(rest.trim());
+			rest = '';
+			continue;
+		}
+		parts.push(rest.slice(0, comma).trim());
+		rest = rest.slice(comma + 1);
+	}
+	parts.push(rest.trim());
+	return parts;
+}
+
+function assTimeToVtt(input: string): string | null {
+	const m = input.trim().match(/^(\d+):(\d{1,2}):(\d{1,2})[.](\d{1,2})$/);
+	if (!m) return null;
+	const h = Number(m[1]);
+	const min = Number(m[2]);
+	const sec = Number(m[3]);
+	const cs = Number(m[4]);
+	const ms = cs * 10;
+	return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
+}
+
+function assToBasicWebVtt(ass: string): string | null {
+	const lines = ass.replaceAll('\r\n', '\n').replaceAll('\r', '\n').split('\n');
+	let section = '';
+	let eventFormat: string[] = [];
+	const cues: string[] = [];
+
+	for (const raw of lines) {
+		const line = raw.trim();
+		if (!line || line.startsWith(';')) continue;
+
+		if (line.startsWith('[') && line.endsWith(']')) {
+			section = line.slice(1, -1);
+			continue;
+		}
+
+		if (section !== 'Events') continue;
+		if (line.startsWith('Format:')) {
+			eventFormat = line
+				.slice('Format:'.length)
+				.split(',')
+				.map((v) => v.trim());
+			continue;
+		}
+		if (!line.startsWith('Dialogue:') || eventFormat.length === 0) continue;
+
+		const values = splitAssFields(line.slice('Dialogue:'.length).trim(), eventFormat.length);
+		const obj: Record<string, string> = {};
+		for (let i = 0; i < eventFormat.length; i++) obj[eventFormat[i]!] = values[i] ?? '';
+		const start = assTimeToVtt(obj.Start ?? '');
+		const end = assTimeToVtt(obj.End ?? '');
+		if (!start || !end) continue;
+
+		const text = (obj.Text ?? '')
+			.replaceAll(/\\[Nn]/g, '\n')
+			.replaceAll(/\{[^}]*\}/g, '')
+			.trim();
+		if (!text) continue;
+
+		cues.push(`${start} --> ${end}\n${text}`);
+	}
+
+	if (cues.length === 0) return null;
+	return `WEBVTT\n\n${cues.join('\n\n')}\n`;
+}
+
+function isAssLikeCodec(codec?: string): boolean {
+	if (!codec) return false;
+	const normalized = codec.trim().toLowerCase();
+	return normalized === 'ass' || normalized === 'ssa';
+}
+
 // ── Probe Parser ──
 
 function parseProbeOutput(logs: string[]): ProbeResultData {
@@ -238,7 +341,7 @@ function parseProbeOutput(logs: string[]): ProbeResultData {
 	const formatMatch = fullLog.match(/Input #0,\s*(\w+)/);
 	if (formatMatch) result.format = formatMatch[1] ?? result.format;
 
-	const streamBaseRegex = /Stream #0:(\d+)(?:\((\w+)\))?[^:]*:\s*(Video|Audio|Subtitle):\s*(\S+)/;
+	const streamBaseRegex = /Stream #0:(\d+)(?:\(([^)]+)\))?[^:]*:\s*(Video|Audio|Subtitle):\s*(\S+)/;
 
 	for (const line of logs) {
 		const m = line.match(streamBaseRegex);
@@ -249,7 +352,9 @@ function parseProbeOutput(logs: string[]): ProbeResultData {
 			index: Number(m[1]),
 			type: streamType,
 			codec: m[4] ?? 'unknown',
-			language: m[2],
+			language: m[2]?.trim(),
+			isDefault: /\(default\)/i.test(line) || undefined,
+			isForced: /\(forced\)/i.test(line) || undefined,
 		};
 
 		if (streamType === 'video') {
@@ -303,6 +408,7 @@ async function handleTranscode(msg: TranscodeMessage): Promise<void> {
 			}
 		}
 		const fullArgs = ['-y', ...seekArgs, '-i', inputName, ...outputArgs, msg.outputName];
+		post({ type: 'LOG', message: `[ffmpeg] exec: ${fullArgs.join(' ')}` });
 		const exitCode = await ffmpeg.exec(fullArgs);
 
 		if (exitCode !== 0) {
@@ -417,6 +523,86 @@ async function handleProbe(msg: ProbeMessage): Promise<void> {
 	post({ type: 'PROBE_RESULT', result });
 }
 
+async function handleSubtitlePreview(msg: SubtitlePreviewMessage): Promise<void> {
+	const inputName = await writeInputFile(msg.file);
+	const asAss = isAssLikeCodec(msg.subtitleCodec);
+	const outputName = asAss ? 'subtitle-preview.ass' : 'subtitle-preview.vtt';
+	const fallbackName = 'subtitle-preview.vtt';
+
+	const extractWebVttFallback = async (): Promise<string | null> => {
+		let code = await ffmpeg.exec([
+			'-y',
+			'-i',
+			inputName,
+			'-map',
+			`0:${msg.streamIndex}`,
+			'-f',
+			'webvtt',
+			fallbackName,
+		]);
+		if (code !== 0) {
+			await tryDeleteFile(fallbackName);
+			return null;
+		}
+		const fallbackData = await ffmpeg.readFile(fallbackName);
+		await ffmpeg.deleteFile(fallbackName);
+		return fallbackData instanceof Uint8Array ? new TextDecoder().decode(fallbackData) : String(fallbackData);
+	};
+
+	try {
+		let exitCode = await ffmpeg.exec([
+			'-y',
+			'-i',
+			inputName,
+			'-map',
+			`0:${msg.streamIndex}`,
+			'-f',
+			asAss ? 'ass' : 'webvtt',
+			outputName,
+		]);
+
+		if (asAss && exitCode !== 0) {
+			await tryDeleteFile(outputName);
+			const fallbackContent = await extractWebVttFallback();
+			if (fallbackContent) {
+				post({
+					type: 'SUBTITLE_PREVIEW_RESULT',
+					requestId: msg.requestId,
+					format: 'webvtt',
+					content: fallbackContent,
+				});
+				return;
+			}
+		}
+
+		if (exitCode !== 0) {
+			await tryDeleteFile(outputName);
+			throw new Error(`Subtitle preview extraction failed (code ${exitCode})`);
+		}
+
+		const data = await ffmpeg.readFile(outputName);
+		await ffmpeg.deleteFile(outputName);
+		const content = data instanceof Uint8Array ? new TextDecoder().decode(data) : String(data);
+		if (!asAss) {
+			post({ type: 'SUBTITLE_PREVIEW_RESULT', requestId: msg.requestId, format: 'webvtt', content });
+			return;
+		}
+
+		const fallbackWebVtt = (await extractWebVttFallback()) ?? assToBasicWebVtt(content);
+		post({
+			type: 'SUBTITLE_PREVIEW_RESULT',
+			requestId: msg.requestId,
+			format: 'ass',
+			content,
+			fallbackWebVtt: fallbackWebVtt ?? undefined,
+		});
+	} finally {
+		await removeInputFile(inputName);
+		await tryDeleteFile(outputName);
+		await tryDeleteFile(fallbackName);
+	}
+}
+
 // ── Command Queue ──
 // FFmpeg.wasm does NOT support concurrent exec calls.  Because onmessage is
 // async, a second message (e.g. TRANSCODE) can start executing while a prior
@@ -452,6 +638,9 @@ self.onmessage = (e: MessageEvent<WorkerMessage>) => {
 					break;
 				case 'PROBE':
 					await handleProbe(e.data);
+					break;
+				case 'SUBTITLE_PREVIEW':
+					await handleSubtitlePreview(e.data);
 					break;
 				default:
 					post({ type: 'ERROR', error: `Unknown message type: ${(e.data as any).type}` });

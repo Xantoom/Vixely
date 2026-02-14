@@ -67,8 +67,18 @@ function groupPresetsByPlatform(presets: [string, { name: string; description: s
 }
 
 function VideoStudio() {
-	const { ready, processing, progress, exportStats, error, transcode, captureFrame, probe, cancel } =
-		useVideoProcessor();
+	const {
+		ready,
+		processing,
+		progress,
+		exportStats,
+		error,
+		transcode,
+		captureFrame,
+		probe,
+		extractSubtitlePreview,
+		cancel,
+	} = useVideoProcessor();
 	const store = useVideoEditorStore();
 	const {
 		mode: videoMode,
@@ -101,6 +111,9 @@ function VideoStudio() {
 	const [trimEnd, setTrimEnd] = useState(0);
 	const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
 	const [resultUrl, setResultUrl] = useState<string | null>(null);
+	const [resultExt, setResultExt] = useState<string | null>(null);
+	const [subtitlePreviewVtt, setSubtitlePreviewVtt] = useState<string | null>(null);
+	const [assSubtitleContent, setAssSubtitleContent] = useState<string | null>(null);
 	const [capturedFrame, setCapturedFrame] = useState<Uint8Array | null>(null);
 	const [showResetModal, setShowResetModal] = useState(false);
 	const [showInfo, setShowInfo] = useState(false);
@@ -132,6 +145,47 @@ function VideoStudio() {
 	useEffect(() => {
 		progressRef.current = progress;
 	}, [progress]);
+
+	useEffect(() => {
+		if (processing || !file) {
+			setSubtitlePreviewVtt(null);
+			setAssSubtitleContent(null);
+			return;
+		}
+		if (!tracks.subtitleEnabled) return;
+
+		const selectedSubtitleStream = subtitleStreams[tracks.subtitleTrackIndex];
+		if (!selectedSubtitleStream) {
+			setSubtitlePreviewVtt(null);
+			setAssSubtitleContent(null);
+			return;
+		}
+
+		let cancelled = false;
+		extractSubtitlePreview(file, selectedSubtitleStream.index, selectedSubtitleStream.codec)
+			.then((preview) => {
+				if (cancelled) return;
+				if (preview.format === 'ass') {
+					setSubtitlePreviewVtt(preview.fallbackWebVtt ?? null);
+					setAssSubtitleContent(preview.content);
+					return;
+				}
+
+				setAssSubtitleContent(null);
+				setSubtitlePreviewVtt(preview.content);
+			})
+			.catch((err) => {
+				if (cancelled) return;
+				if (err instanceof Error && err.message.includes('Superseded')) return;
+				console.error('[video] Subtitle preview extraction failed', err);
+				setSubtitlePreviewVtt(null);
+				setAssSubtitleContent(null);
+			});
+
+		return () => {
+			cancelled = true;
+		};
+	}, [processing, file, tracks.subtitleEnabled, tracks.subtitleTrackIndex, subtitleStreams, extractSubtitlePreview]);
 
 	useEffect(() => {
 		if (!isDirty && !processing) return;
@@ -175,6 +229,7 @@ function VideoStudio() {
 			setTrimEnd(0);
 			setSelectedPreset(null);
 			setResultUrl(null);
+			setResultExt(null);
 			setCapturedFrame(null);
 			resetAll();
 		});
@@ -185,6 +240,7 @@ function VideoStudio() {
 			if (videoUrl) URL.revokeObjectURL(videoUrl);
 			setFile(f);
 			setResultUrl(null);
+			setResultExt(null);
 			setSelectedPreset(null);
 			setCapturedFrame(null);
 			setTrimStart(0);
@@ -196,6 +252,23 @@ function VideoStudio() {
 
 			probe(f)
 				.then((result) => {
+					const videoStream = result.streams.find((s) => s.type === 'video');
+					const probedAudioStreams = result.streams.filter((s) => s.type === 'audio');
+					const probedSubtitleStreams = result.streams.filter((s) => s.type === 'subtitle');
+
+					const defaultAudioTrackIndex = (() => {
+						const i = probedAudioStreams.findIndex((s) => s.isDefault);
+						return i >= 0 ? i : 0;
+					})();
+
+					const defaultSubtitleTrackIndex = (() => {
+						const iDefault = probedSubtitleStreams.findIndex((s) => s.isDefault);
+						if (iDefault >= 0) return iDefault;
+						const iForced = probedSubtitleStreams.findIndex((s) => s.isForced);
+						if (iForced >= 0) return iForced;
+						return 0;
+					})();
+
 					setProbeResult({
 						duration: result.duration,
 						bitrate: result.bitrate,
@@ -211,9 +284,18 @@ function VideoStudio() {
 							channels: s.channels,
 							language: s.language,
 							bitrate: s.bitrate,
+							isDefault: s.isDefault,
+							isForced: s.isForced,
 						})),
 					});
-					const vs = result.streams.find((s) => s.type === 'video');
+					setTracks({
+						audioEnabled: probedAudioStreams.length > 0,
+						audioTrackIndex: defaultAudioTrackIndex,
+						subtitleEnabled: probedSubtitleStreams.length > 0,
+						subtitleTrackIndex: defaultSubtitleTrackIndex,
+					});
+
+					const vs = videoStream;
 					if (vs?.width && vs.height) {
 						setResize({
 							width: vs.width,
@@ -228,7 +310,7 @@ function VideoStudio() {
 					// Probe failure is non-critical
 				});
 		},
-		[probe, setProbeResult, setResize, videoUrl],
+		[probe, setProbeResult, setTracks, setResize, videoUrl],
 	);
 
 	const handleVideoLoaded = useCallback(() => {
@@ -338,6 +420,7 @@ function VideoStudio() {
 		const isCustom = useCustomExport || !selectedPreset;
 
 		setResultUrl(null);
+		setResultExt(null);
 		exportStartRef.current = Date.now();
 		const clipDuration = Math.max(trimEnd - trimStart, 0.5);
 
@@ -347,21 +430,27 @@ function VideoStudio() {
 		if (trimStart > 0) args.push('-ss', trimStart.toFixed(3));
 		if (trimEnd < duration) args.push('-t', clipDuration.toFixed(3));
 
-		// Audio/subtitle control (use FFmpeg auto-selection for streams)
-		if (!tracks.audioEnabled) {
-			args.push('-an');
-		} else if (probeResult && audioStreams.length > 1) {
-			args.push('-map', '0:v:0', '-map', `0:a:${tracks.audioTrackIndex}`);
-		}
-		args.push('-sn');
+		const selectedAudioStream = tracks.audioEnabled ? audioStreams[tracks.audioTrackIndex] : undefined;
+		const selectedSubtitleStream = tracks.subtitleEnabled ? subtitleStreams[tracks.subtitleTrackIndex] : undefined;
 
-		// Build -vf filter chain (combine resize + color correction)
+		// Build -vf filter chain (resize + color correction + optional ASS render)
 		const vfParts = [...resizeFilterArgs(), ...ffmpegFilterArgs()];
+		const subtitlesEnabled = selectedSubtitleStream != null;
+		const selectedVideoStream = probeResult?.streams.find((s) => s.type === 'video');
+		if (subtitlesEnabled) {
+			const inputExt = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : '';
+			const inputName = `input${inputExt}`;
+			const originalSize =
+				selectedVideoStream?.width && selectedVideoStream?.height
+					? `:original_size=${selectedVideoStream.width}x${selectedVideoStream.height}`
+					: '';
+			vfParts.push(`subtitles=${inputName}:si=${selectedSubtitleStream.index}${originalSize}`);
+		}
+		const noVideoFilters = vfParts.length === 0;
 
 		// Detect if we can use stream copy (no re-encoding = near-instant)
 		const sourceVideoCodec = probeResult?.streams.find((s) => s.type === 'video')?.codec;
-		const sourceAudioCodec = probeResult?.streams.find((s) => s.type === 'audio')?.codec;
-		const noVideoFilters = vfParts.length === 0;
+		const sourceAudioCodec = selectedAudioStream?.codec;
 
 		const codecToLib: Record<string, string> = {
 			h264: 'libx264',
@@ -373,13 +462,15 @@ function VideoStudio() {
 
 		let outputName: string;
 		let ext: string;
+		let includeAudio = selectedAudioStream != null;
 
 		if (isCustom) {
 			const s = advancedSettings;
+			includeAudio = includeAudio && s.audioCodec !== 'none';
 			const sourceLib = sourceVideoCodec ? codecToLib[sourceVideoCodec] : undefined;
 			const sourceAudioLib = sourceAudioCodec ? audioCodecToLib[sourceAudioCodec] : undefined;
 			const canCopyVideo = noVideoFilters && sourceLib === s.codec;
-			const canCopyAudio = tracks.audioEnabled && s.audioCodec !== 'none' && sourceAudioLib === s.audioCodec;
+			const canCopyAudio = includeAudio && sourceAudioLib === s.audioCodec;
 
 			if (canCopyVideo) {
 				args.push('-c:v', 'copy');
@@ -396,7 +487,7 @@ function VideoStudio() {
 				}
 			}
 
-			if (s.audioCodec !== 'none' && tracks.audioEnabled) {
+			if (includeAudio) {
 				if (canCopyAudio) {
 					args.push('-c:a', 'copy');
 				} else {
@@ -422,7 +513,7 @@ function VideoStudio() {
 				args.push(...presetArgs);
 			}
 
-			if (tracks.audioEnabled) {
+			if (includeAudio) {
 				const audioCodecForFormat = format === 'webm' ? 'libopus' : 'aac';
 				args.push('-c:a', audioCodecForFormat, '-b:a', '96k');
 			}
@@ -430,6 +521,10 @@ function VideoStudio() {
 			ext = format;
 			outputName = `output.${ext}`;
 		}
+
+		// Explicit stream mapping keeps selected tracks deterministic.
+		args.push('-map', '0:v:0');
+		if (includeAudio && selectedAudioStream) args.push('-map', `0:${selectedAudioStream.index}`);
 
 		// 10s timeout: cancel if no progress at all
 		const timeoutId = setTimeout(() => {
@@ -445,6 +540,7 @@ function VideoStudio() {
 			const blob = new Blob([result], { type: `video/${ext}` });
 			const url = URL.createObjectURL(blob);
 			setResultUrl(url);
+			setResultExt(ext);
 			toast.success('Export complete', { description: `vixely-export.${ext}` });
 
 			// Auto-download
@@ -467,6 +563,7 @@ function VideoStudio() {
 		probeResult,
 		tracks,
 		audioStreams,
+		subtitleStreams,
 		transcode,
 		cancel,
 		resizeFilterArgs,
@@ -475,6 +572,13 @@ function VideoStudio() {
 
 	const handleDownload = useCallback(() => {
 		if (!resultUrl) return;
+		if (resultExt) {
+			const a = document.createElement('a');
+			a.href = resultUrl;
+			a.download = `vixely-export.${resultExt}`;
+			a.click();
+			return;
+		}
 		let ext = 'mp4';
 		if (useCustomExport) {
 			ext = advancedSettings.container;
@@ -486,7 +590,7 @@ function VideoStudio() {
 		a.href = resultUrl;
 		a.download = `vixely-export.${ext}`;
 		a.click();
-	}, [resultUrl, selectedPreset, useCustomExport, advancedSettings]);
+	}, [resultUrl, resultExt, selectedPreset, useCustomExport, advancedSettings]);
 
 	/* ── Frame helpers ── */
 	const timeToFrames = (t: number) => Math.round(t * videoFps);
@@ -1110,6 +1214,8 @@ function VideoStudio() {
 							<VideoPlayer
 								src={videoUrl}
 								videoRef={videoRef}
+								fallbackSubtitleVtt={subtitlePreviewVtt}
+								assSubtitleContent={assSubtitleContent}
 								onLoadedMetadata={handleVideoLoaded}
 								onTimeUpdate={handleTimeUpdate}
 								onSeek={handleSeek}

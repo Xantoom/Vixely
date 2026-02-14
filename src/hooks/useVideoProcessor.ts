@@ -34,7 +34,15 @@ interface ProbeRequest {
 	file: File;
 }
 
-type WorkerRequest = TranscodeRequest | GifRequest | ScreenshotRequest | ProbeRequest;
+interface SubtitlePreviewRequest {
+	type: 'SUBTITLE_PREVIEW';
+	requestId: number;
+	file: File;
+	streamIndex: number;
+	subtitleCodec?: string;
+}
+
+type WorkerRequest = TranscodeRequest | GifRequest | ScreenshotRequest | ProbeRequest | SubtitlePreviewRequest;
 
 interface ProgressResponse {
 	type: 'PROGRESS';
@@ -70,13 +78,22 @@ interface ProbeResultResponse {
 	result: ProbeResultData;
 }
 
+interface SubtitlePreviewResultResponse {
+	type: 'SUBTITLE_PREVIEW_RESULT';
+	requestId: number;
+	format: 'ass' | 'webvtt';
+	content: string;
+	fallbackWebVtt?: string;
+}
+
 type WorkerResponse =
 	| ProgressResponse
 	| DoneResponse
 	| ErrorResponse
 	| ReadyResponse
 	| LogResponse
-	| ProbeResultResponse;
+	| ProbeResultResponse
+	| SubtitlePreviewResultResponse;
 
 // ── Hook State ──
 
@@ -118,6 +135,12 @@ interface ScreenshotOptions {
 	timestamp: number;
 }
 
+export interface SubtitlePreviewData {
+	format: 'ass' | 'webvtt';
+	content: string;
+	fallbackWebVtt?: string;
+}
+
 const INITIAL_STATS: ExportStats = { fps: 0, frame: 0, speed: 0, elapsedMs: 0 };
 
 function createWorker() {
@@ -137,6 +160,12 @@ export function useVideoProcessor() {
 	const rejectRef = useRef<((err: Error) => void) | null>(null);
 	const probeResolveRef = useRef<((data: ProbeResultData) => void) | null>(null);
 	const probeRejectRef = useRef<((err: Error) => void) | null>(null);
+	const subtitleRequestIdRef = useRef(0);
+	const subtitlePendingRef = useRef<{
+		requestId: number;
+		resolve: (preview: SubtitlePreviewData) => void;
+		reject: (err: Error) => void;
+	} | null>(null);
 	const exportStartRef = useRef<number>(0);
 
 	const attachWorker = useCallback((worker: Worker) => {
@@ -174,6 +203,16 @@ export function useVideoProcessor() {
 					probeRejectRef.current = null;
 					break;
 
+				case 'SUBTITLE_PREVIEW_RESULT':
+					if (subtitlePendingRef.current?.requestId !== msg.requestId) break;
+					subtitlePendingRef.current.resolve({
+						format: msg.format,
+						content: msg.content,
+						fallbackWebVtt: msg.fallbackWebVtt,
+					});
+					subtitlePendingRef.current = null;
+					break;
+
 				case 'ERROR':
 					console.error('[hook] worker ERROR:', msg.error);
 					setState((s) => ({ ...s, processing: false, error: msg.error }));
@@ -183,9 +222,12 @@ export function useVideoProcessor() {
 					probeRejectRef.current?.(new Error(msg.error));
 					probeResolveRef.current = null;
 					probeRejectRef.current = null;
+					subtitlePendingRef.current?.reject(new Error(msg.error));
+					subtitlePendingRef.current = null;
 					break;
 
 				case 'LOG':
+					console.debug('[hook] worker LOG:', msg.message);
 					break;
 			}
 		};
@@ -200,6 +242,8 @@ export function useVideoProcessor() {
 			probeResolveRef.current = null;
 			probeRejectRef.current?.(err);
 			probeRejectRef.current = null;
+			subtitlePendingRef.current?.reject(err);
+			subtitlePendingRef.current = null;
 		};
 
 		workerRef.current = worker;
@@ -227,10 +271,19 @@ export function useVideoProcessor() {
 		probeRejectRef.current?.(err);
 		probeResolveRef.current = null;
 		probeRejectRef.current = null;
+		subtitlePendingRef.current?.reject(err);
+		subtitlePendingRef.current = null;
 
 		// Kill the stuck worker and spin up a fresh one
 		old.terminate();
-		setState((s) => ({ ...s, ready: false, processing: false, progress: 0, exportStats: INITIAL_STATS, error: null }));
+		setState((s) => ({
+			...s,
+			ready: false,
+			processing: false,
+			progress: 0,
+			exportStats: INITIAL_STATS,
+			error: null,
+		}));
 
 		const next = createWorker();
 		attachWorker(next);
@@ -244,13 +297,7 @@ export function useVideoProcessor() {
 			}
 
 			exportStartRef.current = Date.now();
-			setState((s) => ({
-				...s,
-				processing: true,
-				progress: 0,
-				exportStats: INITIAL_STATS,
-				error: null,
-			}));
+			setState((s) => ({ ...s, processing: true, progress: 0, exportStats: INITIAL_STATS, error: null }));
 			resolveRef.current = resolve;
 			rejectRef.current = reject;
 			workerRef.current.postMessage(message);
@@ -301,5 +348,27 @@ export function useVideoProcessor() {
 		});
 	}, []);
 
-	return { ...state, transcode, createGif, captureFrame, probe, cancel };
+	const extractSubtitlePreview = useCallback(
+		(file: File, streamIndex: number, subtitleCodec?: string): Promise<SubtitlePreviewData> => {
+			return new Promise<SubtitlePreviewData>((resolve, reject) => {
+				if (!workerRef.current) {
+					reject(new Error('Worker not initialized'));
+					return;
+				}
+				const requestId = ++subtitleRequestIdRef.current;
+				subtitlePendingRef.current?.reject(new Error('Superseded by newer subtitle preview request'));
+				subtitlePendingRef.current = { requestId, resolve, reject };
+				workerRef.current.postMessage({
+					type: 'SUBTITLE_PREVIEW',
+					requestId,
+					file,
+					streamIndex,
+					subtitleCodec,
+				});
+			});
+		},
+		[],
+	);
+
+	return { ...state, transcode, createGif, captureFrame, probe, extractSubtitlePreview, cancel };
 }

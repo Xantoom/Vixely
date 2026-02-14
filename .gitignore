@@ -25,3 +25,9 @@ public/ffmpeg/
 
 # --- RUST ---
 vixely-core/target/
+
+# --- BUN ---
+.bun-cache/
+.bun-install/
+.bun-tmp/
+.tanstack/
