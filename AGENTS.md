@@ -1,16 +1,20 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
+
 `src/` contains the React app:
+
 - `components/` UI and editor feature components (`video/`, `image/`, `gif/`, `ui/`)
 - `routes/` TanStack Router route files (`routes/tools/*` for editor pages)
 - `stores/` Zustand state stores
 - `hooks/`, `utils/`, `workers/`, `config/` shared logic and runtime config
 - `wasm/` generated Rust bindings/artifacts consumed by the app
 
-Rust/WASM source lives in `vixely-core/` (Cargo crate). Static assets are in `public/`. Deployment and infra docs are in `docs/`. Build output goes to `dist/` (do not edit manually).
+Rust/WASM source lives in `vixely-core/` (Cargo crate). Static assets are in `public/`. Deployment and infra docs are in
+`docs/`. Build output goes to `dist/` (do not edit manually).
 
 ## Build, Test, and Development Commands
+
 - `bun install` installs dependencies and runs `postinstall` (`setup:ffmpeg`).
 - `bun run dev` starts the Vite dev server.
 - `bun run build` creates a production bundle in `dist/`.
@@ -22,9 +26,12 @@ Rust/WASM source lives in `vixely-core/` (Cargo crate). Static assets are in `pu
 - `bun run fmt:check` verifies formatting (used in CI).
 
 ## Coding Style & Naming Conventions
-Formatting is enforced by `.editorconfig` and `.oxfmtrc.jsonc`: tabs, width 4, UTF-8, LF, semicolons, single quotes, trailing commas. Lint rules are in `.oxlintrc.json`.
+
+Formatting is enforced by `.editorconfig` and `.oxfmtrc.jsonc`: tabs, width 4, UTF-8, LF, semicolons, single quotes,
+trailing commas. Lint rules are in `.oxlintrc.json`.
 
 Use TypeScript strict mode patterns. Naming:
+
 - React components: `PascalCase` file names (for example `VideoPlayer.tsx`)
 - Hooks: `useSomething.ts`
 - Stores/util modules: `camelCase.ts`
@@ -32,7 +39,10 @@ Use TypeScript strict mode patterns. Naming:
 Use `@/` imports for `src/*` paths. Do not manually edit generated files such as `src/routeTree.gen.ts`.
 
 ## Testing Guidelines
-There is currently no dedicated unit-test suite in the repository. Treat this as the minimum verification set before opening a PR:
+
+There is currently no dedicated unit-test suite in the repository. Treat this as the minimum verification set before
+opening a PR:
+
 1. `bun run lint`
 2. `bun run fmt:check`
 3. `bun run build:wasm` (if Rust/WASM code changed)
