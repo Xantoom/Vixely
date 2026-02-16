@@ -33,4 +33,4 @@ Left sidebar on every page. Upper bar et right sidebar on editors pages. Three m
 - **Always** use skills, like vercel-react-best-practices.
 - Don't write comments if unnecessary.
 - Be careful about UI and UX design, always think about User experience.
-- Be careful about repsonsive (should work on ANY device).
+- Be careful about responsive (should work on ANY device).

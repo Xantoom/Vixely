@@ -28,13 +28,13 @@ export function ExportPanel({
 			<h3 className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider">Export</h3>
 
 			{!selectedPreset && (
-				<p className="text-xs text-text-tertiary">Select a preset from the Presets tab first.</p>
+				<p className="text-[13px] text-text-tertiary">Select a preset from the Presets tab first.</p>
 			)}
 
 			{selectedPreset && (
 				<div className="rounded-lg bg-accent/5 border border-accent/20 px-3 py-2">
-					<p className="text-xs text-accent font-medium">Preset selected</p>
-					<p className="text-[12px] text-text-tertiary mt-0.5">
+					<p className="text-[13px] text-accent font-medium">Preset selected</p>
+					<p className="text-[13px] text-text-tertiary mt-0.5">
 						Ready to export. Color corrections will be baked in.
 					</p>
 				</div>
@@ -50,7 +50,7 @@ export function ExportPanel({
 							style={{ width: `${progress * 100}%` }}
 						/>
 					</div>
-					<p className="mt-2 text-[12px] text-text-tertiary">Do not close this tab during export.</p>
+					<p className="mt-2 text-[13px] text-text-tertiary">Do not close this tab during export.</p>
 				</div>
 			)}
 

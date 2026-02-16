@@ -1,6 +1,7 @@
 import { Undo2, Redo2, ZoomOut, ZoomIn, Maximize, MousePointer, Crop, Columns2 } from 'lucide-react';
 import { useCallback } from 'react';
-import type { ActiveTool, Filters } from '@/stores/imageEditor.ts';
+import { useShallow } from 'zustand/react/shallow';
+import type { ActiveTool } from '@/stores/imageEditor.ts';
 import { useImageEditorStore } from '@/stores/imageEditor.ts';
 import { formatDimensions } from '@/utils/format.ts';
 
@@ -36,18 +37,19 @@ function Separator() {
 }
 
 interface ImageToolbarProps {
-	processFn: (data: ImageData, filters: Filters) => Promise<ImageData>;
 	containerRef: React.RefObject<HTMLDivElement | null>;
 }
 
-export function ImageToolbar({ processFn, containerRef }: ImageToolbarProps) {
+export function ImageToolbar({ containerRef }: ImageToolbarProps) {
 	const {
-		view,
-		undoStack,
-		redoStack,
+		zoom,
+		undoCount,
+		redoCount,
 		activeTool,
 		crop,
-		originalData,
+		hasOriginal,
+		originalWidth,
+		originalHeight,
 		compareMode,
 		setCompareMode,
 		undo,
@@ -58,11 +60,32 @@ export function ImageToolbar({ processFn, containerRef }: ImageToolbarProps) {
 		zoomTo,
 		applyCrop,
 		cancelCrop,
-	} = useImageEditorStore();
+	} = useImageEditorStore(
+		useShallow((s) => ({
+			zoom: s.view.zoom,
+			undoCount: s.undoStack.length,
+			redoCount: s.redoStack.length,
+			activeTool: s.activeTool,
+			crop: s.crop,
+			hasOriginal: s.originalData != null,
+			originalWidth: s.originalData?.width ?? 0,
+			originalHeight: s.originalData?.height ?? 0,
+			compareMode: s.compareMode,
+			setCompareMode: s.setCompareMode,
+			undo: s.undo,
+			redo: s.redo,
+			resetAll: s.resetAll,
+			setActiveTool: s.setActiveTool,
+			fitToView: s.fitToView,
+			zoomTo: s.zoomTo,
+			applyCrop: s.applyCrop,
+			cancelCrop: s.cancelCrop,
+		})),
+	);
 
-	const handleUndo = useCallback(() => undo(processFn), [undo, processFn]);
-	const handleRedo = useCallback(() => redo(processFn), [redo, processFn]);
-	const handleApplyCrop = useCallback(() => applyCrop(), [applyCrop]);
+	const handleApplyCrop = useCallback(() => {
+		applyCrop();
+	}, [applyCrop]);
 
 	const handleFit = useCallback(() => {
 		const el = containerRef.current;
@@ -75,16 +98,16 @@ export function ImageToolbar({ processFn, containerRef }: ImageToolbarProps) {
 		if (!el) return;
 		const cx = el.clientWidth / 2;
 		const cy = el.clientHeight / 2;
-		zoomTo(Math.min(10, view.zoom * 1.25), cx, cy);
-	}, [view.zoom, zoomTo, containerRef]);
+		zoomTo(Math.min(10, zoom * 1.25), cx, cy);
+	}, [zoom, zoomTo, containerRef]);
 
 	const handleZoomOut = useCallback(() => {
 		const el = containerRef.current;
 		if (!el) return;
 		const cx = el.clientWidth / 2;
 		const cy = el.clientHeight / 2;
-		zoomTo(Math.max(0.1, view.zoom / 1.25), cx, cy);
-	}, [view.zoom, zoomTo, containerRef]);
+		zoomTo(Math.max(0.1, zoom / 1.25), cx, cy);
+	}, [zoom, zoomTo, containerRef]);
 
 	const handleToolChange = useCallback(
 		(tool: ActiveTool) => {
@@ -102,10 +125,10 @@ export function ImageToolbar({ processFn, containerRef }: ImageToolbarProps) {
 	return (
 		<div className="h-11 flex items-center px-2 gap-0.5 border-b border-border bg-surface shrink-0 select-none overflow-x-auto">
 			{/* Undo / Redo */}
-			<IconButton onClick={handleUndo} disabled={undoStack.length === 0} title="Undo (Ctrl+Z)">
+			<IconButton onClick={undo} disabled={undoCount === 0} title="Undo (Ctrl+Z)">
 				<Undo2 size={16} />
 			</IconButton>
-			<IconButton onClick={handleRedo} disabled={redoStack.length === 0} title="Redo (Ctrl+Shift+Z)">
+			<IconButton onClick={redo} disabled={redoCount === 0} title="Redo (Ctrl+Shift+Z)">
 				<Redo2 size={16} />
 			</IconButton>
 
@@ -115,8 +138,8 @@ export function ImageToolbar({ processFn, containerRef }: ImageToolbarProps) {
 			<IconButton onClick={handleZoomOut} title="Zoom out">
 				<ZoomOut size={16} />
 			</IconButton>
-			<span className="text-[12px] font-mono text-text-tertiary tabular-nums w-10 text-center">
-				{Math.round(view.zoom * 100)}%
+			<span className="text-[13px] font-mono text-text-tertiary tabular-nums w-10 text-center">
+				{Math.round(zoom * 100)}%
 			</span>
 			<IconButton onClick={handleZoomIn} title="Zoom in">
 				<ZoomIn size={16} />
@@ -128,10 +151,22 @@ export function ImageToolbar({ processFn, containerRef }: ImageToolbarProps) {
 			<Separator />
 
 			{/* Tool select */}
-			<IconButton onClick={() => handleToolChange('pointer')} active={activeTool === 'pointer'} title="Pointer">
+			<IconButton
+				onClick={() => {
+					handleToolChange('pointer');
+				}}
+				active={activeTool === 'pointer'}
+				title="Pointer"
+			>
 				<MousePointer size={16} />
 			</IconButton>
-			<IconButton onClick={() => handleToolChange('crop')} active={activeTool === 'crop'} title="Crop">
+			<IconButton
+				onClick={() => {
+					handleToolChange('crop');
+				}}
+				active={activeTool === 'crop'}
+				title="Crop"
+			>
 				<Crop size={16} />
 			</IconButton>
 
@@ -141,7 +176,7 @@ export function ImageToolbar({ processFn, containerRef }: ImageToolbarProps) {
 			<IconButton
 				onClick={handleToggleCompare}
 				active={compareMode}
-				disabled={!originalData}
+				disabled={!hasOriginal}
 				title="Split compare"
 			>
 				<Columns2 size={16} />
@@ -153,13 +188,13 @@ export function ImageToolbar({ processFn, containerRef }: ImageToolbarProps) {
 					<Separator />
 					<button
 						onClick={handleApplyCrop}
-						className="h-6 px-2 rounded-md text-[12px] font-medium bg-accent/15 text-accent hover:bg-accent/25 transition-colors cursor-pointer"
+						className="h-6 px-2 rounded-md text-[13px] font-medium bg-accent/15 text-accent hover:bg-accent/25 transition-colors cursor-pointer"
 					>
 						Apply
 					</button>
 					<button
 						onClick={cancelCrop}
-						className="h-6 px-2 rounded-md text-[12px] font-medium text-text-tertiary hover:text-text hover:bg-surface-raised/60 transition-colors cursor-pointer"
+						className="h-6 px-2 rounded-md text-[13px] font-medium text-text-tertiary hover:text-text hover:bg-surface-raised/60 transition-colors cursor-pointer"
 					>
 						Cancel
 					</button>
@@ -170,17 +205,17 @@ export function ImageToolbar({ processFn, containerRef }: ImageToolbarProps) {
 			<div className="flex-1" />
 
 			{/* Dimensions display */}
-			{originalData && (
-				<span className="text-[12px] font-mono text-text-tertiary tabular-nums mr-2">
-					{formatDimensions(originalData.width, originalData.height)}
+			{hasOriginal && (
+				<span className="text-[13px] font-mono text-text-tertiary tabular-nums mr-2">
+					{formatDimensions(originalWidth, originalHeight)}
 				</span>
 			)}
 
 			{/* Reset all */}
 			<button
 				onClick={resetAll}
-				disabled={!originalData}
-				className="h-6 px-2 rounded-md text-[12px] font-medium text-text-tertiary hover:text-danger hover:bg-danger/10 transition-colors cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
+				disabled={!hasOriginal}
+				className="h-6 px-2 rounded-md text-[13px] font-medium text-text-tertiary hover:text-danger hover:bg-danger/10 transition-colors cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
 				title="Reset all changes"
 			>
 				Reset All

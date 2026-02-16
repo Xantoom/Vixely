@@ -121,7 +121,9 @@ export function usePanZoom({ containerRef, view, setView, zoomTo, enabled, leftC
 		};
 
 		el.addEventListener('wheel', onWheel, { passive: false });
-		return () => el.removeEventListener('wheel', onWheel);
+		return () => {
+			el.removeEventListener('wheel', onWheel);
+		};
 	}, [containerRef, enabled]);
 
 	const getIsPanning = useCallback(() => panningState.current, []);

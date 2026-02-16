@@ -21,10 +21,20 @@ export const useGifEditorStore = create<GifEditorState>((set) => ({
 	reverse: false,
 	colorReduction: 256,
 
-	setMode: (mode) => set({ mode }),
-	setSpeed: (speed) => set({ speed }),
-	setReverse: (reverse) => set({ reverse }),
-	setColorReduction: (colorReduction) => set({ colorReduction }),
+	setMode: (mode) => {
+		set({ mode });
+	},
+	setSpeed: (speed) => {
+		set({ speed });
+	},
+	setReverse: (reverse) => {
+		set({ reverse });
+	},
+	setColorReduction: (colorReduction) => {
+		set({ colorReduction });
+	},
 
-	resetAll: () => set({ mode: 'settings', speed: 1, reverse: false, colorReduction: 256 }),
+	resetAll: () => {
+		set({ mode: 'settings', speed: 1, reverse: false, colorReduction: 256 });
+	},
 }));

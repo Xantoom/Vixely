@@ -7,11 +7,15 @@ interface CompareSliderProps {
 }
 
 export function CompareSlider({ containerRef }: CompareSliderProps) {
-	const { comparePosition, setComparePosition, view, originalData } = useImageEditorStore();
+	const comparePosition = useImageEditorStore((s) => s.comparePosition);
+	const setComparePosition = useImageEditorStore((s) => s.setComparePosition);
+	const view = useImageEditorStore((s) => s.view);
+	const imageWidth = useImageEditorStore((s) => s.originalData?.width ?? 0);
+	const imageHeight = useImageEditorStore((s) => s.originalData?.height ?? 0);
 	const draggingRef = useRef(false);
 
-	const imgW = originalData?.width ?? 0;
-	const imgH = originalData?.height ?? 0;
+	const imgW = imageWidth;
+	const imgH = imageHeight;
 
 	// Image bounds in screen space (relative to container)
 	const imgLeft = view.panX;
@@ -36,7 +40,7 @@ export function CompareSlider({ containerRef }: CompareSliderProps) {
 		(e: React.PointerEvent) => {
 			e.preventDefault();
 			e.stopPropagation();
-			(e.target as HTMLElement).setPointerCapture(e.pointerId);
+			e.currentTarget.setPointerCapture(e.pointerId);
 			draggingRef.current = true;
 			setComparePosition(computeRatio(e.clientX));
 		},
@@ -62,13 +66,13 @@ export function CompareSlider({ containerRef }: CompareSliderProps) {
 		<div className="absolute inset-0 z-20 pointer-events-none" style={{ touchAction: 'none' }}>
 			{/* Labels (positioned within image bounds) */}
 			<div
-				className="absolute rounded-md bg-bg/70 px-2 py-0.5 text-[12px] font-medium backdrop-blur-sm text-text-secondary pointer-events-none"
+				className="absolute rounded-md bg-bg/70 px-2 py-0.5 text-[13px] font-medium backdrop-blur-sm text-text-secondary pointer-events-none"
 				style={{ left: imgLeft + 8, top: imgTop + 8 }}
 			>
 				Before
 			</div>
 			<div
-				className="absolute rounded-md bg-bg/70 px-2 py-0.5 text-[12px] font-medium backdrop-blur-sm text-text-secondary pointer-events-none"
+				className="absolute rounded-md bg-bg/70 px-2 py-0.5 text-[13px] font-medium backdrop-blur-sm text-text-secondary pointer-events-none"
 				style={{ left: imgLeft + imgScreenW - 52, top: imgTop + 8 }}
 			>
 				After

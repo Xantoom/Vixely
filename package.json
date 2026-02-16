@@ -3,16 +3,13 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"setup:ffmpeg": "mkdir -p public/ffmpeg && cp node_modules/@ffmpeg/core-mt/dist/esm/ffmpeg-core.js public/ffmpeg/ffmpeg-core.js && cp node_modules/@ffmpeg/core-mt/dist/esm/ffmpeg-core.wasm public/ffmpeg/ffmpeg-core.wasm && cp node_modules/@ffmpeg/core-mt/dist/esm/ffmpeg-core.worker.js public/ffmpeg/ffmpeg-core.worker.js && cp node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.js public/ffmpeg/ffmpeg-core-st.js && cp node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.wasm public/ffmpeg/ffmpeg-core-st.wasm",
-		"postinstall": "bun run setup:ffmpeg",
+		"postinstall": "./scripts/copy-jassub.sh",
 		"dev": "vite",
-		"build": "vite build",
-		"build:wasm": "wasm-pack build vixely-core --target web --out-dir ../src/wasm --release",
-		"preview": "vite preview",
-		"lint": "oxlint .",
-		"lint:fix": "oxlint . --fix",
-		"fmt": "oxfmt . --write",
-		"fmt:check": "oxfmt . --check"
+		"build": "./scripts/build-wasm.sh && vite build",
+		"lint": "oxlint src --type-aware --type-check",
+		"lint:fix": "oxlint src --type-aware --type-check --fix",
+		"fmt": "oxfmt src --write",
+		"fmt:check": "oxfmt src --check"
 	},
 	"dependencies": {
 		"@ffmpeg/core": "0.12.10",
@@ -23,10 +20,13 @@
 		"@tanstack/react-router": "^1.159.5",
 		"jassub": "^2.4.1",
 		"lucide-react": "^0.563.0",
+		"mp4-muxer": "^5.2.2",
+		"mp4box": "^2.3.0",
 		"react": "^19.2.4",
 		"react-dom": "^19.2.4",
 		"react-helmet-async": "^2.0.5",
 		"sonner": "^2.0.7",
+		"webm-muxer": "^5.1.4",
 		"zustand": "^5.0.11"
 	},
 	"devDependencies": {
@@ -39,6 +39,7 @@
 		"@vitejs/plugin-react": "^5.1.4",
 		"oxfmt": "^0.28.0",
 		"oxlint": "^1.47.0",
+		"oxlint-tsgolint": "^0.13.0",
 		"tailwindcss": "^4.1.18",
 		"vite": "8.0.0-beta.13",
 		"vite-plugin-top-level-await": "^1.6.0",

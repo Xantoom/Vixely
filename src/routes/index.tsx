@@ -60,7 +60,7 @@ function HomePage() {
 			<div className="h-full flex flex-col items-center justify-center overflow-hidden bg-home-glow animate-fade-in">
 				{/* Header */}
 				<div className="shrink-0 text-center mb-6 sm:mb-10 px-4">
-					<div className="inline-flex items-center gap-2 mb-4 rounded-full border border-border bg-surface/80 px-3.5 py-1.5 text-xs text-text-secondary">
+					<div className="inline-flex items-center gap-2 mb-4 rounded-full border border-border bg-surface/80 px-3.5 py-1.5 text-[13px] text-text-secondary">
 						<span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse-soft" />
 						Everything stays on your device
 					</div>
@@ -101,7 +101,7 @@ function HomePage() {
 								{editor.features.map((f) => (
 									<span
 										key={f}
-										className={`rounded-md px-2 py-0.5 text-[12px] font-medium ${editor.tagColor}`}
+										className={`rounded-md px-2 py-0.5 text-[13px] font-medium ${editor.tagColor}`}
 									>
 										{f}
 									</span>

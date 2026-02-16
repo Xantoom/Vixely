@@ -1,14 +1,21 @@
 import type JASSUB from 'jassub';
 import { Play, Pause, Volume2, VolumeX, Maximize, Languages, AudioLines, Check, CircleOff } from 'lucide-react';
 import { useRef, useState, useCallback, useEffect, useMemo, type RefObject } from 'react';
-import { formatTimecode } from '@/components/ui/index.ts';
+import { formatPlayerTime } from '@/components/ui/index.ts';
 import { useVideoEditorStore } from '@/stores/videoEditor.ts';
+
+interface EmbeddedFont {
+	name: string;
+	data: Uint8Array;
+}
 
 interface VideoPlayerProps {
 	src: string;
 	videoRef: RefObject<HTMLVideoElement | null>;
+	metadataLoading?: boolean;
 	fallbackSubtitleVtt?: string | null;
 	assSubtitleContent?: string | null;
+	embeddedFonts?: EmbeddedFont[];
 	onLoadedMetadata?: () => void;
 	onTimeUpdate?: () => void;
 	onSeek?: (time: number) => void;
@@ -24,22 +31,104 @@ interface ParsedSubtitleCue {
 
 const CRUNCHYROLL_SUBTITLE_FONT_STACK = '"Trebuchet MS", Verdana, "Noto Sans", sans-serif';
 
-function formatTrackLine(trackName: string, language?: string, codec?: string, channels?: number): string {
-	const lang = language?.trim() ? language.toUpperCase() : 'UND';
-	const codecLabel = codec?.trim() ? codec.toUpperCase() : '-';
-	const channelsLabel =
-		channels == null
-			? '-'
-			: channels === 1
-				? 'Mono'
-				: channels === 2
-					? 'Stereo'
-					: channels === 6
-						? '5.1'
-						: channels === 8
-							? '7.1'
-							: `${channels}ch`;
-	return `${trackName} - ${lang} - ${codecLabel} - ${channelsLabel}`;
+const LANG_NAMES: Record<string, string> = {
+	eng: 'English',
+	fre: 'French',
+	fra: 'French',
+	deu: 'German',
+	ger: 'German',
+	spa: 'Spanish',
+	ita: 'Italian',
+	jpn: 'Japanese',
+	zho: 'Chinese',
+	chi: 'Chinese',
+	kor: 'Korean',
+	por: 'Portuguese',
+	rus: 'Russian',
+	ara: 'Arabic',
+	hin: 'Hindi',
+	pol: 'Polish',
+	tur: 'Turkish',
+	nld: 'Dutch',
+	dut: 'Dutch',
+	swe: 'Swedish',
+	nor: 'Norwegian',
+	dan: 'Danish',
+	fin: 'Finnish',
+	ces: 'Czech',
+	cze: 'Czech',
+	hun: 'Hungarian',
+	ron: 'Romanian',
+	rum: 'Romanian',
+	tha: 'Thai',
+	vie: 'Vietnamese',
+	ind: 'Indonesian',
+	may: 'Malay',
+	msa: 'Malay',
+	heb: 'Hebrew',
+	ukr: 'Ukrainian',
+	bul: 'Bulgarian',
+	hrv: 'Croatian',
+	slk: 'Slovak',
+	slo: 'Slovak',
+	slv: 'Slovenian',
+	cat: 'Catalan',
+	ell: 'Greek',
+	gre: 'Greek',
+	lat: 'Latin',
+	fil: 'Filipino',
+	tam: 'Tamil',
+	tel: 'Telugu',
+	ben: 'Bengali',
+	urd: 'Urdu',
+	per: 'Persian',
+	fas: 'Persian',
+};
+
+function getLanguageName(code?: string): string | null {
+	if (!code?.trim()) return null;
+	const lower = code.trim().toLowerCase();
+	if (lower === 'und' || lower === 'unk') return null;
+	return LANG_NAMES[lower] ?? code.toUpperCase();
+}
+
+function formatChannels(channels?: number): string | null {
+	if (channels == null) return null;
+	if (channels === 1) return 'Mono';
+	if (channels === 2) return 'Stereo';
+	if (channels === 6) return '5.1';
+	if (channels === 8) return '7.1';
+	return `${channels}ch`;
+}
+
+function formatCodecLabel(codec?: string): string | null {
+	if (!codec?.trim()) return null;
+	const c = codec.trim().toLowerCase();
+	const map: Record<string, string> = {
+		aac: 'AAC',
+		opus: 'Opus',
+		mp3: 'MP3',
+		mp3float: 'MP3',
+		vorbis: 'Vorbis',
+		flac: 'FLAC',
+		ac3: 'AC-3',
+		'eac3': 'E-AC-3',
+		'e-ac-3': 'E-AC-3',
+		dts: 'DTS',
+		truehd: 'TrueHD',
+		ass: 'ASS',
+		ssa: 'SSA',
+		subrip: 'SRT',
+		srt: 'SRT',
+		webvtt: 'VTT',
+		vtt: 'VTT',
+		mov_text: 'Text',
+		dvd_subtitle: 'DVD',
+		dvdsub: 'DVD',
+		hdmv_pgs_subtitle: 'PGS',
+		pgssub: 'PGS',
+	};
+	return map[c] ?? codec.toUpperCase();
 }
 
 function formatExactTime(seconds: number): string {
@@ -187,11 +276,55 @@ function parseWebVttCues(vtt: string): ParsedSubtitleCue[] {
 	return cues;
 }
 
+function findActiveCueText(cues: ParsedSubtitleCue[], time: number): string | null {
+	if (cues.length === 0) return null;
+	let lo = 0;
+	let hi = cues.length;
+	while (lo < hi) {
+		const mid = (lo + hi) >> 1;
+		if (cues[mid]!.start <= time) lo = mid + 1;
+		else hi = mid;
+	}
+
+	let idx = lo - 1;
+	if (idx < 0) return null;
+	const activeTexts: string[] = [];
+	while (idx >= 0) {
+		const cue = cues[idx]!;
+		if (cue.end < time) break;
+		if (cue.start <= time && cue.end >= time) activeTexts.unshift(cue.text);
+		idx--;
+	}
+	if (activeTexts.length === 0) return null;
+	return activeTexts.join('\n');
+}
+
+function getFontMimeType(filename: string): string {
+	const ext = filename.includes('.') ? filename.slice(filename.lastIndexOf('.')).toLowerCase() : '';
+	switch (ext) {
+		case '.otf':
+			return 'font/otf';
+		case '.woff':
+			return 'font/woff';
+		case '.woff2':
+			return 'font/woff2';
+		default:
+			return 'font/ttf';
+	}
+}
+
+function getFontFamilyFromFilename(filename: string): string {
+	const base = filename.includes('.') ? filename.slice(0, filename.lastIndexOf('.')) : filename;
+	return base.replaceAll(/[-_]/g, ' ');
+}
+
 export function VideoPlayer({
 	src,
 	videoRef,
+	metadataLoading = false,
 	fallbackSubtitleVtt,
 	assSubtitleContent,
+	embeddedFonts = [],
 	onLoadedMetadata,
 	onTimeUpdate,
 	onSeek,
@@ -208,32 +341,51 @@ export function VideoPlayer({
 	const [showControls, setShowControls] = useState(true);
 	const [openMenu, setOpenMenu] = useState<'audio' | 'subtitle' | null>(null);
 	const [assRenderState, setAssRenderState] = useState<'inactive' | 'initializing' | 'ready' | 'failed'>('inactive');
+	const [isFullscreen, setIsFullscreen] = useState(false);
 	const [videoSize, setVideoSize] = useState({ width: 0, height: 0 });
 	const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
 	const [seekHoverRatio, setSeekHoverRatio] = useState<number | null>(null);
 	const hideTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
 	const assRendererRef = useRef<JASSUB | null>(null);
 	const assRendererVersionRef = useRef(0);
+	const assRendererFontsRef = useRef<EmbeddedFont[] | null>(null);
 
 	const probeResult = useVideoEditorStore((s) => s.probeResult);
 	const tracks = useVideoEditorStore((s) => s.tracks);
 	const setTracks = useVideoEditorStore((s) => s.setTracks);
+	const videoFilters = useVideoEditorStore((s) => s.filters);
 	const subtitleEnabled = tracks.subtitleEnabled;
-	const audioStreams = probeResult?.streams.filter((s) => s.type === 'audio') ?? [];
-	const subtitleStreams = probeResult?.streams.filter((s) => s.type === 'subtitle') ?? [];
+	const audioStreams = useMemo(() => probeResult?.streams.filter((s) => s.type === 'audio') ?? [], [probeResult]);
+	const subtitleStreams = useMemo(
+		() => probeResult?.streams.filter((s) => s.type === 'subtitle') ?? [],
+		[probeResult],
+	);
 	const hasAudio = audioStreams.length > 0;
 	const hasSubtitles = subtitleStreams.length > 0;
+	const audioTrackMenuStreams = useMemo(() => {
+		return audioStreams.map((s, i) => {
+			const lang = getLanguageName(s.language);
+			const title = s.title?.trim();
+			const label = title || lang || `Track ${i + 1}`;
+			const details = [formatCodecLabel(s.codec), formatChannels(s.channels)].filter(Boolean).join(' · ');
+			return { label, details, isDefault: s.isDefault, isForced: s.isForced };
+		});
+	}, [audioStreams]);
+	const subtitleTrackMenuStreams = useMemo(() => {
+		return subtitleStreams.map((s, i) => {
+			const lang = getLanguageName(s.language);
+			const title = s.title?.trim();
+			const label = title || lang || `Track ${i + 1}`;
+			const details = [title && lang ? lang : null, formatCodecLabel(s.codec)].filter(Boolean).join(' · ');
+			return { label, details, isDefault: s.isDefault, isForced: s.isForced };
+		});
+	}, [subtitleStreams]);
 	const useFallbackSubtitleOverlay =
-		subtitleEnabled && Boolean(fallbackSubtitleVtt) && (!assSubtitleContent || assRenderState !== 'ready');
+		subtitleEnabled && Boolean(fallbackSubtitleVtt) && (!assSubtitleContent || assRenderState === 'failed');
 	const fallbackSubtitleCues = useMemo(() => parseWebVttCues(fallbackSubtitleVtt ?? ''), [fallbackSubtitleVtt]);
 	const fallbackSubtitleText = useMemo(() => {
 		if (!useFallbackSubtitleOverlay || fallbackSubtitleCues.length === 0) return null;
-		const activeTexts: string[] = [];
-		for (const cue of fallbackSubtitleCues) {
-			if (currentTime >= cue.start && currentTime <= cue.end) activeTexts.push(cue.text);
-		}
-		if (activeTexts.length === 0) return null;
-		return activeTexts.join('\n');
+		return findActiveCueText(fallbackSubtitleCues, currentTime);
 	}, [useFallbackSubtitleOverlay, fallbackSubtitleCues, currentTime]);
 	const fallbackSubtitleFontFamily = useMemo(() => {
 		const parsedAssFont = parseAssDefaultFontFamily(assSubtitleContent);
@@ -241,27 +393,65 @@ export function VideoPlayer({
 		return `"${parsedAssFont}", ${CRUNCHYROLL_SUBTITLE_FONT_STACK}`;
 	}, [assSubtitleContent]);
 
+	const combinedFilter = useMemo(() => {
+		const { brightness, contrast, saturation, hue } = videoFilters;
+		const parts: string[] = [];
+		if (brightness !== 0) parts.push(`brightness(${1 + brightness})`);
+		if (contrast !== 1) parts.push(`contrast(${contrast})`);
+		if (saturation !== 1) parts.push(`saturate(${saturation})`);
+		if (hue !== 0) parts.push(`hue-rotate(${hue}deg)`);
+		if (metadataLoading) parts.push('blur(2px)');
+		return parts.length > 0 ? parts.join(' ') : undefined;
+	}, [videoFilters, metadataLoading]);
+
 	const destroyAssRenderer = useCallback(() => {
 		assRendererVersionRef.current += 1;
 		const renderer = assRendererRef.current;
 		assRendererRef.current = null;
+		assRendererFontsRef.current = null;
 		if (!renderer) return;
-		void renderer.destroy().catch((err) => {
+		void renderer.destroy().catch((err: unknown) => {
 			console.error('[video] Failed to destroy ASS renderer', err);
 		});
+	}, []);
+
+	const repaintAssRenderer = useCallback(async () => {
+		const renderer = assRendererRef.current;
+		const video = videoRef.current;
+		if (!renderer) return;
+		await renderer.resize(Boolean(video?.paused));
+	}, [videoRef]);
+
+	const normalizeAssOverlayLayer = useCallback((video: HTMLVideoElement) => {
+		const parent = video.parentElement;
+		if (!parent) return;
+		const layer = Array.from(parent.children).find(
+			(node): node is HTMLElement => node instanceof HTMLElement && node.classList.contains('JASSUB'),
+		);
+		if (!layer) return;
+		layer.style.position = 'absolute';
+		layer.style.inset = '0';
+		layer.style.pointerEvents = 'none';
+		layer.style.zIndex = '1';
+		const canvas = layer.querySelector('canvas');
+		if (canvas instanceof HTMLCanvasElement) canvas.style.pointerEvents = 'none';
 	}, []);
 
 	const resetHideTimer = useCallback(() => {
 		setShowControls(true);
 		clearTimeout(hideTimeout.current);
 		if (playing) {
-			hideTimeout.current = setTimeout(() => setShowControls(false), 2500);
+			hideTimeout.current = setTimeout(() => {
+				setShowControls(false);
+			}, 2500);
 		}
 	}, [playing]);
 
 	useEffect(() => {
 		resetHideTimer();
-		return () => clearTimeout(hideTimeout.current);
+		return () => {
+			clearTimeout(hideTimeout.current);
+		};
 	}, [playing, resetHideTimer]);
 
 	useEffect(() => {
@@ -271,13 +461,80 @@ export function VideoPlayer({
 	useEffect(() => {
 		const container = containerRef.current;
 		if (!container) return;
-		const updateSize = () => {
-			setContainerSize({ width: container.clientWidth, height: container.clientHeight });
+
+		let fullscreenSyncRafA: number | null = null;
+		let fullscreenSyncRafB: number | null = null;
+		let fullscreenSyncTimer: ReturnType<typeof setTimeout> | null = null;
+
+		const resizeAssRenderer = () => {
+			void repaintAssRenderer().catch((err: unknown) => {
+				console.error('[video] Failed to resize ASS renderer after fullscreen change', err);
+			});
 		};
+
+		const updateSize = () => {
+			const fullscreenActive = document.fullscreenElement === container;
+			if (fullscreenActive) {
+				const viewport = window.visualViewport;
+				const width = Math.round(viewport?.width ?? window.innerWidth);
+				const height = Math.round(viewport?.height ?? window.innerHeight);
+				setContainerSize({ width, height });
+				return;
+			}
+			const rect = container.getBoundingClientRect();
+			const width = Math.round(container.clientWidth || rect.width || 0);
+			const height = Math.round(container.clientHeight || rect.height || 0);
+			setContainerSize({ width, height });
+		};
+		const scheduleFullscreenSync = () => {
+			if (fullscreenSyncRafA != null) cancelAnimationFrame(fullscreenSyncRafA);
+			if (fullscreenSyncRafB != null) cancelAnimationFrame(fullscreenSyncRafB);
+			if (fullscreenSyncTimer != null) clearTimeout(fullscreenSyncTimer);
+
+			fullscreenSyncRafA = requestAnimationFrame(() => {
+				updateSize();
+				resizeAssRenderer();
+				fullscreenSyncRafB = requestAnimationFrame(() => {
+					updateSize();
+					resizeAssRenderer();
+				});
+			});
+			fullscreenSyncTimer = setTimeout(() => {
+				updateSize();
+				resizeAssRenderer();
+			}, 180);
+		};
+		const handleFullscreenChange = () => {
+			const fullscreenActive = document.fullscreenElement === container;
+			setIsFullscreen(fullscreenActive);
+			if (fullscreenActive) {
+				scheduleFullscreenSync();
+				return;
+			}
+			updateSize();
+			resizeAssRenderer();
+		};
+		const handleWindowResize = () => {
+			if (document.fullscreenElement === container) {
+				scheduleFullscreenSync();
+				return;
+			}
+			updateSize();
+		};
+
 		updateSize();
 		const observer = new ResizeObserver(updateSize);
 		observer.observe(container);
-		return () => observer.disconnect();
+		window.addEventListener('resize', handleWindowResize);
+		document.addEventListener('fullscreenchange', handleFullscreenChange);
+		return () => {
+			observer.disconnect();
+			window.removeEventListener('resize', handleWindowResize);
+			document.removeEventListener('fullscreenchange', handleFullscreenChange);
+			if (fullscreenSyncRafA != null) cancelAnimationFrame(fullscreenSyncRafA);
+			if (fullscreenSyncRafB != null) cancelAnimationFrame(fullscreenSyncRafB);
+			if (fullscreenSyncTimer != null) clearTimeout(fullscreenSyncTimer);
+		};
 	}, []);
 
 	useEffect(() => {
@@ -285,6 +542,28 @@ export function VideoPlayer({
 			destroyAssRenderer();
 		};
 	}, [destroyAssRenderer]);
+
+	useEffect(() => {
+		if (embeddedFonts.length === 0) return;
+		const blobUrls: string[] = [];
+		const style = document.createElement('style');
+		style.dataset.vixelyFonts = 'true';
+		const rules: string[] = [];
+		for (const font of embeddedFonts) {
+			const mime = getFontMimeType(font.name);
+			const blob = new Blob([new Uint8Array(font.data)], { type: mime });
+			const url = URL.createObjectURL(blob);
+			blobUrls.push(url);
+			const family = getFontFamilyFromFilename(font.name);
+			rules.push(`@font-face { font-family: "${family}"; src: url("${url}"); font-display: swap; }`);
+		}
+		style.textContent = rules.join('\n');
+		document.head.appendChild(style);
+		return () => {
+			style.remove();
+			for (const url of blobUrls) URL.revokeObjectURL(url);
+		};
+	}, [embeddedFonts]);
 
 	useEffect(() => {
 		const video = videoRef.current;
@@ -309,7 +588,7 @@ export function VideoPlayer({
 					if (cancelled || version !== assRendererVersionRef.current) return;
 					await renderer.renderer.freeTrack();
 					if (cancelled || version !== assRendererVersionRef.current) return;
-					if (video.paused) await renderer.resize(true);
+					if (video.paused) await repaintAssRenderer();
 				} catch (err) {
 					console.error('[video] Failed to clear ASS track', err);
 					destroyAssRenderer();
@@ -329,19 +608,37 @@ export function VideoPlayer({
 				if (cancelled || version !== assRendererVersionRef.current) return;
 
 				let renderer = assRendererRef.current;
+				if (renderer && assRendererFontsRef.current !== embeddedFonts) {
+					assRendererRef.current = null;
+					assRendererFontsRef.current = null;
+					await renderer.destroy();
+					renderer = null;
+				}
+				if (cancelled || version !== assRendererVersionRef.current) return;
 				if (!renderer) {
-					renderer = new JassubRenderer({ video, subContent: content });
+					renderer = new JassubRenderer({
+						video,
+						subContent: content,
+						workerUrl: '/jassub/jassub-worker.js',
+						wasmUrl: '/jassub/jassub-worker.wasm',
+						...(embeddedFonts.length > 0
+							? { fonts: ['/jassub/default.woff2', ...embeddedFonts.map((f) => f.data)] }
+							: { fonts: ['/jassub/default.woff2'] }),
+						maxRenderHeight: 1440,
+					});
 					assRendererRef.current = renderer;
+					assRendererFontsRef.current = embeddedFonts;
 					await renderer.ready;
 				} else {
 					await renderer.setVideo(video);
 					await renderer.ready;
 				}
+				normalizeAssOverlayLayer(video);
 
 				if (cancelled || version !== assRendererVersionRef.current) return;
 				await renderer.renderer.setTrack(content);
 				if (cancelled || version !== assRendererVersionRef.current) return;
-				if (video.paused) await renderer.resize(true);
+				if (video.paused) await repaintAssRenderer();
 				if (cancelled || version !== assRendererVersionRef.current) return;
 				setAssRenderState('ready');
 			} catch (err) {
@@ -356,7 +653,15 @@ export function VideoPlayer({
 		return () => {
 			cancelled = true;
 		};
-	}, [videoRef, subtitleEnabled, assSubtitleContent, destroyAssRenderer]);
+	}, [
+		videoRef,
+		subtitleEnabled,
+		assSubtitleContent,
+		embeddedFonts,
+		destroyAssRenderer,
+		repaintAssRenderer,
+		normalizeAssOverlayLayer,
+	]);
 
 	const handleMetadata = useCallback(() => {
 		const v = videoRef.current;
@@ -382,18 +687,16 @@ export function VideoPlayer({
 		onTimeUpdate?.();
 
 		if (!v.paused || !subtitleEnabled || !assSubtitleContent?.trim()) return;
-		const renderer = assRendererRef.current;
-		if (!renderer) return;
-		void renderer.resize(true).catch((err) => {
+		void repaintAssRenderer().catch((err: unknown) => {
 			console.error('[video] Failed to repaint ASS subtitles after seek', err);
 		});
-	}, [videoRef, onTimeUpdate, subtitleEnabled, assSubtitleContent]);
+	}, [videoRef, onTimeUpdate, subtitleEnabled, assSubtitleContent, repaintAssRenderer]);
 
 	const togglePlay = useCallback(() => {
 		const v = videoRef.current;
 		if (!v) return;
 		if (v.paused) {
-			v.play();
+			void v.play().catch(() => {});
 			setPlaying(true);
 		} else {
 			v.pause();
@@ -479,13 +782,15 @@ export function VideoPlayer({
 		const el = containerRef.current;
 		if (!el) return;
 		if (document.fullscreenElement) {
-			document.exitFullscreen();
+			void document.exitFullscreen().catch(() => {});
 		} else {
-			el.requestFullscreen();
+			void el.requestFullscreen().catch(() => {});
 		}
 	}, []);
 
-	const handleEnded = useCallback(() => setPlaying(false), []);
+	const handleEnded = useCallback(() => {
+		setPlaying(false);
+	}, []);
 
 	const pct = duration > 0 ? (currentTime / duration) * 100 : 0;
 	const playerFrameStyle = useMemo(() => {
@@ -502,13 +807,18 @@ export function VideoPlayer({
 		<div
 			ref={containerRef}
 			className="relative w-full h-full group overflow-hidden flex items-center justify-center"
-			onDragOver={(e) => e.preventDefault()}
+			style={isFullscreen ? { width: '100vw', height: '100vh' } : undefined}
+			onDragOver={(e) => {
+				e.preventDefault();
+			}}
 		>
 			<div
-				className="relative overflow-hidden rounded-xl"
+				className="relative overflow-hidden rounded-xl transition-[width,height] duration-200"
 				style={playerFrameStyle}
 				onPointerMove={resetHideTimer}
-				onPointerLeave={() => playing && setShowControls(false)}
+				onPointerLeave={() => {
+					if (playing) setShowControls(false);
+				}}
 			>
 				<video
 					ref={videoRef}
@@ -516,13 +826,25 @@ export function VideoPlayer({
 					onLoadedMetadata={handleMetadata}
 					onTimeUpdate={handleTimeUpdate}
 					onSeeked={handleSeeked}
-					onPlay={() => setPlaying(true)}
-					onPause={() => setPlaying(false)}
+					onPlay={() => {
+						setPlaying(true);
+					}}
+					onPause={() => {
+						setPlaying(false);
+					}}
 					onEnded={handleEnded}
+					onError={(e) => {
+						const video = e.currentTarget;
+						const err = video.error;
+						if (err) console.error('[video] Media error', { code: err.code, message: err.message });
+					}}
 					onClick={togglePlay}
 					draggable={false}
-					onDragStart={(e) => e.preventDefault()}
-					className="w-full h-full object-contain cursor-pointer"
+					onDragStart={(e) => {
+						e.preventDefault();
+					}}
+					className="w-full h-full object-contain cursor-pointer transition-[filter] duration-200"
+					style={combinedFilter ? { filter: combinedFilter } : undefined}
 				/>
 
 				{fallbackSubtitleText && (
@@ -537,7 +859,7 @@ export function VideoPlayer({
 				)}
 
 				<div
-					className={`absolute bottom-0 left-0 right-0 rounded-b-xl bg-gradient-to-t from-black/80 to-transparent px-3 sm:px-4 pt-8 pb-3 transition-opacity duration-200 ${
+					className={`absolute bottom-0 left-0 right-0 z-20 rounded-b-xl bg-gradient-to-t from-black/80 to-transparent px-3 sm:px-4 pt-8 pb-3 transition-opacity duration-200 ${
 						showControls || !playing ? 'opacity-100' : 'opacity-0 pointer-events-none'
 					}`}
 				>
@@ -552,7 +874,7 @@ export function VideoPlayer({
 					>
 						{seekHoverRatio != null && (
 							<div
-								className="pointer-events-none absolute bottom-full mb-2 -translate-x-1/2 rounded-md border border-white/20 bg-black/85 px-1.5 py-0.5 text-[11px] font-mono tabular-nums text-white shadow-lg"
+								className="pointer-events-none absolute bottom-full mb-2 -translate-x-1/2 rounded-md border border-white/20 bg-black/85 px-1.5 py-0.5 text-[13px] font-mono tabular-nums text-white shadow-lg"
 								style={{ left: `${seekHoverRatio * 100}%` }}
 							>
 								{formatExactTime(seekHoverRatio * duration)}
@@ -579,7 +901,7 @@ export function VideoPlayer({
 
 						{/* Time */}
 						<span className="text-[13px] font-mono text-white/80 tabular-nums">
-							{formatTimecode(currentTime)} / {formatTimecode(duration)}
+							{formatPlayerTime(currentTime)} / {formatPlayerTime(duration)}
 						</span>
 
 						<div className="flex-1" />
@@ -588,7 +910,11 @@ export function VideoPlayer({
 						<div className="relative">
 							<button
 								onClick={
-									hasAudio ? () => setOpenMenu(openMenu === 'audio' ? null : 'audio') : undefined
+									hasAudio
+										? () => {
+												setOpenMenu(openMenu === 'audio' ? null : 'audio');
+											}
+										: undefined
 								}
 								className={`h-8 w-8 flex items-center justify-center rounded-full transition-colors ${
 									!hasAudio
@@ -606,14 +932,18 @@ export function VideoPlayer({
 								<TrackMenu
 									label="Audio"
 									enabled={tracks.audioEnabled}
-									onToggle={() => setTracks({ audioEnabled: !tracks.audioEnabled })}
-									onClose={() => setOpenMenu(null)}
+									onToggle={() => {
+										setTracks({ audioEnabled: !tracks.audioEnabled });
+									}}
+									onClose={() => {
+										setOpenMenu(null);
+									}}
 									canDisable
 									selectedIndex={tracks.audioTrackIndex}
-									onSelect={(i) => setTracks({ audioTrackIndex: i })}
-									streams={audioStreams.map((s, i) => ({
-										line: formatTrackLine(`Track ${i + 1}`, s.language, s.codec, s.channels),
-									}))}
+									onSelect={(i) => {
+										setTracks({ audioTrackIndex: i });
+									}}
+									streams={audioTrackMenuStreams}
 								/>
 							)}
 						</div>
@@ -623,7 +953,9 @@ export function VideoPlayer({
 							<button
 								onClick={
 									hasSubtitles
-										? () => setOpenMenu(openMenu === 'subtitle' ? null : 'subtitle')
+										? () => {
+												setOpenMenu(openMenu === 'subtitle' ? null : 'subtitle');
+											}
 										: undefined
 								}
 								className={`h-8 w-8 flex items-center justify-center rounded-full transition-colors ${
@@ -642,14 +974,18 @@ export function VideoPlayer({
 								<TrackMenu
 									label="Subtitles"
 									enabled={tracks.subtitleEnabled}
-									onToggle={() => setTracks({ subtitleEnabled: !tracks.subtitleEnabled })}
-									onClose={() => setOpenMenu(null)}
+									onToggle={() => {
+										setTracks({ subtitleEnabled: !tracks.subtitleEnabled });
+									}}
+									onClose={() => {
+										setOpenMenu(null);
+									}}
 									canDisable
 									selectedIndex={tracks.subtitleTrackIndex}
-									onSelect={(i) => setTracks({ subtitleTrackIndex: i })}
-									streams={subtitleStreams.map((s, i) => ({
-										line: formatTrackLine(`Track ${i + 1}`, s.language, s.codec, s.channels),
-									}))}
+									onSelect={(i) => {
+										setTracks({ subtitleTrackIndex: i });
+									}}
+									streams={subtitleTrackMenuStreams}
 								/>
 							)}
 						</div>
@@ -718,36 +1054,34 @@ function TrackMenu({
 	canDisable: boolean;
 	selectedIndex: number;
 	onSelect: (index: number) => void;
-	streams: { line: string }[];
+	streams: { label: string; details: string; isDefault?: boolean; isForced?: boolean }[];
 }) {
 	return (
-		<div className="absolute bottom-full right-0 mb-2 w-[min(20rem,80vw)] rounded-md border border-white/15 bg-neutral-950/95 backdrop-blur-md shadow-[0_10px_20px_rgba(0,0,0,0.45)] animate-fade-in overflow-hidden">
-			<div className="px-2 py-1.5 border-b border-white/10">
-				<p className="text-[11px] font-semibold text-white/60 uppercase tracking-[0.12em]">{label}</p>
+		<div className="absolute bottom-full right-0 mb-2 w-[min(18rem,80vw)] rounded-lg border border-white/15 bg-neutral-950/95 backdrop-blur-md shadow-[0_10px_20px_rgba(0,0,0,0.45)] animate-fade-in overflow-hidden">
+			<div className="px-3 py-2 border-b border-white/10">
+				<p className="text-[13px] font-semibold text-white/50 uppercase tracking-[0.12em]">{label}</p>
 			</div>
 
-			<div className="p-1 space-y-1">
+			<div className="p-1.5 space-y-0.5">
 				{canDisable && (
 					<button
 						onClick={() => {
 							onToggle();
 							onClose();
 						}}
-						className={`w-full text-left rounded px-1.5 py-1 transition-colors cursor-pointer border ${
-							!enabled
-								? 'bg-white/12 border-white/30 text-white'
-								: 'bg-white/[0.02] border-white/10 text-white/70 hover:bg-white/[0.06] hover:text-white'
+						className={`w-full text-left rounded-md px-2.5 py-2 transition-colors cursor-pointer ${
+							!enabled ? 'bg-white/10 text-white' : 'text-white/60 hover:bg-white/[0.06] hover:text-white'
 						}`}
 					>
-						<div className="flex items-center gap-2">
-							<CircleOff size={14} className={!enabled ? 'text-white' : 'text-white/55'} />
-							<span className="text-[11px] font-medium">Off</span>
-							{!enabled && <Check size={14} className="ml-auto text-white" />}
+						<div className="flex items-center gap-2.5">
+							<CircleOff size={14} className={!enabled ? 'text-white' : 'text-white/40'} />
+							<span className="text-[13px] font-medium">Off</span>
+							{!enabled && <Check size={13} className="ml-auto text-white" />}
 						</div>
 					</button>
 				)}
 
-				<div className="max-h-32 overflow-y-auto pr-0.5 space-y-1">
+				<div className="max-h-44 overflow-y-auto space-y-0.5">
 					{streams.map((stream, i) => {
 						const isActive = enabled && selectedIndex === i;
 						return (
@@ -758,24 +1092,41 @@ function TrackMenu({
 									onSelect(i);
 									onClose();
 								}}
-								className={`w-full text-left rounded px-1.5 py-1 transition-all cursor-pointer border ${
+								className={`w-full text-left rounded-md px-2.5 py-2 transition-all cursor-pointer ${
 									isActive
-										? 'bg-accent/22 border-accent/45 text-white'
-										: 'bg-white/[0.02] border-white/10 text-white/80 hover:bg-white/[0.06] hover:text-white'
+										? 'bg-accent/15 text-white'
+										: 'text-white/80 hover:bg-white/[0.06] hover:text-white'
 								}`}
 							>
-								<div className="flex items-center gap-2">
-									<p className="min-w-0 flex-1 text-[11px] font-medium text-white/90 truncate">
-										{stream.line}
-									</p>
+								<div className="flex items-center gap-2.5">
+									<div className="min-w-0 flex-1">
+										<div className="flex items-center gap-1.5">
+											<p className="text-[13px] font-medium truncate">{stream.label}</p>
+											{stream.isDefault && (
+												<span className="shrink-0 text-[13px] font-semibold uppercase tracking-wider bg-white/10 text-white/60 px-1.5 py-0.5 rounded leading-none">
+													Default
+												</span>
+											)}
+											{stream.isForced && (
+												<span className="shrink-0 text-[13px] font-semibold uppercase tracking-wider bg-amber-500/15 text-amber-400/80 px-1.5 py-0.5 rounded leading-none">
+													Forced
+												</span>
+											)}
+										</div>
+										{stream.details && (
+											<p className="text-[13px] text-white/40 mt-0.5 truncate">
+												{stream.details}
+											</p>
+										)}
+									</div>
 									<div
-										className={`mt-0.5 h-4 w-4 shrink-0 rounded-full border flex items-center justify-center ${
+										className={`h-4 w-4 shrink-0 rounded-full border-[1.5px] flex items-center justify-center transition-colors ${
 											isActive
 												? 'border-accent bg-accent text-white'
-												: 'border-white/25 text-transparent'
+												: 'border-white/20 text-transparent'
 										}`}
 									>
-										<Check size={11} />
+										<Check size={10} />
 									</div>
 								</div>
 							</button>
@@ -783,6 +1134,12 @@ function TrackMenu({
 					})}
 				</div>
 			</div>
+
+			{label === 'Audio' && streams.length > 1 && (
+				<div className="px-3 py-1.5 border-t border-white/10">
+					<p className="text-[13px] text-white/30 italic">Selection applied during export</p>
+				</div>
+			)}
 		</div>
 	);
 }

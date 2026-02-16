@@ -1,5 +1,8 @@
-import { useRef, useEffect, useMemo, type RefObject } from 'react';
+import { useRef, useEffect, type RefObject } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { usePanZoom } from '@/hooks/usePanZoom.ts';
+import { PhotoWebGLRenderer } from '@/modules/photo-editor/render/webgl-renderer.ts';
+import { DEFAULT_FILTER_PARAMS } from '@/modules/shared-core/types/filters.ts';
 import { useImageEditorStore } from '@/stores/imageEditor.ts';
 import { CompareSlider } from './CompareSlider.tsx';
 import { CropOverlay } from './CropOverlay.tsx';
@@ -8,33 +11,10 @@ interface ImageCanvasProps {
 	containerRef: RefObject<HTMLDivElement | null>;
 }
 
-/** Generate a 256x256 noise tile as a data URL (once on mount). */
-function generateGrainTile(): string {
-	const size = 256;
-	const canvas = document.createElement('canvas');
-	canvas.width = size;
-	canvas.height = size;
-	const ctx = canvas.getContext('2d')!;
-	const img = ctx.createImageData(size, size);
-	const d = img.data;
-	for (let i = 0; i < d.length; i += 4) {
-		const v = Math.random() * 255;
-		d[i] = v;
-		d[i + 1] = v;
-		d[i + 2] = v;
-		d[i + 3] = 255;
-	}
-	ctx.putImageData(img, 0, 0);
-	return canvas.toDataURL();
-}
-
 export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 	const {
 		originalData,
-		filteredData,
 		filters,
-		isDraggingSlider,
-		isProcessing,
 		showOriginal,
 		view,
 		setView,
@@ -43,16 +23,25 @@ export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 		activeTool,
 		compareMode,
 		comparePosition,
-	} = useImageEditorStore();
+	} = useImageEditorStore(
+		useShallow((s) => ({
+			originalData: s.originalData,
+			filters: s.filters,
+			showOriginal: s.showOriginal,
+			view: s.view,
+			setView: s.setView,
+			zoomTo: s.zoomTo,
+			fitToView: s.fitToView,
+			activeTool: s.activeTool,
+			compareMode: s.compareMode,
+			comparePosition: s.comparePosition,
+		})),
+	);
 
-	const canvasRef = useRef<HTMLCanvasElement>(null);
+	const filteredCanvasRef = useRef<HTMLCanvasElement>(null);
 	const originalCanvasRef = useRef<HTMLCanvasElement>(null);
-	const grainTileRef = useRef<string | null>(null);
-
-	// Generate grain tile once
-	if (!grainTileRef.current) {
-		grainTileRef.current = generateGrainTile();
-	}
+	const rendererRef = useRef<PhotoWebGLRenderer | null>(null);
+	const originalRendererRef = useRef<PhotoWebGLRenderer | null>(null);
 
 	const { getIsPanning } = usePanZoom({
 		containerRef,
@@ -63,17 +52,15 @@ export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 		leftClickPan: activeTool === 'pointer' && !compareMode,
 	});
 
-	/* ── Fit to view on first load / image change ── */
+	// Fit to view on first load / image change
 	useEffect(() => {
 		if (!originalData || !containerRef.current) return;
 		const el = containerRef.current;
 
-		// Fit immediately if container already has dimensions
 		if (el.clientWidth > 0 && el.clientHeight > 0) {
 			fitToView(el.clientWidth, el.clientHeight);
 		}
 
-		// Also observe for resize so fitToView works on first layout
 		const ro = new ResizeObserver((entries) => {
 			const entry = entries[0];
 			if (!entry) return;
@@ -84,41 +71,44 @@ export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 			}
 		});
 		ro.observe(el);
-		return () => ro.disconnect();
+		return () => {
+			ro.disconnect();
+		};
 	}, [originalData?.width, originalData?.height, fitToView, containerRef]);
 
-	/* ── Draw original canvas (for Compare) ── */
+	// Initialize WebGL renderers
+	useEffect(() => {
+		const filteredCanvas = filteredCanvasRef.current;
+		const originalCanvas = originalCanvasRef.current;
+		if (!filteredCanvas || !originalCanvas) return;
+
+		rendererRef.current = new PhotoWebGLRenderer(filteredCanvas);
+		originalRendererRef.current = new PhotoWebGLRenderer(originalCanvas);
+
+		return () => {
+			rendererRef.current?.destroy();
+			rendererRef.current = null;
+			originalRendererRef.current?.destroy();
+			originalRendererRef.current = null;
+		};
+	}, []);
+
+	// Upload source image when it changes
 	useEffect(() => {
 		if (!originalData) return;
-		const c = originalCanvasRef.current;
-		if (!c) return;
-		c.width = originalData.width;
-		c.height = originalData.height;
-		const ctx = c.getContext('2d')!;
-		ctx.putImageData(originalData, 0, 0);
+
+		rendererRef.current?.loadImageData(originalData);
+		originalRendererRef.current?.loadImageData(originalData);
+
+		// Render original with default filters
+		originalRendererRef.current?.render(DEFAULT_FILTER_PARAMS);
 	}, [originalData]);
 
-	/* ── Draw filtered canvas ── */
+	// Render filtered image on every filter change (sub-1ms GPU operation)
 	useEffect(() => {
-		const c = canvasRef.current;
-		if (!c) return;
-
-		// During slider drag, show originalData (CSS filter handles preview)
-		const source = isDraggingSlider ? originalData : filteredData;
-		if (!source) return;
-
-		c.width = source.width;
-		c.height = source.height;
-		const ctx = c.getContext('2d')!;
-		ctx.putImageData(source, 0, 0);
-	}, [originalData, filteredData, isDraggingSlider]);
-
-	/* ── CSS filter for live 60fps preview during slider drag ── */
-	const cssFilter = useMemo(() => {
-		if (!isDraggingSlider) return 'none';
-		const { exposure, brightness, contrast, saturation, hue, blur, sepia } = filters;
-		return `brightness(${exposure * (1 + brightness * 2)}) contrast(${contrast}) saturate(${saturation}) hue-rotate(${hue}deg) blur(${blur}px) sepia(${sepia})`;
-	}, [isDraggingSlider, filters]);
+		if (!originalData || !rendererRef.current) return;
+		rendererRef.current.render(filters);
+	}, [originalData, filters]);
 
 	const imgW = originalData?.width ?? 0;
 	const imgH = originalData?.height ?? 0;
@@ -140,6 +130,8 @@ export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 			>
 				<canvas
 					ref={originalCanvasRef}
+					width={imgW}
+					height={imgH}
 					className="absolute top-0 left-0"
 					style={{
 						...transformStyle,
@@ -149,50 +141,18 @@ export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 				/>
 			</div>
 
-			{/* Right side wrapper — clips filtered canvas + overlays in split mode */}
+			{/* Right side wrapper — clips filtered canvas in split mode */}
 			<div
 				className="absolute inset-0 pointer-events-none"
 				style={isSplit ? { clipPath: `inset(0 0 0 ${comparePosition * 100}%)` } : undefined}
 			>
 				<canvas
-					ref={canvasRef}
+					ref={filteredCanvasRef}
+					width={imgW}
+					height={imgH}
 					className="absolute top-0 left-0"
-					style={{
-						...transformStyle,
-						filter: cssFilter,
-						imageRendering: pixelated,
-						display: showOriginal ? 'none' : 'block',
-					}}
+					style={{ ...transformStyle, imageRendering: pixelated, display: showOriginal ? 'none' : 'block' }}
 				/>
-
-				{/* Vignette overlay */}
-				{!showOriginal && filters.vignette > 0 && imgW > 0 && (
-					<div
-						className="absolute top-0 left-0 pointer-events-none"
-						style={{
-							...transformStyle,
-							width: imgW,
-							height: imgH,
-							background: `radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,${filters.vignette}) 100%)`,
-						}}
-					/>
-				)}
-
-				{/* Grain overlay */}
-				{!showOriginal && filters.grain > 0 && imgW > 0 && grainTileRef.current && (
-					<div
-						className="absolute top-0 left-0 pointer-events-none"
-						style={{
-							...transformStyle,
-							width: imgW,
-							height: imgH,
-							backgroundImage: `url(${grainTileRef.current})`,
-							backgroundRepeat: 'repeat',
-							mixBlendMode: 'overlay',
-							opacity: (filters.grain / 100) * 0.4,
-						}}
-					/>
-				)}
 			</div>
 
 			{/* Compare slider */}
@@ -214,14 +174,6 @@ export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 					imageHeight={imgH}
 					getIsPanning={getIsPanning}
 				/>
-			)}
-
-			{/* Processing indicator */}
-			{isProcessing && (
-				<div className="absolute top-3 right-3 rounded-md bg-bg/80 px-2.5 py-1.5 text-[13px] font-medium backdrop-blur-sm z-10 flex items-center gap-2">
-					<div className="h-3 w-3 rounded-full border-2 border-border border-t-accent animate-spin" />
-					Processing...
-				</div>
 			)}
 		</>
 	);

@@ -1,36 +1,54 @@
-import { useRef, useCallback, useState, type PointerEvent } from 'react';
+import { useRef, useCallback, useState, type PointerEvent, type ReactNode } from 'react';
 
 interface TimelineProps {
 	duration: number;
 	trimStart: number;
 	trimEnd: number;
 	currentTime: number;
+	minGap?: number;
 	onTrimStartChange: (v: number) => void;
 	onTrimEndChange: (v: number) => void;
 	onSeek: (v: number) => void;
 	className?: string;
+	headerStart?: ReactNode;
+	headerEnd?: ReactNode;
+	centerStart?: ReactNode;
+	centerEnd?: ReactNode;
 }
 
 function formatTimecode(seconds: number): string {
-	const m = Math.floor(seconds / 60);
-	const s = Math.floor(seconds % 60);
-	const ms = Math.floor((seconds % 1) * 100);
-	return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(ms).padStart(2, '0')}`;
+	const totalCentiseconds = Math.max(0, Math.floor(seconds * 100));
+	const h = Math.floor(totalCentiseconds / 360000);
+	const m = Math.floor((totalCentiseconds % 360000) / 6000);
+	const s = Math.floor((totalCentiseconds % 6000) / 100);
+	const cs = totalCentiseconds % 100;
+	if (h > 0) {
+		return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(cs).padStart(2, '0')}`;
+	}
+	return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(cs).padStart(2, '0')}`;
 }
 
-type DragTarget = 'start' | 'end' | 'playhead' | null;
+type DragTarget = 'start' | 'end' | 'playhead' | 'range' | null;
 
 export function Timeline({
 	duration,
 	trimStart,
 	trimEnd,
 	currentTime,
+	minGap = 0.1,
 	onTrimStartChange,
 	onTrimEndChange,
 	onSeek,
 	className = '',
+	headerStart,
+	headerEnd,
+	centerStart,
+	centerEnd,
 }: TimelineProps) {
 	const trackRef = useRef<HTMLDivElement>(null);
+	const rangeDragOffsetRef = useRef(0);
+	const rangeDurationRef = useRef(0);
+	const movedDuringDragRef = useRef(false);
 	const [dragging, setDragging] = useState<DragTarget>(null);
 
 	const toFraction = (val: number) => (duration > 0 ? val / duration : 0);
@@ -48,25 +66,53 @@ export function Timeline({
 	const handlePointerDown = useCallback(
 		(target: DragTarget) => (e: PointerEvent) => {
 			e.preventDefault();
-			(e.target as HTMLElement).setPointerCapture(e.pointerId);
+			movedDuringDragRef.current = false;
+			e.currentTarget.setPointerCapture(e.pointerId);
+			if (target === 'range') {
+				const val = fromClientX(e.clientX);
+				rangeDragOffsetRef.current = val - trimStart;
+				rangeDurationRef.current = Math.max(0, trimEnd - trimStart);
+			}
 			setDragging(target);
 		},
-		[],
+		[fromClientX, trimStart, trimEnd],
 	);
 
 	const handlePointerMove = useCallback(
 		(e: PointerEvent) => {
 			if (!dragging) return;
+			movedDuringDragRef.current = true;
 			const val = fromClientX(e.clientX);
 			if (dragging === 'start') {
-				onTrimStartChange(Math.min(val, trimEnd - 0.1));
+				onTrimStartChange(Math.min(val, trimEnd - minGap));
 			} else if (dragging === 'end') {
-				onTrimEndChange(Math.max(val, trimStart + 0.1));
+				onTrimEndChange(Math.max(val, trimStart + minGap));
 			} else if (dragging === 'playhead') {
 				onSeek(Math.max(trimStart, Math.min(trimEnd, val)));
+			} else if (dragging === 'range') {
+				const rangeDuration = Math.max(0, rangeDurationRef.current);
+				const unclampedStart = val - rangeDragOffsetRef.current;
+				const nextStart = Math.min(Math.max(unclampedStart, 0), Math.max(0, duration - rangeDuration));
+				const nextEnd = nextStart + rangeDuration;
+				onTrimStartChange(nextStart);
+				onTrimEndChange(nextEnd);
+				if (currentTime < nextStart || currentTime > nextEnd) {
+					onSeek(Math.max(nextStart, Math.min(nextEnd, currentTime)));
+				}
 			}
 		},
-		[dragging, fromClientX, trimStart, trimEnd, onTrimStartChange, onTrimEndChange, onSeek],
+		[
+			currentTime,
+			dragging,
+			duration,
+			fromClientX,
+			trimStart,
+			trimEnd,
+			minGap,
+			onTrimStartChange,
+			onTrimEndChange,
+			onSeek,
+		],
 	);
 
 	const handlePointerUp = useCallback(() => {
@@ -76,6 +122,10 @@ export function Timeline({
 	// Click on the track to seek
 	const handleTrackClick = useCallback(
 		(e: React.MouseEvent) => {
+			if (movedDuringDragRef.current) {
+				movedDuringDragRef.current = false;
+				return;
+			}
 			if (dragging) return;
 			const val = fromClientX(e.clientX);
 			onSeek(Math.max(trimStart, Math.min(trimEnd, val)));
@@ -87,14 +137,25 @@ export function Timeline({
 	const endPct = `${toFraction(trimEnd) * 100}%`;
 	const playheadPct = `${toFraction(currentTime) * 100}%`;
 	const clipDuration = trimEnd - trimStart;
+	const hasHeaderSlots = Boolean(headerStart || headerEnd || centerStart || centerEnd);
 
 	return (
 		<div className={`flex flex-col gap-2 select-none ${className}`}>
 			{/* Timecodes */}
-			<div className="flex items-center justify-between text-[13px] font-mono text-text-tertiary tabular-nums">
-				<span>{formatTimecode(trimStart)}</span>
-				<span className="text-text-secondary font-semibold">{formatTimecode(currentTime)}</span>
-				<span>{formatTimecode(trimEnd)}</span>
+			<div className="flex items-center justify-between gap-2 text-[13px] font-mono text-text-tertiary tabular-nums">
+				<div className="flex min-w-0 items-center gap-2">
+					<span className={hasHeaderSlots ? 'hidden sm:inline' : ''}>{formatTimecode(trimStart)}</span>
+					{headerStart}
+				</div>
+				<div className="flex items-center gap-1">
+					{centerStart}
+					<span className="text-text-secondary font-semibold">{formatTimecode(currentTime)}</span>
+					{centerEnd}
+				</div>
+				<div className="flex min-w-0 items-center justify-end gap-2">
+					{headerEnd}
+					<span className={hasHeaderSlots ? 'hidden sm:inline' : ''}>{formatTimecode(trimEnd)}</span>
+				</div>
 			</div>
 
 			{/* Track */}
@@ -117,8 +178,11 @@ export function Timeline({
 
 				{/* Selected region */}
 				<div
-					className="absolute inset-y-0 border-y-2 border-accent/40 pointer-events-none"
+					className={`absolute inset-y-0 border-y-2 border-accent/40 z-10 transition-colors ${
+						dragging === 'range' ? 'bg-accent/20 cursor-grabbing' : 'bg-accent/10 cursor-grab'
+					}`}
 					style={{ left: startPct, right: `${100 - toFraction(trimEnd) * 100}%` }}
+					onPointerDown={handlePointerDown('range')}
 				/>
 
 				{/* Start handle */}
@@ -157,7 +221,7 @@ export function Timeline({
 			</div>
 
 			{/* Duration info */}
-			<div className="flex items-center justify-between text-[12px] text-text-tertiary">
+			<div className="flex items-center justify-between text-[13px] text-text-tertiary">
 				<span>Selection: {formatTimecode(clipDuration)}</span>
 				<span>Total: {formatTimecode(duration)}</span>
 			</div>
@@ -165,4 +229,23 @@ export function Timeline({
 	);
 }
 
-export { formatTimecode };
+function formatCompactTime(seconds: number): string {
+	const total = Math.max(0, Math.round(seconds));
+	const h = Math.floor(total / 3600);
+	const m = Math.floor((total % 3600) / 60);
+	const s = total % 60;
+	if (h > 0) return `${h}h${String(m).padStart(2, '0')}`;
+	if (m > 0) return `${m}m${String(s).padStart(2, '0')}`;
+	return `${s}s`;
+}
+
+function formatPlayerTime(seconds: number): string {
+	const total = Math.max(0, Math.floor(seconds));
+	const h = Math.floor(total / 3600);
+	const m = Math.floor((total % 3600) / 60);
+	const s = total % 60;
+	if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+	return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+export { formatTimecode, formatCompactTime, formatPlayerTime };

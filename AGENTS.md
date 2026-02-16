@@ -13,18 +13,6 @@
 Rust/WASM source lives in `vixely-core/` (Cargo crate). Static assets are in `public/`. Deployment and infra docs are in
 `docs/`. Build output goes to `dist/` (do not edit manually).
 
-## Build, Test, and Development Commands
-
-- `bun install` installs dependencies and runs `postinstall` (`setup:ffmpeg`).
-- `bun run dev` starts the Vite dev server.
-- `bun run build` creates a production bundle in `dist/`.
-- `bun run preview` serves the production build locally.
-- `bun run build:wasm` rebuilds Rust WASM bindings from `vixely-core/` into `src/wasm/`.
-- `bun run lint` runs Oxlint.
-- `bun run lint:fix` applies auto-fixable lint changes.
-- `bun run fmt` formats with Oxfmt.
-- `bun run fmt:check` verifies formatting (used in CI).
-
 ## Coding Style & Naming Conventions
 
 Formatting is enforced by `.editorconfig` and `.oxfmtrc.jsonc`: tabs, width 4, UTF-8, LF, semicolons, single quotes,
@@ -37,18 +25,6 @@ Use TypeScript strict mode patterns. Naming:
 - Stores/util modules: `camelCase.ts`
 
 Use `@/` imports for `src/*` paths. Do not manually edit generated files such as `src/routeTree.gen.ts`.
-
-## Testing Guidelines
-
-There is currently no dedicated unit-test suite in the repository. Treat this as the minimum verification set before
-opening a PR:
-
-1. `bun run lint`
-2. `bun run fmt:check`
-3. `bun run build:wasm` (if Rust/WASM code changed)
-4. `bun run build`
-
-Also smoke-test impacted flows in `/tools/video`, `/tools/image`, and `/tools/gif`.
 
 ## Project Overview
 
@@ -81,4 +57,7 @@ Left sidebar on every page. Upper bar et right sidebar on editors pages. Three m
 - **Always** use skills, like vercel-react-best-practices.
 - Don't write comments if unnecessary.
 - Be careful about UI and UX design, always think about User experience.
-- Be careful about repsonsive (should work on ANY device).
+- Be careful about responsive (should work on ANY device).
+- Always respect the instructions. Do not try to look for alternative that does not fullfill the desire of the prompt.
+- If something doesn't work, don't make a fallback and help me investigate or find the problem.
+- **THE APP FOLDER STRUCTURE SHOULD BE THINK AROUND VIDEO / IMAGE / GIF / COMMON (BETWEEN THE THREE)**

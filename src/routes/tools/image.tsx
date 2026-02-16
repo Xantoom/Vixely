@@ -3,17 +3,15 @@ import { ImageIcon, Settings } from 'lucide-react';
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { toast } from 'sonner';
-import { MonetagAd } from '@/components/AdContainer.tsx';
 import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
 import { ImageCanvas } from '@/components/image/ImageCanvas.tsx';
 import { ImageSidebar } from '@/components/image/ImageSidebar.tsx';
 import { ImageToolbar } from '@/components/image/ImageToolbar.tsx';
 import { Drawer } from '@/components/ui/Drawer.tsx';
 import { Button } from '@/components/ui/index.ts';
-import { MONETAG_ZONES } from '@/config/monetag.ts';
 import { IMAGE_ACCEPT } from '@/config/presets.ts';
-import { useImageProcessor } from '@/hooks/useImageProcessor.ts';
 import { useImageEditorStore } from '@/stores/imageEditor.ts';
+import { consumePendingImageTransfer } from '@/utils/crossEditorTransfer.ts';
 
 const ACCEPTED_TYPES = new Set(
 	IMAGE_ACCEPT.split(',').map((ext) => {
@@ -27,8 +25,12 @@ const ACCEPTED_TYPES = new Set(
 export const Route = createFileRoute('/tools/image')({ component: ImageLab });
 
 function ImageLab() {
-	const { ready, processImageData } = useImageProcessor();
-	const { originalData, loadImage, undo, redo } = useImageEditorStore();
+	const originalData = useImageEditorStore((s) => s.originalData);
+	const loadImage = useImageEditorStore((s) => s.loadImage);
+	const undo = useImageEditorStore((s) => s.undo);
+	const redo = useImageEditorStore((s) => s.redo);
+	const clearAll = useImageEditorStore((s) => s.clearAll);
+	const isDirty = useImageEditorStore((s) => s.isDirty);
 
 	const canvasContainerRef = useRef<HTMLDivElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -38,16 +40,15 @@ function ImageLab() {
 	const [drawerOpen, setDrawerOpen] = useState(false);
 	const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
-	const { isDirty } = useImageEditorStore();
-
-	// beforeunload warning when image is loaded
 	useEffect(() => {
 		if (!isDirty()) return;
 		const handler = (e: BeforeUnloadEvent) => {
 			e.preventDefault();
 		};
 		window.addEventListener('beforeunload', handler);
-		return () => window.removeEventListener('beforeunload', handler);
+		return () => {
+			window.removeEventListener('beforeunload', handler);
+		};
 	});
 
 	const confirmAction = useCallback(
@@ -74,9 +75,10 @@ function ImageLab() {
 	}, []);
 
 	const handleNew = useCallback(() => {
-		const { clearAll } = useImageEditorStore.getState();
-		confirmAction(() => clearAll());
-	}, [confirmAction]);
+		confirmAction(() => {
+			clearAll();
+		});
+	}, [clearAll, confirmAction]);
 
 	const handleLoadFile = useCallback(
 		(f: File) => {
@@ -101,7 +103,12 @@ function ImageLab() {
 		fileInputRef.current?.click();
 	}, []);
 
-	/* ── Drag-and-drop handlers ── */
+	useEffect(() => {
+		const transferredFile = consumePendingImageTransfer();
+		if (!transferredFile) return;
+		handleLoadFile(transferredFile);
+	}, [handleLoadFile]);
+
 	const handleDragEnter = useCallback((e: React.DragEvent) => {
 		e.preventDefault();
 		e.stopPropagation();
@@ -141,7 +148,6 @@ function ImageLab() {
 		[handleLoadFile],
 	);
 
-	/* ── Keyboard shortcuts ── */
 	useEffect(() => {
 		const onKeyDown = (e: KeyboardEvent) => {
 			if (e.target instanceof HTMLInputElement) return;
@@ -149,19 +155,21 @@ function ImageLab() {
 			const mod = e.ctrlKey || e.metaKey;
 			if (mod && e.key === 'z' && !e.shiftKey) {
 				e.preventDefault();
-				undo(processImageData);
+				undo();
 			} else if (mod && e.key === 'z' && e.shiftKey) {
 				e.preventDefault();
-				redo(processImageData);
+				redo();
 			} else if (mod && e.key === 'y') {
 				e.preventDefault();
-				redo(processImageData);
+				redo();
 			}
 		};
 
 		window.addEventListener('keydown', onKeyDown);
-		return () => window.removeEventListener('keydown', onKeyDown);
-	}, [undo, redo, processImageData]);
+		return () => {
+			window.removeEventListener('keydown', onKeyDown);
+		};
+	}, [undo, redo]);
 
 	return (
 		<div data-editor="image" className="h-full flex flex-col">
@@ -173,7 +181,6 @@ function ImageLab() {
 				/>
 			</Helmet>
 
-			{/* Shared file input */}
 			<input
 				ref={fileInputRef}
 				type="file"
@@ -187,9 +194,8 @@ function ImageLab() {
 
 			<div className="h-[2px] gradient-accent shrink-0" />
 			<div className="flex flex-1 min-h-0 animate-fade-in">
-				{/* ── Left panel: Toolbar + Canvas ── */}
 				<div className="flex-1 flex flex-col min-w-0">
-					<ImageToolbar processFn={processImageData} containerRef={canvasContainerRef} />
+					<ImageToolbar containerRef={canvasContainerRef} />
 					<div
 						ref={canvasContainerRef}
 						className={`flex-1 relative overflow-hidden checkerboard ${isDragging ? 'drop-zone-active' : ''}`}
@@ -203,11 +209,9 @@ function ImageLab() {
 						) : (
 							<div className="flex-1 flex flex-col items-center justify-center h-full gap-6">
 								<EmptyState isDragging={isDragging} onOpenFile={handleOpenFile} />
-								<MonetagAd zoneId={MONETAG_ZONES.sidebar} className="w-full max-w-xs" />
 							</div>
 						)}
 
-						{/* Drag overlay when image is loaded */}
 						{isDragging && originalData && (
 							<div className="absolute inset-0 flex items-center justify-center bg-accent-surface/50 backdrop-blur-sm z-20 pointer-events-none">
 								<div className="rounded-xl border-2 border-dashed border-accent px-6 py-4 text-sm font-medium text-accent">
@@ -218,35 +222,28 @@ function ImageLab() {
 					</div>
 				</div>
 
-				{/* ── Mobile Sidebar Toggle ── */}
 				<button
 					className="md:hidden fixed bottom-20 right-4 z-30 h-12 w-12 rounded-full gradient-accent flex items-center justify-center shadow-lg cursor-pointer"
-					onClick={() => setDrawerOpen(true)}
+					onClick={() => {
+						setDrawerOpen(true);
+					}}
 				>
 					<Settings size={20} className="text-white" />
 				</button>
 
-				{/* ── Right sidebar (Desktop) ── */}
 				<div className="hidden md:flex">
-					<ImageSidebar
-						processFn={processImageData}
-						wasmReady={ready}
-						onOpenFile={handleOpenFile}
-						onNew={handleNew}
-					/>
+					<ImageSidebar onOpenFile={handleOpenFile} onNew={handleNew} />
 				</div>
 
-				{/* ── Mobile Sidebar Drawer ── */}
-				<Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
-					<ImageSidebar
-						processFn={processImageData}
-						wasmReady={ready}
-						onOpenFile={handleOpenFile}
-						onNew={handleNew}
-					/>
+				<Drawer
+					open={drawerOpen}
+					onClose={() => {
+						setDrawerOpen(false);
+					}}
+				>
+					<ImageSidebar onOpenFile={handleOpenFile} onNew={handleNew} />
 				</Drawer>
 			</div>
-			{/* Confirm reset modal */}
 			{showResetModal && <ConfirmResetModal onConfirm={handleConfirmReset} onCancel={handleCancelReset} />}
 		</div>
 	);
@@ -267,7 +264,7 @@ function EmptyState({ isDragging, onOpenFile }: { isDragging: boolean; onOpenFil
 			<p className="text-sm font-medium text-text-secondary">
 				{isDragging ? 'Drop your image here' : 'No image loaded'}
 			</p>
-			<p className="mt-1 text-xs text-text-tertiary">
+			<p className="mt-1 text-[13px] text-text-tertiary">
 				{isDragging ? 'Release to load' : 'Drop a file or click to get started'}
 			</p>
 			{!isDragging && (

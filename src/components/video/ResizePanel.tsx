@@ -47,19 +47,23 @@ export function ResizePanel() {
 					{/* Width / Height inputs */}
 					<div className="flex items-end gap-2">
 						<div className="flex-1">
-							<label className="text-[12px] text-text-tertiary mb-1 block">Width</label>
+							<label className="text-[13px] text-text-tertiary mb-1 block">Width</label>
 							<input
 								type="number"
 								min={1}
 								max={7680}
 								value={resize.width}
-								onChange={(e) => setResize({ width: Math.max(1, Number(e.target.value)) })}
-								className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-xs font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
+								onChange={(e) => {
+									setResize({ width: Math.max(1, Number(e.target.value)) });
+								}}
+								className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[13px] font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
 							/>
 						</div>
 
 						<button
-							onClick={() => setResize({ lockAspect: !resize.lockAspect })}
+							onClick={() => {
+								setResize({ lockAspect: !resize.lockAspect });
+							}}
 							className={`h-8 w-8 flex items-center justify-center rounded-md border transition-all cursor-pointer mb-px ${
 								resize.lockAspect
 									? 'border-accent/30 bg-accent/10 text-accent'
@@ -71,14 +75,16 @@ export function ResizePanel() {
 						</button>
 
 						<div className="flex-1">
-							<label className="text-[12px] text-text-tertiary mb-1 block">Height</label>
+							<label className="text-[13px] text-text-tertiary mb-1 block">Height</label>
 							<input
 								type="number"
 								min={1}
 								max={7680}
 								value={resize.height}
-								onChange={(e) => setResize({ height: Math.max(1, Number(e.target.value)) })}
-								className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-xs font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
+								onChange={(e) => {
+									setResize({ height: Math.max(1, Number(e.target.value)) });
+								}}
+								className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[13px] font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
 							/>
 						</div>
 					</div>
@@ -91,26 +97,28 @@ export function ResizePanel() {
 						max={400}
 						step={1}
 						value={resize.scalePercent}
-						onChange={(e) => setResize({ scalePercent: Number(e.target.value) })}
+						onChange={(e) => {
+							setResize({ scalePercent: Number(e.target.value) });
+						}}
 					/>
 
 					{/* Quick presets */}
 					<div>
-						<label className="text-[12px] text-text-tertiary mb-1.5 block">Quick Presets</label>
+						<label className="text-[13px] text-text-tertiary mb-1.5 block">Quick Presets</label>
 						<div className="grid grid-cols-3 gap-1">
 							{QUICK_PRESETS.map((p) => {
 								const active = resize.width === p.w && resize.height === p.h;
 								return (
 									<button
 										key={p.label}
-										onClick={() =>
+										onClick={() => {
 											setResize({
 												width: p.w,
 												height: p.h,
 												scalePercent: Math.round((p.w / resize.originalWidth) * 100),
-											})
-										}
-										className={`rounded-md py-1.5 text-[12px] font-medium transition-all cursor-pointer ${
+											});
+										}}
+										className={`rounded-md py-1.5 text-[13px] font-medium transition-all cursor-pointer ${
 											active
 												? 'bg-accent/15 text-accent border border-accent/30'
 												: 'bg-surface-raised/60 text-text-tertiary border border-transparent hover:bg-surface-raised'
@@ -121,14 +129,14 @@ export function ResizePanel() {
 								);
 							})}
 							<button
-								onClick={() =>
+								onClick={() => {
 									setResize({
 										width: resize.originalWidth,
 										height: resize.originalHeight,
 										scalePercent: 100,
-									})
-								}
-								className={`rounded-md py-1.5 text-[12px] font-medium transition-all cursor-pointer ${
+									});
+								}}
+								className={`rounded-md py-1.5 text-[13px] font-medium transition-all cursor-pointer ${
 									!changed
 										? 'bg-accent/15 text-accent border border-accent/30'
 										: 'bg-surface-raised/60 text-text-tertiary border border-transparent hover:bg-surface-raised'

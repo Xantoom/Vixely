@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { Slider } from '@/components/ui/index.ts';
 import { useVideoEditorStore } from '@/stores/videoEditor.ts';
 
@@ -16,7 +17,7 @@ const sliders = [
 		min: 0.2,
 		max: 3,
 		step: 0.01,
-		fmt: (v: number) => `${(v * 100).toFixed(0)}`,
+		fmt: (v: number) => (v * 100).toFixed(0),
 	},
 	{
 		key: 'saturation' as const,
@@ -24,7 +25,7 @@ const sliders = [
 		min: 0,
 		max: 3,
 		step: 0.01,
-		fmt: (v: number) => `${(v * 100).toFixed(0)}`,
+		fmt: (v: number) => (v * 100).toFixed(0),
 	},
 	{
 		key: 'hue' as const,
@@ -37,7 +38,9 @@ const sliders = [
 ];
 
 export function ColorCorrectionPanel() {
-	const { filters, setFilter, resetFilters } = useVideoEditorStore();
+	const { filters, setFilter, resetFilters } = useVideoEditorStore(
+		useShallow((s) => ({ filters: s.filters, setFilter: s.setFilter, resetFilters: s.resetFilters })),
+	);
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -47,7 +50,7 @@ export function ColorCorrectionPanel() {
 				</h3>
 				<button
 					onClick={resetFilters}
-					className="text-[12px] text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
+					className="text-[13px] text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
 				>
 					Reset
 				</button>
@@ -62,11 +65,13 @@ export function ColorCorrectionPanel() {
 					max={s.max}
 					step={s.step}
 					value={filters[s.key]}
-					onChange={(e) => setFilter(s.key, Number((e.target as HTMLInputElement).value))}
+					onChange={(e) => {
+						setFilter(s.key, Number((e.target as HTMLInputElement).value));
+					}}
 				/>
 			))}
 
-			<p className="text-[12px] text-text-tertiary leading-relaxed">
+			<p className="text-[13px] text-text-tertiary leading-relaxed">
 				Preview is real-time. Filters are applied during export via FFmpeg.
 			</p>
 		</div>
