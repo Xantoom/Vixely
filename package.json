@@ -10,8 +10,8 @@
 		"build": "bun run build:wasm && bun run generate:routes && vite build",
 		"lint": "oxlint src --type-aware --type-check",
 		"lint:fix": "oxlint src --type-aware --type-check --fix",
-		"fmt": "oxfmt src --write",
-		"fmt:check": "oxfmt src --check"
+		"fmt": "oxfmt src '!src/routeTree.gen.ts' --write",
+		"fmt:check": "oxfmt src '!src/routeTree.gen.ts' --check"
 	},
 	"dependencies": {
 		"@tanstack/react-query": "^5.90.21",
