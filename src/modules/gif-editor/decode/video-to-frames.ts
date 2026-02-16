@@ -1,5 +1,4 @@
-import { WebCodecsVideoDecoder } from '@/modules/video-editor/decode/webcodecs-decoder.ts';
-import { Mp4boxDemuxer } from '@/modules/video-editor/demux/mp4box-demuxer.ts';
+import { ALL_FORMATS, BlobSource, CanvasSink, Input } from 'mediabunny';
 
 export interface FrameExtractionOptions {
 	file: File;
@@ -11,75 +10,50 @@ export interface FrameExtractionOptions {
 }
 
 /**
- * Extract VideoFrames from a video file at the target FPS using WebCodecs.
+ * Extract VideoFrames from a video file at the target FPS.
  * Returns an array of VideoFrames that the caller must close() when done.
  */
 export async function extractFrames(options: FrameExtractionOptions): Promise<VideoFrame[]> {
 	const { file, targetFps, maxFrames = 300, trimStart = 0, trimEnd, onProgress } = options;
 
-	const demuxer = new Mp4boxDemuxer();
-	const decoder = new WebCodecsVideoDecoder();
+	const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
 
-	const tracks = await demuxer.open(file);
-	const videoTrack = tracks.find((t) => t.type === 'video');
-	if (!videoTrack) throw new Error('No video track found');
+	try {
+		const videoTrack = await input.getPrimaryVideoTrack();
+		if (!videoTrack) throw new Error('No video track found');
 
-	const duration = trimEnd ?? videoTrack.duration;
-	const frameInterval = 1_000_000 / targetFps; // microseconds
-	const trimStartUs = trimStart * 1_000_000;
-	const trimEndUs = duration * 1_000_000;
-	const totalFrames = Math.min(maxFrames, Math.ceil((duration - trimStart) * targetFps));
+		const trackStart = await videoTrack.getFirstTimestamp();
+		const trackDuration = await videoTrack.computeDuration();
+		const effectiveStart = Math.max(trackStart, trimStart);
+		const effectiveEnd = Math.min(trimEnd ?? trackDuration, trackDuration);
+		const duration = Math.max(0, effectiveEnd - effectiveStart);
+		if (duration <= 0) return [];
 
-	const frames: VideoFrame[] = [];
-	let lastCapturedTimestamp = -Infinity;
+		const fps = Math.max(1, targetFps);
+		const frameCount = Math.max(1, Math.min(maxFrames, Math.ceil(duration * fps)));
+		const timestamps = Array.from({ length: frameCount }, (_, i) => effectiveStart + i / fps);
 
-	return new Promise((resolve, reject) => {
-		decoder.configure({
-			track: videoTrack,
-			onFrame: (frame) => {
-				const ts = frame.timestamp;
+		const sink = new CanvasSink(videoTrack, { poolSize: 1 });
+		const wrappedFrames = await Promise.all(
+			timestamps.map(async (timestamp) => {
+				return sink.getCanvas(timestamp);
+			}),
+		);
 
-				// Skip before trim start
-				if (ts < trimStartUs) {
-					frame.close();
-					return;
-				}
-
-				// Stop after trim end or max frames
-				if (ts > trimEndUs || frames.length >= maxFrames) {
-					frame.close();
-					return;
-				}
-
-				// Sample at target FPS rate
-				if (ts - lastCapturedTimestamp >= frameInterval) {
-					frames.push(frame);
-					lastCapturedTimestamp = ts;
-					onProgress?.(frames.length, totalFrames);
-				} else {
-					frame.close();
-				}
-			},
-			onError: reject,
-		});
-
-		demuxer.setExtractionTrack(videoTrack.id, (sample) => {
-			decoder.decode(sample);
-		});
-
-		if (trimStart > 0) {
-			demuxer.seek(trimStart);
+		const frames: VideoFrame[] = [];
+		for (const [index, wrapped] of wrappedFrames.entries()) {
+			if (!wrapped) continue;
+			const frame = new VideoFrame(wrapped.canvas, {
+				timestamp: Math.round(wrapped.timestamp * 1_000_000),
+				duration: Math.max(0, Math.round(wrapped.duration * 1_000_000)),
+			});
+			frames.push(frame);
+			onProgress?.(frames.length, frameCount);
+			if (index >= maxFrames) break;
 		}
-		demuxer.start();
 
-		// Flush and resolve
-		decoder
-			.flush()
-			.then(() => {
-				decoder.destroy();
-				demuxer.destroy();
-				resolve(frames);
-			})
-			.catch(reject);
-	});
+		return frames;
+	} finally {
+		input.dispose();
+	}
 }

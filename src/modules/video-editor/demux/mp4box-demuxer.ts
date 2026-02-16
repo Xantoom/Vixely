@@ -1,141 +1,145 @@
-import { createFile, type ISOFile, type Sample, type Track, type Movie, type MP4BoxBuffer } from 'mp4box';
+import { ALL_FORMATS, BlobSource, EncodedPacketSink, Input, type EncodedPacket, type InputTrack } from 'mediabunny';
 import type { Demuxer, DemuxedTrack, DemuxedSample } from './demuxer.ts';
 
-const CHUNK_SIZE = 1024 * 1024; // 1MB read chunks
-
-function codecStringFromTrack(track: Track): string {
-	return track.codec;
+function toUint8Array(value: AllowSharedBufferSource | undefined): Uint8Array {
+	if (!value) return new Uint8Array(0);
+	if (value instanceof Uint8Array) return new Uint8Array(value);
+	if (ArrayBuffer.isView(value)) {
+		return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+	}
+	return new Uint8Array(value);
 }
 
-function extractCodecDescription(isoFile: ISOFile<unknown, unknown>, track: Track): Uint8Array {
-	const trak = isoFile.getTrackById(track.id);
-	const stbl = trak?.mdia?.minf?.stbl;
-	const stsd = stbl?.stsd;
-	if (!stsd) return new Uint8Array(0);
-
-	// For H.264: avcC box, for H.265: hvcC box, for VP9/AV1: codec-specific config
-	const entry = stsd.entries?.[0];
-	if (!entry) return new Uint8Array(0);
-
-	// Try common description boxes
-	for (const boxName of ['avcC', 'hvcC', 'vpcC', 'av1C']) {
-		const descBox = (entry as unknown as Record<string, unknown>)[boxName];
-		if (descBox && typeof descBox === 'object' && 'data' in (descBox as Record<string, unknown>)) {
-			return new Uint8Array((descBox as { data: ArrayBuffer }).data);
-		}
-	}
-
-	return new Uint8Array(0);
+function packetToDemuxedSample(trackId: number, packet: EncodedPacket): DemuxedSample {
+	return {
+		trackId,
+		timestamp: Math.max(0, Math.round(packet.timestamp * 1_000_000)),
+		duration: Math.max(0, Math.round(packet.duration * 1_000_000)),
+		data: new Uint8Array(packet.data),
+		isKeyframe: packet.type === 'key',
+	};
 }
 
 export class Mp4boxDemuxer implements Demuxer {
-	private isoFile: ISOFile<unknown, unknown> | null = null;
-	private file: File | null = null;
+	private input: Input | null = null;
 	private tracks: DemuxedTrack[] = [];
+	private inputTrackById = new Map<number, InputTrack>();
 	private sampleCallbacks = new Map<number, (sample: DemuxedSample) => void>();
-	private info: Movie | null = null;
+	private seekTimeS: number | null = null;
+	private generation = 0;
+	private activeTasks: Promise<void>[] = [];
 
 	async open(file: File): Promise<DemuxedTrack[]> {
-		this.file = file;
-		this.isoFile = createFile();
+		this.destroy();
+		this.input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
 
-		return new Promise((resolve, reject) => {
-			const iso = this.isoFile!;
+		const tracks = await this.input.getTracks();
+		const mediaTracks = tracks.filter((track) => track.type === 'video' || track.type === 'audio');
 
-			iso.onReady = (info: Movie) => {
-				this.info = info;
-				this.tracks = info.tracks.map((track: Track) => {
-					const t: DemuxedTrack = {
-						id: track.id,
-						type: track.type === 'video' ? 'video' : 'audio',
-						codec: codecStringFromTrack(track),
-						codecDescription: extractCodecDescription(iso, track),
-						timescale: track.timescale,
-						duration: track.duration / track.timescale,
-					};
-					if (track.type === 'video') {
-						t.width = track.video?.width;
-						t.height = track.video?.height;
-					} else if (track.type === 'audio') {
-						t.sampleRate = track.audio?.sample_rate;
-						t.channels = track.audio?.channel_count;
-					}
-					return t;
-				});
-				resolve(this.tracks);
-			};
+		const mapped = await Promise.all(
+			mediaTracks.map(async (track): Promise<DemuxedTrack> => {
+				let codec = track.codec ?? 'unknown';
+				let codecDescription = new Uint8Array(0);
+				let width: number | undefined;
+				let height: number | undefined;
+				let sampleRate: number | undefined;
+				let channels: number | undefined;
 
-			iso.onError = (e: string) => {
-				reject(new Error(`mp4box error: ${e}`));
-			};
+				if (track.isVideoTrack()) {
+					const decoderConfig = await track.getDecoderConfig();
+					codec = decoderConfig?.codec ?? codec;
+					codecDescription = new Uint8Array(toUint8Array(decoderConfig?.description));
+					width = track.codedWidth;
+					height = track.codedHeight;
+				} else if (track.isAudioTrack()) {
+					const decoderConfig = await track.getDecoderConfig();
+					codec = decoderConfig?.codec ?? codec;
+					codecDescription = new Uint8Array(toUint8Array(decoderConfig?.description));
+					sampleRate = track.sampleRate;
+					channels = track.numberOfChannels;
+				}
 
-			this.feedFile(file).catch(reject);
-		});
+				return {
+					id: track.id,
+					type: track.type === 'video' ? 'video' : 'audio',
+					codec,
+					codecDescription,
+					width,
+					height,
+					sampleRate,
+					channels,
+					timescale: Math.max(1, Math.round(track.timeResolution)),
+					duration: await track.computeDuration(),
+				};
+			}),
+		);
+
+		this.tracks = mapped;
+		this.inputTrackById = new Map(mediaTracks.map((track) => [track.id, track]));
+		return mapped;
 	}
 
 	setExtractionTrack(trackId: number, onSample: (sample: DemuxedSample) => void): void {
 		this.sampleCallbacks.set(trackId, onSample);
-		const iso = this.isoFile;
-		if (!iso) return;
-
-		iso.onSamples = (id: number, _user: unknown, samples: Sample[]) => {
-			const cb = this.sampleCallbacks.get(id);
-			if (!cb) return;
-			for (const sample of samples) {
-				if (!sample.data) continue;
-				cb({
-					trackId: id,
-					timestamp: (sample.cts / sample.timescale) * 1_000_000, // microseconds
-					duration: (sample.duration / sample.timescale) * 1_000_000,
-					data: new Uint8Array(sample.data),
-					isKeyframe: sample.is_sync,
-				});
-			}
-		};
-
-		iso.setExtractionOptions(trackId, undefined, { nbSamples: 100 });
 	}
 
 	start(): void {
-		this.isoFile?.start();
+		if (!this.input) return;
+		this.generation += 1;
+		const generation = this.generation;
+		this.activeTasks = [];
+
+		for (const [trackId, callback] of this.sampleCallbacks.entries()) {
+			const track = this.inputTrackById.get(trackId);
+			if (!track) continue;
+			const task = this.streamTrackPackets(generation, trackId, track, callback);
+			this.activeTasks.push(task);
+		}
 	}
 
 	seek(timeS: number): { keyframeTimestamp: number } {
-		const iso = this.isoFile;
-		if (!iso || !this.info) return { keyframeTimestamp: 0 };
-
-		const videoTrack = this.tracks.find((t) => t.type === 'video');
-		if (!videoTrack) return { keyframeTimestamp: 0 };
-
-		const seekResult = iso.seek(timeS, true);
-		return { keyframeTimestamp: seekResult.offset / videoTrack.timescale };
+		this.seekTimeS = Math.max(0, timeS);
+		return { keyframeTimestamp: this.seekTimeS };
 	}
 
 	flush(): void {
-		this.isoFile?.flush();
+		// No explicit flush required for Mediabunny packet sinks.
 	}
 
 	destroy(): void {
-		this.isoFile?.flush();
-		this.isoFile = null;
-		this.file = null;
-		this.tracks = [];
+		this.generation += 1;
+		this.activeTasks = [];
 		this.sampleCallbacks.clear();
-		this.info = null;
+		this.inputTrackById.clear();
+		this.tracks = [];
+		this.seekTimeS = null;
+		if (this.input) {
+			this.input.dispose();
+			this.input = null;
+		}
 	}
 
-	private async feedFile(file: File): Promise<void> {
-		let offset = 0;
-		const reader = file.stream().getReader();
+	private async streamTrackPackets(
+		generation: number,
+		trackId: number,
+		track: InputTrack,
+		onSample: (sample: DemuxedSample) => void,
+	): Promise<void> {
+		const sink = new EncodedPacketSink(track);
+		const seekTime = this.seekTimeS;
+		let packet: EncodedPacket | null;
+		if (seekTime == null) {
+			packet = await sink.getFirstPacket();
+		} else if (track.type === 'video') {
+			packet = await sink.getKeyPacket(seekTime);
+		} else {
+			packet = await sink.getPacket(seekTime);
+		}
+		if (!packet) return;
 
-		while (true) {
-			const { done, value } = await reader.read();
-			if (done) break;
-
-			const buf = value.buffer as MP4BoxBuffer;
-			buf.fileStart = offset;
-			offset += value.byteLength;
-			this.isoFile!.appendBuffer(buf, offset >= file.size);
+		for await (const nextPacket of sink.packets(packet)) {
+			if (generation !== this.generation) break;
+			onSample(packetToDemuxedSample(trackId, nextPacket));
 		}
 	}
 }

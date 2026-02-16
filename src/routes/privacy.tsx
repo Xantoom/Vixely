@@ -61,7 +61,7 @@ function PrivacyPage() {
 
 					<Section title="Third-party services">
 						<p>
-							Vixely loads open-source libraries (FFmpeg.wasm, Rust WASM modules) from your local bundle —
+							Vixely loads open-source libraries (Mediabunny, Rust WASM modules) from your local bundle —
 							no CDN calls for processing. Google Fonts are loaded for typography.
 						</p>
 					</Section>

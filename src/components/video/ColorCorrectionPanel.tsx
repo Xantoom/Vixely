@@ -72,7 +72,7 @@ export function ColorCorrectionPanel() {
 			))}
 
 			<p className="text-[13px] text-text-tertiary leading-relaxed">
-				Preview is real-time. Filters are applied during export via FFmpeg.
+				Preview is real-time. Filters are applied during export via Mediabunny.
 			</p>
 		</div>
 	);

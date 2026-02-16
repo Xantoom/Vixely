@@ -12,21 +12,15 @@
 		"fmt:check": "oxfmt src --check"
 	},
 	"dependencies": {
-		"@ffmpeg/core": "0.12.10",
-		"@ffmpeg/core-mt": "0.12.10",
-		"@ffmpeg/ffmpeg": "^0.12.15",
-		"@ffmpeg/util": "^0.12.2",
 		"@tanstack/react-query": "^5.90.21",
 		"@tanstack/react-router": "^1.159.5",
 		"jassub": "^2.4.1",
 		"lucide-react": "^0.563.0",
-		"mp4-muxer": "^5.2.2",
-		"mp4box": "^2.3.0",
+		"mediabunny": "^1.34.3",
 		"react": "^19.2.4",
 		"react-dom": "^19.2.4",
 		"react-helmet-async": "^2.0.5",
 		"sonner": "^2.0.7",
-		"webm-muxer": "^5.1.4",
 		"zustand": "^5.0.11"
 	},
 	"devDependencies": {

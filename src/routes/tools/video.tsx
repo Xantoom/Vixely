@@ -73,6 +73,9 @@ const CONTAINER_AUDIO_CODECS: Record<string, Set<string>> = {
 		'pcm_s24le',
 	]),
 };
+
+const VIDEO_FILENAME_RE = /\.(mp4|mkv|webm|mov|m4v|avi|mts|m2ts|ts)$/i;
+
 type MetadataLoadStage = 'idle' | 'fast-probe' | 'fonts' | 'ready' | 'error';
 
 async function convertPngToFormat(pngData: Uint8Array, format: 'jpeg' | 'webp'): Promise<Blob> {
@@ -116,6 +119,10 @@ function pickEncodeThreads(): number {
 	const hc = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 0;
 	if (!Number.isFinite(hc) || hc <= 0) return 2;
 	return Math.min(Math.floor(hc / 2), 8);
+}
+
+function isVideoFileLike(file: File): boolean {
+	return file.type.startsWith('video/') || VIDEO_FILENAME_RE.test(file.name);
 }
 
 /* ── Mode Tab Config ── */
@@ -292,6 +299,8 @@ function VideoStudio() {
 	const [resultExt, setResultExt] = useState<string | null>(null);
 	const [audioExportMode, setAudioExportMode] = useState<'all' | 'single'>('all');
 	const [subtitleExportMode, setSubtitleExportMode] = useState<'all' | 'single'>('all');
+	const [usePreBurnedAssSource, setUsePreBurnedAssSource] = useState(false);
+	const [preBurnedAssSourceFile, setPreBurnedAssSourceFile] = useState<File | null>(null);
 	const [videoNoReencode, setVideoNoReencode] = useState(false);
 	const [audioNoReencode, setAudioNoReencode] = useState(true);
 	const [streamInfoPending, setStreamInfoPending] = useState(false);
@@ -312,6 +321,7 @@ function VideoStudio() {
 
 	const videoRef = useRef<HTMLVideoElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	const preBurnedAssInputRef = useRef<HTMLInputElement>(null);
 	const dragCounter = useRef(0);
 	const progressRef = useRef(0);
 	const startedRef = useRef(started);
@@ -536,9 +546,12 @@ function VideoStudio() {
 			setCurrentTime(0);
 			setAudioExportMode('all');
 			setSubtitleExportMode('all');
+			setUsePreBurnedAssSource(false);
+			setPreBurnedAssSourceFile(null);
 			setVideoNoReencode(false);
 			setAudioNoReencode(true);
 			setVideoUrl(URL.createObjectURL(f));
+			if (preBurnedAssInputRef.current) preBurnedAssInputRef.current.value = '';
 			toast.success('Video loaded', { description: f.name });
 
 			setEmbeddedFonts([]);
@@ -670,6 +683,18 @@ function VideoStudio() {
 		[probe, probeDetails, extractFonts, setProbeResult, setTracks, setResize, videoUrl],
 	);
 
+	const handlePreBurnedAssSourceFile = useCallback((f: File) => {
+		if (!isVideoFileLike(f)) {
+			toast.error('Invalid file type', {
+				description: 'Choose a pre-rendered video file with ASS subtitles already burned in.',
+			});
+			return;
+		}
+		setPreBurnedAssSourceFile(f);
+		setUsePreBurnedAssSource(true);
+		toast.success('Burned subtitle source ready', { description: f.name });
+	}, []);
+
 	const handleVideoLoaded = useCallback(() => {
 		const video = videoRef.current;
 		if (!video) return;
@@ -782,7 +807,7 @@ function VideoStudio() {
 			const f = e.dataTransfer.files[0];
 			if (!f) return;
 
-			if (!f.type.startsWith('video/')) {
+			if (!isVideoFileLike(f)) {
 				toast.error('Invalid file type', { description: 'Drop a video file (MP4, WebM, MOV, etc.)' });
 				return;
 			}
@@ -872,6 +897,16 @@ function VideoStudio() {
 			return;
 		}
 
+		if (usePreBurnedAssSource && !preBurnedAssSourceFile) {
+			toast.error('Missing burned subtitle source', {
+				description: 'Select a pre-burned video file before exporting in ASS fidelity mode.',
+			});
+			return;
+		}
+
+		const usingPreBurnedSource = usePreBurnedAssSource && preBurnedAssSourceFile != null;
+		const sourceFile = usingPreBurnedSource ? preBurnedAssSourceFile : file;
+
 		const isCustom = useCustomExport || !selectedPreset;
 		const encodeThreads = String(pickEncodeThreads());
 
@@ -893,11 +928,11 @@ function VideoStudio() {
 		const selectedAudioStream =
 			tracks.audioEnabled && audioExportMode === 'single' ? audioStreams[tracks.audioTrackIndex] : undefined;
 		const selectedSubtitleStream =
-			tracks.subtitleEnabled && subtitleExportMode === 'single'
+			!usingPreBurnedSource && tracks.subtitleEnabled && subtitleExportMode === 'single'
 				? subtitleStreams[tracks.subtitleTrackIndex]
 				: undefined;
 		const includeAudioTracks = tracks.audioEnabled && audioStreams.length > 0;
-		const includeSubtitleTracks = tracks.subtitleEnabled && subtitleStreams.length > 0;
+		const includeSubtitleTracks = !usingPreBurnedSource && tracks.subtitleEnabled && subtitleStreams.length > 0;
 		const selectedAudioStreamsForExport = includeAudioTracks
 			? audioExportMode === 'all'
 				? audioStreams
@@ -922,7 +957,9 @@ function VideoStudio() {
 			return sum + Math.max(0, bitrate);
 		}, 0);
 		const sourceClipBytesEstimate =
-			duration > 0 ? Math.round((file.size * Math.max(clipDuration, minTrimDuration)) / duration) : file.size;
+			duration > 0
+				? Math.round((sourceFile.size * Math.max(clipDuration, minTrimDuration)) / duration)
+				: sourceFile.size;
 
 		// Build -vf filter chain (resize + color correction)
 		const vfParts = [...resizeFilterArgs(), ...ffmpegFilterArgs()];
@@ -987,7 +1024,9 @@ function VideoStudio() {
 					args.push('-c:a', 'copy');
 				} else {
 					if (audioNoReencode && !audioContainerOk) {
-						console.warn(`[video] Audio re-encode: source incompatible with ${s.container}, converting to ${s.audioCodec}`);
+						console.warn(
+							`[video] Audio re-encode: source incompatible with ${s.container}, converting to ${s.audioCodec}`,
+						);
 					}
 					args.push('-c:a', s.audioCodec, '-b:a', s.audioBitrate);
 				}
@@ -1048,7 +1087,9 @@ function VideoStudio() {
 					args.push('-c:a', 'copy');
 				} else {
 					if (audioNoReencode && (!presetAudioContainerOk || forcePresetAudioReencode)) {
-						console.warn(`[video] Audio re-encode: source audio incompatible with ${format}, converting to ${presetAudioCodec}`);
+						console.warn(
+							`[video] Audio re-encode: source audio incompatible with ${format}, converting to ${presetAudioCodec}`,
+						);
 					}
 					args.push('-c:a', presetAudioCodec, '-b:a', `${presetAudioBitrateKbps}k`);
 				}
@@ -1061,7 +1102,7 @@ function VideoStudio() {
 		// Explicit stream mapping keeps selected tracks deterministic.
 		args.push('-map', '0:v:0');
 		if (includeAudio) {
-			if (audioExportMode === 'all') {
+			if (usingPreBurnedSource || audioExportMode === 'all') {
 				args.push('-map', '0:a?');
 			} else if (selectedAudioStream) {
 				args.push('-map', `0:${selectedAudioStream.index}`);
@@ -1090,7 +1131,7 @@ function VideoStudio() {
 		}
 
 		let timeoutError: Error | null = null;
-		// WorkerFS mount + ffmpeg startup can take a while on large files; avoid cancelling valid startup work too early.
+		// Large media startup can take a while; avoid cancelling valid startup work too early.
 		const timeoutId = setTimeout(() => {
 			const noProgress = !Number.isFinite(progressRef.current) || progressRef.current <= 0.001;
 			const noFrameActivity = !Number.isFinite(exportStatsRef.current.frame) || exportStatsRef.current.frame <= 0;
@@ -1104,7 +1145,7 @@ function VideoStudio() {
 					started: startedRef.current,
 					progress: progressRef.current,
 					exportStats: exportStatsRef.current,
-					file: { name: file.name, size: file.size, type: file.type },
+					file: { name: sourceFile.name, size: sourceFile.size, type: sourceFile.type },
 					trim: { start: trimStart, end: trimEnd, clipDuration, duration },
 					output: { name: outputName, ext },
 					tracks: {
@@ -1112,6 +1153,7 @@ function VideoStudio() {
 						subtitleMode: subtitleExportMode,
 						includeAudio,
 						includeSubtitleTracks,
+						usingPreBurnedSource,
 						selectedAudioStreamIndex: selectedAudioStream?.index ?? null,
 						selectedSubtitleStreamIndex: selectedSubtitleStream?.index ?? null,
 					},
@@ -1144,7 +1186,7 @@ function VideoStudio() {
 		}, 10_000);
 
 		try {
-			const result = await transcode({ file, args, outputName, expectedDurationSec: clipDuration });
+			const result = await transcode({ file: sourceFile, args, outputName, expectedDurationSec: clipDuration });
 			clearTimeout(timeoutId);
 			const blob = new Blob([new Uint8Array(result)], { type: `video/${ext}` });
 			const url = URL.createObjectURL(blob);
@@ -1188,6 +1230,8 @@ function VideoStudio() {
 		subtitleStreams,
 		audioExportMode,
 		subtitleExportMode,
+		usePreBurnedAssSource,
+		preBurnedAssSourceFile,
 		videoNoReencode,
 		audioNoReencode,
 		transcode,
@@ -1335,6 +1379,7 @@ function VideoStudio() {
 		videoFilters.contrast !== 1 ||
 		videoFilters.saturation !== 1 ||
 		videoFilters.hue !== 0;
+	const usingPreBurnedAssSource = usePreBurnedAssSource && preBurnedAssSourceFile != null;
 	const showPresetToggle = true;
 	const sidebarContent = (
 		<>
@@ -1709,7 +1754,7 @@ function VideoStudio() {
 						<div className="flex items-center gap-2 rounded-lg bg-accent/5 border border-accent/20 px-3 py-2">
 							<AlertCircle size={13} className="text-accent shrink-0" />
 							<p className="text-[13px] text-text-secondary">
-								Preview is approximate. Final export uses FFmpeg for precision.
+								Preview is approximate. Final export is processed with Mediabunny.
 							</p>
 						</div>
 						<div className="flex items-center justify-between">
@@ -2048,13 +2093,23 @@ function VideoStudio() {
 											)}
 										</div>
 
-										{(advancedSettings.codec === 'libx264' || advancedSettings.codec === 'libx265') && (
+										{(advancedSettings.codec === 'libx264' ||
+											advancedSettings.codec === 'libx265') && (
 											<div>
 												<label className="mb-1.5 block text-[13px] text-text-tertiary">
 													Encoding Speed
 												</label>
 												<div className="grid grid-cols-3 gap-1.5">
-													{(['ultrafast', 'veryfast', 'fast', 'medium', 'slow', 'veryslow'] as const).map((preset) => (
+													{(
+														[
+															'ultrafast',
+															'veryfast',
+															'fast',
+															'medium',
+															'slow',
+															'veryslow',
+														] as const
+													).map((preset) => (
 														<button
 															key={preset}
 															onClick={() => {
@@ -2304,6 +2359,86 @@ function VideoStudio() {
 								</div>
 							)}
 
+							<div className="rounded-xl border border-border/70 bg-surface-raised/25 p-3">
+								<div className="mb-3 flex items-center gap-2">
+									<Subtitles size={14} className="text-text-tertiary" />
+									<div className="min-w-0">
+										<h3 className="text-[13px] font-semibold uppercase tracking-wider text-text-tertiary">
+											ASS Fidelity
+										</h3>
+										<p className="text-[13px] text-text-tertiary">
+											Use a pre-burned source for full ASS styling and effects.
+										</p>
+									</div>
+									<ToggleSwitch
+										enabled={usePreBurnedAssSource}
+										onToggle={() => {
+											setUsePreBurnedAssSource((prev) => !prev);
+										}}
+									/>
+								</div>
+
+								{usePreBurnedAssSource ? (
+									<div className="flex flex-col gap-2">
+										<div className="rounded-lg border border-accent/25 bg-accent/6 px-3 py-2">
+											<p className="text-[13px] font-medium text-text">
+												Burned subtitle source enabled
+											</p>
+											<p className="mt-0.5 text-[13px] text-text-tertiary">
+												Export will use the selected burned file and skip subtitle track
+												mapping.
+											</p>
+										</div>
+										<div className="rounded-lg border border-border/60 bg-bg/35 px-3 py-2 text-[13px]">
+											{preBurnedAssSourceFile ? (
+												<div className="flex items-center justify-between gap-2">
+													<span className="truncate text-text">
+														{preBurnedAssSourceFile.name}
+													</span>
+													<span className="shrink-0 text-text-tertiary">
+														{formatFileSize(preBurnedAssSourceFile.size)}
+													</span>
+												</div>
+											) : (
+												<span className="text-text-tertiary">
+													No burned video file selected.
+												</span>
+											)}
+										</div>
+										<div className="grid grid-cols-2 gap-1.5">
+											<button
+												onClick={() => {
+													preBurnedAssInputRef.current?.click();
+												}}
+												className="rounded-lg border border-border/70 bg-surface-raised/40 px-3 py-2 text-[13px] font-medium text-text-tertiary transition-colors cursor-pointer hover:text-text-secondary"
+											>
+												Choose file
+											</button>
+											<button
+												onClick={() => {
+													setPreBurnedAssSourceFile(null);
+													setUsePreBurnedAssSource(false);
+													if (preBurnedAssInputRef.current)
+														preBurnedAssInputRef.current.value = '';
+												}}
+												disabled={!preBurnedAssSourceFile}
+												className={`rounded-lg border px-3 py-2 text-[13px] font-medium transition-colors ${
+													preBurnedAssSourceFile
+														? 'border-border/70 bg-surface-raised/40 text-text-tertiary hover:text-text-secondary cursor-pointer'
+														: 'border-border/40 bg-surface-raised/20 text-text-tertiary/40 cursor-not-allowed'
+												}`}
+											>
+												Clear
+											</button>
+										</div>
+									</div>
+								) : (
+									<p className="text-[13px] italic text-text-tertiary">
+										Use normal subtitle track export from the current source.
+									</p>
+								)}
+							</div>
+
 							{subtitleStreams.length > 0 && (
 								<div className="rounded-xl border border-border/70 bg-surface-raised/25 p-3">
 									<div className="mb-3 flex items-center gap-2">
@@ -2326,6 +2461,12 @@ function VideoStudio() {
 
 									{tracks.subtitleEnabled ? (
 										<div className="flex flex-col gap-2">
+											{usingPreBurnedAssSource && (
+												<div className="rounded-lg border border-accent/25 bg-accent/6 px-3 py-2 text-[13px] text-text-tertiary">
+													Pre-burned source is active. Subtitle track settings below are
+													ignored for export.
+												</div>
+											)}
 											<div className="grid grid-cols-2 gap-1.5">
 												<button
 													onClick={() => {
@@ -2450,7 +2591,8 @@ function VideoStudio() {
 									<div className="flex items-center justify-between">
 										<span className="text-text-tertiary">Codec</span>
 										<span className="font-medium text-text">
-											{VIDEO_CODECS.find((c) => c.ffmpegLib === advancedSettings.codec)?.name ?? advancedSettings.codec}
+											{VIDEO_CODECS.find((c) => c.ffmpegLib === advancedSettings.codec)?.name ??
+												advancedSettings.codec}
 										</span>
 									</div>
 								)}
@@ -2474,7 +2616,9 @@ function VideoStudio() {
 									<div className="flex items-center justify-between">
 										<span className="text-text-tertiary">Duration</span>
 										<span className="font-mono font-medium text-text tabular-nums">
-											{formatCompactTime(hasTrimAdjustments ? Math.max(trimEnd - trimStart, 0) : duration)}
+											{formatCompactTime(
+												hasTrimAdjustments ? Math.max(trimEnd - trimStart, 0) : duration,
+											)}
 										</span>
 									</div>
 								)}
@@ -2487,6 +2631,20 @@ function VideoStudio() {
 													? `${audioStreams.length} track${audioStreams.length === 1 ? '' : 's'}`
 													: '1 track'
 												: 'None'}
+										</span>
+									</div>
+								)}
+								{(subtitleStreams.length > 0 || usePreBurnedAssSource) && (
+									<div className="flex items-center justify-between">
+										<span className="text-text-tertiary">Subtitles</span>
+										<span className="font-medium text-text">
+											{usingPreBurnedAssSource
+												? 'Burned in'
+												: tracks.subtitleEnabled
+													? subtitleExportMode === 'all'
+														? `${subtitleStreams.length} track${subtitleStreams.length === 1 ? '' : 's'}`
+														: '1 track'
+													: 'None'}
 										</span>
 									</div>
 								)}
@@ -2611,6 +2769,17 @@ function VideoStudio() {
 				onChange={(e) => {
 					const f = e.target.files?.[0];
 					if (f) handleFile(f);
+				}}
+			/>
+			<input
+				ref={preBurnedAssInputRef}
+				type="file"
+				accept={VIDEO_ACCEPT}
+				className="hidden"
+				onChange={(e) => {
+					const f = e.target.files?.[0];
+					if (f) handlePreBurnedAssSourceFile(f);
+					e.currentTarget.value = '';
 				}}
 			/>
 

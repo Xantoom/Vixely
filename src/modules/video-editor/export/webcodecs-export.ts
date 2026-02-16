@@ -1,9 +1,18 @@
+import {
+	ALL_FORMATS,
+	BlobSource,
+	BufferTarget,
+	Conversion,
+	Input,
+	MkvOutputFormat,
+	Mp4OutputFormat,
+	Output,
+	WebMOutputFormat,
+	type ConversionVideoOptions,
+} from 'mediabunny';
 import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
-import { FilterPipeline } from '@/modules/shared-core/filter-pipeline.ts';
-import { WebCodecsVideoDecoder } from '../decode/webcodecs-decoder.ts';
-import { Mp4boxDemuxer } from '../demux/mp4box-demuxer.ts';
-import { createContainerMuxer, type ContainerFormat, type ContainerMuxer } from '../encode/muxer.ts';
-import { WebCodecsVideoEncoder, type VideoCodec } from '../encode/webcodecs-encoder.ts';
+import type { ContainerFormat } from '../encode/muxer.ts';
+import type { VideoCodec } from '../encode/webcodecs-encoder.ts';
 
 export interface WebCodecsExportOptions {
 	file: File;
@@ -18,115 +27,124 @@ export interface WebCodecsExportOptions {
 	onProgress?: (progress: number) => void;
 }
 
+function toOutputFormat(container: ContainerFormat): Mp4OutputFormat | WebMOutputFormat | MkvOutputFormat {
+	switch (container) {
+		case 'webm':
+			return new WebMOutputFormat();
+		case 'mkv':
+			return new MkvOutputFormat();
+		case 'mp4':
+		default:
+			return new Mp4OutputFormat({ fastStart: false });
+	}
+}
+
+function toMediabunnyCodec(codec: VideoCodec): ConversionVideoOptions['codec'] {
+	switch (codec) {
+		case 'avc1':
+			return 'avc';
+		case 'vp09':
+			return 'vp9';
+		case 'av01':
+		default:
+			return 'av1';
+	}
+}
+
+function createVideoProcess(filters: FilterParams): ConversionVideoOptions['process'] | undefined {
+	const filterTokens: string[] = [];
+	if (Math.abs(filters.exposure - 1) > 1e-4) {
+		filterTokens.push(`brightness(${Math.max(0, filters.exposure) * 100}%)`);
+	}
+	if (Math.abs(filters.brightness) > 1e-4) {
+		filterTokens.push(`brightness(${Math.max(0, 1 + filters.brightness) * 100}%)`);
+	}
+	if (Math.abs(filters.contrast - 1) > 1e-4) {
+		filterTokens.push(`contrast(${Math.max(0, filters.contrast) * 100}%)`);
+	}
+	if (Math.abs(filters.saturation - 1) > 1e-4) {
+		filterTokens.push(`saturate(${Math.max(0, filters.saturation) * 100}%)`);
+	}
+	if (Math.abs(filters.hue) > 1e-4) {
+		filterTokens.push(`hue-rotate(${filters.hue}deg)`);
+	}
+	if (Math.abs(filters.blur) > 1e-4) {
+		filterTokens.push(`blur(${Math.max(0, filters.blur)}px)`);
+	}
+	if (Math.abs(filters.sepia) > 1e-4) {
+		filterTokens.push(`sepia(${Math.max(0, filters.sepia) * 100}%)`);
+	}
+
+	if (filterTokens.length === 0) return undefined;
+
+	let canvas: OffscreenCanvas | null = null;
+	let ctx: OffscreenCanvasRenderingContext2D | null = null;
+	const filterText = filterTokens.join(' ');
+
+	return (sample) => {
+		const width = Math.max(1, Math.round((sample as { displayWidth?: number }).displayWidth ?? 1));
+		const height = Math.max(1, Math.round((sample as { displayHeight?: number }).displayHeight ?? 1));
+		if (!canvas || canvas.width !== width || canvas.height !== height) {
+			canvas = new OffscreenCanvas(width, height);
+			ctx = canvas.getContext('2d', { alpha: true });
+		}
+		if (!canvas || !ctx) return sample;
+		ctx.save();
+		ctx.clearRect(0, 0, width, height);
+		ctx.filter = filterText;
+		(sample as { draw: (context: OffscreenCanvasRenderingContext2D, x: number, y: number) => void }).draw(
+			ctx,
+			0,
+			0,
+		);
+		ctx.restore();
+		return canvas;
+	};
+}
+
 /**
- * Full WebCodecs export pipeline:
- * File → mp4box.js → VideoDecoder → VideoFrame
- *   → WebGL filter → OffscreenCanvas → VideoFrame
- *   → VideoEncoder → EncodedVideoChunk
- *   → mp4-muxer/webm-muxer → Blob
+ * Mediabunny-backed export pipeline.
  */
 export async function exportWithWebCodecs(options: WebCodecsExportOptions): Promise<Blob> {
 	const { file, filters, codec, container, width, height, bitrate, trimStart = 0, trimEnd, onProgress } = options;
 
-	// Set up pipeline components
-	const demuxer = new Mp4boxDemuxer();
-	const decoder = new WebCodecsVideoDecoder();
-	const encoder = new WebCodecsVideoEncoder();
+	const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
 
-	// OffscreenCanvas for filter rendering (no DOM needed)
-	const offscreen = new OffscreenCanvas(width, height);
-	const filterPipeline = new FilterPipeline(offscreen);
+	try {
+		const outputFormat = toOutputFormat(container);
+		const output = new Output({ format: outputFormat, target: new BufferTarget() });
 
-	const tracks = await demuxer.open(file);
-	const videoTrack = tracks.find((t) => t.type === 'video');
-	if (!videoTrack) throw new Error('No video track found');
+		const conversion = await Conversion.init({
+			input,
+			output,
+			trim: trimStart > 0 || trimEnd != null ? { start: trimStart, end: trimEnd } : undefined,
+			video: {
+				width,
+				height,
+				fit: 'fill',
+				codec: toMediabunnyCodec(codec),
+				bitrate,
+				forceTranscode: true,
+				process: createVideoProcess(filters),
+			},
+			audio: { discard: true },
+		});
 
-	const duration = trimEnd ?? videoTrack.duration;
-	const trimStartUs = trimStart * 1_000_000;
-	const trimEndUs = duration * 1_000_000;
+		conversion.onProgress = onProgress;
+		if (!conversion.isValid) {
+			throw new Error(
+				`Invalid export settings: ${conversion.discardedTracks
+					.map((entry) => `${entry.track.type}:${entry.reason}`)
+					.join(', ')}`,
+			);
+		}
 
-	// Map video codec to muxer codec identifier
-	const muxerCodec = codec === 'avc1' ? ('avc' as const) : codec === 'vp09' ? ('vp9' as const) : ('av1' as const);
-
-	const muxer = createContainerMuxer({ container, video: { codec: muxerCodec, width, height } });
-
-	// Configure encoder
-	encoder.configure({
-		codec,
-		width,
-		height,
-		bitrate,
-		framerate: videoTrack.width ? 30 : undefined,
-		onChunk: (chunk, metadata) => {
-			muxer.addVideoChunk(chunk, metadata);
-		},
-	});
-
-	let framesProcessed = 0;
-	const totalFrames = Math.ceil((duration - trimStart) * 30); // estimate
-
-	// Configure decoder
-	decoder.configure({
-		track: videoTrack,
-		onFrame: (frame) => {
-			const ts = frame.timestamp;
-
-			// Skip frames before trim start
-			if (ts < trimStartUs) {
-				frame.close();
-				return;
-			}
-
-			// Stop after trim end
-			if (ts > trimEndUs) {
-				frame.close();
-				return;
-			}
-
-			// Upload frame to WebGL, apply filters
-			filterPipeline.uploadVideoFrame(frame);
-			frame.close();
-			filterPipeline.render(filters);
-
-			// Read filtered canvas as new VideoFrame for encoder
-			const bitmap = (offscreen as OffscreenCanvas).transferToImageBitmap();
-			const filteredFrame = new VideoFrame(bitmap, { timestamp: ts - trimStartUs });
-			bitmap.close();
-
-			encoder.encode(filteredFrame);
-			filteredFrame.close();
-
-			framesProcessed++;
-			onProgress?.(Math.min(1, framesProcessed / totalFrames));
-		},
-		onError: (err) => {
-			throw err;
-		},
-	});
-
-	// Set up extraction and start
-	demuxer.setExtractionTrack(videoTrack.id, (sample) => {
-		decoder.decode(sample);
-	});
-
-	if (trimStart > 0) {
-		demuxer.seek(trimStart);
+		await conversion.execute();
+		const buffer = output.target.buffer;
+		if (!buffer) throw new Error('No output buffer produced');
+		onProgress?.(1);
+		return new Blob([buffer], { type: outputFormat.mimeType });
+	} finally {
+		input.dispose();
 	}
-	demuxer.start();
-
-	// Wait for all frames to be processed
-	await decoder.flush();
-	await encoder.flush();
-
-	// Finalize muxer
-	const blob = muxer.finalize();
-
-	// Cleanup
-	encoder.destroy();
-	decoder.destroy();
-	demuxer.destroy();
-	filterPipeline.destroy();
-
-	onProgress?.(1);
-	return blob;
 }

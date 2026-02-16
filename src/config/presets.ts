@@ -312,7 +312,7 @@ function buildVideoCodecArgs(codec: VideoCodec, container: VideoContainer, baseP
 }
 
 /**
- * Build FFmpeg args for a video preset with size-constrained encoding.
+ * Build codec/container preset args for size-constrained encoding.
  * If maxSizeMB is set and source is larger than the cap, compute a trim-aware
  * size budget and estimate a quality target (CRF/QP) for the selected output.
  */

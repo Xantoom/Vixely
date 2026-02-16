@@ -1,6 +1,6 @@
 import type JASSUB from 'jassub';
-import { Play, Pause, Volume2, VolumeX, Maximize, Languages, AudioLines, Check, CircleOff } from 'lucide-react';
-import { useRef, useState, useCallback, useEffect, useMemo, type RefObject } from 'react';
+import { AudioLines, Check, CircleOff, Languages, Maximize, Pause, Play, Volume2, VolumeX } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { formatPlayerTime } from '@/components/ui/index.ts';
 import { useVideoEditorStore } from '@/stores/videoEditor.ts';
 
@@ -112,7 +112,7 @@ function formatCodecLabel(codec?: string): string | null {
 		vorbis: 'Vorbis',
 		flac: 'FLAC',
 		ac3: 'AC-3',
-		'eac3': 'E-AC-3',
+		eac3: 'E-AC-3',
 		'e-ac-3': 'E-AC-3',
 		dts: 'DTS',
 		truehd: 'TrueHD',
@@ -1134,12 +1134,6 @@ function TrackMenu({
 					})}
 				</div>
 			</div>
-
-			{label === 'Audio' && streams.length > 1 && (
-				<div className="px-3 py-1.5 border-t border-white/10">
-					<p className="text-[13px] text-white/30 italic">Selection applied during export</p>
-				</div>
-			)}
 		</div>
 	);
 }

@@ -265,10 +265,9 @@ export function useVideoProcessor() {
 		resolve: (fonts: Array<{ name: string; data: Uint8Array }>) => void;
 		reject: (err: Error) => void;
 	} | null>(null);
-	const remuxAudioPendingRef = useRef<{
-		resolve: (data: Uint8Array) => void;
-		reject: (err: Error) => void;
-	} | null>(null);
+	const remuxAudioPendingRef = useRef<{ resolve: (data: Uint8Array) => void; reject: (err: Error) => void } | null>(
+		null,
+	);
 	const exportExpectedDurationRef = useRef(0);
 	const exportStartRef = useRef<number>(0);
 	const lastProgressEmitRef = useRef(0);
@@ -286,7 +285,7 @@ export function useVideoProcessor() {
 					break;
 
 				case 'PROGRESS':
-					// Keep UI smooth under heavy ffmpeg log/progress throughput.
+					// Keep UI smooth under heavy worker log/progress throughput.
 					if (msg.progress < 1) {
 						const now = performance.now();
 						if (now - lastProgressEmitRef.current < 80) break;
@@ -406,13 +405,7 @@ export function useVideoProcessor() {
 			crashHandled = true;
 			console.error('[hook] worker onerror:', e.message, e);
 			const err = new Error(e.message ?? 'Worker crashed');
-			setState((s) => ({
-				...s,
-				ready: false,
-				processing: false,
-				started: false,
-				error: err.message,
-			}));
+			setState((s) => ({ ...s, ready: false, processing: false, started: false, error: err.message }));
 			setProbeStatus(null);
 			resolveRef.current = null;
 			rejectRef.current?.(err);
@@ -661,20 +654,17 @@ export function useVideoProcessor() {
 		[],
 	);
 
-	const remuxAudio = useCallback(
-		async (file: File): Promise<Uint8Array> => {
-			return new Promise<Uint8Array>((resolve, reject) => {
-				if (!workerRef.current) {
-					reject(new Error('Worker not initialized'));
-					return;
-				}
-				remuxAudioPendingRef.current?.reject(new Error('Superseded by newer remux request'));
-				remuxAudioPendingRef.current = { resolve, reject };
-				workerRef.current.postMessage({ type: 'REMUX_AUDIO', file });
-			});
-		},
-		[],
-	);
+	const remuxAudio = useCallback(async (file: File): Promise<Uint8Array> => {
+		return new Promise<Uint8Array>((resolve, reject) => {
+			if (!workerRef.current) {
+				reject(new Error('Worker not initialized'));
+				return;
+			}
+			remuxAudioPendingRef.current?.reject(new Error('Superseded by newer remux request'));
+			remuxAudioPendingRef.current = { resolve, reject };
+			workerRef.current.postMessage({ type: 'REMUX_AUDIO', file });
+		});
+	}, []);
 
 	const extractFonts = useCallback(
 		async (file: File, attachments: FontAttachmentInfo[]): Promise<Array<{ name: string; data: Uint8Array }>> => {

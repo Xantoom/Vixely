@@ -539,7 +539,7 @@ export function VideoInfoModal({
 
 				{!probeResult && !detailedProbePending && (
 					<p className="text-[13px] text-text-tertiary mt-2">
-						Stream details will appear once FFmpeg finishes probing.
+						Stream details will appear once Mediabunny finishes probing.
 					</p>
 				)}
 			</div>

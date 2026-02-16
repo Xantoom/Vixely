@@ -17,7 +17,7 @@ export interface PipelineEvents {
 
 /**
  * Orchestrates the WebCodecs video playback pipeline:
- * File → mp4box.js (demux) → VideoDecoder → VideoFrame
+ * File → Mediabunny packet sink → VideoDecoder → VideoFrame
  *   → WebGL filter → canvas → frame.close()
  */
 export class VideoPipeline {

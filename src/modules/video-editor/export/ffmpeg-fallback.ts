@@ -1,9 +1,5 @@
 /**
- * FFmpeg fallback export path.
- * Used when WebCodecs doesn't support the target codec (e.g., H.265/libx265)
- * or when the browser doesn't support WebCodecs (Firefox).
- *
- * This delegates to the existing ffmpeg-worker.ts infrastructure.
+ * Browser capability helpers for deciding when to use the Mediabunny conversion path.
  */
 
 export interface FfmpegExportOptions {
