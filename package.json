@@ -5,7 +5,9 @@
 	"scripts": {
 		"postinstall": "./scripts/copy-jassub.sh",
 		"dev": "vite",
-		"build": "./scripts/build-wasm.sh && vite build",
+		"build:wasm": "./scripts/build-wasm.sh",
+		"generate:routes": "node ./scripts/generate-route-tree.mjs",
+		"build": "bun run build:wasm && bun run generate:routes && vite build",
 		"lint": "oxlint src --type-aware --type-check",
 		"lint:fix": "oxlint src --type-aware --type-check --fix",
 		"fmt": "oxfmt src --write",
