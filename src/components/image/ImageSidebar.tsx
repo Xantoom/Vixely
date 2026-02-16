@@ -133,7 +133,7 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 		commitFilters();
 	}, [commitFilters]);
 
-	const handleExport = useCallback(() => {
+	const handleExport = useCallback(async () => {
 		if (!originalData) return;
 
 		const mimeType = `image/${exportFormat}`;
@@ -149,17 +149,19 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 		renderer.render(filters);
 
 		// Read from the WebGL canvas
-		const canvas = renderer.canvas as OffscreenCanvas;
+		const canvas = renderer.canvas;
+		if (!(canvas instanceof OffscreenCanvas)) {
+			toast.error('Export failed');
+			return;
+		}
 		const quality = exportFormat === 'png' ? undefined : exportQuality / 100;
-
-		canvas.convertToBlob({ type: mimeType, quality }).then((blob) => {
-			const a = document.createElement('a');
-			a.href = URL.createObjectURL(blob);
-			a.download = `vixely-export.${ext}`;
-			a.click();
-			URL.revokeObjectURL(a.href);
-			toast.success('Image exported', { description: formatFileSize(blob.size) });
-		});
+		const blob = await canvas.convertToBlob({ type: mimeType, quality });
+		const a = document.createElement('a');
+		a.href = URL.createObjectURL(blob);
+		a.download = `vixely-export.${ext}`;
+		a.click();
+		URL.revokeObjectURL(a.href);
+		toast.success('Image exported', { description: formatFileSize(blob.size) });
 	}, [originalData, exportFormat, exportQuality, filters]);
 
 	const handleApplyResize = useCallback(() => {
@@ -457,7 +459,13 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 					</Button>
 				)}
 
-				<Button className="w-full" disabled={!originalData} onClick={handleExport}>
+				<Button
+					className="w-full"
+					disabled={!originalData}
+					onClick={() => {
+						void handleExport();
+					}}
+				>
 					Export
 				</Button>
 			</div>

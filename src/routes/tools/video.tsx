@@ -389,8 +389,12 @@ function VideoStudio() {
 
 	useEffect(() => {
 		if (!exportError) return;
-		const timer = setTimeout(() => setExportError(null), 5000);
-		return () => clearTimeout(timer);
+		const timer = setTimeout(() => {
+			setExportError(null);
+		}, 5000);
+		return () => {
+			clearTimeout(timer);
+		};
 	}, [exportError]);
 
 	useEffect(() => {
@@ -416,7 +420,7 @@ function VideoStudio() {
 					if (video) video.currentTime = savedTime;
 				});
 			})
-			.catch((err) => {
+			.catch((err: unknown) => {
 				if (requestId !== remuxRequestIdRef.current) return;
 				console.error('[video] Audio remux failed', err);
 				setAudioRemuxState('error');
@@ -2581,9 +2585,9 @@ function VideoStudio() {
 									<span className="text-text-tertiary">Format</span>
 									<span className="font-medium text-text">
 										{useCustomExport
-											? `${advancedSettings.container.toUpperCase()}`
+											? advancedSettings.container.toUpperCase()
 											: selectedPreset
-												? `${presetLabel ?? selectedPreset}`
+												? (presetLabel ?? selectedPreset)
 												: 'Not selected'}
 									</span>
 								</div>

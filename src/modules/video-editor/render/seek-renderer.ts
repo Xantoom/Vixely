@@ -1,5 +1,5 @@
 import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
-import type { DemuxedSample, Demuxer } from '../demux/demuxer.ts';
+import type { Demuxer } from '../demux/demuxer.ts';
 import type { PlaybackRenderer } from './playback-renderer.ts';
 import { WebCodecsVideoDecoder } from '../decode/webcodecs-decoder.ts';
 
@@ -32,7 +32,7 @@ export class SeekRenderer {
 		await this.decoder.reset();
 
 		// Seek demuxer to nearest keyframe
-		const { keyframeTimestamp } = this.demuxer.seek(timeS);
+		this.demuxer.seek(timeS);
 
 		const targetTimestamp = timeS * 1_000_000; // to microseconds
 
@@ -57,10 +57,7 @@ export class SeekRenderer {
 			};
 
 			// Temporarily redirect frame output
-			this.decoder.configure({
-				track: this.demuxer as never, // will be reconfigured by pipeline
-				onFrame: originalCallback,
-			});
+			this.decoder.setOnFrame(originalCallback);
 
 			// Start extraction from keyframe position
 			this.demuxer.start();

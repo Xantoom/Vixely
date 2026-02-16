@@ -23,9 +23,9 @@ export function createWebGL2Context(
 		preserveDrawingBuffer: false,
 		powerPreference: 'high-performance',
 		...options,
-	}) as WebGL2RenderingContext | null;
+	});
 
-	if (!gl) throw new Error('WebGL2 not supported');
+	if (!gl || !(gl instanceof WebGL2RenderingContext)) throw new Error('WebGL2 not supported');
 
 	const vao = gl.createVertexArray();
 	if (!vao) throw new Error('Failed to create VAO');

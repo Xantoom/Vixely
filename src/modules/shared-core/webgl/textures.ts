@@ -34,7 +34,7 @@ export function uploadVideoFrame(
 	const height = frame.displayHeight;
 	gl.bindTexture(gl.TEXTURE_2D, texture);
 	// VideoFrame is accepted by texImage2D in Chromium (zero-copy path)
-	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, frame as unknown as TexImageSource);
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, frame);
 	return { texture, width, height };
 }
 

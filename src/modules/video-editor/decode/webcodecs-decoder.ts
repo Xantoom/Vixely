@@ -39,6 +39,10 @@ export class WebCodecsVideoDecoder {
 		});
 	}
 
+	setOnFrame(callback: (frame: VideoFrame) => void): void {
+		this.frameCallback = callback;
+	}
+
 	decode(sample: DemuxedSample): void {
 		if (!this.decoder || this.decoder.state !== 'configured') return;
 
@@ -58,10 +62,14 @@ export class WebCodecsVideoDecoder {
 	}
 
 	async reset(): Promise<void> {
-		if (!this.decoder) return;
+		if (!this.decoder) {
+			await Promise.resolve();
+			return;
+		}
 		if (this.decoder.state === 'configured') {
 			this.decoder.reset();
 		}
+		await Promise.resolve();
 	}
 
 	destroy(): void {

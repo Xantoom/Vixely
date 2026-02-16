@@ -1,6 +1,6 @@
 import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
 import { DEFAULT_FILTER_PARAMS } from '@/modules/shared-core/types/filters.ts';
-import type { DemuxedTrack, DemuxedSample } from './demux/demuxer.ts';
+import type { DemuxedTrack } from './demux/demuxer.ts';
 import { WebCodecsVideoDecoder, WebCodecsAudioDecoder } from './decode/webcodecs-decoder.ts';
 import { Mp4boxDemuxer } from './demux/mp4box-demuxer.ts';
 import { PlaybackRenderer } from './render/playback-renderer.ts';
@@ -85,8 +85,12 @@ export class VideoPipeline {
 			// Configure video decoder
 			this.videoDecoder.configure({
 				track: this.videoTrack,
-				onFrame: (frame) => this.handleVideoFrame(frame),
-				onError: (err) => this.handleError(err),
+				onFrame: (frame) => {
+					this.handleVideoFrame(frame);
+				},
+				onError: (err) => {
+					this.handleError(err);
+				},
 			});
 
 			// Set up demuxer extraction

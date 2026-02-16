@@ -59,5 +59,7 @@ export async function encodeGif(options: GifEncodeOptions): Promise<Blob> {
 
 	options.onProgress?.(1);
 
-	return new Blob([gifBytes.buffer as ArrayBuffer], { type: 'image/gif' });
+	const stableBytes = new Uint8Array(gifBytes.byteLength);
+	stableBytes.set(gifBytes);
+	return new Blob([stableBytes.buffer], { type: 'image/gif' });
 }

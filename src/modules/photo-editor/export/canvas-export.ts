@@ -12,7 +12,7 @@ interface ExportOptions {
  * Export the current WebGL-rendered image as a Blob.
  * Renders with current filters, then converts canvas to blob.
  */
-export function exportCanvasToBlob(
+export async function exportCanvasToBlob(
 	renderer: PhotoWebGLRenderer,
 	params: FilterParams,
 	options: ExportOptions,
@@ -24,10 +24,11 @@ export function exportCanvasToBlob(
 	const quality = options.format === 'png' ? undefined : options.quality / 100;
 
 	if (canvas instanceof OffscreenCanvas) {
-		return canvas.convertToBlob({ type: mimeType, quality });
+		const blob = await canvas.convertToBlob({ type: mimeType, quality });
+		return blob;
 	}
 
-	return new Promise((resolve, reject) => {
+	const blob = await new Promise<Blob>((resolve, reject) => {
 		canvas.toBlob(
 			(blob) => {
 				if (blob) resolve(blob);
@@ -37,4 +38,5 @@ export function exportCanvasToBlob(
 			quality,
 		);
 	});
+	return blob;
 }

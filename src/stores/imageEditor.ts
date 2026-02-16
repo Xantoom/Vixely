@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
-import { DEFAULT_FILTER_PARAMS, filtersEqual, filtersAreDefault } from '@/modules/shared-core/types/filters.ts';
+import { DEFAULT_FILTER_PARAMS, filtersAreDefault } from '@/modules/shared-core/types/filters.ts';
 
 export type { FilterParams as Filters } from '@/modules/shared-core/types/filters.ts';
 export { DEFAULT_FILTER_PARAMS as DEFAULT_FILTERS } from '@/modules/shared-core/types/filters.ts';
