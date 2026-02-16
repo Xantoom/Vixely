@@ -1,6 +1,9 @@
 import { create } from 'zustand';
+import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
+import { DEFAULT_FILTER_PARAMS, filtersAreDefault } from '@/modules/shared-core/types/filters.ts';
 
-/* ── Types ── */
+export type { FilterParams as Filters } from '@/modules/shared-core/types/filters.ts';
+export { DEFAULT_FILTER_PARAMS as DEFAULT_FILTERS } from '@/modules/shared-core/types/filters.ts';
 
 export interface CropRect {
 	x: number;
@@ -15,51 +18,17 @@ export interface ViewTransform {
 	zoom: number;
 }
 
-export interface Filters {
-	exposure: number;
-	brightness: number;
-	contrast: number;
-	highlights: number;
-	shadows: number;
-	saturation: number;
-	temperature: number;
-	tint: number;
-	hue: number;
-	blur: number;
-	sepia: number;
-	vignette: number;
-	grain: number;
-}
-
-export const DEFAULT_FILTERS: Filters = {
-	exposure: 1,
-	brightness: 0,
-	contrast: 1,
-	highlights: 0,
-	shadows: 0,
-	saturation: 1,
-	temperature: 0,
-	tint: 0,
-	hue: 0,
-	blur: 0,
-	sepia: 0,
-	vignette: 0,
-	grain: 0,
-};
-
 interface HistoryEntry {
 	imageData: ImageData;
-	filters: Filters;
+	filters: FilterParams;
 }
 
 export type ActiveTool = 'pointer' | 'crop';
 
-type ProcessFn = (data: ImageData, filters: Filters) => Promise<ImageData>;
-
 export type ExportFormat = 'png' | 'jpeg' | 'webp';
 
 const MAX_HISTORY = 20;
-const MAX_HISTORY_BYTES = 512 * 1024 * 1024; // 512 MB
+const MAX_HISTORY_BYTES = 512 * 1024 * 1024;
 
 function entryBytes(e: HistoryEntry): number {
 	return e.imageData.data.byteLength;
@@ -76,79 +45,32 @@ function trimStack(stack: HistoryEntry[], limit: number, byteLimit: number): His
 	return s;
 }
 
-function filtersEqual(a: Filters, b: Filters): boolean {
-	return (
-		a.exposure === b.exposure &&
-		a.brightness === b.brightness &&
-		a.contrast === b.contrast &&
-		a.highlights === b.highlights &&
-		a.shadows === b.shadows &&
-		a.saturation === b.saturation &&
-		a.temperature === b.temperature &&
-		a.tint === b.tint &&
-		a.hue === b.hue &&
-		a.blur === b.blur &&
-		a.sepia === b.sepia &&
-		a.vignette === b.vignette &&
-		a.grain === b.grain
-	);
-}
-
-/** Check if filters are all at default (no processing needed) */
-function filtersAreDefault(f: Filters): boolean {
-	return filtersEqual(f, DEFAULT_FILTERS);
-}
-
-/* ── Store ── */
-
 export interface ImageEditorState {
-	// Source
 	file: File | null;
 	originalData: ImageData | null;
-	filteredData: ImageData | null;
 	/** The very first ImageData loaded — used by Reset All */
 	initialData: ImageData | null;
 
-	// Filters
-	filters: Filters;
-	/** Committed filter values (last WASM run) */
-	committedFilters: Filters;
-	isDraggingSlider: boolean;
-	/** True while the worker is processing filters */
-	isProcessing: boolean;
-
-	// View
+	filters: FilterParams;
 	view: ViewTransform;
-
-	// Tools
 	activeTool: ActiveTool;
 	crop: CropRect | null;
 	cropAspectRatio: number | null;
-
-	// Resize
 	resizeWidth: number | null;
 	resizeHeight: number | null;
 	resizeLockAspect: boolean;
-
-	// Export
 	exportFormat: ExportFormat;
 	exportQuality: number;
 	showOriginal: boolean;
-
-	// Compare
 	compareMode: boolean;
 	comparePosition: number;
-
-	// History
 	undoStack: HistoryEntry[];
 	redoStack: HistoryEntry[];
 
-	// Actions
 	loadImage: (file: File, imageData: ImageData) => void;
-	setFilter: <K extends keyof Filters>(key: K, value: Filters[K]) => void;
-	setSliderDragging: (v: boolean) => void;
-	commitFilters: (processFn: ProcessFn) => Promise<void>;
-	applyFilterPreset: (preset: Partial<Filters>, processFn: ProcessFn) => Promise<void>;
+	setFilter: <K extends keyof FilterParams>(key: K, value: FilterParams[K]) => void;
+	commitFilters: () => void;
+	applyFilterPreset: (preset: Partial<FilterParams>) => void;
 	resetFilters: () => void;
 	setView: (v: Partial<ViewTransform>) => void;
 	zoomTo: (zoom: number, anchorX: number, anchorY: number) => void;
@@ -167,66 +89,39 @@ export interface ImageEditorState {
 	setShowOriginal: (v: boolean) => void;
 	setCompareMode: (v: boolean) => void;
 	setComparePosition: (v: number) => void;
-	undo: (processFn: ProcessFn) => Promise<void>;
-	redo: (processFn: ProcessFn) => Promise<void>;
+	undo: () => void;
+	redo: () => void;
 	resetAll: () => void;
 	clearAll: () => void;
 	isDirty: () => boolean;
 }
 
-async function makeFilteredData(orig: ImageData, filters: Filters, processFn: ProcessFn): Promise<ImageData> {
-	if (filtersAreDefault(filters)) return orig;
-	return processFn(orig, filters);
-}
-
 function currentEntry(state: ImageEditorState): HistoryEntry | null {
 	if (!state.originalData) return null;
-	return { imageData: state.originalData, filters: { ...state.committedFilters } };
+	return { imageData: state.originalData, filters: { ...state.filters } };
 }
 
 export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
-	// Source
 	file: null,
 	originalData: null,
-	filteredData: null,
 	initialData: null,
-
-	// Filters
-	filters: { ...DEFAULT_FILTERS },
-	committedFilters: { ...DEFAULT_FILTERS },
-	isDraggingSlider: false,
-	isProcessing: false,
-
-	// View
+	filters: { ...DEFAULT_FILTER_PARAMS },
 	view: { panX: 0, panY: 0, zoom: 1 },
-
-	// Tools
 	activeTool: 'pointer',
 	crop: null,
 	cropAspectRatio: null,
-
-	// Resize
 	resizeWidth: null,
 	resizeHeight: null,
 	resizeLockAspect: true,
-
-	// Export
 	exportFormat: 'png',
 	exportQuality: 90,
 	showOriginal: false,
-
-	// Compare
 	compareMode: false,
 	comparePosition: 0.5,
-
-	// History
 	undoStack: [],
 	redoStack: [],
 
-	/* ── Actions ── */
-
 	loadImage: (file, imageData) => {
-		// Detect format from file MIME type
 		let fmt: ExportFormat = 'png';
 		let quality = 100;
 		if (file.type === 'image/jpeg') {
@@ -240,12 +135,8 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 		set({
 			file,
 			originalData: imageData,
-			filteredData: imageData,
 			initialData: imageData,
-			filters: { ...DEFAULT_FILTERS },
-			committedFilters: { ...DEFAULT_FILTERS },
-			isDraggingSlider: false,
-			isProcessing: false,
+			filters: { ...DEFAULT_FILTER_PARAMS },
 			view: { panX: 0, panY: 0, zoom: 1 },
 			activeTool: 'pointer',
 			crop: null,
@@ -263,40 +154,27 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 		});
 	},
 
-	setFilter: (key, value) => set((s) => ({ filters: { ...s.filters, [key]: value } })),
-	setSliderDragging: (v) => set({ isDraggingSlider: v }),
+	setFilter: (key, value) => {
+		set((s) => ({ filters: { ...s.filters, [key]: value } }));
+	},
 
-	commitFilters: async (processFn) => {
+	commitFilters: () => {
 		const s = get();
 		if (!s.originalData) return;
-		if (filtersEqual(s.filters, s.committedFilters)) {
-			set({ isDraggingSlider: false });
-			return;
-		}
 		const entry = currentEntry(s);
-		set({ isDraggingSlider: false, isProcessing: true });
-		const filtered = await makeFilteredData(s.originalData, s.filters, processFn);
 		set({
-			filteredData: filtered,
-			committedFilters: { ...s.filters },
-			isProcessing: false,
 			undoStack: entry ? trimStack([...s.undoStack, entry], MAX_HISTORY, MAX_HISTORY_BYTES) : s.undoStack,
 			redoStack: [],
 		});
 	},
 
-	applyFilterPreset: async (preset, processFn) => {
+	applyFilterPreset: (preset) => {
 		const state = get();
 		if (!state.originalData) return;
 		const entry = currentEntry(state);
-		const newFilters = { ...DEFAULT_FILTERS, ...preset };
-		set({ filters: newFilters, isProcessing: true });
-		const filtered = await makeFilteredData(state.originalData, newFilters, processFn);
+		const newFilters = { ...DEFAULT_FILTER_PARAMS, ...preset };
 		set({
-			committedFilters: { ...newFilters },
-			filteredData: filtered,
-			isDraggingSlider: false,
-			isProcessing: false,
+			filters: newFilters,
 			undoStack: entry ? trimStack([...state.undoStack, entry], MAX_HISTORY, MAX_HISTORY_BYTES) : state.undoStack,
 			redoStack: [],
 		});
@@ -307,16 +185,15 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 		if (!state.originalData) return;
 		const entry = currentEntry(state);
 		set({
-			filters: { ...DEFAULT_FILTERS },
-			committedFilters: { ...DEFAULT_FILTERS },
-			filteredData: state.originalData,
-			isDraggingSlider: false,
+			filters: { ...DEFAULT_FILTER_PARAMS },
 			undoStack: entry ? trimStack([...state.undoStack, entry], MAX_HISTORY, MAX_HISTORY_BYTES) : state.undoStack,
 			redoStack: [],
 		});
 	},
 
-	setView: (v) => set((s) => ({ view: { ...s.view, ...v } })),
+	setView: (v) => {
+		set((s) => ({ view: { ...s.view, ...v } }));
+	},
 
 	zoomTo: (zoom, anchorX, anchorY) => {
 		const s = get();
@@ -338,9 +215,15 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 		set({ view: { panX: (containerW - img.width * zoom) / 2, panY: (containerH - img.height * zoom) / 2, zoom } });
 	},
 
-	setActiveTool: (tool) => set({ activeTool: tool, crop: tool === 'pointer' ? null : get().crop }),
-	setCrop: (rect) => set({ crop: rect }),
-	setCropAspectRatio: (ratio) => set({ cropAspectRatio: ratio }),
+	setActiveTool: (tool) => {
+		set({ activeTool: tool, crop: tool === 'pointer' ? null : get().crop });
+	},
+	setCrop: (rect) => {
+		set({ crop: rect });
+	},
+	setCropAspectRatio: (ratio) => {
+		set({ cropAspectRatio: ratio });
+	},
 
 	applyCrop: () => {
 		const s = get();
@@ -348,8 +231,9 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 
 		const entry = currentEntry(s);
 
-		// Bake current filters into image, then crop
-		const source = s.filteredData ?? s.originalData;
+		// For crop, we need to render current filters to get the filtered result,
+		// then crop. Since WebGL is the renderer, we bake the original + crop.
+		const source = s.originalData;
 		const { x, y, width, height } = s.crop;
 		const cx = Math.max(0, Math.round(x));
 		const cy = Math.max(0, Math.round(y));
@@ -362,7 +246,6 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 		canvas.height = ch;
 		const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
 
-		// Put source data then extract the cropped region
 		const tmpCanvas = document.createElement('canvas');
 		tmpCanvas.width = source.width;
 		tmpCanvas.height = source.height;
@@ -374,9 +257,7 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 
 		set({
 			originalData: croppedData,
-			filteredData: croppedData,
-			filters: { ...DEFAULT_FILTERS },
-			committedFilters: { ...DEFAULT_FILTERS },
+			filters: { ...DEFAULT_FILTER_PARAMS },
 			crop: null,
 			activeTool: 'pointer',
 			resizeWidth: cw,
@@ -386,7 +267,9 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 		});
 	},
 
-	cancelCrop: () => set({ crop: null, activeTool: 'pointer' }),
+	cancelCrop: () => {
+		set({ crop: null, activeTool: 'pointer' });
+	},
 
 	setResizeWidth: (w) => {
 		const s = get();
@@ -416,7 +299,9 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 		}
 	},
 
-	setResizeLockAspect: (v) => set({ resizeLockAspect: v }),
+	setResizeLockAspect: (v) => {
+		set({ resizeLockAspect: v });
+	},
 
 	applyResize: () => {
 		const s = get();
@@ -427,8 +312,7 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 
 		const entry = currentEntry(s);
 
-		// Bake filters then resize
-		const source = s.filteredData ?? s.originalData;
+		const source = s.originalData;
 		const srcCanvas = document.createElement('canvas');
 		srcCanvas.width = source.width;
 		srcCanvas.height = source.height;
@@ -445,9 +329,7 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 
 		set({
 			originalData: resizedData,
-			filteredData: resizedData,
-			filters: { ...DEFAULT_FILTERS },
-			committedFilters: { ...DEFAULT_FILTERS },
+			filters: { ...DEFAULT_FILTER_PARAMS },
 			resizeWidth: w,
 			resizeHeight: h,
 			undoStack: entry ? trimStack([...s.undoStack, entry], MAX_HISTORY, MAX_HISTORY_BYTES) : s.undoStack,
@@ -459,46 +341,44 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 		const quality = fmt === 'png' ? 100 : fmt === 'jpeg' ? 85 : 80;
 		set({ exportFormat: fmt, exportQuality: quality });
 	},
-	setExportQuality: (q) => set({ exportQuality: q }),
-	setShowOriginal: (v) => set({ showOriginal: v }),
-	setCompareMode: (v) => set({ compareMode: v }),
-	setComparePosition: (v) => set({ comparePosition: v }),
+	setExportQuality: (q) => {
+		set({ exportQuality: q });
+	},
+	setShowOriginal: (v) => {
+		set({ showOriginal: v });
+	},
+	setCompareMode: (v) => {
+		set({ compareMode: v });
+	},
+	setComparePosition: (v) => {
+		set({ comparePosition: v });
+	},
 
-	undo: async (processFn) => {
+	undo: () => {
 		const s = get();
 		if (s.undoStack.length === 0) return;
 		const entry = currentEntry(s);
 		const prev = s.undoStack[s.undoStack.length - 1]!;
-		set({ isProcessing: true });
-		const filtered = await makeFilteredData(prev.imageData, prev.filters, processFn);
 		set({
 			originalData: prev.imageData,
-			filteredData: filtered,
 			filters: { ...prev.filters },
-			committedFilters: { ...prev.filters },
 			resizeWidth: prev.imageData.width,
 			resizeHeight: prev.imageData.height,
-			isProcessing: false,
 			undoStack: s.undoStack.slice(0, -1),
 			redoStack: entry ? [...s.redoStack, entry] : s.redoStack,
 		});
 	},
 
-	redo: async (processFn) => {
+	redo: () => {
 		const s = get();
 		if (s.redoStack.length === 0) return;
 		const entry = currentEntry(s);
 		const next = s.redoStack[s.redoStack.length - 1]!;
-		set({ isProcessing: true });
-		const filtered = await makeFilteredData(next.imageData, next.filters, processFn);
 		set({
 			originalData: next.imageData,
-			filteredData: filtered,
 			filters: { ...next.filters },
-			committedFilters: { ...next.filters },
 			resizeWidth: next.imageData.width,
 			resizeHeight: next.imageData.height,
-			isProcessing: false,
 			undoStack: entry ? [...s.undoStack, entry] : s.undoStack,
 			redoStack: s.redoStack.slice(0, -1),
 		});
@@ -509,11 +389,8 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 		if (!s.initialData) return;
 		set({
 			originalData: s.initialData,
-			filteredData: s.initialData,
-			filters: { ...DEFAULT_FILTERS },
-			committedFilters: { ...DEFAULT_FILTERS },
-			isDraggingSlider: false,
-			isProcessing: false,
+			filters: { ...DEFAULT_FILTER_PARAMS },
+			view: { panX: 0, panY: 0, zoom: 1 },
 			activeTool: 'pointer',
 			crop: null,
 			cropAspectRatio: null,
@@ -534,12 +411,8 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 		set({
 			file: null,
 			originalData: null,
-			filteredData: null,
 			initialData: null,
-			filters: { ...DEFAULT_FILTERS },
-			committedFilters: { ...DEFAULT_FILTERS },
-			isDraggingSlider: false,
-			isProcessing: false,
+			filters: { ...DEFAULT_FILTER_PARAMS },
 			view: { panX: 0, panY: 0, zoom: 1 },
 			activeTool: 'pointer',
 			crop: null,
@@ -560,6 +433,6 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 	isDirty: () => {
 		const s = get();
 		if (!s.originalData || !s.initialData) return false;
-		return s.originalData !== s.initialData || !filtersEqual(s.committedFilters, DEFAULT_FILTERS);
+		return s.originalData !== s.initialData || !filtersAreDefault(s.filters);
 	},
 }));

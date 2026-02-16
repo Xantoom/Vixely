@@ -24,7 +24,12 @@ export interface StreamInfo {
 	sampleRate?: number;
 	channels?: number;
 	language?: string;
+	title?: string;
 	bitrate?: number;
+	isDefault?: boolean;
+	isForced?: boolean;
+	tags?: Record<string, string>;
+	disposition?: Record<string, number>;
 }
 
 export interface ProbeResult {
@@ -69,7 +74,10 @@ export const DEFAULT_TRACK_SELECTION: TrackSelection = {
 export const DEFAULT_ADVANCED_SETTINGS: AdvancedVideoSettings = {
 	codec: 'libx264',
 	container: 'mp4',
+	rateControl: 'crf',
 	crf: 23,
+	targetBitrateKbps: 2500,
+	qp: 28,
 	preset: 'veryfast',
 	audioCodec: 'aac',
 	audioBitrate: '96k',
@@ -98,7 +106,6 @@ export interface VideoEditorState {
 	setUseCustomExport: (v: boolean) => void;
 	resetAll: () => void;
 
-	cssFilter: () => string;
 	ffmpegFilterArgs: () => string[];
 	resizeFilterArgs: () => string[];
 	trackArgs: () => string[];
@@ -113,21 +120,33 @@ export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
 	resize: { ...DEFAULT_RESIZE },
 	trimInputMode: 'time',
 	advancedSettings: { ...DEFAULT_ADVANCED_SETTINGS },
-	useCustomExport: false,
+	useCustomExport: true,
 
-	setMode: (mode) => set({ mode }),
+	setMode: (mode) => {
+		set({ mode });
+	},
 
-	setFilter: (key, value) => set((s) => ({ filters: { ...s.filters, [key]: value } })),
+	setFilter: (key, value) => {
+		set((s) => ({ filters: { ...s.filters, [key]: value } }));
+	},
 
-	resetFilters: () => set({ filters: { ...DEFAULT_VIDEO_FILTERS } }),
+	resetFilters: () => {
+		set({ filters: { ...DEFAULT_VIDEO_FILTERS } });
+	},
 
-	setCropAspectRatio: (ratio) => set({ cropAspectRatio: ratio }),
+	setCropAspectRatio: (ratio) => {
+		set({ cropAspectRatio: ratio });
+	},
 
-	setProbeResult: (result) => set({ probeResult: result }),
+	setProbeResult: (result) => {
+		set({ probeResult: result });
+	},
 
-	setTracks: (partial) => set((s) => ({ tracks: { ...s.tracks, ...partial } })),
+	setTracks: (partial) => {
+		set((s) => ({ tracks: { ...s.tracks, ...partial } }));
+	},
 
-	setResize: (partial) =>
+	setResize: (partial) => {
 		set((s) => {
 			const next = { ...s.resize, ...partial };
 			if (next.lockAspect && next.originalWidth > 0 && next.originalHeight > 0) {
@@ -145,15 +164,22 @@ export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
 				next.scalePercent = Math.round((next.width / next.originalWidth) * 100);
 			}
 			return { resize: next };
-		}),
+		});
+	},
 
-	setTrimInputMode: (mode) => set({ trimInputMode: mode }),
+	setTrimInputMode: (mode) => {
+		set({ trimInputMode: mode });
+	},
 
-	setAdvancedSettings: (settings) => set({ advancedSettings: settings }),
+	setAdvancedSettings: (settings) => {
+		set({ advancedSettings: settings });
+	},
 
-	setUseCustomExport: (v) => set({ useCustomExport: v }),
+	setUseCustomExport: (v) => {
+		set({ useCustomExport: v });
+	},
 
-	resetAll: () =>
+	resetAll: () => {
 		set({
 			mode: 'presets',
 			filters: { ...DEFAULT_VIDEO_FILTERS },
@@ -163,17 +189,8 @@ export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
 			resize: { ...DEFAULT_RESIZE },
 			trimInputMode: 'time',
 			advancedSettings: { ...DEFAULT_ADVANCED_SETTINGS },
-			useCustomExport: false,
-		}),
-
-	cssFilter: () => {
-		const { brightness, contrast, saturation, hue } = get().filters;
-		const parts: string[] = [];
-		if (brightness !== 0) parts.push(`brightness(${1 + brightness})`);
-		if (contrast !== 1) parts.push(`contrast(${contrast})`);
-		if (saturation !== 1) parts.push(`saturate(${saturation})`);
-		if (hue !== 0) parts.push(`hue-rotate(${hue}deg)`);
-		return parts.length > 0 ? parts.join(' ') : 'none';
+			useCustomExport: true,
+		});
 	},
 
 	ffmpegFilterArgs: () => {

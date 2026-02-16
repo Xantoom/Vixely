@@ -72,7 +72,7 @@ function RootLayout() {
 								}`}
 							>
 								<item.icon className="h-5 w-5" />
-								<span className="text-[12px] font-semibold tracking-wide uppercase">{item.label}</span>
+								<span className="text-[13px] font-semibold tracking-wide uppercase">{item.label}</span>
 								{isActive && (
 									<div
 										className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full ${item.indicator}`}
@@ -108,7 +108,7 @@ function RootLayout() {
 					}`}
 				>
 					<Home className="h-5 w-5" />
-					<span className="text-[11px] font-semibold tracking-wide uppercase">Home</span>
+					<span className="text-[13px] font-semibold tracking-wide uppercase">Home</span>
 				</Link>
 				{navItems.map((item) => {
 					const isActive = pathname.startsWith(item.to);
@@ -121,7 +121,7 @@ function RootLayout() {
 							}`}
 						>
 							<item.icon className="h-5 w-5" />
-							<span className="text-[12px] font-semibold tracking-wide uppercase">{item.label}</span>
+							<span className="text-[13px] font-semibold tracking-wide uppercase">{item.label}</span>
 						</Link>
 					);
 				})}
@@ -131,7 +131,7 @@ function RootLayout() {
 			<PrivacyModal />
 			<CookieBanner />
 
-			<Toaster position="bottom-right" toastOptions={{ duration: 3000 }} gap={8} />
+			<Toaster position="top-center" closeButton toastOptions={{ duration: 3000 }} gap={8} />
 
 			{import.meta.env.DEV && <TanStackRouterDevtools position="bottom-left" />}
 		</div>

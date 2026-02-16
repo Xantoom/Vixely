@@ -8,8 +8,12 @@ export function CookieBanner() {
 	useEffect(() => {
 		// Show after a short delay, only if not previously accepted
 		if (!localStorage.getItem(STORAGE_KEY)) {
-			const timer = setTimeout(() => setVisible(true), 2000);
-			return () => clearTimeout(timer);
+			const timer = setTimeout(() => {
+				setVisible(true);
+			}, 2000);
+			return () => {
+				clearTimeout(timer);
+			};
 		}
 	}, []);
 
@@ -43,9 +47,8 @@ export function CookieBanner() {
 					</svg>
 				</div>
 				<div className="flex-1 min-w-0">
-					<p className="text-xs text-text-secondary leading-relaxed">
-						We use minimal cookies for analytics and future ad personalization. No personal data is
-						collected.{' '}
+					<p className="text-[13px] text-text-secondary leading-relaxed">
+						We use minimal cookies for preferences and lightweight analytics. No personal data is collected.{' '}
 						<a href="/privacy" className="underline text-text-secondary hover:text-text transition-colors">
 							Learn more
 						</a>

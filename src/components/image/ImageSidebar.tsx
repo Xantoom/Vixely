@@ -1,10 +1,9 @@
 import { Lock, Unlock, Info, FilePlus2, Palette, SlidersHorizontal, Maximize2, Download } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { MonetagAd } from '@/components/AdContainer.tsx';
 import { Button, Slider } from '@/components/ui/index.ts';
-import { MONETAG_ZONES } from '@/config/monetag.ts';
 import { filterPresetEntries, imagePresetEntries } from '@/config/presets.ts';
+import { PhotoWebGLRenderer } from '@/modules/photo-editor/render/webgl-renderer.ts';
 import { useImageEditorStore, type Filters, type ExportFormat } from '@/stores/imageEditor.ts';
 import { formatFileSize, estimateImageSize } from '@/utils/format.ts';
 import { ImageInfoModal } from './ImageInfoModal.tsx';
@@ -13,13 +12,9 @@ const FILTER_PRESETS = filterPresetEntries();
 const IMAGE_PRESETS = imagePresetEntries();
 
 interface ImageSidebarProps {
-	processFn: (data: ImageData, filters: Filters) => Promise<ImageData>;
-	wasmReady: boolean;
 	onOpenFile: () => void;
 	onNew?: () => void;
 }
-
-/* ── Slider group definitions ── */
 
 interface SliderDef {
 	key: keyof Filters;
@@ -31,7 +26,7 @@ interface SliderDef {
 }
 
 const LIGHT_SLIDERS: SliderDef[] = [
-	{ key: 'exposure', label: 'Exposure', min: 0.2, max: 3, step: 0.01, format: (v) => `${(v * 100).toFixed(0)}` },
+	{ key: 'exposure', label: 'Exposure', min: 0.2, max: 3, step: 0.01, format: (v) => (v * 100).toFixed(0) },
 	{
 		key: 'brightness',
 		label: 'Brightness',
@@ -40,7 +35,7 @@ const LIGHT_SLIDERS: SliderDef[] = [
 		step: 0.01,
 		format: (v) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)}`,
 	},
-	{ key: 'contrast', label: 'Contrast', min: 0.2, max: 3, step: 0.01, format: (v) => `${(v * 100).toFixed(0)}` },
+	{ key: 'contrast', label: 'Contrast', min: 0.2, max: 3, step: 0.01, format: (v) => (v * 100).toFixed(0) },
 	{
 		key: 'highlights',
 		label: 'Highlights',
@@ -60,7 +55,7 @@ const LIGHT_SLIDERS: SliderDef[] = [
 ];
 
 const COLOR_SLIDERS: SliderDef[] = [
-	{ key: 'saturation', label: 'Saturation', min: 0, max: 3, step: 0.01, format: (v) => `${(v * 100).toFixed(0)}` },
+	{ key: 'saturation', label: 'Saturation', min: 0, max: 3, step: 0.01, format: (v) => (v * 100).toFixed(0) },
 	{
 		key: 'temperature',
 		label: 'Temperature',
@@ -89,9 +84,9 @@ const COLOR_SLIDERS: SliderDef[] = [
 
 const EFFECTS_SLIDERS: SliderDef[] = [
 	{ key: 'blur', label: 'Blur', min: 0, max: 20, step: 0.1, format: (v) => `${v.toFixed(1)}px` },
-	{ key: 'sepia', label: 'Sepia', min: 0, max: 1, step: 0.01, format: (v) => `${(v * 100).toFixed(0)}` },
-	{ key: 'vignette', label: 'Vignette', min: 0, max: 1, step: 0.01, format: (v) => `${(v * 100).toFixed(0)}` },
-	{ key: 'grain', label: 'Grain', min: 0, max: 100, step: 1, format: (v) => `${v.toFixed(0)}` },
+	{ key: 'sepia', label: 'Sepia', min: 0, max: 1, step: 0.01, format: (v) => (v * 100).toFixed(0) },
+	{ key: 'vignette', label: 'Vignette', min: 0, max: 1, step: 0.01, format: (v) => (v * 100).toFixed(0) },
+	{ key: 'grain', label: 'Grain', min: 0, max: 100, step: 1, format: (v) => v.toFixed(0) },
 ];
 
 const FORMAT_OPTIONS: { value: ExportFormat; label: string }[] = [
@@ -99,8 +94,6 @@ const FORMAT_OPTIONS: { value: ExportFormat; label: string }[] = [
 	{ value: 'jpeg', label: 'JPEG' },
 	{ value: 'webp', label: 'WebP' },
 ];
-
-/* ── Mode Tab Config ── */
 
 type ImageMode = 'resize' | 'adjust' | 'presets' | 'export';
 
@@ -111,111 +104,65 @@ const IMAGE_MODE_TABS: { mode: ImageMode; label: string; icon: typeof Palette }[
 	{ mode: 'export', label: 'Export', icon: Download },
 ];
 
-export function ImageSidebar({ processFn, wasmReady, onOpenFile, onNew }: ImageSidebarProps) {
-	const {
-		file,
-		originalData,
-		filteredData,
-		filters,
-		exportFormat,
-		exportQuality,
-		resizeWidth,
-		resizeHeight,
-		resizeLockAspect,
-		setFilter,
-		setSliderDragging,
-		commitFilters,
-		applyFilterPreset,
-		resetFilters,
-		setExportFormat,
-		setExportQuality,
-		setShowOriginal,
-		setResizeWidth,
-		setResizeHeight,
-		setResizeLockAspect,
-		applyResize,
-	} = useImageEditorStore();
+export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
+	const file = useImageEditorStore((s) => s.file);
+	const originalData = useImageEditorStore((s) => s.originalData);
+	const filters = useImageEditorStore((s) => s.filters);
+	const exportFormat = useImageEditorStore((s) => s.exportFormat);
+	const exportQuality = useImageEditorStore((s) => s.exportQuality);
+	const resizeWidth = useImageEditorStore((s) => s.resizeWidth);
+	const resizeHeight = useImageEditorStore((s) => s.resizeHeight);
+	const resizeLockAspect = useImageEditorStore((s) => s.resizeLockAspect);
+	const setFilter = useImageEditorStore((s) => s.setFilter);
+	const commitFilters = useImageEditorStore((s) => s.commitFilters);
+	const applyFilterPreset = useImageEditorStore((s) => s.applyFilterPreset);
+	const resetFilters = useImageEditorStore((s) => s.resetFilters);
+	const setExportFormat = useImageEditorStore((s) => s.setExportFormat);
+	const setExportQuality = useImageEditorStore((s) => s.setExportQuality);
+	const setShowOriginal = useImageEditorStore((s) => s.setShowOriginal);
+	const setResizeWidth = useImageEditorStore((s) => s.setResizeWidth);
+	const setResizeHeight = useImageEditorStore((s) => s.setResizeHeight);
+	const setResizeLockAspect = useImageEditorStore((s) => s.setResizeLockAspect);
+	const applyResize = useImageEditorStore((s) => s.applyResize);
 
 	const [mode, setMode] = useState<ImageMode>('resize');
 	const [showInfo, setShowInfo] = useState(false);
-
-	const handleSliderDown = useCallback(() => {
-		setSliderDragging(true);
-	}, [setSliderDragging]);
+	const exportRendererRef = useRef<PhotoWebGLRenderer | null>(null);
 
 	const handleSliderCommit = useCallback(() => {
-		commitFilters(processFn);
-	}, [commitFilters, processFn]);
+		commitFilters();
+	}, [commitFilters]);
 
-	const handleExport = useCallback(() => {
-		const source = filteredData ?? originalData;
-		if (!source) return;
+	const handleExport = useCallback(async () => {
+		if (!originalData) return;
 
 		const mimeType = `image/${exportFormat}`;
 		const ext = exportFormat === 'jpeg' ? 'jpg' : exportFormat;
 
-		const srcCanvas = document.createElement('canvas');
-		srcCanvas.width = source.width;
-		srcCanvas.height = source.height;
-		const srcCtx = srcCanvas.getContext('2d')!;
-		srcCtx.putImageData(source, 0, 0);
-
-		// Composite vignette if active
-		if (filters.vignette > 0) {
-			const grad = srcCtx.createRadialGradient(
-				source.width / 2,
-				source.height / 2,
-				Math.min(source.width, source.height) * 0.25,
-				source.width / 2,
-				source.height / 2,
-				Math.max(source.width, source.height) * 0.7,
-			);
-			grad.addColorStop(0, 'rgba(0,0,0,0)');
-			grad.addColorStop(1, `rgba(0,0,0,${filters.vignette})`);
-			srcCtx.fillStyle = grad;
-			srcCtx.fillRect(0, 0, source.width, source.height);
+		// Create an offscreen WebGL renderer for export
+		const offscreen = new OffscreenCanvas(originalData.width, originalData.height);
+		if (!exportRendererRef.current) {
+			exportRendererRef.current = new PhotoWebGLRenderer(offscreen);
 		}
+		const renderer = exportRendererRef.current;
+		renderer.loadImageData(originalData);
+		renderer.render(filters);
 
-		// Composite grain if active
-		if (filters.grain > 0) {
-			const grainCanvas = document.createElement('canvas');
-			grainCanvas.width = source.width;
-			grainCanvas.height = source.height;
-			const grainCtx = grainCanvas.getContext('2d')!;
-			const grainData = grainCtx.createImageData(source.width, source.height);
-			const grainPx = grainData.data;
-			for (let i = 0; i < grainPx.length; i += 4) {
-				const v = Math.random() * 255;
-				grainPx[i] = v;
-				grainPx[i + 1] = v;
-				grainPx[i + 2] = v;
-				grainPx[i + 3] = 255;
-			}
-			grainCtx.putImageData(grainData, 0, 0);
-
-			srcCtx.globalAlpha = (filters.grain / 100) * 0.4;
-			srcCtx.globalCompositeOperation = 'overlay';
-			srcCtx.drawImage(grainCanvas, 0, 0);
-			srcCtx.globalAlpha = 1;
-			srcCtx.globalCompositeOperation = 'source-over';
+		// Read from the WebGL canvas
+		const canvas = renderer.canvas;
+		if (!(canvas instanceof OffscreenCanvas)) {
+			toast.error('Export failed');
+			return;
 		}
-
 		const quality = exportFormat === 'png' ? undefined : exportQuality / 100;
-
-		srcCanvas.toBlob(
-			(blob) => {
-				if (!blob) return;
-				const a = document.createElement('a');
-				a.href = URL.createObjectURL(blob);
-				a.download = `vixely-export.${ext}`;
-				a.click();
-				URL.revokeObjectURL(a.href);
-				toast.success('Image exported', { description: formatFileSize(blob.size) });
-			},
-			mimeType,
-			quality,
-		);
-	}, [filteredData, originalData, exportFormat, exportQuality, filters.vignette, filters.grain]);
+		const blob = await canvas.convertToBlob({ type: mimeType, quality });
+		const a = document.createElement('a');
+		a.href = URL.createObjectURL(blob);
+		a.download = `vixely-export.${ext}`;
+		a.click();
+		URL.revokeObjectURL(a.href);
+		toast.success('Image exported', { description: formatFileSize(blob.size) });
+	}, [originalData, exportFormat, exportQuality, filters]);
 
 	const handleApplyResize = useCallback(() => {
 		applyResize();
@@ -246,15 +193,15 @@ export function ImageSidebar({ processFn, wasmReady, onOpenFile, onNew }: ImageS
 					max={s.max}
 					step={s.step}
 					value={filters[s.key]}
-					onChange={(e) => setFilter(s.key, Number((e.target as HTMLInputElement).value))}
-					onPointerDown={handleSliderDown}
+					onChange={(e) => {
+						setFilter(s.key, Number((e.target as HTMLInputElement).value));
+					}}
 					onCommit={handleSliderCommit}
 				/>
 			))}
 		</div>
 	);
 
-	// Estimated file size
 	const estSize = originalData
 		? estimateImageSize(
 				resizeWidth ?? originalData.width,
@@ -276,8 +223,10 @@ export function ImageSidebar({ processFn, wasmReady, onOpenFile, onNew }: ImageS
 					return (
 						<button
 							key={tab.mode}
-							onClick={() => setMode(tab.mode)}
-							className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-semibold uppercase tracking-wider transition-all cursor-pointer ${
+							onClick={() => {
+								setMode(tab.mode);
+							}}
+							className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[13px] font-semibold uppercase tracking-wider transition-all cursor-pointer ${
 								isActive
 									? 'text-accent border-b-2 border-accent'
 									: 'text-text-tertiary hover:text-text-secondary'
@@ -306,7 +255,9 @@ export function ImageSidebar({ processFn, wasmReady, onOpenFile, onNew }: ImageS
 					<div className="flex items-center gap-1.5 mt-1.5">
 						<p className="text-[13px] text-text-tertiary flex-1">{formatFileSize(file.size)}</p>
 						<button
-							onClick={() => setShowInfo(true)}
+							onClick={() => {
+								setShowInfo(true);
+							}}
 							className="h-5 w-5 flex items-center justify-center rounded text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
 							title="File info"
 						>
@@ -314,7 +265,6 @@ export function ImageSidebar({ processFn, wasmReady, onOpenFile, onNew }: ImageS
 						</button>
 					</div>
 				)}
-				{!wasmReady && <p className="mt-1.5 text-[13px] text-accent animate-pulse-soft">Loading engine...</p>}
 			</div>
 
 			{/* Tab Content */}
@@ -330,8 +280,10 @@ export function ImageSidebar({ processFn, wasmReady, onOpenFile, onNew }: ImageS
 									{IMAGE_PRESETS.map(([key, preset]) => (
 										<button
 											key={key}
-											onClick={() => handleApplyPreset(key)}
-											className="rounded-md bg-surface-raised/60 px-2 py-1 text-[11px] font-medium text-text-tertiary hover:bg-surface-raised hover:text-text transition-all cursor-pointer"
+											onClick={() => {
+												handleApplyPreset(key);
+											}}
+											className="rounded-md bg-surface-raised/60 px-2 py-1 text-[13px] font-medium text-text-tertiary hover:bg-surface-raised hover:text-text transition-all cursor-pointer"
 											title={preset.description}
 										>
 											{preset.name}
@@ -341,20 +293,22 @@ export function ImageSidebar({ processFn, wasmReady, onOpenFile, onNew }: ImageS
 
 								<div className="flex items-center gap-2">
 									<div className="flex-1">
-										<label className="text-[12px] text-text-tertiary mb-1 block">W</label>
+										<label className="text-[13px] text-text-tertiary mb-1 block">W</label>
 										<input
 											type="number"
 											min={1}
 											max={8192}
 											value={resizeWidth ?? ''}
-											onChange={(e) =>
-												setResizeWidth(e.target.value ? Number(e.target.value) : null)
-											}
-											className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-xs font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
+											onChange={(e) => {
+												setResizeWidth(e.target.value ? Number(e.target.value) : null);
+											}}
+											className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[13px] font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
 										/>
 									</div>
 									<button
-										onClick={() => setResizeLockAspect(!resizeLockAspect)}
+										onClick={() => {
+											setResizeLockAspect(!resizeLockAspect);
+										}}
 										title={resizeLockAspect ? 'Unlock aspect ratio' : 'Lock aspect ratio'}
 										className={`mt-4 h-8 w-8 flex items-center justify-center rounded-md transition-colors cursor-pointer ${
 											resizeLockAspect
@@ -365,16 +319,16 @@ export function ImageSidebar({ processFn, wasmReady, onOpenFile, onNew }: ImageS
 										{resizeLockAspect ? <Lock size={12} /> : <Unlock size={12} />}
 									</button>
 									<div className="flex-1">
-										<label className="text-[12px] text-text-tertiary mb-1 block">H</label>
+										<label className="text-[13px] text-text-tertiary mb-1 block">H</label>
 										<input
 											type="number"
 											min={1}
 											max={8192}
 											value={resizeHeight ?? ''}
-											onChange={(e) =>
-												setResizeHeight(e.target.value ? Number(e.target.value) : null)
-											}
-											className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-xs font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
+											onChange={(e) => {
+												setResizeHeight(e.target.value ? Number(e.target.value) : null);
+											}}
+											className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[13px] font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
 										/>
 									</div>
 								</div>
@@ -389,7 +343,7 @@ export function ImageSidebar({ processFn, wasmReady, onOpenFile, onNew }: ImageS
 								</Button>
 							</>
 						) : (
-							<p className="text-xs text-text-tertiary">Load an image to resize.</p>
+							<p className="text-[13px] text-text-tertiary">Load an image to resize.</p>
 						)}
 					</>
 				)}
@@ -402,7 +356,7 @@ export function ImageSidebar({ processFn, wasmReady, onOpenFile, onNew }: ImageS
 							</h3>
 							<button
 								onClick={resetFilters}
-								className="text-[12px] text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
+								className="text-[13px] text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
 							>
 								Reset
 							</button>
@@ -430,8 +384,10 @@ export function ImageSidebar({ processFn, wasmReady, onOpenFile, onNew }: ImageS
 							{FILTER_PRESETS.map(([key, preset]) => (
 								<button
 									key={key}
-									onClick={() => applyFilterPreset(preset, processFn)}
-									className="rounded-md bg-surface-raised/60 py-2 text-[12px] font-medium text-text-tertiary hover:bg-surface-raised hover:text-text transition-all cursor-pointer"
+									onClick={() => {
+										applyFilterPreset(preset);
+									}}
+									className="rounded-md bg-surface-raised/60 py-2 text-[13px] font-medium text-text-tertiary hover:bg-surface-raised hover:text-text transition-all cursor-pointer"
 								>
 									{preset.name}
 								</button>
@@ -449,7 +405,9 @@ export function ImageSidebar({ processFn, wasmReady, onOpenFile, onNew }: ImageS
 							{FORMAT_OPTIONS.map((opt) => (
 								<button
 									key={opt.value}
-									onClick={() => setExportFormat(opt.value)}
+									onClick={() => {
+										setExportFormat(opt.value);
+									}}
 									className={`flex-1 rounded-md py-1.5 text-[13px] font-medium transition-all cursor-pointer ${
 										exportFormat === opt.value
 											? 'bg-accent/15 text-accent border border-accent/30'
@@ -468,11 +426,13 @@ export function ImageSidebar({ processFn, wasmReady, onOpenFile, onNew }: ImageS
 								max={100}
 								step={1}
 								value={exportQuality}
-								onChange={(e) => setExportQuality(Number((e.target as HTMLInputElement).value))}
+								onChange={(e) => {
+									setExportQuality(Number((e.target as HTMLInputElement).value));
+								}}
 							/>
 						)}
 						{estSize != null && (
-							<p className="text-[12px] text-text-tertiary">Est. {formatFileSize(estSize)}</p>
+							<p className="text-[13px] text-text-tertiary">Est. {formatFileSize(estSize)}</p>
 						)}
 					</>
 				)}
@@ -485,19 +445,29 @@ export function ImageSidebar({ processFn, wasmReady, onOpenFile, onNew }: ImageS
 						variant="ghost"
 						size="sm"
 						className="w-full"
-						onPointerDown={() => setShowOriginal(true)}
-						onPointerUp={() => setShowOriginal(false)}
-						onPointerLeave={() => setShowOriginal(false)}
+						onPointerDown={() => {
+							setShowOriginal(true);
+						}}
+						onPointerUp={() => {
+							setShowOriginal(false);
+						}}
+						onPointerLeave={() => {
+							setShowOriginal(false);
+						}}
 					>
 						Hold to Compare
 					</Button>
 				)}
 
-				<Button className="w-full" disabled={!originalData} onClick={handleExport}>
+				<Button
+					className="w-full"
+					disabled={!originalData}
+					onClick={() => {
+						void handleExport();
+					}}
+				>
 					Export
 				</Button>
-
-				{originalData && <MonetagAd zoneId={MONETAG_ZONES.export} className="mt-1" />}
 			</div>
 
 			{/* Info modal */}
@@ -506,7 +476,9 @@ export function ImageSidebar({ processFn, wasmReady, onOpenFile, onNew }: ImageS
 					file={file}
 					width={originalData.width}
 					height={originalData.height}
-					onClose={() => setShowInfo(false)}
+					onClose={() => {
+						setShowInfo(false);
+					}}
 				/>
 			)}
 		</aside>

@@ -50,7 +50,9 @@ function clampRect(r: CropRect, imgW: number, imgH: number): CropRect {
 }
 
 export function CropOverlay({ containerRef, view, imageWidth, imageHeight, getIsPanning }: CropOverlayProps) {
-	const { crop, cropAspectRatio, setCrop } = useImageEditorStore();
+	const crop = useImageEditorStore((s) => s.crop);
+	const cropAspectRatio = useImageEditorStore((s) => s.cropAspectRatio);
+	const setCrop = useImageEditorStore((s) => s.setCrop);
 
 	const dragging = useRef<{ handle: Handle; startX: number; startY: number; startCrop: CropRect } | null>(null);
 	const creating = useRef<{ startX: number; startY: number } | null>(null);
@@ -64,9 +66,10 @@ export function CropOverlay({ containerRef, view, imageWidth, imageHeight, getIs
 
 		const onPointerDown = (e: PointerEvent) => {
 			if (e.button !== 0 || getIsPanning() || dragging.current) return;
+			if (!(e.target instanceof HTMLElement)) return;
 			// Only create if clicking on the overlay area (not on a handle)
-			if ((e.target as HTMLElement).dataset.cropHandle) return;
-			if ((e.target as HTMLElement).dataset.cropArea) return;
+			if (e.target.dataset.cropHandle) return;
+			if (e.target.dataset.cropArea) return;
 
 			const rect = getRect();
 			if (!rect) return;
@@ -130,7 +133,7 @@ export function CropOverlay({ containerRef, view, imageWidth, imageHeight, getIs
 			e.stopPropagation();
 			if (!crop) return;
 			dragging.current = { handle, startX: e.clientX, startY: e.clientY, startCrop: { ...crop } };
-			(e.target as HTMLElement).setPointerCapture(e.pointerId);
+			e.currentTarget.setPointerCapture(e.pointerId);
 		},
 		[crop],
 	);
@@ -258,7 +261,9 @@ export function CropOverlay({ containerRef, view, imageWidth, imageHeight, getIs
 				data-crop-area="true"
 				className="absolute pointer-events-auto cursor-move"
 				style={{ left: sx, top: sy, width: sw, height: sh }}
-				onPointerDown={(e) => onHandlePointerDown(e, 'move')}
+				onPointerDown={(e) => {
+					onHandlePointerDown(e, 'move');
+				}}
 				onPointerMove={onHandlePointerMove}
 				onPointerUp={onHandlePointerUp}
 			/>
@@ -276,7 +281,9 @@ export function CropOverlay({ containerRef, view, imageWidth, imageHeight, getIs
 						height: HANDLE_SIZE,
 						cursor,
 					}}
-					onPointerDown={(e) => onHandlePointerDown(e, handle)}
+					onPointerDown={(e) => {
+						onHandlePointerDown(e, handle);
+					}}
 					onPointerMove={onHandlePointerMove}
 					onPointerUp={onHandlePointerUp}
 				/>
@@ -284,7 +291,7 @@ export function CropOverlay({ containerRef, view, imageWidth, imageHeight, getIs
 
 			{/* Crop dimensions label */}
 			<div
-				className="absolute text-[12px] font-mono text-white bg-black/60 rounded px-1.5 py-0.5 pointer-events-none"
+				className="absolute text-[13px] font-mono text-white bg-black/60 rounded px-1.5 py-0.5 pointer-events-none"
 				style={{ left: sx + sw / 2, top: sy + sh + 8, transform: 'translateX(-50%)' }}
 			>
 				{formatDimensions(Math.round(crop.width), Math.round(crop.height))}

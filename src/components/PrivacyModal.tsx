@@ -42,7 +42,7 @@ export function PrivacyModal() {
 						'No accounts or tracking required',
 						'No data is collected or stored on any server',
 					].map((item) => (
-						<li key={item} className="flex items-start gap-2.5 text-xs text-text-secondary">
+						<li key={item} className="flex items-start gap-2.5 text-[13px] text-text-secondary">
 							<Check size={16} className="shrink-0 text-success mt-0.5" />
 							{item}
 						</li>
@@ -53,7 +53,7 @@ export function PrivacyModal() {
 					Got it
 				</Button>
 
-				<p className="mt-3 text-center text-[12px] text-text-tertiary">
+				<p className="mt-3 text-center text-[13px] text-text-tertiary">
 					Read our full{' '}
 					<a href="/privacy" className="underline hover:text-text-secondary transition-colors">
 						Privacy Policy

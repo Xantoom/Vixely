@@ -7,5 +7,7 @@ interface AppState {
 
 export const useAppStore = create<AppState>((set) => ({
 	activeModule: null,
-	setActiveModule: (module) => set({ activeModule: module }),
+	setActiveModule: (module) => {
+		set({ activeModule: module });
+	},
 }));

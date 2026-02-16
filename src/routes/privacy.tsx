@@ -14,7 +14,7 @@ function PrivacyPage() {
 			<div className="max-w-2xl mx-auto px-8 py-16 animate-fade-in">
 				<Link
 					to="/"
-					className="inline-flex items-center gap-1.5 text-xs text-text-tertiary hover:text-text-secondary transition-colors mb-8"
+					className="inline-flex items-center gap-1.5 text-[13px] text-text-tertiary hover:text-text-secondary transition-colors mb-8"
 				>
 					<svg
 						className="h-3.5 w-3.5"
@@ -55,16 +55,14 @@ function PrivacyPage() {
 					<Section title="Cookies">
 						<p>
 							Vixely uses minimal local storage entries to remember your preferences (e.g., whether you've
-							seen the privacy notice). Our ad partner, Monetag, may set cookies for ad delivery and
-							performance measurement, subject to their own privacy policy.
+							seen the privacy notice). We do not use advertising cookies.
 						</p>
 					</Section>
 
 					<Section title="Third-party services">
 						<p>
-							Vixely loads open-source libraries (FFmpeg.wasm, Rust WASM modules) from your local bundle —
-							no CDN calls for processing. Google Fonts are loaded for typography. Ads are served by
-							Monetag and governed by their privacy policy.
+							Vixely loads open-source libraries (Mediabunny, Rust WASM modules) from your local bundle —
+							no CDN calls for processing. Google Fonts are loaded for typography.
 						</p>
 					</Section>
 

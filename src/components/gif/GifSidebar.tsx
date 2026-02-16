@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { Button, Slider } from '@/components/ui/index.ts';
 import { gifPresetEntries } from '@/config/presets.ts';
 import { useGifEditorStore } from '@/stores/gifEditor.ts';
@@ -48,7 +49,16 @@ export function GifSidebar({
 	onGenerate,
 	onDownload,
 }: GifSidebarProps) {
-	const { speed, reverse, setSpeed, setReverse, colorReduction, setColorReduction } = useGifEditorStore();
+	const { speed, reverse, setSpeed, setReverse, colorReduction, setColorReduction } = useGifEditorStore(
+		useShallow((s) => ({
+			speed: s.speed,
+			reverse: s.reverse,
+			setSpeed: s.setSpeed,
+			setReverse: s.setReverse,
+			colorReduction: s.colorReduction,
+			setColorReduction: s.setColorReduction,
+		})),
+	);
 	const clipDuration = Math.max(trimEnd - trimStart, 0);
 	const estimatedFrames = Math.ceil(clipDuration * fps);
 
@@ -63,11 +73,13 @@ export function GifSidebar({
 					{GIF_PRESETS.map(([key, preset]) => (
 						<button
 							key={key}
-							onClick={() => onApplyPreset(key)}
+							onClick={() => {
+								onApplyPreset(key);
+							}}
 							className="rounded-lg px-2.5 py-2 text-left cursor-pointer bg-surface-raised/50 border border-transparent text-text-secondary hover:bg-surface-raised hover:text-text transition-all"
 						>
 							<p className="text-[13px] font-medium truncate">{preset.name}</p>
-							<p className="text-[11px] text-text-tertiary truncate">{preset.description}</p>
+							<p className="text-[13px] text-text-tertiary truncate">{preset.description}</p>
 						</button>
 					))}
 				</div>
@@ -82,7 +94,9 @@ export function GifSidebar({
 					max={30}
 					step={1}
 					value={fps}
-					onChange={(e) => onFpsChange(Number(e.target.value))}
+					onChange={(e) => {
+						onFpsChange(Number(e.target.value));
+					}}
 				/>
 
 				<Slider
@@ -92,7 +106,9 @@ export function GifSidebar({
 					max={1280}
 					step={16}
 					value={width}
-					onChange={(e) => onWidthChange(Number(e.target.value))}
+					onChange={(e) => {
+						onWidthChange(Number(e.target.value));
+					}}
 				/>
 
 				<Slider
@@ -102,7 +118,9 @@ export function GifSidebar({
 					max={4}
 					step={0.25}
 					value={speed}
-					onChange={(e) => setSpeed(Number(e.target.value))}
+					onChange={(e) => {
+						setSpeed(Number(e.target.value));
+					}}
 				/>
 
 				<Slider
@@ -112,15 +130,19 @@ export function GifSidebar({
 					max={256}
 					step={16}
 					value={colorReduction}
-					onChange={(e) => setColorReduction(Number(e.target.value))}
+					onChange={(e) => {
+						setColorReduction(Number(e.target.value));
+					}}
 				/>
 
 				{/* Toggles */}
 				<div className="flex flex-col gap-3">
 					<div className="flex items-center justify-between">
-						<label className="text-xs font-medium text-text-secondary">Loop</label>
+						<label className="text-[13px] font-medium text-text-secondary">Loop</label>
 						<button
-							onClick={() => onLoopChange(!loop)}
+							onClick={() => {
+								onLoopChange(!loop);
+							}}
 							className={`h-6 w-10 rounded-full transition-colors cursor-pointer ${
 								loop ? 'bg-accent' : 'bg-surface-raised'
 							}`}
@@ -133,9 +155,11 @@ export function GifSidebar({
 						</button>
 					</div>
 					<div className="flex items-center justify-between">
-						<label className="text-xs font-medium text-text-secondary">Reverse</label>
+						<label className="text-[13px] font-medium text-text-secondary">Reverse</label>
 						<button
-							onClick={() => setReverse(!reverse)}
+							onClick={() => {
+								setReverse(!reverse);
+							}}
 							className={`h-6 w-10 rounded-full transition-colors cursor-pointer ${
 								reverse ? 'bg-accent' : 'bg-surface-raised'
 							}`}

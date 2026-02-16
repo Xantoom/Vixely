@@ -18,7 +18,9 @@ export function Drawer({ open, onClose, children, side = 'right' }: DrawerProps)
 	useEffect(() => {
 		if (open) {
 			document.addEventListener('keydown', handleKeyDown);
-			return () => document.removeEventListener('keydown', handleKeyDown);
+			return () => {
+				document.removeEventListener('keydown', handleKeyDown);
+			};
 		}
 	}, [open, handleKeyDown]);
 

@@ -12,13 +12,13 @@ export function ExportProgressModal({ progress }: ExportProgressModalProps) {
 				<div className="h-12 w-12 mx-auto rounded-full border-[3px] border-border border-t-accent animate-spin" />
 
 				<h2 className="mt-4 text-sm font-bold">Exporting Video</h2>
-				<p className="mt-1 text-xs text-text-secondary">{pct}% complete</p>
+				<p className="mt-1 text-[13px] text-text-secondary">{pct}% complete</p>
 
 				<div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-surface-raised">
 					<div className="h-full bg-accent transition-all duration-300" style={{ width: `${pct}%` }} />
 				</div>
 
-				<p className="mt-3 text-[12px] text-text-tertiary">Please do not close this tab while exporting.</p>
+				<p className="mt-3 text-[13px] text-text-tertiary">Please do not close this tab while exporting.</p>
 			</div>
 		</div>
 	);
