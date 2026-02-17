@@ -13,7 +13,6 @@ interface VideoPlayerProps {
 	src: string;
 	videoRef: RefObject<HTMLVideoElement | null>;
 	metadataLoading?: boolean;
-	fallbackSubtitleVtt?: string | null;
 	assSubtitleContent?: string | null;
 	embeddedFonts?: EmbeddedFont[];
 	onLoadedMetadata?: () => void;
@@ -22,14 +21,6 @@ interface VideoPlayerProps {
 	processing?: boolean;
 	progress?: number;
 }
-
-interface ParsedSubtitleCue {
-	start: number;
-	end: number;
-	text: string;
-}
-
-const CRUNCHYROLL_SUBTITLE_FONT_STACK = '"Trebuchet MS", Verdana, "Noto Sans", sans-serif';
 
 const LANG_NAMES: Record<string, string> = {
 	eng: 'English',
@@ -143,162 +134,6 @@ function formatExactTime(seconds: number): string {
 	return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
 }
 
-function splitCommaFields(raw: string, expectedCount: number): string[] {
-	if (expectedCount <= 1) return [raw.trim()];
-	const parts: string[] = [];
-	let rest = raw;
-	for (let i = 0; i < expectedCount - 1; i++) {
-		const comma = rest.indexOf(',');
-		if (comma === -1) {
-			parts.push(rest.trim());
-			rest = '';
-			continue;
-		}
-		parts.push(rest.slice(0, comma).trim());
-		rest = rest.slice(comma + 1);
-	}
-	parts.push(rest.trim());
-	return parts;
-}
-
-function parseAssDefaultFontFamily(assContent?: string | null): string | null {
-	if (!assContent?.trim()) return null;
-	const lines = assContent.replaceAll('\r\n', '\n').replaceAll('\r', '\n').split('\n');
-	let section = '';
-	let styleFormat: string[] = [];
-	let firstFont: string | null = null;
-
-	for (const rawLine of lines) {
-		const line = rawLine.trim();
-		if (!line || line.startsWith(';')) continue;
-		if (line.startsWith('[') && line.endsWith(']')) {
-			section = line.slice(1, -1);
-			continue;
-		}
-		if (section !== 'V4+ Styles' && section !== 'V4 Styles') continue;
-		if (line.startsWith('Format:')) {
-			styleFormat = line
-				.slice('Format:'.length)
-				.split(',')
-				.map((value) => value.trim());
-			continue;
-		}
-		if (!line.startsWith('Style:') || styleFormat.length === 0) continue;
-
-		const values = splitCommaFields(line.slice('Style:'.length).trim(), styleFormat.length);
-		const indexByField = new Map(styleFormat.map((field, i) => [field.toLowerCase(), i] as const));
-		const fontNameRaw = values[indexByField.get('fontname') ?? -1]?.trim();
-		if (!fontNameRaw) continue;
-		const fontName = fontNameRaw.replace(/^['"]|['"]$/g, '').trim();
-		if (!fontName) continue;
-		if (!firstFont) firstFont = fontName;
-
-		const styleName = values[indexByField.get('name') ?? -1]?.trim().toLowerCase();
-		if (styleName === 'default') return fontName;
-	}
-
-	return firstFont;
-}
-
-function parseVttTimestamp(input: string): number | null {
-	const parts = input.trim().split(':');
-	if (parts.length < 2 || parts.length > 3) return null;
-	const secMs = parts.pop();
-	if (!secMs) return null;
-	const secMsParts = secMs.split('.');
-	if (secMsParts.length !== 2) return null;
-
-	const sec = Number(secMsParts[0]);
-	const ms = Number(secMsParts[1]);
-	const min = Number(parts.pop() ?? '0');
-	const hour = Number(parts.pop() ?? '0');
-	if (![hour, min, sec, ms].every((n) => Number.isFinite(n))) return null;
-
-	return hour * 3600 + min * 60 + sec + ms / 1000;
-}
-
-function parseWebVttCues(vtt: string): ParsedSubtitleCue[] {
-	if (!vtt.trim()) return [];
-	const lines = vtt.replaceAll('\r\n', '\n').replaceAll('\r', '\n').split('\n');
-	const cues: ParsedSubtitleCue[] = [];
-	let i = 0;
-
-	while (i < lines.length) {
-		let line = lines[i]!.trim();
-		if (!line) {
-			i++;
-			continue;
-		}
-
-		if (
-			line.startsWith('WEBVTT') ||
-			line.startsWith('NOTE') ||
-			line.startsWith('STYLE') ||
-			line.startsWith('REGION')
-		) {
-			i++;
-			while (i < lines.length && lines[i]!.trim()) i++;
-			continue;
-		}
-
-		if (!line.includes('-->')) {
-			i++;
-			if (i >= lines.length) break;
-			line = lines[i]!.trim();
-			if (!line.includes('-->')) continue;
-		}
-
-		const [left, rightRaw] = line.split('-->');
-		if (!left || !rightRaw) {
-			i++;
-			continue;
-		}
-		const start = parseVttTimestamp(left.trim());
-		const end = parseVttTimestamp(rightRaw.trim().split(/\s+/)[0] ?? '');
-		if (start == null || end == null || end <= start) {
-			i++;
-			continue;
-		}
-
-		i++;
-		const textLines: string[] = [];
-		while (i < lines.length && lines[i]!.trim()) {
-			textLines.push(lines[i]!);
-			i++;
-		}
-		const text = textLines
-			.join('\n')
-			.replaceAll(/<[^>]+>/g, '')
-			.trim();
-		if (text) cues.push({ start, end, text });
-	}
-
-	return cues;
-}
-
-function findActiveCueText(cues: ParsedSubtitleCue[], time: number): string | null {
-	if (cues.length === 0) return null;
-	let lo = 0;
-	let hi = cues.length;
-	while (lo < hi) {
-		const mid = (lo + hi) >> 1;
-		if (cues[mid]!.start <= time) lo = mid + 1;
-		else hi = mid;
-	}
-
-	let idx = lo - 1;
-	if (idx < 0) return null;
-	const activeTexts: string[] = [];
-	while (idx >= 0) {
-		const cue = cues[idx]!;
-		if (cue.end < time) break;
-		if (cue.start <= time && cue.end >= time) activeTexts.unshift(cue.text);
-		idx--;
-	}
-	if (activeTexts.length === 0) return null;
-	return activeTexts.join('\n');
-}
-
 function getFontMimeType(filename: string): string {
 	const ext = filename.includes('.') ? filename.slice(filename.lastIndexOf('.')).toLowerCase() : '';
 	switch (ext) {
@@ -322,7 +157,6 @@ export function VideoPlayer({
 	src,
 	videoRef,
 	metadataLoading = false,
-	fallbackSubtitleVtt,
 	assSubtitleContent,
 	embeddedFonts = [],
 	onLoadedMetadata,
@@ -340,7 +174,7 @@ export function VideoPlayer({
 	const [muted, setMuted] = useState(false);
 	const [showControls, setShowControls] = useState(true);
 	const [openMenu, setOpenMenu] = useState<'audio' | 'subtitle' | null>(null);
-	const [assRenderState, setAssRenderState] = useState<'inactive' | 'initializing' | 'ready' | 'failed'>('inactive');
+	const [, setAssRenderState] = useState<'inactive' | 'initializing' | 'ready' | 'failed'>('inactive');
 	const [isFullscreen, setIsFullscreen] = useState(false);
 	const [videoSize, setVideoSize] = useState({ width: 0, height: 0 });
 	const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
@@ -380,19 +214,6 @@ export function VideoPlayer({
 			return { label, details, isDefault: s.isDefault, isForced: s.isForced };
 		});
 	}, [subtitleStreams]);
-	const useFallbackSubtitleOverlay =
-		subtitleEnabled && Boolean(fallbackSubtitleVtt) && (!assSubtitleContent || assRenderState === 'failed');
-	const fallbackSubtitleCues = useMemo(() => parseWebVttCues(fallbackSubtitleVtt ?? ''), [fallbackSubtitleVtt]);
-	const fallbackSubtitleText = useMemo(() => {
-		if (!useFallbackSubtitleOverlay || fallbackSubtitleCues.length === 0) return null;
-		return findActiveCueText(fallbackSubtitleCues, currentTime);
-	}, [useFallbackSubtitleOverlay, fallbackSubtitleCues, currentTime]);
-	const fallbackSubtitleFontFamily = useMemo(() => {
-		const parsedAssFont = parseAssDefaultFontFamily(assSubtitleContent);
-		if (!parsedAssFont) return CRUNCHYROLL_SUBTITLE_FONT_STACK;
-		return `"${parsedAssFont}", ${CRUNCHYROLL_SUBTITLE_FONT_STACK}`;
-	}, [assSubtitleContent]);
-
 	const combinedFilter = useMemo(() => {
 		const { brightness, contrast, saturation, hue } = videoFilters;
 		const parts: string[] = [];
@@ -419,7 +240,11 @@ export function VideoPlayer({
 		const renderer = assRendererRef.current;
 		const video = videoRef.current;
 		if (!renderer) return;
-		await renderer.resize(Boolean(video?.paused));
+		try {
+			await renderer.resize(Boolean(video?.paused));
+		} catch {
+			// Renderer may be in a transitional state (initializing/destroying)
+		}
 	}, [videoRef]);
 
 	const normalizeAssOverlayLayer = useCallback((video: HTMLVideoElement) => {
@@ -619,11 +444,10 @@ export function VideoPlayer({
 					renderer = new JassubRenderer({
 						video,
 						subContent: content,
-						workerUrl: '/jassub/jassub-worker.js',
-						wasmUrl: '/jassub/jassub-worker.wasm',
-						...(embeddedFonts.length > 0
-							? { fonts: ['/jassub/default.woff2', ...embeddedFonts.map((f) => f.data)] }
-							: { fonts: ['/jassub/default.woff2'] }),
+						fonts:
+							embeddedFonts.length > 0
+								? embeddedFonts.map((f) => URL.createObjectURL(new Blob([new Uint8Array(f.data)])))
+								: [],
 						maxRenderHeight: 1440,
 					});
 					assRendererRef.current = renderer;
@@ -846,17 +670,6 @@ export function VideoPlayer({
 					className="w-full h-full object-contain cursor-pointer transition-[filter] duration-200"
 					style={combinedFilter ? { filter: combinedFilter } : undefined}
 				/>
-
-				{fallbackSubtitleText && (
-					<div className="pointer-events-none absolute inset-x-0 bottom-14 sm:bottom-16 z-10 flex justify-center px-3">
-						<div
-							className="max-w-[92%] whitespace-pre-line text-center text-sm sm:text-base font-semibold tracking-[0.01em] text-white [text-shadow:-1px_-1px_0_rgba(0,0,0,0.96),1px_-1px_0_rgba(0,0,0,0.96),-1px_1px_0_rgba(0,0,0,0.96),1px_1px_0_rgba(0,0,0,0.96),0_2px_4px_rgba(0,0,0,0.92)]"
-							style={{ fontFamily: fallbackSubtitleFontFamily }}
-						>
-							{fallbackSubtitleText}
-						</div>
-					</div>
-				)}
 
 				<div
 					className={`absolute bottom-0 left-0 right-0 z-20 rounded-b-xl bg-gradient-to-t from-black/80 to-transparent px-3 sm:px-4 pt-8 pb-3 transition-opacity duration-200 ${

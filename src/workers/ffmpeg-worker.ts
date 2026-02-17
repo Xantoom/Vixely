@@ -16,6 +16,7 @@ import {
 	type MetadataTags,
 } from 'mediabunny';
 import { encodeGif } from '@/modules/gif-editor/encode/gif-encoder.ts';
+import { parseMkvSubtitles, type MkvSubtitleTrack } from '@/utils/mkvSubtitleParser.ts';
 
 // ── Types ──
 
@@ -127,6 +128,7 @@ interface ProbeStatusPayload {
 interface ProbeResultPayload {
 	type: 'PROBE_RESULT';
 	result: ProbeResultData;
+	fonts: Array<{ name: string; data: Uint8Array }>;
 }
 
 interface ProbeDetailsResultPayload {
@@ -139,7 +141,6 @@ interface SubtitlePreviewResultPayload {
 	requestId: number;
 	format: 'ass' | 'webvtt';
 	content: string;
-	fallbackWebVtt?: string;
 }
 
 interface FontsResultPayload {
@@ -436,6 +437,32 @@ function sanitizeFontName(name: string | undefined, fallback: string): string {
 	return fallback;
 }
 
+function isMatroskaFile(file: File): boolean {
+	const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+	return ext === 'mkv' || ext === 'webm' || ext === 'mka' || ext === 'mks';
+}
+
+function mkvTrackToProbeStream(track: MkvSubtitleTrack, index: number): ProbeStreamInfo {
+	const codecMap: Record<string, string> = {
+		'S_TEXT/ASS': 'ass',
+		'S_TEXT/SSA': 'ssa',
+		'S_TEXT/UTF8': 'subrip',
+		'S_TEXT/WEBVTT': 'webvtt',
+		'S_HDMV/PGS': 'hdmv_pgs_subtitle',
+		'S_DVBSUB': 'dvb_subtitle',
+		'S_VOBSUB': 'dvd_subtitle',
+	};
+	return {
+		index: 1000 + index,
+		type: 'subtitle',
+		codec: codecMap[track.codecId] ?? track.codecId,
+		language: track.language,
+		title: track.name,
+		isDefault: track.isDefault,
+		isForced: track.isForced,
+	};
+}
+
 async function canvasToPngBytes(canvas: HTMLCanvasElement | OffscreenCanvas): Promise<Uint8Array> {
 	if (canvas instanceof OffscreenCanvas) {
 		const blob = await canvas.convertToBlob({ type: 'image/png' });
@@ -696,10 +723,25 @@ async function handleProbe(msg: ProbeMessage): Promise<void> {
 		);
 
 		const fontAttachments: FontAttachmentInfo[] = [];
+		const fonts: Array<{ name: string; data: Uint8Array }> = [];
 		for (const [index, attachment] of extractAttachedFiles(tags).entries()) {
 			const filename = sanitizeFontName(attachment.file.name, `attachment-${index + 1}`);
 			if (!isLikelyFontAttachment(filename, attachment.file.mimeType)) continue;
 			fontAttachments.push({ index, filename });
+			fonts.push({ name: filename, data: new Uint8Array(attachment.file.data) });
+		}
+
+		let allStreams = streamEntries;
+		if (isMatroskaFile(msg.file) && !streamEntries.some((s) => s.type === 'subtitle')) {
+			try {
+				const mkvResult = await parseMkvSubtitles(msg.file, { tracksOnly: true });
+				if (mkvResult.tracks.length > 0) {
+					const subtitleStreams = mkvResult.tracks.map((t, i) => mkvTrackToProbeStream(t, i));
+					allStreams = [...streamEntries, ...subtitleStreams];
+				}
+			} catch {
+				// MKV subtitle parse failed — continue without subtitles
+			}
 		}
 
 		const result: ProbeResultData = {
@@ -709,12 +751,12 @@ async function handleProbe(msg: ProbeMessage): Promise<void> {
 					? Math.max(0, Math.round((msg.file.size * 8) / duration / 1000))
 					: 0,
 			format: (format.name || msg.file.type || '').toLowerCase(),
-			streams: streamEntries,
+			streams: allStreams,
 			fontAttachments,
 		};
 
 		post({ type: 'PROBE_STATUS', status: '' });
-		post({ type: 'PROBE_RESULT', result });
+		post({ type: 'PROBE_RESULT', result, fonts });
 	} finally {
 		input.dispose();
 	}
@@ -793,6 +835,34 @@ async function handleProbeDetails(msg: ProbeDetailsMessage): Promise<void> {
 				return detail;
 			}),
 		);
+
+		if (isMatroskaFile(msg.file) && !streams.some((s) => s.codec_type === 'subtitle')) {
+			try {
+				const mkvResult = await parseMkvSubtitles(msg.file, { tracksOnly: true });
+				for (const [i, track] of mkvResult.tracks.entries()) {
+					streams.push({
+						index: 1000 + i,
+						codec_type: 'subtitle',
+						codec_name: track.codecId,
+						codec_long_name: track.codecId,
+						disposition: {
+							default: track.isDefault ? 1 : 0,
+							forced: track.isForced ? 1 : 0,
+							original: 0,
+							commentary: 0,
+							hearing_impaired: 0,
+							visual_impaired: 0,
+						},
+						tags: {
+							...(track.language ? { language: track.language } : {}),
+							...(track.name ? { title: track.name } : {}),
+						},
+					});
+				}
+			} catch {
+				// MKV subtitle parse failed
+			}
+		}
 
 		for (const [index, attachment] of extractAttachedFiles(tags).entries()) {
 			const filename = sanitizeFontName(attachment.file.name, `attachment-${index + 1}`);
@@ -1087,6 +1157,164 @@ async function handleTranscode(msg: TranscodeMessage): Promise<void> {
 	}
 }
 
+// ── Subtitle Extraction ──
+
+function formatAssTimestamp(seconds: number): string {
+	const totalCs = Math.max(0, Math.round(seconds * 100));
+	const h = Math.floor(totalCs / 360_000);
+	const m = Math.floor((totalCs % 360_000) / 6_000);
+	const s = Math.floor((totalCs % 6_000) / 100);
+	const cs = totalCs % 100;
+	return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(cs).padStart(2, '0')}`;
+}
+
+function formatVttTimestamp(seconds: number): string {
+	const totalMs = Math.max(0, Math.round(seconds * 1000));
+	const h = Math.floor(totalMs / 3_600_000);
+	const m = Math.floor((totalMs % 3_600_000) / 60_000);
+	const s = Math.floor((totalMs % 60_000) / 1000);
+	const ms = totalMs % 1000;
+	return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
+}
+
+function stripAssOverrideTags(text: string): string {
+	return text
+		.replaceAll(/\{[^}]*\}/g, '')
+		.replaceAll('\\N', '\n')
+		.replaceAll('\\n', '\n')
+		.trim();
+}
+
+function isAssCodec(codecId: string | number | Uint8Array | null): boolean {
+	if (typeof codecId !== 'string') return false;
+	const lower = codecId.toLowerCase();
+	return lower === 's_text/ass' || lower === 's_text/ssa' || lower === 'ass' || lower === 'ssa';
+}
+
+interface SubtitleCueData {
+	start: number;
+	end: number;
+	text: string;
+	assLine?: string;
+}
+
+function parseAssPacketData(data: string, timestamp: number, duration: number): SubtitleCueData | null {
+	const parts = data.split(',');
+	if (parts.length < 9) return null;
+	const layer = parts[1]?.trim() ?? '0';
+	const style = parts[2]?.trim() ?? 'Default';
+	const name = parts[3]?.trim() ?? '';
+	const marginL = parts[4]?.trim() ?? '0';
+	const marginR = parts[5]?.trim() ?? '0';
+	const marginV = parts[6]?.trim() ?? '0';
+	const effect = parts[7]?.trim() ?? '';
+	const text = parts.slice(8).join(',');
+	const plainText = stripAssOverrideTags(text);
+	if (!plainText) return null;
+	const start = timestamp;
+	const end = timestamp + duration;
+	const assLine = `Dialogue: ${layer},${formatAssTimestamp(start)},${formatAssTimestamp(end)},${style},${name},${marginL},${marginR},${marginV},${effect},${text}`;
+	return { start, end, text: plainText, assLine };
+}
+
+function parseSrtPacketData(data: string, timestamp: number, duration: number): SubtitleCueData | null {
+	const text = data.trim();
+	if (!text) return null;
+	return { start: timestamp, end: timestamp + duration, text };
+}
+
+function buildMinimalAssFile(dialogueLines: string[]): string {
+	const lines = [
+		'[Script Info]',
+		'ScriptType: v4.00+',
+		'PlayResX: 1920',
+		'PlayResY: 1080',
+		'WrapStyle: 0',
+		'',
+		'[V4+ Styles]',
+		'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
+		'Style: Default,Arial,48,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,2,1,2,20,20,40,1',
+		'',
+		'[Events]',
+		'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+		...dialogueLines,
+	];
+	return lines.join('\n');
+}
+
+function buildWebVtt(cues: SubtitleCueData[]): string {
+	if (cues.length === 0) return '';
+	const lines = ['WEBVTT', ''];
+	for (const cue of cues) {
+		lines.push(`${formatVttTimestamp(cue.start)} --> ${formatVttTimestamp(cue.end)}`);
+		lines.push(cue.text);
+		lines.push('');
+	}
+	return lines.join('\n');
+}
+
+async function handleSubtitlePreview(msg: SubtitlePreviewMessage): Promise<void> {
+	const mkvResult = await parseMkvSubtitles(msg.file, { tracksOnly: true });
+	if (mkvResult.tracks.length === 0) throw new Error('No subtitle tracks found in file');
+
+	// The streamIndex from probe maps to the subtitle track list position (index among subtitle streams)
+	// For MKV subtitle tracks with index >= 1000, the position = streamIndex - 1000
+	const trackPosition = msg.streamIndex >= 1000 ? msg.streamIndex - 1000 : msg.streamIndex;
+	const targetTrack = mkvResult.tracks[trackPosition];
+	if (!targetTrack) throw new Error(`Subtitle track at position ${trackPosition} not found`);
+
+	const isAss = isAssCodec(targetTrack.codecId) || msg.subtitleCodec === 'ass' || msg.subtitleCodec === 'ssa';
+
+	const fullResult = await parseMkvSubtitles(msg.file, { targetTrackNumber: targetTrack.trackNumber });
+	const rawCues = fullResult.cues.filter((c) => c.trackNumber === targetTrack.trackNumber);
+
+	if (isAss) {
+		// Build a full ASS file: use CodecPrivate as the header (it contains styles), append dialogue lines
+		const cues: SubtitleCueData[] = [];
+		for (const raw of rawCues) {
+			const cue = parseAssPacketData(raw.data, raw.start, raw.end - raw.start);
+			if (cue) cues.push(cue);
+		}
+		cues.sort((a, b) => a.start - b.start);
+
+		let assContent: string;
+		if (targetTrack.codecPrivate) {
+			// CodecPrivate contains the full ASS header (Script Info, Styles, etc.)
+			// We just need to append the Events section with Dialogue lines
+			const header = targetTrack.codecPrivate.trimEnd();
+			const dialogueLines = cues.map((c) => c.assLine!).filter(Boolean);
+			const hasEventsSection = header.includes('[Events]');
+			if (hasEventsSection) {
+				assContent = header + '\n' + dialogueLines.join('\n') + '\n';
+			} else {
+				assContent =
+					header +
+					'\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n' +
+					dialogueLines.join('\n') +
+					'\n';
+			}
+		} else {
+			assContent = buildMinimalAssFile(cues.map((c) => c.assLine!).filter(Boolean));
+		}
+
+		if (!assContent) throw new Error('Failed to build ASS content from subtitle track');
+		post({ type: 'SUBTITLE_PREVIEW_RESULT', requestId: msg.requestId, format: 'ass', content: assContent });
+		return;
+	}
+
+	// SRT/text subtitles → build WebVTT
+	const cues: SubtitleCueData[] = [];
+	for (const raw of rawCues) {
+		const cue = parseSrtPacketData(raw.data, raw.start, raw.end - raw.start);
+		if (cue) cues.push(cue);
+	}
+	cues.sort((a, b) => a.start - b.start);
+
+	const vttContent = buildWebVtt(cues);
+	if (!vttContent) throw new Error('No subtitle cues found in track');
+	post({ type: 'SUBTITLE_PREVIEW_RESULT', requestId: msg.requestId, format: 'webvtt', content: vttContent });
+}
+
 // ── Message Router ──
 
 post({ type: 'READY' });
@@ -1110,7 +1338,7 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
 				await handleProbeDetails(e.data);
 				break;
 			case 'SUBTITLE_PREVIEW':
-				post({ type: 'SUBTITLE_PREVIEW_RESULT', requestId: e.data.requestId, format: 'webvtt', content: '' });
+				await handleSubtitlePreview(e.data);
 				break;
 			case 'EXTRACT_FONTS':
 				await handleExtractFonts(e.data);

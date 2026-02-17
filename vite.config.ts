@@ -15,6 +15,11 @@ export default defineConfig({
 
 	resolve: { alias: { "@": resolve(import.meta.dirname, "./src") } },
 
+	optimizeDeps: {
+		exclude: ["jassub"],
+		include: ["jassub > throughput"],
+	},
+
 	server: {
 		headers: {
 			"Cross-Origin-Opener-Policy": "same-origin",
@@ -37,18 +42,6 @@ export default defineConfig({
 					}
 					if (id.includes("node_modules/@tanstack/react-router")) {
 						return "router";
-					}
-					if (id.includes("node_modules/@ffmpeg")) {
-						return "ffmpeg";
-					}
-					if (id.includes("node_modules/mp4box")) {
-						return "mp4box";
-					}
-					if (
-						id.includes("node_modules/mp4-muxer") ||
-						id.includes("node_modules/webm-muxer")
-					) {
-						return "muxers";
 					}
 				},
 			},
