@@ -47,7 +47,6 @@ import { useVideoEditorStore, type VideoMode } from '@/stores/videoEditor.ts';
 import { cacheKeyForFile, useVideoMetadataStore } from '@/stores/videoMetadata.ts';
 import { setPendingImageTransfer } from '@/utils/crossEditorTransfer.ts';
 import { formatFileSize, formatNumber } from '@/utils/format.ts';
-import { probeMediaHeaderWithRust } from '@/utils/rustMediaProbe.ts';
 
 export const Route = createFileRoute('/tools/video')({ component: VideoStudio });
 
@@ -257,7 +256,6 @@ function VideoStudio() {
 		probeStatus,
 		probeDetails,
 		extractSubtitlePreview,
-		extractFonts,
 		remuxAudio,
 		cancel,
 	} = useVideoProcessor();
@@ -305,7 +303,6 @@ function VideoStudio() {
 	const [audioNoReencode, setAudioNoReencode] = useState(true);
 	const [streamInfoPending, setStreamInfoPending] = useState(false);
 	const [metadataLoadStage, setMetadataLoadStage] = useState<MetadataLoadStage>('idle');
-	const [subtitlePreviewVtt, setSubtitlePreviewVtt] = useState<string | null>(null);
 	const [assSubtitleContent, setAssSubtitleContent] = useState<string | null>(null);
 	const [detailedProbe, setDetailedProbe] = useState<DetailedProbeResultData | null>(null);
 	const [detailedProbePending, setDetailedProbePending] = useState(false);
@@ -354,8 +351,8 @@ function VideoStudio() {
 
 	const groupedPresets = useMemo(() => groupPresetsByPlatform(VIDEO_PRESETS), []);
 	const minTrimDuration = frameDuration;
-	const metadataExportLocked = streamInfoPending || detailedProbePending || metadataLoadStage === 'fonts';
-	const metadataVideoLoading = metadataExportLocked;
+	const metadataExportLocked = streamInfoPending;
+	const metadataVideoLoading = streamInfoPending || detailedProbePending;
 	const metadataStatusLabel = useMemo(() => {
 		if (streamInfoPending) return probeStatus ?? 'Reading stream map...';
 		if (detailedProbePending) return 'Loading full metadata...';
@@ -447,12 +444,10 @@ function VideoStudio() {
 
 	useEffect(() => {
 		if (processing || !file) {
-			setSubtitlePreviewVtt(null);
 			setAssSubtitleContent(null);
 			return;
 		}
 		if (!tracks.subtitleEnabled) {
-			setSubtitlePreviewVtt(null);
 			setAssSubtitleContent(null);
 			return;
 		}
@@ -460,7 +455,6 @@ function VideoStudio() {
 
 		const selectedSubtitleStream = subtitleStreams[tracks.subtitleTrackIndex];
 		if (!selectedSubtitleStream) {
-			setSubtitlePreviewVtt(null);
 			setAssSubtitleContent(null);
 			return;
 		}
@@ -468,13 +462,7 @@ function VideoStudio() {
 		const cacheKey = `${file.name}:${file.size}:${file.lastModified}:${selectedSubtitleStream.index}`;
 		const cached = subtitleCacheRef.current.get(cacheKey);
 		if (cached) {
-			if (cached.format === 'ass') {
-				setSubtitlePreviewVtt(cached.fallbackWebVtt ?? null);
-				setAssSubtitleContent(cached.content);
-			} else {
-				setAssSubtitleContent(null);
-				setSubtitlePreviewVtt(cached.content);
-			}
+			setAssSubtitleContent(cached.content);
 			return;
 		}
 
@@ -483,26 +471,16 @@ function VideoStudio() {
 			.then((preview) => {
 				if (cancelled) return;
 				subtitleCacheRef.current.set(cacheKey, preview);
-				if (preview.format === 'ass') {
-					setSubtitlePreviewVtt(preview.fallbackWebVtt ?? null);
-					setAssSubtitleContent(preview.content);
-					return;
-				}
-
-				setAssSubtitleContent(null);
-				setSubtitlePreviewVtt(preview.content);
+				setAssSubtitleContent(preview.content);
 			})
 			.catch((err: unknown) => {
 				if (cancelled) return;
 				if (err instanceof Error && err.message.includes('Superseded')) return;
-				if (err instanceof Error && err.message.includes('File is too large for memory fallback')) {
-					setSubtitlePreviewVtt(null);
-					setAssSubtitleContent(null);
-					return;
-				}
-				console.error('[video] Subtitle preview extraction failed', err);
-				setSubtitlePreviewVtt(null);
+				console.error('[video] Subtitle extraction failed', err);
 				setAssSubtitleContent(null);
+				toast.error('Subtitle extraction failed', {
+					description: err instanceof Error ? err.message : 'Could not extract subtitle data.',
+				});
 			});
 
 		return () => {
@@ -562,51 +540,16 @@ function VideoStudio() {
 			subtitleCacheRef.current.clear();
 			const metadataKey = cacheKeyForFile(f);
 			useVideoMetadataStore.getState().clearMetadata(metadataKey);
-			probeDetails(f)
-				.then((result) => {
-					if (detailedProbeRequestId !== detailedProbeRequestIdRef.current) return;
-					setDetailedProbe(result);
-				})
-				.catch((err: unknown) => {
-					if (detailedProbeRequestId !== detailedProbeRequestIdRef.current) return;
-					if (err instanceof Error && err.message.includes('Superseded')) return;
-					setDetailedProbeError(err instanceof Error ? err.message : String(err));
-				})
-				.finally(() => {
-					if (detailedProbeRequestId !== detailedProbeRequestIdRef.current) return;
-					setDetailedProbePending(false);
-				});
 
-			const probePromise = probeMediaHeaderWithRust(f)
-				.then((rustProbe) => {
-					if (probeRequestId !== probeRequestIdRef.current) return;
-					if (!rustProbe) return;
-					if (!rustProbe.streams.some((stream) => stream.type === 'video')) return;
-					useVideoMetadataStore.getState().setRustMetadata(metadataKey, rustProbe);
-				})
-				.catch(() => null)
-				.then(async () => probe(f));
-
-			probePromise
+			probe(f, (fonts) => {
+				if (probeRequestId !== probeRequestIdRef.current) return;
+				setEmbeddedFonts(fonts);
+			})
 				.then((result) => {
 					if (probeRequestId !== probeRequestIdRef.current) return;
 					setStreamInfoPending(false);
-					if (result.fontAttachments.length > 0) {
-						setMetadataLoadStage('fonts');
-						extractFonts(f, result.fontAttachments)
-							.then((fonts) => {
-								if (probeRequestId !== probeRequestIdRef.current) return;
-								setEmbeddedFonts(fonts);
-								setMetadataLoadStage('ready');
-							})
-							.catch((err: unknown) => {
-								if (probeRequestId !== probeRequestIdRef.current) return;
-								console.error('[video] Font extraction failed', err);
-								setMetadataLoadStage('error');
-							});
-					} else {
-						setMetadataLoadStage('ready');
-					}
+					setMetadataLoadStage('ready');
+
 					const videoStream = result.streams.find((s) => s.type === 'video');
 					const probedAudioStreams = result.streams.filter((s) => s.type === 'audio');
 					const probedSubtitleStreams = result.streams.filter((s) => s.type === 'subtitle');
@@ -663,6 +606,21 @@ function VideoStudio() {
 							scalePercent: 100,
 						});
 					}
+
+					probeDetails(f)
+						.then((detailedResult) => {
+							if (detailedProbeRequestId !== detailedProbeRequestIdRef.current) return;
+							setDetailedProbe(detailedResult);
+						})
+						.catch((err: unknown) => {
+							if (detailedProbeRequestId !== detailedProbeRequestIdRef.current) return;
+							if (err instanceof Error && err.message.includes('Superseded')) return;
+							setDetailedProbeError(err instanceof Error ? err.message : String(err));
+						})
+						.finally(() => {
+							if (detailedProbeRequestId !== detailedProbeRequestIdRef.current) return;
+							setDetailedProbePending(false);
+						});
 				})
 				.catch((err: unknown) => {
 					if (probeRequestId !== probeRequestIdRef.current) return;
@@ -676,15 +634,12 @@ function VideoStudio() {
 						subtitleTrackIndex: 0,
 					});
 					setEmbeddedFonts([]);
-					toast.warning('Advanced stream metadata unavailable', {
-						description:
-							err instanceof Error
-								? err.message
-								: 'Video playback is available, but audio/subtitle stream details could not be read.',
+					toast.error('Failed to read video metadata', {
+						description: err instanceof Error ? err.message : 'Could not read stream metadata.',
 					});
 				});
 		},
-		[probe, probeDetails, extractFonts, setProbeResult, setTracks, setResize, videoUrl],
+		[probe, probeDetails, setProbeResult, setTracks, setResize, videoUrl],
 	);
 
 	const handlePreBurnedAssSourceFile = useCallback((f: File) => {
@@ -2739,10 +2694,6 @@ function VideoStudio() {
 						</Button>
 					)}
 				</div>
-				{metadataExportLocked && (
-					<p className="text-[13px] text-text-tertiary">Export locked while metadata loads.</p>
-				)}
-
 				{resultUrl && (
 					<Button
 						variant="secondary"
@@ -2803,7 +2754,6 @@ function VideoStudio() {
 							<VideoPlayer
 								src={videoUrl}
 								videoRef={videoRef}
-								fallbackSubtitleVtt={subtitlePreviewVtt}
 								assSubtitleContent={assSubtitleContent}
 								embeddedFonts={embeddedFonts}
 								onLoadedMetadata={handleVideoLoaded}

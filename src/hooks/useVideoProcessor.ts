@@ -107,6 +107,7 @@ interface LogResponse {
 interface ProbeResultResponse {
 	type: 'PROBE_RESULT';
 	result: ProbeResultData;
+	fonts: Array<{ name: string; data: Uint8Array }>;
 }
 
 interface ProbeStatusResponse {
@@ -124,7 +125,6 @@ interface SubtitlePreviewResultResponse {
 	requestId: number;
 	format: 'ass' | 'webvtt';
 	content: string;
-	fallbackWebVtt?: string;
 }
 
 interface FontsResultResponse {
@@ -196,7 +196,6 @@ interface ScreenshotOptions {
 export interface SubtitlePreviewData {
 	format: 'ass' | 'webvtt';
 	content: string;
-	fallbackWebVtt?: string;
 }
 
 const INITIAL_STATS: ExportStats = { fps: 0, frame: 0, speed: 0, elapsedMs: 0 };
@@ -251,6 +250,7 @@ export function useVideoProcessor() {
 	const probeResolveRef = useRef<((data: ProbeResultData) => void) | null>(null);
 	const probeRejectRef = useRef<((err: Error) => void) | null>(null);
 	const probeCacheKeyRef = useRef<string | null>(null);
+	const probeFontsResolveRef = useRef<((fonts: Array<{ name: string; data: Uint8Array }>) => void) | null>(null);
 	const probeDetailsResolveRef = useRef<((data: DetailedProbeResultData) => void) | null>(null);
 	const probeDetailsRejectRef = useRef<((err: Error) => void) | null>(null);
 	const probeDetailsCacheKeyRef = useRef<string | null>(null);
@@ -332,6 +332,10 @@ export function useVideoProcessor() {
 					}
 					setProbeStatus(null);
 					probeCacheKeyRef.current = null;
+					if (msg.fonts && msg.fonts.length > 0) {
+						probeFontsResolveRef.current?.(msg.fonts);
+					}
+					probeFontsResolveRef.current = null;
 					probeResolveRef.current?.(msg.result);
 					probeResolveRef.current = null;
 					probeRejectRef.current = null;
@@ -353,11 +357,7 @@ export function useVideoProcessor() {
 
 				case 'SUBTITLE_PREVIEW_RESULT':
 					if (subtitlePendingRef.current?.requestId !== msg.requestId) break;
-					subtitlePendingRef.current.resolve({
-						format: msg.format,
-						content: msg.content,
-						fallbackWebVtt: msg.fallbackWebVtt,
-					});
+					subtitlePendingRef.current.resolve({ format: msg.format, content: msg.content });
 					subtitlePendingRef.current = null;
 					break;
 				case 'FONTS_RESULT':
@@ -381,6 +381,7 @@ export function useVideoProcessor() {
 					probeResolveRef.current = null;
 					probeRejectRef.current = null;
 					probeCacheKeyRef.current = null;
+					probeFontsResolveRef.current = null;
 					probeDetailsRejectRef.current?.(new Error(msg.error));
 					probeDetailsResolveRef.current = null;
 					probeDetailsRejectRef.current = null;
@@ -414,6 +415,7 @@ export function useVideoProcessor() {
 			probeRejectRef.current?.(err);
 			probeRejectRef.current = null;
 			probeCacheKeyRef.current = null;
+			probeFontsResolveRef.current = null;
 			probeDetailsResolveRef.current = null;
 			probeDetailsRejectRef.current?.(err);
 			probeDetailsRejectRef.current = null;
@@ -585,32 +587,34 @@ export function useVideoProcessor() {
 		[sendCommand],
 	);
 
-	const probe = useCallback(async (file: File): Promise<ProbeResultData> => {
-		return new Promise<ProbeResultData>((resolve, reject) => {
-			if (!workerRef.current) {
-				reject(new Error('Worker not initialized'));
-				return;
-			}
-			const key = cacheKeyForFile(file);
-			const cached = useVideoMetadataStore.getState().getMetadata(key);
-			if (cached?.probe) {
-				setProbeStatus(null);
-				resolve(cached.probe);
-				return;
-			}
-			if (cached?.rustProbe) {
-				setProbeStatus(null);
-				resolve(cached.rustProbe);
-				return;
-			}
-			setProbeStatus('Reading container header...');
-			probeRejectRef.current?.(new Error('Superseded by newer probe request'));
-			probeResolveRef.current = resolve;
-			probeRejectRef.current = reject;
-			probeCacheKeyRef.current = key;
-			workerRef.current.postMessage({ type: 'PROBE', file });
-		});
-	}, []);
+	const probe = useCallback(
+		async (
+			file: File,
+			onFonts?: (fonts: Array<{ name: string; data: Uint8Array }>) => void,
+		): Promise<ProbeResultData> => {
+			return new Promise<ProbeResultData>((resolve, reject) => {
+				if (!workerRef.current) {
+					reject(new Error('Worker not initialized'));
+					return;
+				}
+				const key = cacheKeyForFile(file);
+				const cached = useVideoMetadataStore.getState().getMetadata(key);
+				if (cached?.probe) {
+					setProbeStatus(null);
+					resolve(cached.probe);
+					return;
+				}
+				setProbeStatus('Reading container header...');
+				probeRejectRef.current?.(new Error('Superseded by newer probe request'));
+				probeResolveRef.current = resolve;
+				probeRejectRef.current = reject;
+				probeCacheKeyRef.current = key;
+				probeFontsResolveRef.current = onFonts ?? null;
+				workerRef.current.postMessage({ type: 'PROBE', file });
+			});
+		},
+		[],
+	);
 
 	const probeDetails = useCallback(async (file: File): Promise<DetailedProbeResultData> => {
 		return new Promise<DetailedProbeResultData>((resolve, reject) => {

@@ -6,14 +6,12 @@ const MAX_METADATA_CACHE_ENTRIES = 24;
 export interface VideoMetadataCacheEntry {
 	probe?: ProbeResultData;
 	probeDetails?: DetailedProbeResultData;
-	rustProbe?: ProbeResultData;
 }
 
 interface VideoMetadataState {
 	cache: Map<string, VideoMetadataCacheEntry>;
 	getMetadata: (key: string) => VideoMetadataCacheEntry | undefined;
 	upsertMetadata: (key: string, patch: Partial<VideoMetadataCacheEntry>) => void;
-	setRustMetadata: (key: string, rustProbe: ProbeResultData) => void;
 	clearMetadata: (key?: string) => void;
 }
 
@@ -37,9 +35,6 @@ export const useVideoMetadataStore = create<VideoMetadataState>((set, get) => ({
 			}
 			return { cache: next };
 		});
-	},
-	setRustMetadata: (key, rustProbe) => {
-		get().upsertMetadata(key, { rustProbe, probe: rustProbe });
 	},
 	clearMetadata: (key) => {
 		set((state) => {
