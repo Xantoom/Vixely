@@ -52,8 +52,6 @@ export const Route = createFileRoute('/tools/video')({ component: VideoStudio })
 
 const VIDEO_PRESETS = videoPresetEntries();
 
-const BROWSER_UNSUPPORTED_AUDIO_CODECS = new Set(['eac3', 'ac3', 'dts', 'truehd', 'mlp', 'dts-hd', 'dtshd']);
-
 const CONTAINER_AUDIO_CODECS: Record<string, Set<string>> = {
 	webm: new Set(['libopus', 'opus', 'libvorbis', 'vorbis']),
 	mp4: new Set(['aac', 'mp3', 'libmp3lame', 'libopus', 'opus', 'flac', 'ac3', 'eac3']),
@@ -253,10 +251,8 @@ function VideoStudio() {
 		transcode,
 		captureFrame,
 		probe,
-		probeStatus,
 		probeDetails,
 		extractSubtitlePreview,
-		remuxAudio,
 		cancel,
 	} = useVideoProcessor();
 	const videoMode = useVideoEditorStore((s) => s.mode);
@@ -313,8 +309,8 @@ function VideoStudio() {
 	const [showInfo, setShowInfo] = useState(false);
 	const [drawerOpen, setDrawerOpen] = useState(false);
 	const [isDragging, setIsDragging] = useState(false);
+	const [timelineScrubbing, setTimelineScrubbing] = useState(false);
 	const [exportError, setExportError] = useState<string | null>(null);
-	const [audioRemuxState, setAudioRemuxState] = useState<'idle' | 'remuxing' | 'done' | 'error'>('idle');
 
 	const videoRef = useRef<HTMLVideoElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -324,10 +320,13 @@ function VideoStudio() {
 	const startedRef = useRef(started);
 	const exportStatsRef = useRef(exportStats);
 	const frameHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const scrubSeekTimeRef = useRef<number | null>(null);
+	const scrubSeekRafRef = useRef<number | null>(null);
+	const lastSeekDispatchMsRef = useRef(0);
+	const isTimelineScrubbingRef = useRef(false);
 	const probeRequestIdRef = useRef(0);
 	const detailedProbeRequestIdRef = useRef(0);
 	const subtitleCacheRef = useRef<Map<string, SubtitlePreviewData>>(new Map());
-	const remuxRequestIdRef = useRef(0);
 
 	const isDirty = file !== null;
 
@@ -341,32 +340,10 @@ function VideoStudio() {
 		[probeResult],
 	);
 
-	const unsupportedAudioCodec = useMemo(() => {
-		if (!tracks.audioEnabled || audioStreams.length === 0) return null;
-		const stream = audioStreams[tracks.audioTrackIndex];
-		if (!stream?.codec) return null;
-		const codec = stream.codec.toLowerCase().trim();
-		return BROWSER_UNSUPPORTED_AUDIO_CODECS.has(codec) ? codec : null;
-	}, [tracks.audioEnabled, tracks.audioTrackIndex, audioStreams]);
-
 	const groupedPresets = useMemo(() => groupPresetsByPlatform(VIDEO_PRESETS), []);
 	const minTrimDuration = frameDuration;
 	const metadataExportLocked = streamInfoPending;
 	const metadataVideoLoading = streamInfoPending || detailedProbePending;
-	const metadataStatusLabel = useMemo(() => {
-		if (streamInfoPending) return probeStatus ?? 'Reading stream map...';
-		if (detailedProbePending) return 'Loading full metadata...';
-		switch (metadataLoadStage) {
-			case 'idle':
-			case 'fast-probe':
-			case 'ready':
-				return null;
-			case 'fonts':
-				return 'Extracting subtitle fonts...';
-			case 'error':
-				return 'Limited metadata (probe failed)';
-		}
-	}, [detailedProbePending, streamInfoPending, probeStatus, metadataLoadStage]);
 
 	useEffect(() => {
 		if (!selectedPreset && !useCustomExport) setUseCustomExport(true);
@@ -394,52 +371,28 @@ function VideoStudio() {
 		};
 	}, [exportError]);
 
-	useEffect(() => {
-		if (!file || !videoUrl || !unsupportedAudioCodec) {
-			setAudioRemuxState('idle');
-			return;
-		}
-		const requestId = ++remuxRequestIdRef.current;
-		setAudioRemuxState('remuxing');
-		const savedTime = videoRef.current?.currentTime ?? 0;
-		remuxAudio(file)
-			.then((data) => {
-				if (requestId !== remuxRequestIdRef.current) return;
-				const blob = new Blob([new Uint8Array(data)], { type: 'video/mp4' });
-				const newUrl = URL.createObjectURL(blob);
-				setVideoUrl((prev) => {
-					if (prev) URL.revokeObjectURL(prev);
-					return newUrl;
-				});
-				setAudioRemuxState('done');
-				requestAnimationFrame(() => {
-					const video = videoRef.current;
-					if (video) video.currentTime = savedTime;
-				});
-			})
-			.catch((err: unknown) => {
-				if (requestId !== remuxRequestIdRef.current) return;
-				console.error('[video] Audio remux failed', err);
-				setAudioRemuxState('error');
-			});
-		return () => {
-			remuxRequestIdRef.current++;
-		};
-	}, [file, videoUrl, unsupportedAudioCodec, remuxAudio]);
-
 	const clampToTrim = useCallback(
-		(time: number) => Math.min(trimEnd, Math.max(trimStart, time)),
+		(time: number) => {
+			if (!Number.isFinite(time)) return trimStart;
+			return Math.min(trimEnd, Math.max(trimStart, time));
+		},
 		[trimStart, trimEnd],
 	);
 
 	const clampTrimStart = useCallback(
-		(value: number) => Math.max(0, Math.min(value, Math.max(0, trimEnd - minTrimDuration))),
-		[trimEnd, minTrimDuration],
+		(value: number) => {
+			const safeValue = Number.isFinite(value) ? value : trimStart;
+			return Math.max(0, Math.min(safeValue, Math.max(0, trimEnd - minTrimDuration)));
+		},
+		[minTrimDuration, trimEnd, trimStart],
 	);
 
 	const clampTrimEnd = useCallback(
-		(value: number) => Math.min(duration, Math.max(value, trimStart + minTrimDuration)),
-		[duration, trimStart, minTrimDuration],
+		(value: number) => {
+			const safeValue = Number.isFinite(value) ? value : trimEnd;
+			return Math.min(duration, Math.max(safeValue, trimStart + minTrimDuration));
+		},
+		[duration, minTrimDuration, trimEnd, trimStart],
 	);
 
 	useEffect(() => {
@@ -664,21 +617,117 @@ function VideoStudio() {
 		setCurrentTime(0);
 	}, []);
 
-	const handleSeek = useCallback(
-		(time: number) => {
+	const applyVideoSeek = useCallback(
+		(time: number, mode: 'exact' | 'fast' = 'exact') => {
+			if (!Number.isFinite(time)) return;
 			const video = videoRef.current;
 			const clamped = clampToTrim(time);
-			if (video) {
+			if (!Number.isFinite(clamped)) return;
+			if (video && mode === 'fast' && typeof video.fastSeek === 'function') {
+				try {
+					video.fastSeek(clamped);
+					return;
+				} catch {
+					// Fallback to exact seek
+				}
+			}
+			if (video && (!Number.isFinite(video.currentTime) || Math.abs(video.currentTime - clamped) > 1e-4)) {
 				video.currentTime = clamped;
 			}
-			setCurrentTime(clamped);
 		},
 		[clampToTrim],
 	);
 
+	const runScrubSeekLoop = useCallback(() => {
+		scrubSeekRafRef.current = null;
+		const pending = scrubSeekTimeRef.current;
+		if (pending == null) return;
+		const video = videoRef.current;
+		if (!video) {
+			scrubSeekTimeRef.current = null;
+			return;
+		}
+		const clamped = clampToTrim(pending);
+		if (!Number.isFinite(clamped)) {
+			scrubSeekTimeRef.current = null;
+			return;
+		}
+
+		const now = performance.now();
+		const isScrubbing = isTimelineScrubbingRef.current;
+		const minIntervalMs = isScrubbing ? 90 : video.seeking ? 33 : 16;
+		const current = Number.isFinite(video.currentTime) ? video.currentTime : NaN;
+		const hasMeaningfulDelta =
+			!Number.isFinite(current) || Math.abs(current - clamped) > (isScrubbing ? 0.03 : 0.03);
+		if (hasMeaningfulDelta && now - lastSeekDispatchMsRef.current >= minIntervalMs) {
+			applyVideoSeek(clamped, isScrubbing ? 'fast' : 'exact');
+			lastSeekDispatchMsRef.current = now;
+		}
+
+		const refreshed = Number.isFinite(video.currentTime) ? video.currentTime : NaN;
+		if (Number.isFinite(refreshed) && Math.abs(refreshed - clamped) <= 0.02) {
+			scrubSeekTimeRef.current = null;
+		}
+
+		if (scrubSeekTimeRef.current != null) {
+			scrubSeekRafRef.current = requestAnimationFrame(() => {
+				runScrubSeekLoop();
+			});
+		}
+	}, [applyVideoSeek, clampToTrim]);
+
+	const handleSeek = useCallback(
+		(time: number) => {
+			if (!Number.isFinite(time)) return;
+			const clamped = clampToTrim(time);
+			if (!Number.isFinite(clamped)) return;
+			setCurrentTime(clamped);
+			scrubSeekTimeRef.current = clamped;
+			if (scrubSeekRafRef.current != null) return;
+			scrubSeekRafRef.current = requestAnimationFrame(() => {
+				runScrubSeekLoop();
+			});
+		},
+		[clampToTrim, runScrubSeekLoop],
+	);
+
+	const handleTimelineScrubStart = useCallback(() => {
+		isTimelineScrubbingRef.current = true;
+		setTimelineScrubbing(true);
+	}, []);
+
+	const handleTimelineScrubEnd = useCallback(() => {
+		isTimelineScrubbingRef.current = false;
+		setTimelineScrubbing(false);
+		const pending = scrubSeekTimeRef.current;
+		if (pending == null) return;
+		const clamped = clampToTrim(pending);
+		if (!Number.isFinite(clamped)) return;
+		scrubSeekTimeRef.current = clamped;
+		setCurrentTime(clamped);
+		applyVideoSeek(clamped, 'exact');
+		if (scrubSeekRafRef.current == null) {
+			scrubSeekRafRef.current = requestAnimationFrame(() => {
+				runScrubSeekLoop();
+			});
+		}
+	}, [applyVideoSeek, clampToTrim, runScrubSeekLoop]);
+
 	const handleTimeUpdate = useCallback(() => {
 		const video = videoRef.current;
 		if (!video) return;
+		const pendingSeek = scrubSeekTimeRef.current;
+		if (pendingSeek != null) {
+			if (!Number.isFinite(video.currentTime)) return;
+			const pendingDelta = Math.abs(video.currentTime - pendingSeek);
+			if (pendingDelta > 0.04) return;
+			scrubSeekTimeRef.current = null;
+		}
+		if (!Number.isFinite(video.currentTime)) {
+			video.currentTime = trimStart;
+			setCurrentTime(trimStart);
+			return;
+		}
 
 		if (video.currentTime < trimStart) {
 			video.currentTime = trimStart;
@@ -721,6 +770,17 @@ function VideoStudio() {
 			stopFrameHold();
 		};
 	}, [stopFrameHold]);
+
+	useEffect(() => {
+		return () => {
+			if (scrubSeekRafRef.current != null) {
+				cancelAnimationFrame(scrubSeekRafRef.current);
+				scrubSeekRafRef.current = null;
+			}
+			scrubSeekTimeRef.current = null;
+			isTimelineScrubbingRef.current = false;
+		};
+	}, []);
 
 	useEffect(() => {
 		const video = videoRef.current;
@@ -2753,12 +2813,15 @@ function VideoStudio() {
 						{videoUrl ? (
 							<VideoPlayer
 								src={videoUrl}
+								previewFile={file}
 								videoRef={videoRef}
 								assSubtitleContent={assSubtitleContent}
 								embeddedFonts={embeddedFonts}
 								onLoadedMetadata={handleVideoLoaded}
 								onTimeUpdate={handleTimeUpdate}
 								onSeek={handleSeek}
+								timelineScrubbing={timelineScrubbing}
+								scrubPreviewTime={timelineScrubbing ? currentTime : null}
 								metadataLoading={metadataVideoLoading}
 								processing={processing}
 								progress={progress}
@@ -2769,29 +2832,6 @@ function VideoStudio() {
 									isDragging={isDragging}
 									onChooseFile={() => fileInputRef.current?.click()}
 								/>
-							</div>
-						)}
-
-						{unsupportedAudioCodec && videoUrl && audioRemuxState !== 'done' && (
-							<div className="absolute top-3 left-3 right-3 z-10 pointer-events-none sm:left-6 sm:right-6 sm:top-6">
-								<div className="pointer-events-auto inline-flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-950/80 backdrop-blur-sm px-3 py-2 text-[13px] text-amber-200">
-									{audioRemuxState === 'remuxing' ? (
-										<>
-											<LoaderCircle size={14} className="shrink-0 text-amber-400 animate-spin" />
-											<span>Preparing audio...</span>
-										</>
-									) : (
-										<>
-											<AlertCircle size={14} className="shrink-0 text-amber-400" />
-											<span>
-												<span className="font-medium text-amber-100">
-													{unsupportedAudioCodec.toUpperCase()}
-												</span>{' '}
-												audio can&apos;t be previewed in the browser. Export works normally.
-											</span>
-										</>
-									)}
-								</div>
 							</div>
 						)}
 
@@ -2820,6 +2860,8 @@ function VideoStudio() {
 									setTrimEnd(clampTrimEnd(v));
 								}}
 								onSeek={handleSeek}
+								onScrubStart={handleTimelineScrubStart}
+								onScrubEnd={handleTimelineScrubEnd}
 								headerStart={
 									<span className="hidden sm:inline-flex items-center text-[13px] font-mono text-text-tertiary tabular-nums">
 										Frame {formatNumber(timeToFrames(currentTime))} / {formatNumber(totalFrames)}
@@ -2904,22 +2946,6 @@ function VideoStudio() {
 									<span className="font-medium text-text-secondary truncate max-w-full">
 										{file.name}
 									</span>
-									{metadataStatusLabel && (
-										<span
-											className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 ${
-												metadataLoadStage === 'error'
-													? 'border-warning/30 bg-warning/10 text-warning'
-													: 'border-accent/30 bg-accent/10 text-accent'
-											}`}
-										>
-											{metadataLoadStage === 'error' ? (
-												<AlertCircle size={12} />
-											) : (
-												<LoaderCircle size={12} className="animate-spin" />
-											)}
-											{metadataStatusLabel}
-										</span>
-									)}
 									<span>{formatFileSize(file.size)}</span>
 									{videoStreamInfo?.width && videoStreamInfo?.height && (
 										<span>
@@ -2929,15 +2955,24 @@ function VideoStudio() {
 									<span>{videoFps.toFixed(2)} fps</span>
 									<span>{formatCompactTime(duration)}</span>
 									<div className="flex-1" />
-									<button
-										onClick={() => {
-											setShowInfo(true);
-										}}
-										className="inline-flex items-center gap-1 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
-										title="File info"
-									>
-										<Info size={13} />
-									</button>
+									{detailedProbePending ? (
+										<span
+											className="inline-flex items-center text-text-tertiary"
+											title="Loading full metadata"
+										>
+											<LoaderCircle size={13} className="animate-spin" />
+										</span>
+									) : (
+										<button
+											onClick={() => {
+												setShowInfo(true);
+											}}
+											className="inline-flex items-center gap-1 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
+											title="File info"
+										>
+											<Info size={13} />
+										</button>
+									)}
 								</div>
 							)}
 						</div>

@@ -1,3 +1,4 @@
+import { registerAc3Decoder, registerAc3Encoder } from '@mediabunny/ac3';
 import {
 	ALL_FORMATS,
 	AttachedFile,
@@ -17,6 +18,9 @@ import {
 } from 'mediabunny';
 import { encodeGif } from '@/modules/gif-editor/encode/gif-encoder.ts';
 import { parseMkvSubtitles, type MkvSubtitleTrack } from '@/utils/mkvSubtitleParser.ts';
+
+registerAc3Decoder();
+registerAc3Encoder();
 
 // ── Types ──
 
@@ -71,11 +75,6 @@ interface ExtractFontsMessage {
 	attachments: FontAttachmentInfo[];
 }
 
-interface RemuxAudioMessage {
-	type: 'REMUX_AUDIO';
-	file: File;
-}
-
 type WorkerMessage =
 	| TranscodeMessage
 	| GifMessage
@@ -83,8 +82,7 @@ type WorkerMessage =
 	| ProbeMessage
 	| ProbeDetailsMessage
 	| SubtitlePreviewMessage
-	| ExtractFontsMessage
-	| RemuxAudioMessage;
+	| ExtractFontsMessage;
 
 interface ProgressPayload {
 	type: 'PROGRESS';
@@ -146,11 +144,6 @@ interface SubtitlePreviewResultPayload {
 interface FontsResultPayload {
 	type: 'FONTS_RESULT';
 	fonts: Array<{ name: string; data: Uint8Array }>;
-}
-
-interface RemuxAudioDonePayload {
-	type: 'REMUX_AUDIO_DONE';
-	data: Uint8Array;
 }
 
 export interface ProbeStreamInfo {
@@ -243,8 +236,7 @@ type WorkerResponse =
 	| ProbeResultPayload
 	| ProbeDetailsResultPayload
 	| SubtitlePreviewResultPayload
-	| FontsResultPayload
-	| RemuxAudioDonePayload;
+	| FontsResultPayload;
 
 type OutputContainer = 'mp4' | 'mkv' | 'webm';
 
@@ -282,13 +274,9 @@ function post(payload: WorkerResponse, transfer?: Transferable[]): void {
 	self.postMessage(payload);
 }
 
-function sendBytesDone(type: 'DONE' | 'REMUX_AUDIO_DONE', data: Uint8Array, outputName?: string): void {
+function sendBytesDone(type: 'DONE', data: Uint8Array, outputName?: string): void {
 	const copy = new Uint8Array(data);
-	if (type === 'DONE') {
-		post({ type: 'DONE', data: copy, outputName: outputName ?? 'output.bin' }, [copy.buffer]);
-		return;
-	}
-	post({ type: 'REMUX_AUDIO_DONE', data: copy }, [copy.buffer]);
+	post({ type: 'DONE', data: copy, outputName: outputName ?? 'output.bin' }, [copy.buffer]);
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -1027,39 +1015,6 @@ async function handleGif(msg: GifMessage): Promise<void> {
 	}
 }
 
-async function handleRemuxAudio(msg: RemuxAudioMessage): Promise<void> {
-	const input = new Input({ source: new BlobSource(msg.file), formats: ALL_FORMATS });
-	try {
-		const output = new Output({ format: new Mp4OutputFormat({ fastStart: false }), target: new BufferTarget() });
-
-		const conversion = await Conversion.init({
-			input,
-			output,
-			video: (track) => (track.number === 1 ? {} : { discard: true }),
-			audio: { codec: 'aac', forceTranscode: true, bitrate: 128_000 },
-		});
-
-		conversion.onProgress = (progress) => {
-			post({ type: 'PROGRESS', progress, time: 0, fps: 0, frame: Math.round(progress * 1000), speed: 1 });
-		};
-
-		if (!conversion.isValid) {
-			throw new Error(
-				`Audio remux invalid: ${conversion.discardedTracks
-					.map((entry) => `${entry.track.type}:${entry.reason}`)
-					.join(', ')}`,
-			);
-		}
-
-		await conversion.execute();
-		const buffer = output.target.buffer;
-		if (!buffer) throw new Error('Remux produced no output buffer');
-		sendBytesDone('REMUX_AUDIO_DONE', new Uint8Array(buffer));
-	} finally {
-		input.dispose();
-	}
-}
-
 async function handleTranscode(msg: TranscodeMessage): Promise<void> {
 	post({ type: 'STARTED', job: 'transcode' });
 	const parsed = parseTranscodeSettings(msg);
@@ -1342,9 +1297,6 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
 				break;
 			case 'EXTRACT_FONTS':
 				await handleExtractFonts(e.data);
-				break;
-			case 'REMUX_AUDIO':
-				await handleRemuxAudio(e.data);
 				break;
 		}
 	} catch (err) {

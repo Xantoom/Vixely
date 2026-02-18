@@ -33,7 +33,7 @@ Left sidebar on every page. Upper bar and right sidebar on editors pages. Three 
 ## Tech Stack
 
 - **Frontend:** React 19 + TailwindCSS
-- **Libraries:** Mediabunny, Zustand, Tanstack Router, Tanstack Query, Bun + Vite. Using Bun as a package manager.
+- **Libraries:** Mediabunny (docs in docs/mediabunny) with extension ac3 and mp3-encoder, Zustand, Tanstack Router, Tanstack Query, Bun + Vite. Using Bun as a package manager.
 - **Production:** Deployed on Railway, Code on Github, DNS on Cloudflare, Domain name on Hostinger.
 - **Environment Variables:** On Railway, NODE_ENV=PRODUCTION, and PORT=80.
 

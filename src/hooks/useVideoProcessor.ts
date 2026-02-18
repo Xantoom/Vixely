@@ -55,11 +55,6 @@ interface ExtractFontsRequest {
 	attachments: FontAttachmentInfo[];
 }
 
-interface RemuxAudioRequest {
-	type: 'REMUX_AUDIO';
-	file: File;
-}
-
 type WorkerRequest =
 	| TranscodeRequest
 	| GifRequest
@@ -67,8 +62,7 @@ type WorkerRequest =
 	| ProbeRequest
 	| ProbeDetailsRequest
 	| SubtitlePreviewRequest
-	| ExtractFontsRequest
-	| RemuxAudioRequest;
+	| ExtractFontsRequest;
 
 interface ProgressResponse {
 	type: 'PROGRESS';
@@ -132,11 +126,6 @@ interface FontsResultResponse {
 	fonts: Array<{ name: string; data: Uint8Array }>;
 }
 
-interface RemuxAudioDoneResponse {
-	type: 'REMUX_AUDIO_DONE';
-	data: Uint8Array;
-}
-
 type WorkerResponse =
 	| ProgressResponse
 	| DoneResponse
@@ -148,8 +137,7 @@ type WorkerResponse =
 	| ProbeResultResponse
 	| ProbeDetailsResultResponse
 	| SubtitlePreviewResultResponse
-	| FontsResultResponse
-	| RemuxAudioDoneResponse;
+	| FontsResultResponse;
 
 // ── Hook State ──
 
@@ -265,9 +253,6 @@ export function useVideoProcessor() {
 		resolve: (fonts: Array<{ name: string; data: Uint8Array }>) => void;
 		reject: (err: Error) => void;
 	} | null>(null);
-	const remuxAudioPendingRef = useRef<{ resolve: (data: Uint8Array) => void; reject: (err: Error) => void } | null>(
-		null,
-	);
 	const exportExpectedDurationRef = useRef(0);
 	const exportStartRef = useRef<number>(0);
 	const lastProgressEmitRef = useRef(0);
@@ -364,10 +349,6 @@ export function useVideoProcessor() {
 					fontsPendingRef.current?.resolve(msg.fonts);
 					fontsPendingRef.current = null;
 					break;
-				case 'REMUX_AUDIO_DONE':
-					remuxAudioPendingRef.current?.resolve(msg.data);
-					remuxAudioPendingRef.current = null;
-					break;
 
 				case 'ERROR':
 					console.error('[hook] worker ERROR:', msg.error);
@@ -390,8 +371,6 @@ export function useVideoProcessor() {
 					fontsPendingRef.current = null;
 					subtitlePendingRef.current?.reject(new Error(msg.error));
 					subtitlePendingRef.current = null;
-					remuxAudioPendingRef.current?.reject(new Error(msg.error));
-					remuxAudioPendingRef.current = null;
 					break;
 
 				case 'LOG':
@@ -424,8 +403,6 @@ export function useVideoProcessor() {
 			fontsPendingRef.current = null;
 			subtitlePendingRef.current?.reject(err);
 			subtitlePendingRef.current = null;
-			remuxAudioPendingRef.current?.reject(err);
-			remuxAudioPendingRef.current = null;
 
 			worker.terminate();
 			const next = createWorker();
@@ -459,8 +436,6 @@ export function useVideoProcessor() {
 		subtitlePendingRef.current = null;
 		fontsPendingRef.current?.reject(err);
 		fontsPendingRef.current = null;
-		remuxAudioPendingRef.current?.reject(err);
-		remuxAudioPendingRef.current = null;
 	}, []);
 
 	const restartWorker = useCallback(
@@ -658,18 +633,6 @@ export function useVideoProcessor() {
 		[],
 	);
 
-	const remuxAudio = useCallback(async (file: File): Promise<Uint8Array> => {
-		return new Promise<Uint8Array>((resolve, reject) => {
-			if (!workerRef.current) {
-				reject(new Error('Worker not initialized'));
-				return;
-			}
-			remuxAudioPendingRef.current?.reject(new Error('Superseded by newer remux request'));
-			remuxAudioPendingRef.current = { resolve, reject };
-			workerRef.current.postMessage({ type: 'REMUX_AUDIO', file });
-		});
-	}, []);
-
 	const extractFonts = useCallback(
 		async (file: File, attachments: FontAttachmentInfo[]): Promise<Array<{ name: string; data: Uint8Array }>> => {
 			return new Promise((resolve, reject) => {
@@ -695,7 +658,6 @@ export function useVideoProcessor() {
 		probeDetails,
 		extractSubtitlePreview,
 		extractFonts,
-		remuxAudio,
 		cancel,
 	};
 }

@@ -11,6 +11,9 @@ interface EmbeddedFont {
 
 interface VideoPlayerProps {
 	src: string;
+	previewFile?: File | null;
+	timelineScrubbing?: boolean;
+	scrubPreviewTime?: number | null;
 	videoRef: RefObject<HTMLVideoElement | null>;
 	metadataLoading?: boolean;
 	assSubtitleContent?: string | null;
@@ -20,6 +23,16 @@ interface VideoPlayerProps {
 	onSeek?: (time: number) => void;
 	processing?: boolean;
 	progress?: number;
+}
+
+const BROWSER_UNSUPPORTED_AUDIO_CODECS = new Set(['eac3', 'ac3', 'dts', 'truehd', 'mlp', 'dts-hd', 'dtshd']);
+const AC3_DECODER_REGISTRATION_FLAG = '__vixelyAc3DecoderRegistered';
+
+function ensureAc3DecoderRegistered(registerAc3Decoder: () => void): void {
+	const flags = globalThis as Record<string, unknown>;
+	if (flags[AC3_DECODER_REGISTRATION_FLAG] === true) return;
+	registerAc3Decoder();
+	flags[AC3_DECODER_REGISTRATION_FLAG] = true;
 }
 
 const LANG_NAMES: Record<string, string> = {
@@ -153,8 +166,13 @@ function getFontFamilyFromFilename(filename: string): string {
 	return base.replaceAll(/[-_]/g, ' ');
 }
 
+type ScrubPreviewRequest = { sequence: number; time: number };
+
 export function VideoPlayer({
 	src,
+	previewFile,
+	timelineScrubbing = false,
+	scrubPreviewTime = null,
 	videoRef,
 	metadataLoading = false,
 	assSubtitleContent,
@@ -179,10 +197,31 @@ export function VideoPlayer({
 	const [videoSize, setVideoSize] = useState({ width: 0, height: 0 });
 	const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
 	const [seekHoverRatio, setSeekHoverRatio] = useState<number | null>(null);
+	const volumeRef = useRef(volume);
+	volumeRef.current = volume;
+	const mutedRef = useRef(muted);
+	mutedRef.current = muted;
 	const hideTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
 	const assRendererRef = useRef<JASSUB | null>(null);
 	const assRendererVersionRef = useRef(0);
 	const assRendererFontsRef = useRef<EmbeddedFont[] | null>(null);
+	const decodedAudioContextRef = useRef<AudioContext | null>(null);
+	const decodedAudioGainRef = useRef<GainNode | null>(null);
+	const decodedAudioInputRef = useRef<{ dispose: () => void } | null>(null);
+	const decodedAudioSinkRef = useRef<{
+		buffers: (start?: number) => AsyncIterable<{ buffer: AudioBuffer; timestamp: number }>;
+	} | null>(null);
+	const decodedAudioSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
+	const decodedAudioStreamVersionRef = useRef(0);
+	const scrubPreviewCanvasRef = useRef<HTMLCanvasElement | null>(null);
+	const scrubPreviewInputRef = useRef<{ dispose: () => void } | null>(null);
+	const scrubPreviewSinkRef = useRef<{
+		getCanvas: (timestamp: number) => Promise<{ canvas: HTMLCanvasElement | OffscreenCanvas } | null>;
+	} | null>(null);
+	const scrubPreviewRequestRef = useRef<ScrubPreviewRequest | null>(null);
+	const scrubPreviewSequenceRef = useRef(0);
+	const scrubPreviewDecodeActiveRef = useRef(false);
+	const [showScrubPreviewFrame, setShowScrubPreviewFrame] = useState(false);
 
 	const probeResult = useVideoEditorStore((s) => s.probeResult);
 	const tracks = useVideoEditorStore((s) => s.tracks);
@@ -196,6 +235,15 @@ export function VideoPlayer({
 	);
 	const hasAudio = audioStreams.length > 0;
 	const hasSubtitles = subtitleStreams.length > 0;
+	const selectedAudioCodec = useMemo(() => {
+		if (!tracks.audioEnabled || audioStreams.length === 0) return null;
+		const stream = audioStreams[tracks.audioTrackIndex];
+		return stream?.codec?.trim().toLowerCase() ?? null;
+	}, [tracks.audioEnabled, tracks.audioTrackIndex, audioStreams]);
+	const useDecodedAudioPreview = useMemo(() => {
+		if (!previewFile || !tracks.audioEnabled || selectedAudioCodec == null) return false;
+		return BROWSER_UNSUPPORTED_AUDIO_CODECS.has(selectedAudioCodec);
+	}, [previewFile, tracks.audioEnabled, selectedAudioCodec]);
 	const audioTrackMenuStreams = useMemo(() => {
 		return audioStreams.map((s, i) => {
 			const lang = getLanguageName(s.language);
@@ -224,6 +272,171 @@ export function VideoPlayer({
 		if (metadataLoading) parts.push('blur(2px)');
 		return parts.length > 0 ? parts.join(' ') : undefined;
 	}, [videoFilters, metadataLoading]);
+	const sleep = useCallback(async (ms: number): Promise<void> => {
+		await new Promise<void>((resolve) => setTimeout(resolve, ms));
+	}, []);
+
+	const stopDecodedAudioSources = useCallback((bumpVersion = true) => {
+		if (bumpVersion) decodedAudioStreamVersionRef.current += 1;
+		for (const source of decodedAudioSourcesRef.current) {
+			try {
+				source.stop();
+			} catch {
+				// Ignore, source may already be stopped.
+			}
+		}
+		decodedAudioSourcesRef.current.clear();
+	}, []);
+
+	const clearScrubPreviewCanvas = useCallback(() => {
+		const canvas = scrubPreviewCanvasRef.current;
+		if (!canvas) {
+			setShowScrubPreviewFrame(false);
+			return;
+		}
+		const ctx = canvas.getContext('2d');
+		if (ctx) {
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+		}
+		setShowScrubPreviewFrame(false);
+	}, []);
+
+	const drawScrubPreviewFrame = useCallback((source: HTMLCanvasElement | OffscreenCanvas): boolean => {
+		const canvas = scrubPreviewCanvasRef.current;
+		if (!canvas) return false;
+		const width = Math.max(1, Math.floor(source.width));
+		const height = Math.max(1, Math.floor(source.height));
+		if (canvas.width !== width) canvas.width = width;
+		if (canvas.height !== height) canvas.height = height;
+		const ctx = canvas.getContext('2d', { alpha: false });
+		if (!ctx) return false;
+		ctx.clearRect(0, 0, width, height);
+		ctx.drawImage(source, 0, 0, width, height);
+		setShowScrubPreviewFrame(true);
+		return true;
+	}, []);
+
+	const drawVideoElementPreview = useCallback((): boolean => {
+		const video = videoRef.current;
+		const canvas = scrubPreviewCanvasRef.current;
+		if (!video || !canvas) return false;
+		const width = Math.max(1, Math.floor(video.videoWidth));
+		const height = Math.max(1, Math.floor(video.videoHeight));
+		if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return false;
+		if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return false;
+		if (canvas.width !== width) canvas.width = width;
+		if (canvas.height !== height) canvas.height = height;
+		const ctx = canvas.getContext('2d', { alpha: false });
+		if (!ctx) return false;
+		ctx.clearRect(0, 0, width, height);
+		ctx.drawImage(video, 0, 0, width, height);
+		setShowScrubPreviewFrame(true);
+		return true;
+	}, [videoRef]);
+
+	const runScrubPreviewDecode = useCallback(() => {
+		if (scrubPreviewDecodeActiveRef.current) return;
+		const sink = scrubPreviewSinkRef.current;
+		if (!sink || scrubPreviewRequestRef.current == null) return;
+		scrubPreviewDecodeActiveRef.current = true;
+		const decodeLatest = async (): Promise<void> => {
+			const request = scrubPreviewRequestRef.current;
+			if (request == null) return;
+			scrubPreviewRequestRef.current = null;
+			const wrapped = await sink.getCanvas(request.time);
+			if (wrapped && request.sequence === scrubPreviewSequenceRef.current) {
+				drawScrubPreviewFrame(wrapped.canvas);
+			}
+			return decodeLatest();
+		};
+		void decodeLatest()
+			.catch((err: unknown) => {
+				console.error('[video] Failed to decode timeline scrub preview frame', err);
+			})
+			.finally(() => {
+				scrubPreviewDecodeActiveRef.current = false;
+				if (scrubPreviewRequestRef.current != null) {
+					runScrubPreviewDecode();
+				}
+			});
+	}, [drawScrubPreviewFrame]);
+
+	const cleanupDecodedAudioGraph = useCallback(() => {
+		stopDecodedAudioSources();
+		const input = decodedAudioInputRef.current;
+		decodedAudioInputRef.current = null;
+		decodedAudioSinkRef.current = null;
+		if (input) input.dispose();
+		const ctx = decodedAudioContextRef.current;
+		decodedAudioContextRef.current = null;
+		decodedAudioGainRef.current = null;
+		if (ctx) void ctx.close().catch(() => {});
+	}, [stopDecodedAudioSources]);
+
+	const ensureDecodedAudioGraph = useCallback(async () => {
+		let ctx = decodedAudioContextRef.current;
+		let gain = decodedAudioGainRef.current;
+		if (!ctx || !gain) {
+			ctx = new AudioContext();
+			gain = ctx.createGain();
+			gain.connect(ctx.destination);
+			decodedAudioContextRef.current = ctx;
+			decodedAudioGainRef.current = gain;
+		}
+		if (ctx.state === 'suspended') await ctx.resume();
+		gain.gain.value = mutedRef.current ? 0 : volumeRef.current;
+		return { ctx, gain };
+	}, []);
+
+	const startDecodedAudioStream = useCallback(
+		async (fromTime: number) => {
+			const video = videoRef.current;
+			const sink = decodedAudioSinkRef.current;
+			if (!video || !sink || !tracks.audioEnabled) return;
+			stopDecodedAudioSources(false);
+			const streamVersion = decodedAudioStreamVersionRef.current + 1;
+			decodedAudioStreamVersionRef.current = streamVersion;
+
+			let graph: { ctx: AudioContext; gain: GainNode };
+			try {
+				graph = await ensureDecodedAudioGraph();
+			} catch {
+				return;
+			}
+			if (streamVersion !== decodedAudioStreamVersionRef.current) return;
+			const startVideoTime = Math.max(0, fromTime);
+			const startCtxTime = graph.ctx.currentTime + 0.03;
+			const playbackRate = Math.max(0.25, video.playbackRate || 1);
+			try {
+				for await (const wrapped of sink.buffers(startVideoTime)) {
+					if (streamVersion !== decodedAudioStreamVersionRef.current) break;
+					const relativeSec = (wrapped.timestamp - startVideoTime) / playbackRate;
+					const when = startCtxTime + Math.max(0, relativeSec);
+					// oxlint-disable-next-line eslint/no-await-in-loop
+					while (
+						streamVersion === decodedAudioStreamVersionRef.current &&
+						when > graph.ctx.currentTime + 1.5
+					) {
+						// oxlint-disable-next-line eslint/no-await-in-loop
+						await sleep(18);
+					}
+					if (streamVersion !== decodedAudioStreamVersionRef.current) break;
+					const source = graph.ctx.createBufferSource();
+					source.buffer = wrapped.buffer;
+					source.playbackRate.value = playbackRate;
+					source.connect(graph.gain);
+					decodedAudioSourcesRef.current.add(source);
+					source.onended = () => {
+						decodedAudioSourcesRef.current.delete(source);
+					};
+					source.start(when);
+				}
+			} catch (err) {
+				console.error('[video] Decoded audio preview failed', err);
+			}
+		},
+		[ensureDecodedAudioGraph, sleep, stopDecodedAudioSources, tracks.audioEnabled, videoRef],
+	);
 
 	const destroyAssRenderer = useCallback(() => {
 		assRendererVersionRef.current += 1;
@@ -282,6 +495,87 @@ export function VideoPlayer({
 	useEffect(() => {
 		if (!showControls) setOpenMenu(null);
 	}, [showControls]);
+
+	useEffect(() => {
+		return () => {
+			cleanupDecodedAudioGraph();
+		};
+	}, [cleanupDecodedAudioGraph]);
+
+	useEffect(() => {
+		scrubPreviewSequenceRef.current += 1;
+		scrubPreviewRequestRef.current = null;
+		scrubPreviewDecodeActiveRef.current = false;
+		const previousInput = scrubPreviewInputRef.current;
+		scrubPreviewInputRef.current = null;
+		scrubPreviewSinkRef.current = null;
+		if (previousInput) previousInput.dispose();
+		clearScrubPreviewCanvas();
+		if (!previewFile) return;
+
+		let cancelled = false;
+		const setupScrubPreview = async () => {
+			try {
+				const { ALL_FORMATS, BlobSource, CanvasSink, Input } = await import('mediabunny');
+				if (cancelled) return;
+				const input = new Input({ source: new BlobSource(previewFile), formats: ALL_FORMATS });
+				const videoTrack = await input.getPrimaryVideoTrack();
+				if (cancelled) {
+					input.dispose();
+					return;
+				}
+				if (!videoTrack) {
+					input.dispose();
+					return;
+				}
+				const canDecode = await videoTrack.canDecode();
+				if (cancelled) {
+					input.dispose();
+					return;
+				}
+				if (!canDecode) {
+					input.dispose();
+					return;
+				}
+				scrubPreviewInputRef.current = input;
+				scrubPreviewSinkRef.current = new CanvasSink(videoTrack, { poolSize: 2 });
+				runScrubPreviewDecode();
+			} catch (err) {
+				console.error('[video] Failed to initialize timeline scrub preview', err);
+			}
+		};
+		void setupScrubPreview();
+
+		return () => {
+			cancelled = true;
+			scrubPreviewSequenceRef.current += 1;
+			scrubPreviewRequestRef.current = null;
+			scrubPreviewDecodeActiveRef.current = false;
+			const input = scrubPreviewInputRef.current;
+			scrubPreviewInputRef.current = null;
+			scrubPreviewSinkRef.current = null;
+			if (input) input.dispose();
+			clearScrubPreviewCanvas();
+		};
+	}, [previewFile, clearScrubPreviewCanvas, runScrubPreviewDecode]);
+
+	useEffect(() => {
+		if (!timelineScrubbing || scrubPreviewTime == null || !Number.isFinite(scrubPreviewTime)) {
+			scrubPreviewSequenceRef.current += 1;
+			scrubPreviewRequestRef.current = null;
+			clearScrubPreviewCanvas();
+			return;
+		}
+		const clampedTime = Math.max(0, scrubPreviewTime);
+		const sequence = scrubPreviewSequenceRef.current + 1;
+		scrubPreviewSequenceRef.current = sequence;
+		scrubPreviewRequestRef.current = { sequence, time: clampedTime };
+		if (!scrubPreviewSinkRef.current) {
+			drawVideoElementPreview();
+			return;
+		}
+		runScrubPreviewDecode();
+	}, [timelineScrubbing, scrubPreviewTime, clearScrubPreviewCanvas, drawVideoElementPreview, runScrubPreviewDecode]);
 
 	useEffect(() => {
 		const container = containerRef.current;
@@ -462,7 +756,7 @@ export function VideoPlayer({
 				if (cancelled || version !== assRendererVersionRef.current) return;
 				await renderer.renderer.setTrack(content);
 				if (cancelled || version !== assRendererVersionRef.current) return;
-				if (video.paused) await repaintAssRenderer();
+				if (video.paused && video.videoWidth > 0 && video.videoHeight > 0) await repaintAssRenderer();
 				if (cancelled || version !== assRendererVersionRef.current) return;
 				setAssRenderState('ready');
 			} catch (err) {
@@ -487,14 +781,150 @@ export function VideoPlayer({
 		normalizeAssOverlayLayer,
 	]);
 
+	useEffect(() => {
+		const video = videoRef.current;
+		if (!video) return;
+		if (!useDecodedAudioPreview || !previewFile || tracks.audioTrackIndex < 0) {
+			stopDecodedAudioSources();
+			return;
+		}
+
+		let cancelled = false;
+		const registerAndCreateSink = async () => {
+			try {
+				const [{ ALL_FORMATS, AudioBufferSink, BlobSource, Input }, { registerAc3Decoder }] = await Promise.all(
+					[import('mediabunny'), import('@mediabunny/ac3')],
+				);
+				if (cancelled) return;
+				ensureAc3DecoderRegistered(registerAc3Decoder);
+
+				const input = new Input({ source: new BlobSource(previewFile), formats: ALL_FORMATS });
+				const audioTracks = await input.getAudioTracks();
+				if (cancelled) {
+					input.dispose();
+					return;
+				}
+				const selectedTrack = audioTracks[tracks.audioTrackIndex];
+				if (!selectedTrack) {
+					input.dispose();
+					return;
+				}
+				const canDecode = await selectedTrack.canDecode();
+				if (!canDecode) {
+					input.dispose();
+					console.error('[video] Selected audio track cannot be decoded for preview');
+					return;
+				}
+
+				decodedAudioInputRef.current = input;
+				decodedAudioSinkRef.current = new AudioBufferSink(selectedTrack);
+
+				const startFromVideo = () => {
+					if (!tracks.audioEnabled || video.paused) return;
+					void startDecodedAudioStream(video.currentTime);
+				};
+				const handlePlay = () => {
+					startFromVideo();
+				};
+				const handlePause = () => {
+					stopDecodedAudioSources();
+				};
+				const handleSeeked = () => {
+					if (!tracks.audioEnabled) {
+						stopDecodedAudioSources();
+						return;
+					}
+					if (video.paused) {
+						stopDecodedAudioSources();
+						return;
+					}
+					startFromVideo();
+				};
+				const handleRateChange = () => {
+					if (!tracks.audioEnabled || video.paused) return;
+					startFromVideo();
+				};
+				const handleEnded = () => {
+					stopDecodedAudioSources();
+				};
+
+				video.addEventListener('play', handlePlay);
+				video.addEventListener('pause', handlePause);
+				video.addEventListener('seeked', handleSeeked);
+				video.addEventListener('ratechange', handleRateChange);
+				video.addEventListener('ended', handleEnded);
+				startFromVideo();
+
+				const previousInput = decodedAudioInputRef.current;
+				const previousSink = decodedAudioSinkRef.current;
+				return () => {
+					video.removeEventListener('play', handlePlay);
+					video.removeEventListener('pause', handlePause);
+					video.removeEventListener('seeked', handleSeeked);
+					video.removeEventListener('ratechange', handleRateChange);
+					video.removeEventListener('ended', handleEnded);
+					stopDecodedAudioSources();
+					if (previousInput === decodedAudioInputRef.current) decodedAudioInputRef.current = null;
+					if (previousSink === decodedAudioSinkRef.current) decodedAudioSinkRef.current = null;
+					input.dispose();
+				};
+			} catch (err) {
+				console.error('[video] Failed to initialize decoded audio preview', err);
+				return;
+			}
+		};
+
+		let teardown: (() => void) | undefined;
+		void registerAndCreateSink().then((cleanup) => {
+			if (cancelled) {
+				cleanup?.();
+				return;
+			}
+			teardown = cleanup;
+		});
+
+		return () => {
+			cancelled = true;
+			teardown?.();
+		};
+	}, [
+		previewFile,
+		startDecodedAudioStream,
+		stopDecodedAudioSources,
+		tracks.audioEnabled,
+		tracks.audioTrackIndex,
+		useDecodedAudioPreview,
+		videoRef,
+	]);
+
+	useEffect(() => {
+		const video = videoRef.current;
+		if (!video || !useDecodedAudioPreview) return;
+		video.muted = true;
+		return () => {
+			video.muted = mutedRef.current;
+			stopDecodedAudioSources();
+		};
+	}, [stopDecodedAudioSources, useDecodedAudioPreview, videoRef]);
+
+	useEffect(() => {
+		if (!useDecodedAudioPreview) return;
+		const gain = decodedAudioGainRef.current;
+		if (!gain) return;
+		gain.gain.value = muted ? 0 : volume;
+	}, [muted, useDecodedAudioPreview, volume]);
+
 	const handleMetadata = useCallback(() => {
 		const v = videoRef.current;
 		if (v) {
 			setDuration(v.duration);
 			setVideoSize({ width: v.videoWidth, height: v.videoHeight });
 			onLoadedMetadata?.();
+			if (assRendererRef.current && v.paused && v.videoWidth > 0 && v.videoHeight > 0) {
+				void repaintAssRenderer();
+			}
 		}
-	}, [videoRef, onLoadedMetadata]);
+	}, [videoRef, onLoadedMetadata, repaintAssRenderer]);
 
 	const handleTimeUpdate = useCallback(() => {
 		const v = videoRef.current;
@@ -580,26 +1010,37 @@ export function VideoPlayer({
 	const toggleMute = useCallback(() => {
 		const v = videoRef.current;
 		if (!v) return;
-		v.muted = !muted;
-		setMuted(!muted);
-	}, [videoRef, muted]);
+		const next = !muted;
+		if (useDecodedAudioPreview) {
+			const gain = decodedAudioGainRef.current;
+			if (gain) gain.gain.value = next ? 0 : volume;
+		}
+		if (!useDecodedAudioPreview) {
+			v.muted = next;
+		}
+		setMuted(next);
+	}, [videoRef, muted, useDecodedAudioPreview, volume]);
 
 	const handleVolumeChange = useCallback(
 		(e: React.ChangeEvent<HTMLInputElement>) => {
 			const v = videoRef.current;
 			if (!v) return;
 			const val = Number(e.target.value);
-			v.volume = val;
+			if (useDecodedAudioPreview) {
+				const gain = decodedAudioGainRef.current;
+				if (gain) gain.gain.value = val;
+			}
+			if (!useDecodedAudioPreview) v.volume = val;
 			setVolume(val);
 			if (val === 0) {
-				v.muted = true;
+				if (!useDecodedAudioPreview) v.muted = true;
 				setMuted(true);
 			} else if (muted) {
-				v.muted = false;
+				if (!useDecodedAudioPreview) v.muted = false;
 				setMuted(false);
 			}
 		},
-		[videoRef, muted],
+		[muted, useDecodedAudioPreview, videoRef],
 	);
 
 	const toggleFullscreen = useCallback(() => {
@@ -669,6 +1110,14 @@ export function VideoPlayer({
 					}}
 					className="w-full h-full object-contain cursor-pointer transition-[filter] duration-200"
 					style={combinedFilter ? { filter: combinedFilter } : undefined}
+				/>
+				<canvas
+					ref={scrubPreviewCanvasRef}
+					className={`pointer-events-none absolute inset-0 z-10 h-full w-full object-contain transition-opacity duration-100 ${
+						timelineScrubbing && showScrubPreviewFrame ? 'opacity-100' : 'opacity-0'
+					}`}
+					style={combinedFilter ? { filter: combinedFilter } : undefined}
+					aria-hidden="true"
 				/>
 
 				<div

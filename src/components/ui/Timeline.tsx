@@ -14,9 +14,12 @@ interface TimelineProps {
 	headerEnd?: ReactNode;
 	centerStart?: ReactNode;
 	centerEnd?: ReactNode;
+	onScrubStart?: () => void;
+	onScrubEnd?: () => void;
 }
 
 function formatTimecode(seconds: number): string {
+	if (!Number.isFinite(seconds)) return '00:00.00';
 	const totalCentiseconds = Math.max(0, Math.floor(seconds * 100));
 	const h = Math.floor(totalCentiseconds / 360000);
 	const m = Math.floor((totalCentiseconds % 360000) / 6000);
@@ -44,6 +47,8 @@ export function Timeline({
 	headerEnd,
 	centerStart,
 	centerEnd,
+	onScrubStart,
+	onScrubEnd,
 }: TimelineProps) {
 	const trackRef = useRef<HTMLDivElement>(null);
 	const rangeDragOffsetRef = useRef(0);
@@ -51,13 +56,20 @@ export function Timeline({
 	const movedDuringDragRef = useRef(false);
 	const [dragging, setDragging] = useState<DragTarget>(null);
 
-	const toFraction = (val: number) => (duration > 0 ? val / duration : 0);
+	const toFraction = (val: number) => {
+		if (!Number.isFinite(duration) || duration <= 0) return 0;
+		if (!Number.isFinite(val)) return 0;
+		return Math.max(0, Math.min(1, val / duration));
+	};
 	const fromClientX = useCallback(
 		(clientX: number): number => {
 			const track = trackRef.current;
-			if (!track || duration <= 0) return 0;
+			if (!track || !Number.isFinite(duration) || duration <= 0) return 0;
 			const rect = track.getBoundingClientRect();
-			const fraction = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+			if (!Number.isFinite(rect.width) || rect.width <= 0) return 0;
+			const raw = (clientX - rect.left) / rect.width;
+			if (!Number.isFinite(raw)) return 0;
+			const fraction = Math.max(0, Math.min(1, raw));
 			return fraction * duration;
 		},
 		[duration],
@@ -66,6 +78,7 @@ export function Timeline({
 	const handlePointerDown = useCallback(
 		(target: DragTarget) => (e: PointerEvent) => {
 			e.preventDefault();
+			if (dragging == null) onScrubStart?.();
 			movedDuringDragRef.current = false;
 			e.currentTarget.setPointerCapture(e.pointerId);
 			if (target === 'range') {
@@ -75,7 +88,7 @@ export function Timeline({
 			}
 			setDragging(target);
 		},
-		[fromClientX, trimStart, trimEnd],
+		[dragging, fromClientX, onScrubStart, trimStart, trimEnd],
 	);
 
 	const handlePointerMove = useCallback(
@@ -83,6 +96,7 @@ export function Timeline({
 			if (!dragging) return;
 			movedDuringDragRef.current = true;
 			const val = fromClientX(e.clientX);
+			if (!Number.isFinite(val)) return;
 			if (dragging === 'start') {
 				onTrimStartChange(Math.min(val, trimEnd - minGap));
 			} else if (dragging === 'end') {
@@ -117,7 +131,8 @@ export function Timeline({
 
 	const handlePointerUp = useCallback(() => {
 		setDragging(null);
-	}, []);
+		onScrubEnd?.();
+	}, [onScrubEnd]);
 
 	// Click on the track to seek
 	const handleTrackClick = useCallback(
@@ -137,93 +152,101 @@ export function Timeline({
 	const endPct = `${toFraction(trimEnd) * 100}%`;
 	const playheadPct = `${toFraction(currentTime) * 100}%`;
 	const clipDuration = trimEnd - trimStart;
-	const hasHeaderSlots = Boolean(headerStart || headerEnd || centerStart || centerEnd);
+	const trimEndRightPct = `${100 - toFraction(trimEnd) * 100}%`;
 
 	return (
-		<div className={`flex flex-col gap-2 select-none ${className}`}>
-			{/* Timecodes */}
-			<div className="flex items-center justify-between gap-2 text-[13px] font-mono text-text-tertiary tabular-nums">
-				<div className="flex min-w-0 items-center gap-2">
-					<span className={hasHeaderSlots ? 'hidden sm:inline' : ''}>{formatTimecode(trimStart)}</span>
-					{headerStart}
-				</div>
-				<div className="flex items-center gap-1">
-					{centerStart}
-					<span className="text-text-secondary font-semibold">{formatTimecode(currentTime)}</span>
-					{centerEnd}
-				</div>
-				<div className="flex min-w-0 items-center justify-end gap-2">
-					{headerEnd}
-					<span className={hasHeaderSlots ? 'hidden sm:inline' : ''}>{formatTimecode(trimEnd)}</span>
-				</div>
-			</div>
+		<div className={`select-none ${className}`}>
+			<div className="rounded-2xl border border-border/70 bg-surface-raised/40 px-2.5 py-2.5 sm:px-3.5 sm:py-3">
+				<div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 text-[12px] text-text-tertiary sm:text-[13px]">
+					<div className="flex min-w-0 items-center gap-2">
+						<span className="inline-flex rounded-md border border-border/70 bg-bg/50 px-2 py-0.5 font-mono tabular-nums text-text-secondary">
+							{formatTimecode(trimStart)}
+						</span>
+						<div className="min-w-0">{headerStart}</div>
+					</div>
 
-			{/* Track */}
-			<div
-				ref={trackRef}
-				className="relative h-12 rounded-lg bg-surface-raised cursor-pointer touch-none"
-				onClick={handleTrackClick}
-				onPointerMove={handlePointerMove}
-				onPointerUp={handlePointerUp}
-			>
-				{/* Dimmed regions outside trim */}
-				<div
-					className="absolute inset-y-0 left-0 bg-bg/60 rounded-l-lg pointer-events-none"
-					style={{ width: startPct }}
-				/>
-				<div
-					className="absolute inset-y-0 right-0 bg-bg/60 rounded-r-lg pointer-events-none"
-					style={{ width: `${100 - toFraction(trimEnd) * 100}%` }}
-				/>
+					<div className="flex items-center justify-center gap-1.5">
+						{centerStart}
+						<span className="inline-flex rounded-md border border-accent/35 bg-accent/10 px-2 py-0.5 font-mono tabular-nums text-text">
+							{formatTimecode(currentTime)}
+						</span>
+						{centerEnd}
+					</div>
 
-				{/* Selected region */}
-				<div
-					className={`absolute inset-y-0 border-y-2 border-accent/40 z-10 transition-colors ${
-						dragging === 'range' ? 'bg-accent/20 cursor-grabbing' : 'bg-accent/10 cursor-grab'
-					}`}
-					style={{ left: startPct, right: `${100 - toFraction(trimEnd) * 100}%` }}
-					onPointerDown={handlePointerDown('range')}
-				/>
+					<div className="flex min-w-0 items-center justify-end gap-2">
+						<div className="min-w-0">{headerEnd}</div>
+						<span className="inline-flex rounded-md border border-border/70 bg-bg/50 px-2 py-0.5 font-mono tabular-nums text-text-secondary">
+							{formatTimecode(trimEnd)}
+						</span>
+					</div>
+				</div>
 
-				{/* Start handle */}
 				<div
-					className={`absolute top-0 bottom-0 w-1.5 -translate-x-1/2 rounded-full cursor-ew-resize z-20 transition-colors ${
-						dragging === 'start' ? 'bg-accent' : 'bg-accent/70 hover:bg-accent'
-					}`}
-					style={{ left: startPct }}
-					onPointerDown={handlePointerDown('start')}
+					ref={trackRef}
+					className="relative mt-3 h-14 overflow-hidden rounded-xl border border-border/70 bg-bg/55 cursor-pointer touch-none"
+					onClick={handleTrackClick}
+					onPointerMove={handlePointerMove}
+					onPointerUp={handlePointerUp}
+					onPointerCancel={handlePointerUp}
 				>
-					<div className="absolute -top-1 -bottom-1 -left-3 -right-3" />
+					<div className="absolute inset-0 bg-[repeating-linear-gradient(to_right,transparent_0,transparent_24px,rgba(255,255,255,0.06)_25px)] pointer-events-none" />
+
+					<div
+						className="absolute inset-y-0 left-0 bg-bg/65 pointer-events-none"
+						style={{ width: startPct }}
+					/>
+					<div
+						className="absolute inset-y-0 right-0 bg-bg/65 pointer-events-none"
+						style={{ width: trimEndRightPct }}
+					/>
+
+					<div
+						className={`absolute top-1 bottom-1 z-10 rounded-lg border border-accent/40 transition-colors ${
+							dragging === 'range' ? 'bg-accent/25 cursor-grabbing' : 'bg-accent/10 cursor-grab'
+						}`}
+						style={{ left: startPct, right: trimEndRightPct }}
+						onPointerDown={handlePointerDown('range')}
+					/>
+
+					<div
+						className={`absolute top-1/2 z-20 h-8 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/40 transition-colors ${
+							dragging === 'start' ? 'bg-accent' : 'bg-accent/80 hover:bg-accent'
+						} cursor-ew-resize`}
+						style={{ left: startPct }}
+						onPointerDown={handlePointerDown('start')}
+					>
+						<div className="absolute -top-3 -bottom-3 -left-3 -right-3" />
+					</div>
+
+					<div
+						className={`absolute top-1/2 z-20 h-8 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/40 transition-colors ${
+							dragging === 'end' ? 'bg-accent' : 'bg-accent/80 hover:bg-accent'
+						} cursor-ew-resize`}
+						style={{ left: endPct }}
+						onPointerDown={handlePointerDown('end')}
+					>
+						<div className="absolute -top-3 -bottom-3 -left-3 -right-3" />
+					</div>
+
+					<div
+						className={`absolute inset-y-1 z-30 w-[2px] -translate-x-1/2 cursor-ew-resize ${
+							dragging === 'playhead' ? 'bg-white' : 'bg-white/85'
+						}`}
+						style={{ left: playheadPct }}
+						onPointerDown={handlePointerDown('playhead')}
+					>
+						<div className="absolute -top-1.5 left-1/2 h-3.5 w-3.5 -translate-x-1/2 rounded-full border border-black/20 bg-white shadow-sm" />
+						<div className="absolute -top-3 -bottom-3 -left-3 -right-3" />
+					</div>
 				</div>
 
-				{/* End handle */}
-				<div
-					className={`absolute top-0 bottom-0 w-1.5 -translate-x-1/2 rounded-full cursor-ew-resize z-20 transition-colors ${
-						dragging === 'end' ? 'bg-accent' : 'bg-accent/70 hover:bg-accent'
-					}`}
-					style={{ left: endPct }}
-					onPointerDown={handlePointerDown('end')}
-				>
-					<div className="absolute -top-1 -bottom-1 -left-3 -right-3" />
+				<div className="mt-2.5 grid grid-cols-1 items-center gap-1 text-[12px] text-text-tertiary sm:grid-cols-3 sm:text-[13px]">
+					<span className="font-mono tabular-nums">Selection: {formatTimecode(clipDuration)}</span>
+					<span className="text-left sm:text-center">
+						Trim {formatTimecode(trimStart)} → {formatTimecode(trimEnd)}
+					</span>
+					<span className="font-mono tabular-nums sm:text-right">Total: {formatTimecode(duration)}</span>
 				</div>
-
-				{/* Playhead */}
-				<div
-					className={`absolute top-0 bottom-0 w-0.5 -translate-x-1/2 z-30 cursor-ew-resize ${
-						dragging === 'playhead' ? 'bg-white' : 'bg-white/80'
-					}`}
-					style={{ left: playheadPct }}
-					onPointerDown={handlePointerDown('playhead')}
-				>
-					<div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-sm bg-white rotate-45" />
-					<div className="absolute -top-1 -bottom-1 -left-3 -right-3" />
-				</div>
-			</div>
-
-			{/* Duration info */}
-			<div className="flex items-center justify-between text-[13px] text-text-tertiary">
-				<span>Selection: {formatTimecode(clipDuration)}</span>
-				<span>Total: {formatTimecode(duration)}</span>
 			</div>
 		</div>
 	);
