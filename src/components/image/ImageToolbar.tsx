@@ -138,7 +138,7 @@ export function ImageToolbar({ containerRef }: ImageToolbarProps) {
 			<IconButton onClick={handleZoomOut} title="Zoom out">
 				<ZoomOut size={16} />
 			</IconButton>
-			<span className="text-[13px] font-mono text-text-tertiary tabular-nums w-10 text-center">
+			<span className="text-[14px] font-mono text-text-tertiary tabular-nums w-10 text-center">
 				{Math.round(zoom * 100)}%
 			</span>
 			<IconButton onClick={handleZoomIn} title="Zoom in">
@@ -188,13 +188,13 @@ export function ImageToolbar({ containerRef }: ImageToolbarProps) {
 					<Separator />
 					<button
 						onClick={handleApplyCrop}
-						className="h-6 px-2 rounded-md text-[13px] font-medium bg-accent/15 text-accent hover:bg-accent/25 transition-colors cursor-pointer"
+						className="h-6 px-2 rounded-md text-[14px] font-medium bg-accent/15 text-accent hover:bg-accent/25 transition-colors cursor-pointer"
 					>
 						Apply
 					</button>
 					<button
 						onClick={cancelCrop}
-						className="h-6 px-2 rounded-md text-[13px] font-medium text-text-tertiary hover:text-text hover:bg-surface-raised/60 transition-colors cursor-pointer"
+						className="h-6 px-2 rounded-md text-[14px] font-medium text-text-tertiary hover:text-text hover:bg-surface-raised/60 transition-colors cursor-pointer"
 					>
 						Cancel
 					</button>
@@ -206,7 +206,7 @@ export function ImageToolbar({ containerRef }: ImageToolbarProps) {
 
 			{/* Dimensions display */}
 			{hasOriginal && (
-				<span className="text-[13px] font-mono text-text-tertiary tabular-nums mr-2">
+				<span className="text-[14px] font-mono text-text-tertiary tabular-nums mr-2">
 					{formatDimensions(originalWidth, originalHeight)}
 				</span>
 			)}
@@ -215,7 +215,7 @@ export function ImageToolbar({ containerRef }: ImageToolbarProps) {
 			<button
 				onClick={resetAll}
 				disabled={!hasOriginal}
-				className="h-6 px-2 rounded-md text-[13px] font-medium text-text-tertiary hover:text-danger hover:bg-danger/10 transition-colors cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
+				className="h-6 px-2 rounded-md text-[14px] font-medium text-text-tertiary hover:text-danger hover:bg-danger/10 transition-colors cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
 				title="Reset all changes"
 			>
 				Reset All

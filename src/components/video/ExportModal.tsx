@@ -106,7 +106,7 @@ export function ExportModal({
 				{/* Stream copy badge */}
 				{isStreamCopy && !done && (
 					<div className="flex justify-center mb-4">
-						<span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-success/10 border border-success/20 text-[13px] font-semibold text-success">
+						<span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-success/10 border border-success/20 text-[14px] font-semibold text-success">
 							<Copy size={11} />
 							Stream Copy
 						</span>
@@ -168,7 +168,7 @@ export function ExportModal({
 function StatCell({ label, value, span }: { label: string; value: string; span?: number }) {
 	return (
 		<div className={`bg-surface px-3 py-2.5 flex flex-col items-center gap-0.5 ${span === 2 ? 'col-span-2' : ''}`}>
-			<span className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider">{label}</span>
+			<span className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider">{label}</span>
 			<span className="text-sm font-mono font-medium tabular-nums text-text">{value}</span>
 		</div>
 	);

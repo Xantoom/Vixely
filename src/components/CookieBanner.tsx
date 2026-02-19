@@ -47,7 +47,7 @@ export function CookieBanner() {
 					</svg>
 				</div>
 				<div className="flex-1 min-w-0">
-					<p className="text-[13px] text-text-secondary leading-relaxed">
+					<p className="text-[14px] text-text-secondary leading-relaxed">
 						We use minimal cookies for preferences and lightweight analytics. No personal data is collected.{' '}
 						<a href="/privacy" className="underline text-text-secondary hover:text-text transition-colors">
 							Learn more
@@ -56,13 +56,13 @@ export function CookieBanner() {
 					<div className="mt-3 flex items-center gap-2">
 						<button
 							onClick={handleAccept}
-							className="rounded-md bg-accent px-3 py-1.5 text-[13px] font-semibold text-bg transition-colors hover:bg-accent/90 cursor-pointer"
+							className="rounded-md bg-accent px-3 py-1.5 text-[14px] font-semibold text-bg transition-colors hover:bg-accent/90 cursor-pointer"
 						>
 							Accept
 						</button>
 						<button
 							onClick={handleDismiss}
-							className="rounded-md px-3 py-1.5 text-[13px] font-medium text-text-tertiary transition-colors hover:text-text-secondary cursor-pointer"
+							className="rounded-md px-3 py-1.5 text-[14px] font-medium text-text-tertiary transition-colors hover:text-text-secondary cursor-pointer"
 						>
 							Dismiss
 						</button>

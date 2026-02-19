@@ -157,7 +157,7 @@ export function Timeline({
 	return (
 		<div className={`select-none ${className}`}>
 			<div className="rounded-2xl border border-border/70 bg-surface-raised/40 px-2.5 py-2.5 sm:px-3.5 sm:py-3">
-				<div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 text-[12px] text-text-tertiary sm:text-[13px]">
+				<div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 text-[14px] text-text-tertiary">
 					<div className="flex min-w-0 items-center gap-2">
 						<span className="inline-flex rounded-md border border-border/70 bg-bg/50 px-2 py-0.5 font-mono tabular-nums text-text-secondary">
 							{formatTimecode(trimStart)}
@@ -240,7 +240,7 @@ export function Timeline({
 					</div>
 				</div>
 
-				<div className="mt-2.5 grid grid-cols-1 items-center gap-1 text-[12px] text-text-tertiary sm:grid-cols-3 sm:text-[13px]">
+				<div className="mt-2.5 grid grid-cols-1 items-center gap-1 text-[14px] text-text-tertiary sm:grid-cols-3 ">
 					<span className="font-mono tabular-nums">Selection: {formatTimecode(clipDuration)}</span>
 					<span className="text-left sm:text-center">
 						Trim {formatTimecode(trimStart)} → {formatTimecode(trimEnd)}

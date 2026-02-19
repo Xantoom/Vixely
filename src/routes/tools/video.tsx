@@ -47,6 +47,7 @@ import { useVideoEditorStore, type VideoMode } from '@/stores/videoEditor.ts';
 import { cacheKeyForFile, useVideoMetadataStore } from '@/stores/videoMetadata.ts';
 import { setPendingImageTransfer } from '@/utils/crossEditorTransfer.ts';
 import { formatFileSize, formatNumber } from '@/utils/format.ts';
+import { formatChannels, getLanguageName } from '@/utils/languageUtils.ts';
 
 export const Route = createFileRoute('/tools/video')({ component: VideoStudio });
 
@@ -145,55 +146,6 @@ function groupPresetsByPlatform(presets: [string, { name: string; description: s
 	return order.filter((p) => groups[p]).map((p) => ({ platform: p, presets: groups[p]! }));
 }
 
-const LANG_MAP: Record<string, string> = {
-	eng: 'English',
-	fre: 'French',
-	fra: 'French',
-	deu: 'German',
-	ger: 'German',
-	spa: 'Spanish',
-	ita: 'Italian',
-	jpn: 'Japanese',
-	zho: 'Chinese',
-	chi: 'Chinese',
-	kor: 'Korean',
-	por: 'Portuguese',
-	rus: 'Russian',
-	ara: 'Arabic',
-	hin: 'Hindi',
-	pol: 'Polish',
-	tur: 'Turkish',
-	nld: 'Dutch',
-	dut: 'Dutch',
-	swe: 'Swedish',
-	nor: 'Norwegian',
-	dan: 'Danish',
-	fin: 'Finnish',
-	ces: 'Czech',
-	cze: 'Czech',
-	hun: 'Hungarian',
-	ron: 'Romanian',
-	rum: 'Romanian',
-	tha: 'Thai',
-	vie: 'Vietnamese',
-};
-
-function getStreamLanguage(code?: string): string | null {
-	if (!code?.trim()) return null;
-	const lower = code.trim().toLowerCase();
-	if (lower === 'und' || lower === 'unk') return null;
-	return LANG_MAP[lower] ?? code.toUpperCase();
-}
-
-function formatStreamChannels(channels?: number): string | null {
-	if (channels == null) return null;
-	if (channels === 1) return 'Mono';
-	if (channels === 2) return 'Stereo';
-	if (channels === 6) return '5.1';
-	if (channels === 8) return '7.1';
-	return `${channels}ch`;
-}
-
 function ToggleSwitch({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) {
 	return (
 		<button
@@ -247,7 +199,6 @@ function VideoStudio() {
 		started,
 		progress,
 		exportStats,
-		error: _workerError,
 		transcode,
 		captureFrame,
 		probe,
@@ -1386,10 +1337,8 @@ function VideoStudio() {
 
 	/* ── Sidebar content ── */
 	const clipDuration = Math.max(trimEnd - trimStart, 0);
-	const lastPresetSelection = selectedPreset;
-	const presetForExport = lastPresetSelection;
-	const presetLabel = presetForExport
-		? (VIDEO_PRESETS.find(([key]) => key === presetForExport)?.[1]?.name ?? null)
+	const presetLabel = selectedPreset
+		? (VIDEO_PRESETS.find(([key]) => key === selectedPreset)?.[1]?.name ?? null)
 		: null;
 	const hasTrimAdjustments = trimStart > 0 || trimEnd < duration;
 	const hasResizeAdjustments = resize.width !== resize.originalWidth || resize.height !== resize.originalHeight;
@@ -1399,7 +1348,6 @@ function VideoStudio() {
 		videoFilters.saturation !== 1 ||
 		videoFilters.hue !== 0;
 	const usingPreBurnedAssSource = usePreBurnedAssSource && preBurnedAssSourceFile != null;
-	const showPresetToggle = true;
 	const sidebarContent = (
 		<>
 			{/* Mode Tabs */}
@@ -1839,332 +1787,328 @@ function VideoStudio() {
 				{/* ── Export Tab ── */}
 				{videoMode === 'export' && (
 					<>
-						{showPresetToggle && (
-							<div className="sticky top-0 z-10 -mx-4 -mt-4 bg-surface px-4 pb-1 pt-4">
-								<div className="grid grid-cols-2 rounded-xl border border-border/80 bg-bg/40 p-1">
-									<button
-										onClick={() => {
-											setUseCustomExport(false);
-										}}
-										disabled={!presetForExport}
-										className={`rounded-lg px-3 py-2 text-[13px] font-semibold transition-colors cursor-pointer ${
-											!useCustomExport
-												? 'bg-accent/15 text-accent'
-												: 'text-text-tertiary hover:text-text-secondary'
-										}`}
-									>
-										Preset Export
-									</button>
-									<button
-										onClick={() => {
-											setUseCustomExport(true);
-										}}
-										className={`rounded-lg px-3 py-2 text-[13px] font-semibold transition-colors cursor-pointer ${
-											useCustomExport
-												? 'bg-accent/15 text-accent'
-												: 'text-text-tertiary hover:text-text-secondary'
-										}`}
-									>
-										Custom Export
-									</button>
-								</div>
+						<div>
+							<div className="grid grid-cols-2 rounded-lg border border-border/60 bg-bg/40 p-0.5">
+								<button
+									onClick={() => {
+										setUseCustomExport(false);
+									}}
+									disabled={!selectedPreset}
+									className={`rounded-md px-3 py-2 text-sm font-semibold transition-colors cursor-pointer ${
+										!useCustomExport
+											? 'bg-accent/15 text-accent'
+											: 'text-text-tertiary hover:text-text-secondary disabled:opacity-40'
+									}`}
+								>
+									Preset
+								</button>
+								<button
+									onClick={() => {
+										setUseCustomExport(true);
+									}}
+									className={`rounded-md px-3 py-2 text-sm font-semibold transition-colors cursor-pointer ${
+										useCustomExport
+											? 'bg-accent/15 text-accent'
+											: 'text-text-tertiary hover:text-text-secondary'
+									}`}
+								>
+									Custom
+								</button>
 							</div>
-						)}
+						</div>
 
-						<div className="flex flex-col gap-3">
-							<div className="rounded-xl border border-border/70 bg-surface-raised/25 p-3">
-								<div className="mb-3 flex items-start justify-between gap-3">
-									<div className="min-w-0">
-										<h3 className="text-[13px] font-semibold uppercase tracking-wider text-text-tertiary">
-											Video
-										</h3>
-										<p className="text-[13px] text-text-tertiary">
-											Codec, container, and quality for the exported clip.
-										</p>
+						<div className="flex flex-col gap-2.5">
+							{/* Video */}
+							<div className="rounded-xl border border-border/60 overflow-hidden">
+								<div className="flex items-center justify-between px-4 py-3 bg-surface-raised/10 border-b border-border/40">
+									<div className="flex items-center gap-2">
+										<Video size={14} className="text-text-tertiary" />
+										<span className="text-sm font-semibold text-text-secondary">Video</span>
 									</div>
 									<span
-										className={`shrink-0 rounded-md px-2 py-1 text-[13px] font-medium ${
+										className={`text-xs font-medium px-2 py-0.5 rounded-md ${
 											useCustomExport
-												? 'border border-accent/30 bg-accent/10 text-accent'
-												: 'border border-border/70 bg-surface-raised/40 text-text-secondary'
+												? 'text-accent bg-accent/10'
+												: 'text-text-tertiary bg-surface-raised/50'
 										}`}
 									>
 										{useCustomExport ? 'Custom' : 'Preset'}
 									</span>
 								</div>
-
-								<div className="mb-3">
-									<label className="mb-1.5 block text-[13px] text-text-tertiary">
-										Video Processing
-									</label>
-									<div className="grid grid-cols-2 gap-1.5">
-										<button
-											onClick={() => {
-												setVideoNoReencode(false);
-											}}
-											className={`rounded-lg border px-3 py-2 text-[13px] font-medium transition-colors cursor-pointer ${
-												!videoNoReencode
-													? 'border-accent/40 bg-accent/12 text-accent'
-													: 'border-border/70 bg-surface-raised/40 text-text-tertiary hover:text-text-secondary'
-											}`}
-										>
-											Re-encode
-										</button>
-										<button
-											onClick={() => {
-												setVideoNoReencode(true);
-											}}
-											className={`rounded-lg border px-3 py-2 text-[13px] font-medium transition-colors cursor-pointer ${
-												videoNoReencode
-													? 'border-accent/40 bg-accent/12 text-accent'
-													: 'border-border/70 bg-surface-raised/40 text-text-tertiary hover:text-text-secondary'
-											}`}
-										>
-											No re-encode
-										</button>
-									</div>
-								</div>
-
-								{videoNoReencode ? (
-									<div className="rounded-lg border border-accent/25 bg-accent/6 px-3 py-2">
-										<p className="text-[13px] font-medium text-text">Video stream copy enabled</p>
-										<p className="mt-0.5 text-[13px] text-text-tertiary">
-											Vixely will keep the original video bitstream when no active filters require
-											re-encoding.
+								<div className="p-4 flex flex-col gap-3.5">
+									<div>
+										<p className="text-xs font-medium text-text-tertiary mb-2 uppercase tracking-wide">
+											Processing
 										</p>
+										<div className="grid grid-cols-2 gap-0.5 rounded-lg border border-border/50 bg-bg/40 p-0.5">
+											<button
+												onClick={() => {
+													setVideoNoReencode(false);
+												}}
+												className={`rounded-md py-2 text-sm font-medium transition-colors cursor-pointer ${
+													!videoNoReencode
+														? 'bg-accent/15 text-accent'
+														: 'text-text-tertiary hover:text-text-secondary'
+												}`}
+											>
+												Re-encode
+											</button>
+											<button
+												onClick={() => {
+													setVideoNoReencode(true);
+												}}
+												className={`rounded-md py-2 text-sm font-medium transition-colors cursor-pointer ${
+													videoNoReencode
+														? 'bg-accent/15 text-accent'
+														: 'text-text-tertiary hover:text-text-secondary'
+												}`}
+											>
+												Stream copy
+											</button>
+										</div>
 									</div>
-								) : !useCustomExport ? (
-									<div className="rounded-lg border border-accent/25 bg-accent/6 px-3 py-2">
-										<p className="text-[13px] font-medium text-text">
-											{presetLabel ?? 'Select a preset from the Presets tab'}
-										</p>
-										<p className="mt-0.5 text-[13px] text-text-tertiary">
-											Video settings are managed automatically for this export profile.
-										</p>
-									</div>
-								) : (
-									<div className="flex flex-col gap-3">
-										<div>
-											<label className="mb-1.5 block text-[13px] text-text-tertiary">
-												Video Codec
-											</label>
-											<div className="grid grid-cols-2 gap-1.5">
-												{VIDEO_CODECS.map((codec) => (
-													<button
-														key={codec.ffmpegLib}
-														onClick={() => {
-															updateAdvanced('codec', codec.ffmpegLib);
-														}}
-														className={`rounded-lg border px-3 py-2 text-[13px] font-medium transition-colors cursor-pointer ${
-															advancedSettings.codec === codec.ffmpegLib
-																? 'border-accent/40 bg-accent/12 text-accent'
-																: 'border-border/70 bg-surface-raised/40 text-text-tertiary hover:text-text-secondary'
-														}`}
-													>
-														{codec.name}
-													</button>
-												))}
-											</div>
-										</div>
 
-										<div>
-											<label className="mb-1.5 block text-[13px] text-text-tertiary">
-												Container
-											</label>
-											<div className="grid grid-cols-3 gap-1.5">
-												{CONTAINERS.map((container) => {
-													const valid = isValidCombo(advancedSettings.codec, container.ext);
-													return (
-														<button
-															key={container.ext}
-															onClick={() => {
-																updateAdvanced('container', container.ext);
-															}}
-															disabled={!valid}
-															className={`rounded-lg border px-2 py-2 text-[13px] font-medium transition-colors cursor-pointer ${
-																advancedSettings.container === container.ext
-																	? 'border-accent/40 bg-accent/12 text-accent'
-																	: valid
-																		? 'border-border/70 bg-surface-raised/40 text-text-tertiary hover:text-text-secondary'
-																		: 'border-border/40 bg-surface-raised/20 text-text-tertiary/40 cursor-not-allowed'
-															}`}
-														>
-															{container.name}
-														</button>
-													);
-												})}
-											</div>
-										</div>
-
-										<div>
-											<label className="mb-1.5 block text-[13px] text-text-tertiary">
-												Rate Control
-											</label>
-											<div className="grid grid-cols-3 gap-1.5">
-												<button
-													onClick={() => {
-														updateAdvanced('rateControl', 'crf');
-													}}
-													className={`rounded-lg border px-2 py-2 text-[13px] font-medium transition-colors cursor-pointer ${
-														advancedSettings.rateControl === 'crf'
-															? 'border-accent/40 bg-accent/12 text-accent'
-															: 'border-border/70 bg-surface-raised/40 text-text-tertiary hover:text-text-secondary'
-													}`}
-												>
-													CRF
-												</button>
-												<button
-													onClick={() => {
-														updateAdvanced('rateControl', 'bitrate');
-													}}
-													className={`rounded-lg border px-2 py-2 text-[13px] font-medium transition-colors cursor-pointer ${
-														advancedSettings.rateControl === 'bitrate'
-															? 'border-accent/40 bg-accent/12 text-accent'
-															: 'border-border/70 bg-surface-raised/40 text-text-tertiary hover:text-text-secondary'
-													}`}
-												>
-													Bitrate
-												</button>
-												<button
-													onClick={() => {
-														updateAdvanced('rateControl', 'qp');
-													}}
-													disabled={!codecSupportsQp(advancedSettings.codec)}
-													className={`rounded-lg border px-2 py-2 text-[13px] font-medium transition-colors cursor-pointer ${
-														advancedSettings.rateControl === 'qp'
-															? 'border-accent/40 bg-accent/12 text-accent'
-															: codecSupportsQp(advancedSettings.codec)
-																? 'border-border/70 bg-surface-raised/40 text-text-tertiary hover:text-text-secondary'
-																: 'border-border/40 bg-surface-raised/20 text-text-tertiary/40 cursor-not-allowed'
-													}`}
-												>
-													QP
-												</button>
-											</div>
-										</div>
-
-										<div className="rounded-lg border border-border/70 bg-bg/35 px-3 py-2">
-											{advancedSettings.rateControl === 'crf' && (
-												<>
-													<Slider
-														label="Quality (CRF)"
-														displayValue={`${advancedSettings.crf}`}
-														min={10}
-														max={45}
-														step={1}
-														value={advancedSettings.crf}
-														onChange={(e) => {
-															updateAdvanced(
-																'crf',
-																Number((e.target as HTMLInputElement).value),
-															);
-														}}
-													/>
-													<div className="mt-1 flex items-center justify-between text-[13px] text-text-tertiary">
-														<span>Higher quality</span>
-														<span>Smaller file</span>
-													</div>
-												</>
-											)}
-											{advancedSettings.rateControl === 'bitrate' && (
-												<>
-													<Slider
-														label="Target Bitrate"
-														displayValue={`${formatNumber(advancedSettings.targetBitrateKbps, 0)} kb/s`}
-														min={150}
-														max={20000}
-														step={50}
-														value={advancedSettings.targetBitrateKbps}
-														onChange={(e) => {
-															updateAdvanced(
-																'targetBitrateKbps',
-																Number((e.target as HTMLInputElement).value),
-															);
-														}}
-													/>
-													<div className="mt-1 flex items-center justify-between text-[13px] text-text-tertiary">
-														<span>Smaller file</span>
-														<span>Higher quality</span>
-													</div>
-												</>
-											)}
-											{advancedSettings.rateControl === 'qp' && (
-												<>
-													<Slider
-														label="Constant QP"
-														displayValue={`${advancedSettings.qp}`}
-														min={0}
-														max={51}
-														step={1}
-														value={advancedSettings.qp}
-														onChange={(e) => {
-															updateAdvanced(
-																'qp',
-																Number((e.target as HTMLInputElement).value),
-															);
-														}}
-													/>
-													<div className="mt-1 flex items-center justify-between text-[13px] text-text-tertiary">
-														<span>Higher quality</span>
-														<span>Smaller file</span>
-													</div>
-												</>
-											)}
-										</div>
-
-										{(advancedSettings.codec === 'libx264' ||
-											advancedSettings.codec === 'libx265') && (
+									{videoNoReencode ? (
+										<div className="flex items-start gap-2.5 rounded-lg border border-border/50 bg-bg/30 px-3.5 py-2.5">
+											<div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-success shrink-0" />
 											<div>
-												<label className="mb-1.5 block text-[13px] text-text-tertiary">
-													Encoding Speed
-												</label>
-												<div className="grid grid-cols-3 gap-1.5">
-													{(
-														[
-															'ultrafast',
-															'veryfast',
-															'fast',
-															'medium',
-															'slow',
-															'veryslow',
-														] as const
-													).map((preset) => (
+												<p className="text-sm font-medium text-text">
+													Original stream preserved
+												</p>
+												<p className="mt-0.5 text-xs text-text-tertiary">
+													No re-encoding unless active filters require it
+												</p>
+											</div>
+										</div>
+									) : !useCustomExport ? (
+										<div className="rounded-lg border border-border/50 bg-bg/30 px-3.5 py-2.5">
+											<p className="text-sm font-medium text-text">
+												{presetLabel ?? 'Select a preset from the Presets tab'}
+											</p>
+											<p className="mt-0.5 text-xs text-text-tertiary">
+												Video settings managed by the active preset
+											</p>
+										</div>
+									) : (
+										<div className="flex flex-col gap-3">
+											<div>
+												<p className="text-xs font-medium text-text-tertiary mb-2 uppercase tracking-wide">
+													Codec
+												</p>
+												<div className="grid grid-cols-2 gap-0.5 rounded-lg border border-border/50 bg-bg/40 p-0.5">
+													{VIDEO_CODECS.map((codec) => (
 														<button
-															key={preset}
+															key={codec.ffmpegLib}
 															onClick={() => {
-																updateAdvanced('preset', preset);
+																updateAdvanced('codec', codec.ffmpegLib);
 															}}
-															className={`rounded-lg border px-2 py-1.5 text-[13px] font-medium transition-colors cursor-pointer ${
-																advancedSettings.preset === preset
-																	? 'border-accent/40 bg-accent/12 text-accent'
-																	: 'border-border/70 bg-surface-raised/40 text-text-tertiary hover:text-text-secondary'
+															className={`rounded-md py-2 text-sm font-medium transition-colors cursor-pointer ${
+																advancedSettings.codec === codec.ffmpegLib
+																	? 'bg-accent/15 text-accent'
+																	: 'text-text-tertiary hover:text-text-secondary'
 															}`}
 														>
-															{preset}
+															{codec.name}
 														</button>
 													))}
 												</div>
-												<div className="mt-1 flex items-center justify-between text-[13px] text-text-tertiary">
-													<span>Faster encode</span>
-													<span>Better compression</span>
+											</div>
+
+											<div>
+												<p className="text-xs font-medium text-text-tertiary mb-2 uppercase tracking-wide">
+													Container
+												</p>
+												<div className="grid grid-cols-3 gap-0.5 rounded-lg border border-border/50 bg-bg/40 p-0.5">
+													{CONTAINERS.map((container) => {
+														const valid = isValidCombo(
+															advancedSettings.codec,
+															container.ext,
+														);
+														return (
+															<button
+																key={container.ext}
+																onClick={() => {
+																	updateAdvanced('container', container.ext);
+																}}
+																disabled={!valid}
+																className={`rounded-md py-2 text-sm font-medium transition-colors cursor-pointer ${
+																	advancedSettings.container === container.ext
+																		? 'bg-accent/15 text-accent'
+																		: valid
+																			? 'text-text-tertiary hover:text-text-secondary'
+																			: 'text-text-tertiary/30 cursor-not-allowed'
+																}`}
+															>
+																{container.name}
+															</button>
+														);
+													})}
 												</div>
 											</div>
-										)}
-									</div>
-								)}
+
+											<div>
+												<p className="text-xs font-medium text-text-tertiary mb-2 uppercase tracking-wide">
+													Quality
+												</p>
+												<div className="grid grid-cols-3 gap-0.5 rounded-lg border border-border/50 bg-bg/40 p-0.5 mb-3">
+													<button
+														onClick={() => {
+															updateAdvanced('rateControl', 'crf');
+														}}
+														className={`rounded-md py-2 text-sm font-medium transition-colors cursor-pointer ${
+															advancedSettings.rateControl === 'crf'
+																? 'bg-accent/15 text-accent'
+																: 'text-text-tertiary hover:text-text-secondary'
+														}`}
+													>
+														CRF
+													</button>
+													<button
+														onClick={() => {
+															updateAdvanced('rateControl', 'bitrate');
+														}}
+														className={`rounded-md py-2 text-sm font-medium transition-colors cursor-pointer ${
+															advancedSettings.rateControl === 'bitrate'
+																? 'bg-accent/15 text-accent'
+																: 'text-text-tertiary hover:text-text-secondary'
+														}`}
+													>
+														Bitrate
+													</button>
+													<button
+														onClick={() => {
+															updateAdvanced('rateControl', 'qp');
+														}}
+														disabled={!codecSupportsQp(advancedSettings.codec)}
+														className={`rounded-md py-2 text-sm font-medium transition-colors cursor-pointer ${
+															advancedSettings.rateControl === 'qp'
+																? 'bg-accent/15 text-accent'
+																: codecSupportsQp(advancedSettings.codec)
+																	? 'text-text-tertiary hover:text-text-secondary'
+																	: 'text-text-tertiary/30 cursor-not-allowed'
+														}`}
+													>
+														QP
+													</button>
+												</div>
+												{advancedSettings.rateControl === 'crf' && (
+													<>
+														<Slider
+															label="Quality (CRF)"
+															displayValue={`${advancedSettings.crf}`}
+															min={10}
+															max={45}
+															step={1}
+															value={advancedSettings.crf}
+															onChange={(e) => {
+																updateAdvanced(
+																	'crf',
+																	Number((e.target as HTMLInputElement).value),
+																);
+															}}
+														/>
+														<div className="mt-1 flex items-center justify-between text-xs text-text-tertiary">
+															<span>Higher quality</span>
+															<span>Smaller file</span>
+														</div>
+													</>
+												)}
+												{advancedSettings.rateControl === 'bitrate' && (
+													<>
+														<Slider
+															label="Target Bitrate"
+															displayValue={`${formatNumber(advancedSettings.targetBitrateKbps, 0)} kb/s`}
+															min={150}
+															max={20000}
+															step={50}
+															value={advancedSettings.targetBitrateKbps}
+															onChange={(e) => {
+																updateAdvanced(
+																	'targetBitrateKbps',
+																	Number((e.target as HTMLInputElement).value),
+																);
+															}}
+														/>
+														<div className="mt-1 flex items-center justify-between text-xs text-text-tertiary">
+															<span>Smaller file</span>
+															<span>Higher quality</span>
+														</div>
+													</>
+												)}
+												{advancedSettings.rateControl === 'qp' && (
+													<>
+														<Slider
+															label="Constant QP"
+															displayValue={`${advancedSettings.qp}`}
+															min={0}
+															max={51}
+															step={1}
+															value={advancedSettings.qp}
+															onChange={(e) => {
+																updateAdvanced(
+																	'qp',
+																	Number((e.target as HTMLInputElement).value),
+																);
+															}}
+														/>
+														<div className="mt-1 flex items-center justify-between text-xs text-text-tertiary">
+															<span>Higher quality</span>
+															<span>Smaller file</span>
+														</div>
+													</>
+												)}
+											</div>
+
+											{(advancedSettings.codec === 'libx264' ||
+												advancedSettings.codec === 'libx265') && (
+												<div>
+													<p className="text-xs font-medium text-text-tertiary mb-2 uppercase tracking-wide">
+														Encoding Speed
+													</p>
+													<div className="grid grid-cols-3 gap-0.5 rounded-lg border border-border/50 bg-bg/40 p-0.5">
+														{(
+															[
+																'ultrafast',
+																'veryfast',
+																'fast',
+																'medium',
+																'slow',
+																'veryslow',
+															] as const
+														).map((preset) => (
+															<button
+																key={preset}
+																onClick={() => {
+																	updateAdvanced('preset', preset);
+																}}
+																className={`rounded-md py-1.5 text-xs font-medium transition-colors cursor-pointer ${
+																	advancedSettings.preset === preset
+																		? 'bg-accent/15 text-accent'
+																		: 'text-text-tertiary hover:text-text-secondary'
+																}`}
+															>
+																{preset}
+															</button>
+														))}
+													</div>
+													<div className="mt-1.5 flex items-center justify-between text-xs text-text-tertiary">
+														<span>Faster encode</span>
+														<span>Better compression</span>
+													</div>
+												</div>
+											)}
+										</div>
+									)}
+								</div>
 							</div>
 
+							{/* Audio */}
 							{audioStreams.length > 0 && (
-								<div className="rounded-xl border border-border/70 bg-surface-raised/25 p-3">
-									<div className="mb-3 flex items-center gap-2">
-										<Volume2 size={14} className="text-text-tertiary" />
-										<div className="min-w-0">
-											<h3 className="text-[13px] font-semibold uppercase tracking-wider text-text-tertiary">
-												Audio
-											</h3>
-											<p className="text-[13px] text-text-tertiary">
-												Choose whether audio is exported and which stream to include.
-											</p>
+								<div className="rounded-xl border border-border/60 overflow-hidden">
+									<div className="flex items-center justify-between px-4 py-3 bg-surface-raised/10 border-b border-border/40">
+										<div className="flex items-center gap-2">
+											<Volume2 size={14} className="text-text-tertiary" />
+											<span className="text-sm font-semibold text-text-secondary">Audio</span>
 										</div>
 										<ToggleSwitch
 											enabled={tracks.audioEnabled}
@@ -2173,18 +2117,17 @@ function VideoStudio() {
 											}}
 										/>
 									</div>
-
 									{tracks.audioEnabled ? (
-										<div className="flex flex-col gap-2">
-											<div className="grid grid-cols-2 gap-1.5">
+										<div className="p-4 flex flex-col gap-3">
+											<div className="grid grid-cols-2 gap-0.5 rounded-lg border border-border/50 bg-bg/40 p-0.5">
 												<button
 													onClick={() => {
 														setAudioExportMode('all');
 													}}
-													className={`rounded-lg border px-3 py-2 text-[13px] font-medium transition-colors cursor-pointer ${
+													className={`rounded-md py-2 text-sm font-medium transition-colors cursor-pointer ${
 														audioExportMode === 'all'
-															? 'border-accent/40 bg-accent/12 text-accent'
-															: 'border-border/70 bg-surface-raised/40 text-text-tertiary hover:text-text-secondary'
+															? 'bg-accent/15 text-accent'
+															: 'text-text-tertiary hover:text-text-secondary'
 													}`}
 												>
 													All tracks
@@ -2193,24 +2136,97 @@ function VideoStudio() {
 													onClick={() => {
 														setAudioExportMode('single');
 													}}
-													className={`rounded-lg border px-3 py-2 text-[13px] font-medium transition-colors cursor-pointer ${
+													className={`rounded-md py-2 text-sm font-medium transition-colors cursor-pointer ${
 														audioExportMode === 'single'
-															? 'border-accent/40 bg-accent/12 text-accent'
-															: 'border-border/70 bg-surface-raised/40 text-text-tertiary hover:text-text-secondary'
+															? 'bg-accent/15 text-accent'
+															: 'text-text-tertiary hover:text-text-secondary'
 													}`}
 												>
 													Select track
 												</button>
 											</div>
-											<div className="grid grid-cols-2 gap-1.5">
+
+											{audioExportMode === 'all' ? (
+												<div className="rounded-lg border border-border/50 bg-bg/30 px-3.5 py-2.5 text-sm text-text-tertiary">
+													All {audioStreams.length} audio track
+													{audioStreams.length === 1 ? '' : 's'} will be included.
+												</div>
+											) : (
+												<div className="flex flex-col gap-1.5">
+													{audioStreams.map((stream, index) => {
+														const isSelected = tracks.audioTrackIndex === index;
+														const lang = getLanguageName(stream.language);
+														const title = stream.title?.trim();
+														const label = title || lang || `Track ${index + 1}`;
+														const details = [
+															title && lang ? lang : null,
+															stream.codec?.toUpperCase(),
+															formatChannels(stream.channels),
+														]
+															.filter(Boolean)
+															.join(' · ');
+														return (
+															<button
+																key={stream.index}
+																onClick={() => {
+																	setTracks({ audioTrackIndex: index });
+																}}
+																className={`w-full rounded-lg border px-3 py-2.5 text-left transition-colors cursor-pointer ${
+																	isSelected
+																		? 'border-accent/30 bg-accent/8'
+																		: 'border-border/50 bg-bg/30 hover:bg-surface-raised/30'
+																}`}
+															>
+																<div className="flex items-center gap-2.5">
+																	<div
+																		className={`h-3.5 w-3.5 shrink-0 rounded-full border-[1.5px] flex items-center justify-center transition-colors ${
+																			isSelected
+																				? 'border-accent bg-accent'
+																				: 'border-border/70'
+																		}`}
+																	>
+																		{isSelected && (
+																			<div className="h-1.5 w-1.5 rounded-full bg-white" />
+																		)}
+																	</div>
+																	<div className="min-w-0 flex-1">
+																		<div className="flex items-center gap-1.5">
+																			<span className="truncate text-sm font-medium text-text">
+																				{label}
+																			</span>
+																			{stream.isDefault && (
+																				<span className="rounded bg-accent/10 px-1.5 py-0.5 text-xs font-medium text-accent/70">
+																					Default
+																				</span>
+																			)}
+																			{stream.isForced && (
+																				<span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-xs font-medium text-amber-500/70">
+																					Forced
+																				</span>
+																			)}
+																		</div>
+																		{details && (
+																			<p className="mt-0.5 truncate text-xs text-text-tertiary">
+																				{details}
+																			</p>
+																		)}
+																	</div>
+																</div>
+															</button>
+														);
+													})}
+												</div>
+											)}
+
+											<div className="grid grid-cols-2 gap-0.5 rounded-lg border border-border/50 bg-bg/40 p-0.5">
 												<button
 													onClick={() => {
 														setAudioNoReencode(false);
 													}}
-													className={`rounded-lg border px-3 py-2 text-[13px] font-medium transition-colors cursor-pointer ${
+													className={`rounded-md py-2 text-sm font-medium transition-colors cursor-pointer ${
 														!audioNoReencode
-															? 'border-accent/40 bg-accent/12 text-accent'
-															: 'border-border/70 bg-surface-raised/40 text-text-tertiary hover:text-text-secondary'
+															? 'bg-accent/15 text-accent'
+															: 'text-text-tertiary hover:text-text-secondary'
 													}`}
 												>
 													Re-encode
@@ -2219,95 +2235,25 @@ function VideoStudio() {
 													onClick={() => {
 														setAudioNoReencode(true);
 													}}
-													className={`rounded-lg border px-3 py-2 text-[13px] font-medium transition-colors cursor-pointer ${
+													className={`rounded-md py-2 text-sm font-medium transition-colors cursor-pointer ${
 														audioNoReencode
-															? 'border-accent/40 bg-accent/12 text-accent'
-															: 'border-border/70 bg-surface-raised/40 text-text-tertiary hover:text-text-secondary'
+															? 'bg-accent/15 text-accent'
+															: 'text-text-tertiary hover:text-text-secondary'
 													}`}
 												>
-													No re-encode
+													Stream copy
 												</button>
 											</div>
 
-											{audioExportMode === 'all' ? (
-												<div className="rounded-lg border border-border/60 bg-bg/35 px-3 py-2 text-[13px] text-text-tertiary">
-													All {audioStreams.length} audio track
-													{audioStreams.length === 1 ? '' : 's'} will be exported.
-												</div>
-											) : (
-												audioStreams.map((stream, index) => {
-													const isSelected = tracks.audioTrackIndex === index;
-													const lang = getStreamLanguage(stream.language);
-													const title = stream.title?.trim();
-													const label = title || lang || `Track ${index + 1}`;
-													const details = [
-														title && lang ? lang : null,
-														stream.codec?.toUpperCase(),
-														formatStreamChannels(stream.channels),
-													]
-														.filter(Boolean)
-														.join(' · ');
-													return (
-														<button
-															key={stream.index}
-															onClick={() => {
-																setTracks({ audioTrackIndex: index });
-															}}
-															className={`w-full rounded-lg border px-3 py-2 text-left transition-colors cursor-pointer ${
-																isSelected
-																	? 'border-accent/35 bg-accent/10'
-																	: 'border-border/60 bg-bg/35 hover:bg-surface-raised/40'
-															}`}
-														>
-															<div className="flex items-center gap-2">
-																<div
-																	className={`h-3.5 w-3.5 shrink-0 rounded-full border-[1.5px] flex items-center justify-center ${
-																		isSelected
-																			? 'border-accent bg-accent'
-																			: 'border-border'
-																	}`}
-																>
-																	{isSelected && (
-																		<div className="h-1.5 w-1.5 rounded-full bg-white" />
-																	)}
-																</div>
-																<div className="min-w-0 flex-1">
-																	<div className="flex items-center gap-1.5">
-																		<span className="truncate text-[13px] font-medium text-text">
-																			{label}
-																		</span>
-																		{stream.isDefault && (
-																			<span className="rounded bg-accent/10 px-1.5 py-0.5 text-[13px] font-semibold uppercase tracking-wider text-accent/70">
-																				Default
-																			</span>
-																		)}
-																		{stream.isForced && (
-																			<span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[13px] font-semibold uppercase tracking-wider text-amber-500/70">
-																				Forced
-																			</span>
-																		)}
-																	</div>
-																	{details && (
-																		<p className="mt-0.5 truncate text-[13px] text-text-tertiary">
-																			{details}
-																		</p>
-																	)}
-																</div>
-															</div>
-														</button>
-													);
-												})
-											)}
-
 											{useCustomExport && !audioNoReencode && (
 												<>
-													<div className="h-px bg-border/60" />
-													<div className="flex flex-col gap-2">
+													<div className="h-px bg-border/40" />
+													<div className="flex flex-col gap-3">
 														<div>
-															<label className="mb-1.5 block text-[13px] text-text-tertiary">
+															<p className="text-xs font-medium text-text-tertiary mb-2 uppercase tracking-wide">
 																Audio Codec
-															</label>
-															<div className="grid grid-cols-2 gap-1.5">
+															</p>
+															<div className="grid grid-cols-2 gap-0.5 rounded-lg border border-border/50 bg-bg/40 p-0.5">
 																{AUDIO_CODECS.map((codec) => {
 																	const valid = isValidAudioCombo(
 																		codec.ffmpegLib,
@@ -2323,13 +2269,13 @@ function VideoStudio() {
 																				);
 																			}}
 																			disabled={!valid}
-																			className={`rounded-lg border px-2 py-2 text-[13px] font-medium transition-colors cursor-pointer ${
+																			className={`rounded-md py-2 text-sm font-medium transition-colors cursor-pointer ${
 																				advancedSettings.audioCodec ===
 																				codec.ffmpegLib
-																					? 'border-accent/40 bg-accent/12 text-accent'
+																					? 'bg-accent/15 text-accent'
 																					: valid
-																						? 'border-border/70 bg-surface-raised/40 text-text-tertiary hover:text-text-secondary'
-																						: 'border-border/40 bg-surface-raised/20 text-text-tertiary/40 cursor-not-allowed'
+																						? 'text-text-tertiary hover:text-text-secondary'
+																						: 'text-text-tertiary/30 cursor-not-allowed'
 																			}`}
 																		>
 																			{codec.name}
@@ -2340,10 +2286,10 @@ function VideoStudio() {
 														</div>
 														{advancedSettings.audioCodec !== 'none' && (
 															<div>
-																<label className="mb-1.5 block text-[13px] text-text-tertiary">
+																<p className="text-xs font-medium text-text-tertiary mb-2 uppercase tracking-wide">
 																	Audio Bitrate
-																</label>
-																<div className="grid grid-cols-3 gap-1.5">
+																</p>
+																<div className="grid grid-cols-3 gap-0.5 rounded-lg border border-border/50 bg-bg/40 p-0.5">
 																	{AUDIO_BITRATES.map((bitrate) => (
 																		<button
 																			key={bitrate.value}
@@ -2353,11 +2299,11 @@ function VideoStudio() {
 																					bitrate.value,
 																				);
 																			}}
-																			className={`rounded-lg border px-2 py-1.5 text-[13px] font-medium transition-colors cursor-pointer ${
+																			className={`rounded-md py-1.5 text-sm font-medium transition-colors cursor-pointer ${
 																				advancedSettings.audioBitrate ===
 																				bitrate.value
-																					? 'border-accent/40 bg-accent/12 text-accent'
-																					: 'border-border/70 bg-surface-raised/40 text-text-tertiary hover:text-text-secondary'
+																					? 'bg-accent/15 text-accent'
+																					: 'text-text-tertiary hover:text-text-secondary'
 																			}`}
 																		>
 																			{bitrate.label}
@@ -2371,23 +2317,23 @@ function VideoStudio() {
 											)}
 										</div>
 									) : (
-										<p className="text-[13px] italic text-text-tertiary">
-											Audio track will not be exported.
-										</p>
+										<div className="px-4 py-3 text-sm italic text-text-tertiary">
+											Audio excluded from export.
+										</div>
 									)}
 								</div>
 							)}
 
-							<div className="rounded-xl border border-border/70 bg-surface-raised/25 p-3">
-								<div className="mb-3 flex items-center gap-2">
-									<Subtitles size={14} className="text-text-tertiary" />
-									<div className="min-w-0">
-										<h3 className="text-[13px] font-semibold uppercase tracking-wider text-text-tertiary">
+							{/* ASS Fidelity */}
+							<div className="rounded-xl border border-border/60 overflow-hidden">
+								<div className="flex items-center justify-between px-4 py-3 bg-surface-raised/10 border-b border-border/40">
+									<div>
+										<span className="text-sm font-semibold text-text-secondary block">
 											ASS Fidelity
-										</h3>
-										<p className="text-[13px] text-text-tertiary">
-											Use a pre-burned source for full ASS styling and effects.
-										</p>
+										</span>
+										<span className="text-xs text-text-tertiary">
+											Pre-burned source for full styling
+										</span>
 									</div>
 									<ToggleSwitch
 										enabled={usePreBurnedAssSource}
@@ -2396,32 +2342,20 @@ function VideoStudio() {
 										}}
 									/>
 								</div>
-
 								{usePreBurnedAssSource ? (
-									<div className="flex flex-col gap-2">
-										<div className="rounded-lg border border-accent/25 bg-accent/6 px-3 py-2">
-											<p className="text-[13px] font-medium text-text">
-												Burned subtitle source enabled
-											</p>
-											<p className="mt-0.5 text-[13px] text-text-tertiary">
-												Export will use the selected burned file and skip subtitle track
-												mapping.
-											</p>
-										</div>
-										<div className="rounded-lg border border-border/60 bg-bg/35 px-3 py-2 text-[13px]">
+									<div className="p-4 flex flex-col gap-2.5">
+										<div className="rounded-lg border border-border/50 bg-bg/30 px-3.5 py-2.5 flex items-center justify-between gap-2 text-sm">
 											{preBurnedAssSourceFile ? (
-												<div className="flex items-center justify-between gap-2">
+												<>
 													<span className="truncate text-text">
 														{preBurnedAssSourceFile.name}
 													</span>
-													<span className="shrink-0 text-text-tertiary">
+													<span className="shrink-0 text-xs font-mono text-text-tertiary">
 														{formatFileSize(preBurnedAssSourceFile.size)}
 													</span>
-												</div>
+												</>
 											) : (
-												<span className="text-text-tertiary">
-													No burned video file selected.
-												</span>
+												<span className="text-text-tertiary">No source file selected</span>
 											)}
 										</div>
 										<div className="grid grid-cols-2 gap-1.5">
@@ -2429,7 +2363,7 @@ function VideoStudio() {
 												onClick={() => {
 													preBurnedAssInputRef.current?.click();
 												}}
-												className="rounded-lg border border-border/70 bg-surface-raised/40 px-3 py-2 text-[13px] font-medium text-text-tertiary transition-colors cursor-pointer hover:text-text-secondary"
+												className="rounded-lg border border-border/60 bg-surface-raised/30 px-3 py-2 text-sm font-medium text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
 											>
 												Choose file
 											</button>
@@ -2441,9 +2375,9 @@ function VideoStudio() {
 														preBurnedAssInputRef.current.value = '';
 												}}
 												disabled={!preBurnedAssSourceFile}
-												className={`rounded-lg border px-3 py-2 text-[13px] font-medium transition-colors ${
+												className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
 													preBurnedAssSourceFile
-														? 'border-border/70 bg-surface-raised/40 text-text-tertiary hover:text-text-secondary cursor-pointer'
+														? 'border-border/60 bg-surface-raised/30 text-text-tertiary hover:text-text-secondary cursor-pointer'
 														: 'border-border/40 bg-surface-raised/20 text-text-tertiary/40 cursor-not-allowed'
 												}`}
 											>
@@ -2452,23 +2386,19 @@ function VideoStudio() {
 										</div>
 									</div>
 								) : (
-									<p className="text-[13px] italic text-text-tertiary">
-										Use normal subtitle track export from the current source.
-									</p>
+									<div className="px-4 py-3 text-sm italic text-text-tertiary">
+										Normal subtitle track export from source.
+									</div>
 								)}
 							</div>
 
+							{/* Subtitles */}
 							{subtitleStreams.length > 0 && (
-								<div className="rounded-xl border border-border/70 bg-surface-raised/25 p-3">
-									<div className="mb-3 flex items-center gap-2">
-										<Subtitles size={14} className="text-text-tertiary" />
-										<div className="min-w-0">
-											<h3 className="text-[13px] font-semibold uppercase tracking-wider text-text-tertiary">
-												Subtitles
-											</h3>
-											<p className="text-[13px] text-text-tertiary">
-												Include subtitle tracks in the rendered output.
-											</p>
+								<div className="rounded-xl border border-border/60 overflow-hidden">
+									<div className="flex items-center justify-between px-4 py-3 bg-surface-raised/10 border-b border-border/40">
+										<div className="flex items-center gap-2">
+											<Subtitles size={14} className="text-text-tertiary" />
+											<span className="text-sm font-semibold text-text-secondary">Subtitles</span>
 										</div>
 										<ToggleSwitch
 											enabled={tracks.subtitleEnabled}
@@ -2477,24 +2407,22 @@ function VideoStudio() {
 											}}
 										/>
 									</div>
-
 									{tracks.subtitleEnabled ? (
-										<div className="flex flex-col gap-2">
+										<div className="p-4 flex flex-col gap-3">
 											{usingPreBurnedAssSource && (
-												<div className="rounded-lg border border-accent/25 bg-accent/6 px-3 py-2 text-[13px] text-text-tertiary">
-													Pre-burned source is active. Subtitle track settings below are
-													ignored for export.
+												<div className="rounded-lg border border-accent/20 bg-accent/5 px-3.5 py-2.5 text-sm text-text-tertiary">
+													Pre-burned source active — track settings ignored.
 												</div>
 											)}
-											<div className="grid grid-cols-2 gap-1.5">
+											<div className="grid grid-cols-2 gap-0.5 rounded-lg border border-border/50 bg-bg/40 p-0.5">
 												<button
 													onClick={() => {
 														setSubtitleExportMode('all');
 													}}
-													className={`rounded-lg border px-3 py-2 text-[13px] font-medium transition-colors cursor-pointer ${
+													className={`rounded-md py-2 text-sm font-medium transition-colors cursor-pointer ${
 														subtitleExportMode === 'all'
-															? 'border-accent/40 bg-accent/12 text-accent'
-															: 'border-border/70 bg-surface-raised/40 text-text-tertiary hover:text-text-secondary'
+															? 'bg-accent/15 text-accent'
+															: 'text-text-tertiary hover:text-text-secondary'
 													}`}
 												>
 													All tracks
@@ -2503,10 +2431,10 @@ function VideoStudio() {
 													onClick={() => {
 														setSubtitleExportMode('single');
 													}}
-													className={`rounded-lg border px-3 py-2 text-[13px] font-medium transition-colors cursor-pointer ${
+													className={`rounded-md py-2 text-sm font-medium transition-colors cursor-pointer ${
 														subtitleExportMode === 'single'
-															? 'border-accent/40 bg-accent/12 text-accent'
-															: 'border-border/70 bg-surface-raised/40 text-text-tertiary hover:text-text-secondary'
+															? 'bg-accent/15 text-accent'
+															: 'text-text-tertiary hover:text-text-secondary'
 													}`}
 												>
 													Select track
@@ -2514,186 +2442,211 @@ function VideoStudio() {
 											</div>
 
 											{subtitleExportMode === 'all' ? (
-												<div className="rounded-lg border border-border/60 bg-bg/35 px-3 py-2 text-[13px] text-text-tertiary">
+												<div className="rounded-lg border border-border/50 bg-bg/30 px-3.5 py-2.5 text-sm text-text-tertiary">
 													All {subtitleStreams.length} subtitle track
-													{subtitleStreams.length === 1 ? '' : 's'} will be exported.
+													{subtitleStreams.length === 1 ? '' : 's'} will be included.
 												</div>
 											) : (
-												subtitleStreams.map((stream, index) => {
-													const isSelected = tracks.subtitleTrackIndex === index;
-													const lang = getStreamLanguage(stream.language);
-													const title = stream.title?.trim();
-													const label = title || lang || `Track ${index + 1}`;
-													const details = [
-														title && lang ? lang : null,
-														stream.codec?.toUpperCase(),
-													]
-														.filter(Boolean)
-														.join(' · ');
-													return (
-														<button
-															key={stream.index}
-															onClick={() => {
-																setTracks({ subtitleTrackIndex: index });
-															}}
-															className={`w-full rounded-lg border px-3 py-2 text-left transition-colors cursor-pointer ${
-																isSelected
-																	? 'border-accent/35 bg-accent/10'
-																	: 'border-border/60 bg-bg/35 hover:bg-surface-raised/40'
-															}`}
-														>
-															<div className="flex items-center gap-2">
-																<div
-																	className={`h-3.5 w-3.5 shrink-0 rounded-full border-[1.5px] flex items-center justify-center ${
-																		isSelected
-																			? 'border-accent bg-accent'
-																			: 'border-border'
-																	}`}
-																>
-																	{isSelected && (
-																		<div className="h-1.5 w-1.5 rounded-full bg-white" />
-																	)}
-																</div>
-																<div className="min-w-0 flex-1">
-																	<div className="flex items-center gap-1.5">
-																		<span className="truncate text-[13px] font-medium text-text">
-																			{label}
-																		</span>
-																		{stream.isDefault && (
-																			<span className="rounded bg-accent/10 px-1.5 py-0.5 text-[13px] font-semibold uppercase tracking-wider text-accent/70">
-																				Default
-																			</span>
-																		)}
-																		{stream.isForced && (
-																			<span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[13px] font-semibold uppercase tracking-wider text-amber-500/70">
-																				Forced
-																			</span>
+												<div className="flex flex-col gap-1.5">
+													{subtitleStreams.map((stream, index) => {
+														const isSelected = tracks.subtitleTrackIndex === index;
+														const lang = getLanguageName(stream.language);
+														const title = stream.title?.trim();
+														const label = title || lang || `Track ${index + 1}`;
+														const details = [
+															title && lang ? lang : null,
+															stream.codec?.toUpperCase(),
+														]
+															.filter(Boolean)
+															.join(' · ');
+														return (
+															<button
+																key={stream.index}
+																onClick={() => {
+																	setTracks({ subtitleTrackIndex: index });
+																}}
+																className={`w-full rounded-lg border px-3 py-2.5 text-left transition-colors cursor-pointer ${
+																	isSelected
+																		? 'border-accent/30 bg-accent/8'
+																		: 'border-border/50 bg-bg/30 hover:bg-surface-raised/30'
+																}`}
+															>
+																<div className="flex items-center gap-2.5">
+																	<div
+																		className={`h-3.5 w-3.5 shrink-0 rounded-full border-[1.5px] flex items-center justify-center transition-colors ${
+																			isSelected
+																				? 'border-accent bg-accent'
+																				: 'border-border/70'
+																		}`}
+																	>
+																		{isSelected && (
+																			<div className="h-1.5 w-1.5 rounded-full bg-white" />
 																		)}
 																	</div>
-																	{details && (
-																		<p className="mt-0.5 truncate text-[13px] text-text-tertiary">
-																			{details}
-																		</p>
-																	)}
+																	<div className="min-w-0 flex-1">
+																		<div className="flex items-center gap-1.5">
+																			<span className="truncate text-sm font-medium text-text">
+																				{label}
+																			</span>
+																			{stream.isDefault && (
+																				<span className="rounded bg-accent/10 px-1.5 py-0.5 text-xs font-medium text-accent/70">
+																					Default
+																				</span>
+																			)}
+																			{stream.isForced && (
+																				<span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-xs font-medium text-amber-500/70">
+																					Forced
+																				</span>
+																			)}
+																		</div>
+																		{details && (
+																			<p className="mt-0.5 truncate text-xs text-text-tertiary">
+																				{details}
+																			</p>
+																		)}
+																	</div>
 																</div>
-															</div>
-														</button>
-													);
-												})
+															</button>
+														);
+													})}
+												</div>
 											)}
 										</div>
 									) : (
-										<p className="text-[13px] italic text-text-tertiary">
-											Subtitles are excluded from export.
-										</p>
+										<div className="px-4 py-3 text-sm italic text-text-tertiary">
+											Subtitles excluded from export.
+										</div>
 									)}
 								</div>
 							)}
-						</div>
 
-						<div className="rounded-xl border border-border/70 bg-surface-raised/25 p-3">
-							<h3 className="mb-2 text-[13px] font-semibold uppercase tracking-wider text-text-tertiary">
-								Summary
-							</h3>
-							<div className="flex flex-col gap-1.5 text-[13px]">
-								<div className="flex items-center justify-between">
-									<span className="text-text-tertiary">Format</span>
-									<span className="font-medium text-text">
-										{useCustomExport
-											? advancedSettings.container.toUpperCase()
-											: selectedPreset
-												? (presetLabel ?? selectedPreset)
-												: 'Not selected'}
-									</span>
+							{/* Summary */}
+							<div className="rounded-xl border border-border/60 overflow-hidden">
+								<div className="px-4 py-3 bg-surface-raised/10 border-b border-border/40">
+									<span className="text-sm font-semibold text-text-secondary">Summary</span>
 								</div>
-								{useCustomExport && !videoNoReencode && (
-									<div className="flex items-center justify-between">
-										<span className="text-text-tertiary">Codec</span>
-										<span className="font-medium text-text">
-											{VIDEO_CODECS.find((c) => c.ffmpegLib === advancedSettings.codec)?.name ??
-												advancedSettings.codec}
+								<div className="px-4">
+									<div className="flex items-center justify-between py-2.5 border-b border-border/30">
+										<span className="text-xs font-medium text-text-tertiary uppercase tracking-wide">
+											Format
+										</span>
+										<span className="text-sm font-medium text-text font-mono">
+											{useCustomExport
+												? advancedSettings.container.toUpperCase()
+												: selectedPreset
+													? (presetLabel ?? selectedPreset)
+													: '—'}
 										</span>
 									</div>
-								)}
-								{videoNoReencode && (
-									<div className="flex items-center justify-between">
-										<span className="text-text-tertiary">Video</span>
-										<span className="font-medium text-text">Stream copy</span>
-									</div>
-								)}
-								{videoStreamInfo?.width && videoStreamInfo?.height && (
-									<div className="flex items-center justify-between">
-										<span className="text-text-tertiary">Resolution</span>
-										<span className="font-medium text-text">
-											{hasResizeAdjustments
-												? `${resize.width}\u00d7${resize.height}`
-												: `${videoStreamInfo.width}\u00d7${videoStreamInfo.height}`}
-										</span>
-									</div>
-								)}
-								{duration > 0 && (
-									<div className="flex items-center justify-between">
-										<span className="text-text-tertiary">Duration</span>
-										<span className="font-mono font-medium text-text tabular-nums">
-											{formatCompactTime(
-												hasTrimAdjustments ? Math.max(trimEnd - trimStart, 0) : duration,
-											)}
-										</span>
-									</div>
-								)}
-								{audioStreams.length > 0 && (
-									<div className="flex items-center justify-between">
-										<span className="text-text-tertiary">Audio</span>
-										<span className="font-medium text-text">
-											{tracks.audioEnabled
-												? audioExportMode === 'all'
-													? `${audioStreams.length} track${audioStreams.length === 1 ? '' : 's'}`
-													: '1 track'
-												: 'None'}
-										</span>
-									</div>
-								)}
-								{(subtitleStreams.length > 0 || usePreBurnedAssSource) && (
-									<div className="flex items-center justify-between">
-										<span className="text-text-tertiary">Subtitles</span>
-										<span className="font-medium text-text">
-											{usingPreBurnedAssSource
-												? 'Burned in'
-												: tracks.subtitleEnabled
-													? subtitleExportMode === 'all'
-														? `${subtitleStreams.length} track${subtitleStreams.length === 1 ? '' : 's'}`
+									{useCustomExport && !videoNoReencode && (
+										<div className="flex items-center justify-between py-2.5 border-b border-border/30">
+											<span className="text-xs font-medium text-text-tertiary uppercase tracking-wide">
+												Codec
+											</span>
+											<span className="text-sm font-medium text-text font-mono">
+												{VIDEO_CODECS.find((c) => c.ffmpegLib === advancedSettings.codec)
+													?.name ?? advancedSettings.codec}
+											</span>
+										</div>
+									)}
+									{videoNoReencode && (
+										<div className="flex items-center justify-between py-2.5 border-b border-border/30">
+											<span className="text-xs font-medium text-text-tertiary uppercase tracking-wide">
+												Video
+											</span>
+											<span className="text-sm font-medium text-success font-mono">
+												Stream copy
+											</span>
+										</div>
+									)}
+									{videoStreamInfo?.width && videoStreamInfo?.height && (
+										<div className="flex items-center justify-between py-2.5 border-b border-border/30">
+											<span className="text-xs font-medium text-text-tertiary uppercase tracking-wide">
+												Resolution
+											</span>
+											<span className="text-sm font-medium text-text font-mono">
+												{hasResizeAdjustments
+													? `${resize.width}\u00d7${resize.height}`
+													: `${videoStreamInfo.width}\u00d7${videoStreamInfo.height}`}
+											</span>
+										</div>
+									)}
+									{duration > 0 && (
+										<div
+											className={`flex items-center justify-between py-2.5 ${audioStreams.length > 0 || subtitleStreams.length > 0 || usePreBurnedAssSource ? 'border-b border-border/30' : ''}`}
+										>
+											<span className="text-xs font-medium text-text-tertiary uppercase tracking-wide">
+												Duration
+											</span>
+											<span className="text-sm font-medium text-text font-mono tabular-nums">
+												{formatCompactTime(
+													hasTrimAdjustments ? Math.max(trimEnd - trimStart, 0) : duration,
+												)}
+											</span>
+										</div>
+									)}
+									{audioStreams.length > 0 && (
+										<div
+											className={`flex items-center justify-between py-2.5 ${subtitleStreams.length > 0 || usePreBurnedAssSource ? 'border-b border-border/30' : ''}`}
+										>
+											<span className="text-xs font-medium text-text-tertiary uppercase tracking-wide">
+												Audio
+											</span>
+											<span className="text-sm font-medium text-text font-mono">
+												{tracks.audioEnabled
+													? audioExportMode === 'all'
+														? `${audioStreams.length} track${audioStreams.length === 1 ? '' : 's'}`
 														: '1 track'
 													: 'None'}
-										</span>
+											</span>
+										</div>
+									)}
+									{(subtitleStreams.length > 0 || usePreBurnedAssSource) && (
+										<div className="flex items-center justify-between py-2.5">
+											<span className="text-xs font-medium text-text-tertiary uppercase tracking-wide">
+												Subtitles
+											</span>
+											<span className="text-sm font-medium text-text font-mono">
+												{usingPreBurnedAssSource
+													? 'Burned in'
+													: tracks.subtitleEnabled
+														? subtitleExportMode === 'all'
+															? `${subtitleStreams.length} track${subtitleStreams.length === 1 ? '' : 's'}`
+															: '1 track'
+														: 'None'}
+											</span>
+										</div>
+									)}
+								</div>
+								{(hasTrimAdjustments || hasResizeAdjustments || hasColorAdjustments) && (
+									<div className="border-t border-border/30 px-4 py-3 flex flex-wrap gap-1.5">
+										{hasTrimAdjustments && (
+											<span className="inline-flex items-center gap-1 rounded-md bg-accent/10 px-2 py-1 text-xs font-medium text-accent">
+												<Scissors size={10} /> Trimmed
+											</span>
+										)}
+										{hasResizeAdjustments && (
+											<span className="inline-flex items-center gap-1 rounded-md bg-accent/10 px-2 py-1 text-xs font-medium text-accent">
+												<Scaling size={10} /> Resized
+											</span>
+										)}
+										{hasColorAdjustments && (
+											<span className="inline-flex items-center gap-1 rounded-md bg-accent/10 px-2 py-1 text-xs font-medium text-accent">
+												<Palette size={10} /> Color adjusted
+											</span>
+										)}
 									</div>
 								)}
 							</div>
-							{(hasTrimAdjustments || hasResizeAdjustments || hasColorAdjustments) && (
-								<div className="mt-2 pt-2 border-t border-border/50 flex flex-wrap gap-1.5">
-									{hasTrimAdjustments && (
-										<span className="inline-flex items-center gap-1 rounded-md bg-accent/10 px-2 py-0.5 text-[13px] font-medium text-accent">
-											<Scissors size={11} /> Trimmed
-										</span>
-									)}
-									{hasResizeAdjustments && (
-										<span className="inline-flex items-center gap-1 rounded-md bg-accent/10 px-2 py-0.5 text-[13px] font-medium text-accent">
-											<Scaling size={11} /> Resized
-										</span>
-									)}
-									{hasColorAdjustments && (
-										<span className="inline-flex items-center gap-1 rounded-md bg-accent/10 px-2 py-0.5 text-[13px] font-medium text-accent">
-											<Palette size={11} /> Color adjusted
-										</span>
-									)}
+
+							{resultUrl && (
+								<div className="rounded-lg border border-success/25 bg-success/5 px-4 py-3">
+									<p className="text-sm font-medium text-success">
+										Export complete — ready to download
+									</p>
 								</div>
 							)}
 						</div>
-
-						{resultUrl && (
-							<div className="rounded-lg bg-success/5 border border-success/20 px-3 py-2">
-								<p className="text-[13px] text-success font-medium">Export ready</p>
-							</div>
-						)}
 					</>
 				)}
 			</div>
@@ -2701,23 +2654,23 @@ function VideoStudio() {
 			{/* Actions */}
 			<div className="p-4 border-t border-border flex flex-col gap-2">
 				{processing && (
-					<div className="rounded-xl border border-accent/20 bg-accent/5 p-3 flex flex-col gap-1.5">
+					<div className="rounded-xl border border-border/60 bg-bg/40 p-3 flex flex-col gap-2">
 						<div className="flex items-center justify-between text-sm">
 							<span className="text-text-secondary font-medium">Exporting...</span>
-							<span className="font-mono font-medium tabular-nums text-accent">
+							<span className="font-mono font-semibold tabular-nums text-accent">
 								{(Math.max(0, progress) * 100).toFixed(1)}%
 							</span>
 						</div>
-						<div className="h-1.5 rounded-full bg-border overflow-hidden">
+						<div className="h-1 rounded-full bg-border/60 overflow-hidden">
 							<div
 								className="h-full rounded-full bg-accent transition-[width] duration-300"
 								style={{ width: `${Math.max(0, progress) * 100}%` }}
 							/>
 						</div>
 						{exportStats.fps > 0 && (
-							<div className="flex gap-3 text-[13px] text-text-tertiary font-mono tabular-nums">
+							<div className="flex gap-3 text-xs text-text-tertiary font-mono tabular-nums">
 								<span>{exportStats.fps.toFixed(1)} fps</span>
-								<span>{exportStats.speed.toFixed(1)}x</span>
+								<span>{exportStats.speed.toFixed(1)}×</span>
 								<span>frame {exportStats.frame}</span>
 							</div>
 						)}
@@ -2725,7 +2678,7 @@ function VideoStudio() {
 				)}
 
 				{exportError && (
-					<div className="animate-slide-up-fade rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-[13px] text-danger">
+					<div className="animate-slide-up-fade rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
 						{exportError}
 					</div>
 				)}

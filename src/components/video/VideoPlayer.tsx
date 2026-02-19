@@ -3,6 +3,7 @@ import { AudioLines, Check, CircleOff, Languages, Maximize, Pause, Play, Volume2
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { formatPlayerTime } from '@/components/ui/index.ts';
 import { useVideoEditorStore } from '@/stores/videoEditor.ts';
+import { formatChannels, getLanguageName } from '@/utils/languageUtils.ts';
 
 interface EmbeddedFont {
 	name: string;
@@ -33,76 +34,6 @@ function ensureAc3DecoderRegistered(registerAc3Decoder: () => void): void {
 	if (flags[AC3_DECODER_REGISTRATION_FLAG] === true) return;
 	registerAc3Decoder();
 	flags[AC3_DECODER_REGISTRATION_FLAG] = true;
-}
-
-const LANG_NAMES: Record<string, string> = {
-	eng: 'English',
-	fre: 'French',
-	fra: 'French',
-	deu: 'German',
-	ger: 'German',
-	spa: 'Spanish',
-	ita: 'Italian',
-	jpn: 'Japanese',
-	zho: 'Chinese',
-	chi: 'Chinese',
-	kor: 'Korean',
-	por: 'Portuguese',
-	rus: 'Russian',
-	ara: 'Arabic',
-	hin: 'Hindi',
-	pol: 'Polish',
-	tur: 'Turkish',
-	nld: 'Dutch',
-	dut: 'Dutch',
-	swe: 'Swedish',
-	nor: 'Norwegian',
-	dan: 'Danish',
-	fin: 'Finnish',
-	ces: 'Czech',
-	cze: 'Czech',
-	hun: 'Hungarian',
-	ron: 'Romanian',
-	rum: 'Romanian',
-	tha: 'Thai',
-	vie: 'Vietnamese',
-	ind: 'Indonesian',
-	may: 'Malay',
-	msa: 'Malay',
-	heb: 'Hebrew',
-	ukr: 'Ukrainian',
-	bul: 'Bulgarian',
-	hrv: 'Croatian',
-	slk: 'Slovak',
-	slo: 'Slovak',
-	slv: 'Slovenian',
-	cat: 'Catalan',
-	ell: 'Greek',
-	gre: 'Greek',
-	lat: 'Latin',
-	fil: 'Filipino',
-	tam: 'Tamil',
-	tel: 'Telugu',
-	ben: 'Bengali',
-	urd: 'Urdu',
-	per: 'Persian',
-	fas: 'Persian',
-};
-
-function getLanguageName(code?: string): string | null {
-	if (!code?.trim()) return null;
-	const lower = code.trim().toLowerCase();
-	if (lower === 'und' || lower === 'unk') return null;
-	return LANG_NAMES[lower] ?? code.toUpperCase();
-}
-
-function formatChannels(channels?: number): string | null {
-	if (channels == null) return null;
-	if (channels === 1) return 'Mono';
-	if (channels === 2) return 'Stereo';
-	if (channels === 6) return '5.1';
-	if (channels === 8) return '7.1';
-	return `${channels}ch`;
 }
 
 function formatCodecLabel(codec?: string): string | null {
@@ -1136,7 +1067,7 @@ export function VideoPlayer({
 					>
 						{seekHoverRatio != null && (
 							<div
-								className="pointer-events-none absolute bottom-full mb-2 -translate-x-1/2 rounded-md border border-white/20 bg-black/85 px-1.5 py-0.5 text-[13px] font-mono tabular-nums text-white shadow-lg"
+								className="pointer-events-none absolute bottom-full mb-2 -translate-x-1/2 rounded-md border border-white/20 bg-black/85 px-1.5 py-0.5 text-[14px] font-mono tabular-nums text-white shadow-lg"
 								style={{ left: `${seekHoverRatio * 100}%` }}
 							>
 								{formatExactTime(seekHoverRatio * duration)}
@@ -1162,7 +1093,7 @@ export function VideoPlayer({
 						</button>
 
 						{/* Time */}
-						<span className="text-[13px] font-mono text-white/80 tabular-nums">
+						<span className="text-[14px] font-mono text-white/80 tabular-nums">
 							{formatPlayerTime(currentTime)} / {formatPlayerTime(duration)}
 						</span>
 
@@ -1321,7 +1252,7 @@ function TrackMenu({
 	return (
 		<div className="absolute bottom-full right-0 mb-2 w-[min(18rem,80vw)] rounded-lg border border-white/15 bg-neutral-950/95 backdrop-blur-md shadow-[0_10px_20px_rgba(0,0,0,0.45)] animate-fade-in overflow-hidden">
 			<div className="px-3 py-2 border-b border-white/10">
-				<p className="text-[13px] font-semibold text-white/50 uppercase tracking-[0.12em]">{label}</p>
+				<p className="text-[14px] font-semibold text-white/50 uppercase tracking-[0.12em]">{label}</p>
 			</div>
 
 			<div className="p-1.5 space-y-0.5">
@@ -1337,7 +1268,7 @@ function TrackMenu({
 					>
 						<div className="flex items-center gap-2.5">
 							<CircleOff size={14} className={!enabled ? 'text-white' : 'text-white/40'} />
-							<span className="text-[13px] font-medium">Off</span>
+							<span className="text-[14px] font-medium">Off</span>
 							{!enabled && <Check size={13} className="ml-auto text-white" />}
 						</div>
 					</button>
@@ -1363,20 +1294,20 @@ function TrackMenu({
 								<div className="flex items-center gap-2.5">
 									<div className="min-w-0 flex-1">
 										<div className="flex items-center gap-1.5">
-											<p className="text-[13px] font-medium truncate">{stream.label}</p>
+											<p className="text-[14px] font-medium truncate">{stream.label}</p>
 											{stream.isDefault && (
-												<span className="shrink-0 text-[13px] font-semibold uppercase tracking-wider bg-white/10 text-white/60 px-1.5 py-0.5 rounded leading-none">
+												<span className="shrink-0 text-[14px] font-semibold uppercase tracking-wider bg-white/10 text-white/60 px-1.5 py-0.5 rounded leading-none">
 													Default
 												</span>
 											)}
 											{stream.isForced && (
-												<span className="shrink-0 text-[13px] font-semibold uppercase tracking-wider bg-amber-500/15 text-amber-400/80 px-1.5 py-0.5 rounded leading-none">
+												<span className="shrink-0 text-[14px] font-semibold uppercase tracking-wider bg-amber-500/15 text-amber-400/80 px-1.5 py-0.5 rounded leading-none">
 													Forced
 												</span>
 											)}
 										</div>
 										{stream.details && (
-											<p className="text-[13px] text-white/40 mt-0.5 truncate">
+											<p className="text-[14px] text-white/40 mt-0.5 truncate">
 												{stream.details}
 											</p>
 										)}

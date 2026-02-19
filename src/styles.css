@@ -146,6 +146,17 @@
 	}
 }
 
+/* ── Landing Grid Texture ── */
+
+.landing-grid {
+	background-image:
+		linear-gradient(var(--color-border-subtle) 1px, transparent 1px),
+		linear-gradient(90deg, var(--color-border-subtle) 1px, transparent 1px);
+	background-size: 48px 48px;
+	mask-image: radial-gradient(ellipse 80% 90% at 50% 0%, rgba(0, 0, 0, 0.5) 0%, transparent 85%);
+	-webkit-mask-image: radial-gradient(ellipse 80% 90% at 50% 0%, rgba(0, 0, 0, 0.5) 0%, transparent 85%);
+}
+
 /* ── Home Background ── */
 
 .bg-home-glow {
@@ -173,7 +184,7 @@ body {
 	background-color: var(--color-bg);
 	color: var(--color-text);
 	font-family: var(--font-sans);
-	font-size: 13px;
+	font-size: 14px;
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
 	overflow: hidden;
@@ -307,10 +318,84 @@ input[type='range']::-moz-range-thumb {
 	background: var(--color-surface) !important;
 	border: 1px solid var(--color-border) !important;
 	color: var(--color-text) !important;
+	cursor: pointer;
+	/* Reserve space on the right for the hover-reveal dismiss button */
+	padding-right: 2.5rem !important;
+	/* Reposition Sonner's close button to the right side via CSS custom props */
+	--toast-close-button-start: auto;
+	--toast-close-button-end: 10px;
+	--toast-close-button-transform: translateY(-50%);
 }
 
 [data-sonner-toaster] [data-sonner-toast] [data-description] {
 	color: var(--color-text-secondary) !important;
+}
+
+/*
+ * Gradient accent line on the right edge.
+ * Uses ::after because Sonner only sets ::after on [data-expanded=true] (stacked toasts).
+ * On swiping, Sonner overrides ::before — so ::after is the safe choice here.
+ */
+[data-sonner-toaster] [data-sonner-toast]::after {
+	content: '';
+	position: absolute;
+	top: 6px;
+	bottom: 6px;
+	right: -1px;
+	width: 2px;
+	border-radius: 999px;
+	background: linear-gradient(to bottom, transparent, var(--color-accent) 50%, transparent);
+	opacity: 0.4;
+	transition: opacity 250ms ease;
+	pointer-events: none;
+	z-index: 2;
+}
+
+[data-sonner-toaster] [data-sonner-toast]:hover::after {
+	opacity: 0.9;
+}
+
+/* Close button: invisible at rest, slides in from the right on hover */
+[data-sonner-toaster] [data-sonner-toast] [data-close-button] {
+	top: 50% !important;
+	border: 1px solid var(--color-border) !important;
+	background: var(--color-surface-raised) !important;
+	color: var(--color-text-tertiary) !important;
+	width: 20px !important;
+	height: 20px !important;
+	opacity: 0;
+	transform: translateY(-50%) translateX(6px) !important;
+	pointer-events: none;
+	transition:
+		opacity 200ms ease,
+		transform 200ms ease,
+		background 150ms ease,
+		border-color 150ms ease !important;
+}
+
+[data-sonner-toaster] [data-sonner-toast]:hover [data-close-button] {
+	opacity: 1;
+	transform: translateY(-50%) translateX(0) !important;
+	pointer-events: auto;
+}
+
+[data-sonner-toaster] [data-sonner-toast] [data-close-button]:hover {
+	background: var(--color-surface) !important;
+	border-color: var(--color-accent) !important;
+	color: var(--color-text) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	[data-sonner-toaster] [data-sonner-toast]::after,
+	[data-sonner-toaster] [data-sonner-toast] [data-close-button] {
+		transition: none !important;
+	}
+
+	[data-sonner-toaster] [data-sonner-toast] [data-close-button] {
+		opacity: 1;
+		transform: translateY(-50%) translateX(0) !important;
+		pointer-events: auto;
+	}
 }
 
 /* ── Mobile Safe Area ── */

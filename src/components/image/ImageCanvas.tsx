@@ -160,7 +160,7 @@ export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 
 			{/* "Original" badge */}
 			{showOriginal && (
-				<div className="absolute top-3 left-3 rounded-md bg-bg/70 px-2.5 py-1 text-[13px] font-medium backdrop-blur-sm z-10">
+				<div className="absolute top-3 left-3 rounded-md bg-bg/70 px-2.5 py-1 text-[14px] font-medium backdrop-blur-sm z-10">
 					Original
 				</div>
 			)}

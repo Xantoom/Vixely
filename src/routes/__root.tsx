@@ -1,11 +1,32 @@
 import { createRootRoute, Outlet, Link, useRouterState } from '@tanstack/react-router';
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools';
 import { Video, ImageIcon, Film, Home } from 'lucide-react';
+import { useEffect } from 'react';
 import { Toaster } from 'sonner';
 import { CookieBanner } from '@/components/CookieBanner.tsx';
 import { PrivacyModal } from '@/components/PrivacyModal.tsx';
 
 export const Route = createRootRoute({ component: RootLayout });
+
+function AppToaster() {
+	useEffect(() => {
+		const handleClick = (e: MouseEvent) => {
+			if (!(e.target instanceof Element)) return;
+			// Let Sonner's own close button handle its click natively
+			if (e.target.closest('[data-close-button]')) return;
+			const toastEl = e.target.closest('[data-sonner-toast]');
+			if (!toastEl) return;
+			// Delegate to Sonner's close button so it uses its own dismiss logic
+			toastEl.querySelector<HTMLButtonElement>('[data-close-button]')?.click();
+		};
+		document.addEventListener('click', handleClick);
+		return () => {
+			document.removeEventListener('click', handleClick);
+		};
+	}, []);
+
+	return <Toaster position="top-center" closeButton toastOptions={{ duration: 3000 }} gap={8} />;
+}
 
 const navItems = [
 	{
@@ -72,7 +93,7 @@ function RootLayout() {
 								}`}
 							>
 								<item.icon className="h-5 w-5" />
-								<span className="text-[13px] font-semibold tracking-wide uppercase">{item.label}</span>
+								<span className="text-[14px] font-semibold tracking-wide uppercase">{item.label}</span>
 								{isActive && (
 									<div
 										className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full ${item.indicator}`}
@@ -108,7 +129,7 @@ function RootLayout() {
 					}`}
 				>
 					<Home className="h-5 w-5" />
-					<span className="text-[13px] font-semibold tracking-wide uppercase">Home</span>
+					<span className="text-[14px] font-semibold tracking-wide uppercase">Home</span>
 				</Link>
 				{navItems.map((item) => {
 					const isActive = pathname.startsWith(item.to);
@@ -121,7 +142,7 @@ function RootLayout() {
 							}`}
 						>
 							<item.icon className="h-5 w-5" />
-							<span className="text-[13px] font-semibold tracking-wide uppercase">{item.label}</span>
+							<span className="text-[14px] font-semibold tracking-wide uppercase">{item.label}</span>
 						</Link>
 					);
 				})}
@@ -131,7 +152,7 @@ function RootLayout() {
 			<PrivacyModal />
 			<CookieBanner />
 
-			<Toaster position="top-center" closeButton toastOptions={{ duration: 3000 }} gap={8} />
+			<AppToaster />
 
 			{import.meta.env.DEV && <TanStackRouterDevtools position="bottom-left" />}
 		</div>

@@ -20,22 +20,22 @@ export function ResizePanel() {
 
 	return (
 		<div className="flex flex-col gap-4">
-			<h3 className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider">Resize</h3>
+			<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider">Resize</h3>
 
-			{!hasOriginal && <p className="text-[13px] text-text-tertiary">Load a video to see resize options.</p>}
+			{!hasOriginal && <p className="text-[14px] text-text-tertiary">Load a video to see resize options.</p>}
 
 			{hasOriginal && (
 				<>
 					{/* Original dimensions */}
 					<div className="rounded-lg bg-bg/50 px-3 py-2">
-						<div className="flex justify-between text-[13px]">
+						<div className="flex justify-between text-[14px]">
 							<span className="text-text-tertiary">Original</span>
 							<span className="font-mono text-text-secondary">
 								{formatDimensions(resize.originalWidth, resize.originalHeight)}
 							</span>
 						</div>
 						{changed && (
-							<div className="flex justify-between text-[13px] mt-1">
+							<div className="flex justify-between text-[14px] mt-1">
 								<span className="text-text-tertiary">Current</span>
 								<span className="font-mono text-accent">
 									{formatDimensions(resize.width, resize.height)}
@@ -47,7 +47,7 @@ export function ResizePanel() {
 					{/* Width / Height inputs */}
 					<div className="flex items-end gap-2">
 						<div className="flex-1">
-							<label className="text-[13px] text-text-tertiary mb-1 block">Width</label>
+							<label className="text-[14px] text-text-tertiary mb-1 block">Width</label>
 							<input
 								type="number"
 								min={1}
@@ -56,7 +56,7 @@ export function ResizePanel() {
 								onChange={(e) => {
 									setResize({ width: Math.max(1, Number(e.target.value)) });
 								}}
-								className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[13px] font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
+								className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[14px] font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
 							/>
 						</div>
 
@@ -75,7 +75,7 @@ export function ResizePanel() {
 						</button>
 
 						<div className="flex-1">
-							<label className="text-[13px] text-text-tertiary mb-1 block">Height</label>
+							<label className="text-[14px] text-text-tertiary mb-1 block">Height</label>
 							<input
 								type="number"
 								min={1}
@@ -84,7 +84,7 @@ export function ResizePanel() {
 								onChange={(e) => {
 									setResize({ height: Math.max(1, Number(e.target.value)) });
 								}}
-								className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[13px] font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
+								className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[14px] font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
 							/>
 						</div>
 					</div>
@@ -104,7 +104,7 @@ export function ResizePanel() {
 
 					{/* Quick presets */}
 					<div>
-						<label className="text-[13px] text-text-tertiary mb-1.5 block">Quick Presets</label>
+						<label className="text-[14px] text-text-tertiary mb-1.5 block">Quick Presets</label>
 						<div className="grid grid-cols-3 gap-1">
 							{QUICK_PRESETS.map((p) => {
 								const active = resize.width === p.w && resize.height === p.h;
@@ -118,7 +118,7 @@ export function ResizePanel() {
 												scalePercent: Math.round((p.w / resize.originalWidth) * 100),
 											});
 										}}
-										className={`rounded-md py-1.5 text-[13px] font-medium transition-all cursor-pointer ${
+										className={`rounded-md py-1.5 text-[14px] font-medium transition-all cursor-pointer ${
 											active
 												? 'bg-accent/15 text-accent border border-accent/30'
 												: 'bg-surface-raised/60 text-text-tertiary border border-transparent hover:bg-surface-raised'
@@ -136,7 +136,7 @@ export function ResizePanel() {
 										scalePercent: 100,
 									});
 								}}
-								className={`rounded-md py-1.5 text-[13px] font-medium transition-all cursor-pointer ${
+								className={`rounded-md py-1.5 text-[14px] font-medium transition-all cursor-pointer ${
 									!changed
 										? 'bg-accent/15 text-accent border border-accent/30'
 										: 'bg-surface-raised/60 text-text-tertiary border border-transparent hover:bg-surface-raised'

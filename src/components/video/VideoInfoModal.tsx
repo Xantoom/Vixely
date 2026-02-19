@@ -2,6 +2,7 @@ import { AlertCircle, AudioLines, FileText, Film, LoaderCircle, Subtitles, X } f
 import type { ProbeResult, StreamInfo } from '@/stores/videoEditor.ts';
 import type { DetailedProbeResultData, DetailedProbeStreamInfo } from '@/workers/ffmpeg-worker.ts';
 import { formatDimensions, formatFileSize } from '@/utils/format.ts';
+import { LANG_NAMES } from '@/utils/languageUtils.ts';
 
 interface VideoInfoModalProps {
 	file: File;
@@ -81,63 +82,6 @@ function codecLabel(codec?: string): string {
 	return map[normalized] ?? codec.toUpperCase();
 }
 
-const LANG_NAMES: Record<string, string> = {
-	en: 'English',
-	eng: 'English',
-	fr: 'French',
-	fre: 'French',
-	fra: 'French',
-	de: 'German',
-	deu: 'German',
-	ger: 'German',
-	es: 'Spanish',
-	spa: 'Spanish',
-	it: 'Italian',
-	ita: 'Italian',
-	ja: 'Japanese',
-	jpn: 'Japanese',
-	zh: 'Chinese',
-	zho: 'Chinese',
-	chi: 'Chinese',
-	ko: 'Korean',
-	kor: 'Korean',
-	pt: 'Portuguese',
-	por: 'Portuguese',
-	ru: 'Russian',
-	rus: 'Russian',
-	ar: 'Arabic',
-	ara: 'Arabic',
-	hi: 'Hindi',
-	hin: 'Hindi',
-	pl: 'Polish',
-	pol: 'Polish',
-	tr: 'Turkish',
-	tur: 'Turkish',
-	nl: 'Dutch',
-	nld: 'Dutch',
-	dut: 'Dutch',
-	sv: 'Swedish',
-	swe: 'Swedish',
-	no: 'Norwegian',
-	nor: 'Norwegian',
-	da: 'Danish',
-	dan: 'Danish',
-	fi: 'Finnish',
-	fin: 'Finnish',
-	cs: 'Czech',
-	ces: 'Czech',
-	cze: 'Czech',
-	hu: 'Hungarian',
-	hun: 'Hungarian',
-	ro: 'Romanian',
-	ron: 'Romanian',
-	rum: 'Romanian',
-	th: 'Thai',
-	tha: 'Thai',
-	vi: 'Vietnamese',
-	vie: 'Vietnamese',
-};
-
 function formatLabelFromDetailed(stream: DetailedProbeStreamInfo | undefined): string {
 	const longName = stream?.codec_long_name?.trim();
 	if (longName) return longName;
@@ -187,7 +131,7 @@ function buildDetailedTrackMap(
 function OverviewMetric({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="rounded-xl border border-border/70 bg-bg/35 px-3 py-2.5">
-			<p className="text-[11px] uppercase tracking-[0.08em] text-text-tertiary">{label}</p>
+			<p className="text-[14px] uppercase tracking-[0.08em] text-text-tertiary">{label}</p>
 			<p className="mt-1 text-[15px] font-semibold text-text">{value}</p>
 		</div>
 	);
@@ -195,7 +139,7 @@ function OverviewMetric({ label, value }: { label: string; value: string }) {
 
 function Pill({ children }: { children: React.ReactNode }) {
 	return (
-		<span className="inline-flex items-center rounded-full border border-border/70 bg-bg/40 px-2 py-0.5 text-[11px] text-text-secondary">
+		<span className="inline-flex items-center rounded-full border border-border/70 bg-bg/40 px-2 py-0.5 text-[14px] text-text-secondary">
 			{children}
 		</span>
 	);
@@ -203,7 +147,7 @@ function Pill({ children }: { children: React.ReactNode }) {
 
 function FactChip({ label, value }: { label: string; value: string }) {
 	return (
-		<span className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-bg/30 px-2.5 py-1 text-[12px] text-text-secondary">
+		<span className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-bg/30 px-2.5 py-1 text-[14px] text-text-secondary">
 			<span className="text-text-tertiary">{label}:</span>
 			<span className="font-medium text-text">{value}</span>
 		</span>
@@ -212,7 +156,7 @@ function FactChip({ label, value }: { label: string; value: string }) {
 
 function VideoDetailRow({ label, value }: { label: string; value: string }) {
 	return (
-		<div className="flex items-start justify-between gap-3 text-[13px]">
+		<div className="flex items-start justify-between gap-3 text-[14px]">
 			<span className="text-text-tertiary">{label}</span>
 			<span className="max-w-[70%] break-all text-right text-text-secondary">{value}</span>
 		</div>
@@ -227,13 +171,13 @@ function AudioTracksTable({
 	detailedMap: Map<number, DetailedProbeStreamInfo>;
 }) {
 	if (streams.length === 0) {
-		return <p className="text-[13px] text-text-tertiary">No audio tracks</p>;
+		return <p className="text-[14px] text-text-tertiary">No audio tracks</p>;
 	}
 
 	return (
 		<div className="overflow-x-auto rounded-xl border border-border/70 bg-bg/35">
 			<div className="max-h-64 overflow-y-auto">
-				<table className="w-full min-w-[860px] table-fixed text-[12px]">
+				<table className="w-full min-w-[860px] table-fixed text-[14px]">
 					<thead className="sticky top-0 z-10 bg-surface-raised/90 backdrop-blur-sm">
 						<tr className="text-left text-text-tertiary">
 							<th className="px-3 py-2 font-medium w-14">#</th>
@@ -285,13 +229,13 @@ function SubtitleTracksTable({
 	detailedMap: Map<number, DetailedProbeStreamInfo>;
 }) {
 	if (streams.length === 0) {
-		return <p className="text-[13px] text-text-tertiary">No subtitle tracks</p>;
+		return <p className="text-[14px] text-text-tertiary">No subtitle tracks</p>;
 	}
 
 	return (
 		<div className="overflow-x-auto rounded-xl border border-border/70 bg-bg/35">
 			<div className="max-h-64 overflow-y-auto">
-				<table className="w-full min-w-[760px] table-fixed text-[12px]">
+				<table className="w-full min-w-[760px] table-fixed text-[14px]">
 					<thead className="sticky top-0 z-10 bg-surface-raised/90 backdrop-blur-sm">
 						<tr className="text-left text-text-tertiary">
 							<th className="px-3 py-2 font-medium w-14">#</th>
@@ -392,7 +336,7 @@ export function VideoInfoModal({
 				<div className="relative border-b border-border/70 px-5 py-4 sm:px-6">
 					<div className="flex items-start justify-between gap-4">
 						<div>
-							<div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-bg/40 px-2.5 py-1 text-[11px] uppercase tracking-[0.08em] text-text-tertiary">
+							<div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-bg/40 px-2.5 py-1 text-[14px] uppercase tracking-[0.08em] text-text-tertiary">
 								<FileText size={12} />
 								Metadata
 							</div>
@@ -414,14 +358,14 @@ export function VideoInfoModal({
 					</div>
 
 					{(streamInfoPending || detailedProbePending) && (
-						<div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-[12px] text-accent">
+						<div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-[14px] text-accent">
 							<LoaderCircle size={12} className="animate-spin" />
 							{loadingLabel}
 						</div>
 					)}
 
 					{detailedProbeError && (
-						<div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-warning/30 bg-warning/10 px-2.5 py-1 text-[12px] text-warning">
+						<div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-warning/30 bg-warning/10 px-2.5 py-1 text-[14px] text-warning">
 							<AlertCircle size={12} />
 							Some details could not be read
 						</div>
@@ -430,7 +374,7 @@ export function VideoInfoModal({
 
 				<div className="relative max-h-[76vh] overflow-y-auto px-5 py-4 sm:px-6 sm:py-5">
 					<div className="rounded-2xl border border-border/70 bg-surface-raised/35 p-4">
-						<p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
+						<p className="text-[14px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
 							Overview
 						</p>
 						<div className="mt-2 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
@@ -451,14 +395,14 @@ export function VideoInfoModal({
 					<div className="mt-4 rounded-2xl border border-border/70 bg-surface-raised/35 p-4">
 						<div className="mb-2 flex items-center gap-2">
 							<Film size={14} className="text-accent" />
-							<h3 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
+							<h3 className="text-[14px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
 								Video
 							</h3>
 							<Pill>{codecLabel(primaryVideo?.codec ?? detailedVideo?.codec_name)}</Pill>
 						</div>
 						<div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
 							<div className="rounded-xl border border-border/70 bg-bg/35 p-3">
-								<p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
+								<p className="mb-2 text-[14px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
 									Source File
 								</p>
 								<div className="space-y-1.5">
@@ -470,7 +414,7 @@ export function VideoInfoModal({
 								</div>
 							</div>
 							<div className="rounded-xl border border-border/70 bg-bg/35 p-3">
-								<p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
+								<p className="mb-2 text-[14px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
 									Playback Profile
 								</p>
 								<div className="space-y-1.5">
@@ -488,7 +432,7 @@ export function VideoInfoModal({
 						<div className="mb-2 flex items-center justify-between gap-2">
 							<div className="flex items-center gap-2">
 								<AudioLines size={14} className="text-accent" />
-								<h3 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
+								<h3 className="text-[14px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
 									Audio Tracks
 								</h3>
 							</div>
@@ -501,7 +445,7 @@ export function VideoInfoModal({
 						<div className="mb-2 flex items-center justify-between gap-2">
 							<div className="flex items-center gap-2">
 								<Subtitles size={14} className="text-accent" />
-								<h3 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
+								<h3 className="text-[14px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
 									Subtitle Tracks
 								</h3>
 							</div>

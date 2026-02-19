@@ -14,7 +14,7 @@ function PrivacyPage() {
 			<div className="max-w-2xl mx-auto px-8 py-16 animate-fade-in">
 				<Link
 					to="/"
-					className="inline-flex items-center gap-1.5 text-[13px] text-text-tertiary hover:text-text-secondary transition-colors mb-8"
+					className="inline-flex items-center gap-1.5 text-[14px] text-text-tertiary hover:text-text-secondary transition-colors mb-8"
 				>
 					<svg
 						className="h-3.5 w-3.5"

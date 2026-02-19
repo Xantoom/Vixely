@@ -32,3 +32,4 @@ vixely-core/target/
 .bun-install/
 .bun-tmp/
 .tanstack/
+.claude

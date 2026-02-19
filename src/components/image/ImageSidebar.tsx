@@ -226,7 +226,7 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 							onClick={() => {
 								setMode(tab.mode);
 							}}
-							className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[13px] font-semibold uppercase tracking-wider transition-all cursor-pointer ${
+							className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[14px] font-semibold uppercase tracking-wider transition-all cursor-pointer ${
 								isActive
 									? 'text-accent border-b-2 border-accent'
 									: 'text-text-tertiary hover:text-text-secondary'
@@ -253,7 +253,7 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 				</div>
 				{file && (
 					<div className="flex items-center gap-1.5 mt-1.5">
-						<p className="text-[13px] text-text-tertiary flex-1">{formatFileSize(file.size)}</p>
+						<p className="text-[14px] text-text-tertiary flex-1">{formatFileSize(file.size)}</p>
 						<button
 							onClick={() => {
 								setShowInfo(true);
@@ -273,7 +273,7 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 					<>
 						{originalData ? (
 							<>
-								<h3 className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider">
+								<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider">
 									Dimensions
 								</h3>
 								<div className="flex flex-wrap gap-1">
@@ -283,7 +283,7 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 											onClick={() => {
 												handleApplyPreset(key);
 											}}
-											className="rounded-md bg-surface-raised/60 px-2 py-1 text-[13px] font-medium text-text-tertiary hover:bg-surface-raised hover:text-text transition-all cursor-pointer"
+											className="rounded-md bg-surface-raised/60 px-2 py-1 text-[14px] font-medium text-text-tertiary hover:bg-surface-raised hover:text-text transition-all cursor-pointer"
 											title={preset.description}
 										>
 											{preset.name}
@@ -293,7 +293,7 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 
 								<div className="flex items-center gap-2">
 									<div className="flex-1">
-										<label className="text-[13px] text-text-tertiary mb-1 block">W</label>
+										<label className="text-[14px] text-text-tertiary mb-1 block">W</label>
 										<input
 											type="number"
 											min={1}
@@ -302,7 +302,7 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 											onChange={(e) => {
 												setResizeWidth(e.target.value ? Number(e.target.value) : null);
 											}}
-											className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[13px] font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
+											className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[14px] font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
 										/>
 									</div>
 									<button
@@ -319,7 +319,7 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 										{resizeLockAspect ? <Lock size={12} /> : <Unlock size={12} />}
 									</button>
 									<div className="flex-1">
-										<label className="text-[13px] text-text-tertiary mb-1 block">H</label>
+										<label className="text-[14px] text-text-tertiary mb-1 block">H</label>
 										<input
 											type="number"
 											min={1}
@@ -328,7 +328,7 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 											onChange={(e) => {
 												setResizeHeight(e.target.value ? Number(e.target.value) : null);
 											}}
-											className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[13px] font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
+											className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[14px] font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
 										/>
 									</div>
 								</div>
@@ -343,7 +343,7 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 								</Button>
 							</>
 						) : (
-							<p className="text-[13px] text-text-tertiary">Load an image to resize.</p>
+							<p className="text-[14px] text-text-tertiary">Load an image to resize.</p>
 						)}
 					</>
 				)}
@@ -351,24 +351,24 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 				{mode === 'adjust' && (
 					<>
 						<div className="flex items-center justify-between">
-							<h3 className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider">
+							<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider">
 								Light
 							</h3>
 							<button
 								onClick={resetFilters}
-								className="text-[13px] text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
+								className="text-[14px] text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
 							>
 								Reset
 							</button>
 						</div>
 						{renderSliders(LIGHT_SLIDERS)}
 
-						<h3 className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider mt-2">
+						<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mt-2">
 							Color
 						</h3>
 						{renderSliders(COLOR_SLIDERS)}
 
-						<h3 className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider mt-2">
+						<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mt-2">
 							Effects
 						</h3>
 						{renderSliders(EFFECTS_SLIDERS)}
@@ -377,7 +377,7 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 
 				{mode === 'presets' && (
 					<>
-						<h3 className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider">
+						<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider">
 							Color Presets
 						</h3>
 						<div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
@@ -387,7 +387,7 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 									onClick={() => {
 										applyFilterPreset(preset);
 									}}
-									className="rounded-md bg-surface-raised/60 py-2 text-[13px] font-medium text-text-tertiary hover:bg-surface-raised hover:text-text transition-all cursor-pointer"
+									className="rounded-md bg-surface-raised/60 py-2 text-[14px] font-medium text-text-tertiary hover:bg-surface-raised hover:text-text transition-all cursor-pointer"
 								>
 									{preset.name}
 								</button>
@@ -398,7 +398,7 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 
 				{mode === 'export' && (
 					<>
-						<h3 className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider">
+						<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider">
 							Format
 						</h3>
 						<div className="flex gap-1.5">
@@ -408,7 +408,7 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 									onClick={() => {
 										setExportFormat(opt.value);
 									}}
-									className={`flex-1 rounded-md py-1.5 text-[13px] font-medium transition-all cursor-pointer ${
+									className={`flex-1 rounded-md py-1.5 text-[14px] font-medium transition-all cursor-pointer ${
 										exportFormat === opt.value
 											? 'bg-accent/15 text-accent border border-accent/30'
 											: 'bg-surface-raised/60 text-text-tertiary border border-transparent hover:bg-surface-raised hover:text-text'
@@ -432,7 +432,7 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 							/>
 						)}
 						{estSize != null && (
-							<p className="text-[13px] text-text-tertiary">Est. {formatFileSize(estSize)}</p>
+							<p className="text-[14px] text-text-tertiary">Est. {formatFileSize(estSize)}</p>
 						)}
 					</>
 				)}

@@ -264,7 +264,7 @@ function EmptyState({ isDragging, onOpenFile }: { isDragging: boolean; onOpenFil
 			<p className="text-sm font-medium text-text-secondary">
 				{isDragging ? 'Drop your image here' : 'No image loaded'}
 			</p>
-			<p className="mt-1 text-[13px] text-text-tertiary">
+			<p className="mt-1 text-[14px] text-text-tertiary">
 				{isDragging ? 'Release to load' : 'Drop a file or click to get started'}
 			</p>
 			{!isDragging && (
