@@ -2,19 +2,41 @@
 	"video": {
 		"youtube_shorts": {
 			"name": "YouTube Shorts",
-			"description": "Vertical 1080x1920, max 60s",
-			"maxSizeMB": null,
+			"description": "Vertical/square Shorts target (up to 3 minutes)",
+			"maxSizeMB": 262144,
 			"format": "mp4",
-			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "20", "-pix_fmt", "yuv420p"],
+			"ffmpegArgs": [
+				"-c:v",
+				"libx264",
+				"-preset",
+				"fast",
+				"-crf",
+				"20",
+				"-pix_fmt",
+				"yuv420p",
+				"-movflags",
+				"+faststart"
+			],
 			"width": 1080,
 			"height": 1920
 		},
 		"youtube_1080p": {
 			"name": "YouTube 1080p",
-			"description": "Standard HD upload",
-			"maxSizeMB": null,
+			"description": "Standard HD upload target (up to 256GB or 12 hours)",
+			"maxSizeMB": 262144,
 			"format": "mp4",
-			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p"],
+			"ffmpegArgs": [
+				"-c:v",
+				"libx264",
+				"-preset",
+				"fast",
+				"-crf",
+				"18",
+				"-pix_fmt",
+				"yuv420p",
+				"-movflags",
+				"+faststart"
+			],
 			"width": 1920,
 			"height": 1080
 		}
@@ -22,7 +44,7 @@
 	"image": {
 		"youtube_thumbnail": {
 			"name": "YouTube Thumbnail",
-			"description": "Video thumbnail 1280x720",
+			"description": "Video thumbnail 1280x720 (under 2MB)",
 			"width": 1280,
 			"height": 720,
 			"format": "png",
@@ -31,7 +53,7 @@
 		},
 		"youtube_banner": {
 			"name": "YouTube Channel Banner",
-			"description": "Channel art 2560x1440",
+			"description": "Channel art 2560x1440 (safe area 1546x423, max 6MB)",
 			"width": 2560,
 			"height": 1440,
 			"format": "png",

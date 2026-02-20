@@ -54,8 +54,8 @@ export function FileMetadataModal({ file, fields, onClose }: FileMetadataModalPr
 						(field) =>
 							field.value != null && (
 								<div key={field.label} className="flex items-start justify-between gap-3">
-									<span className="text-[13px] text-text-tertiary shrink-0">{field.label}</span>
-									<span className="text-[13px] text-text-secondary font-mono text-right break-all">
+									<span className="text-[14px] text-text-tertiary shrink-0">{field.label}</span>
+									<span className="text-[14px] text-text-secondary font-mono text-right break-all">
 										{String(field.value)}
 									</span>
 								</div>

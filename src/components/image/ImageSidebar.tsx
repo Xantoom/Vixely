@@ -1,6 +1,7 @@
 import { Lock, Unlock, Info, FilePlus2, Palette, SlidersHorizontal, Maximize2, Download } from 'lucide-react';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { useShallow } from 'zustand/react/shallow';
 import { Button, Slider } from '@/components/ui/index.ts';
 import { filterPresetEntries, imagePresetEntries } from '@/config/presets.ts';
 import { PhotoWebGLRenderer } from '@/modules/photo-editor/render/webgl-renderer.ts';
@@ -105,29 +106,55 @@ const IMAGE_MODE_TABS: { mode: ImageMode; label: string; icon: typeof Palette }[
 ];
 
 export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
-	const file = useImageEditorStore((s) => s.file);
-	const originalData = useImageEditorStore((s) => s.originalData);
-	const filters = useImageEditorStore((s) => s.filters);
-	const exportFormat = useImageEditorStore((s) => s.exportFormat);
-	const exportQuality = useImageEditorStore((s) => s.exportQuality);
-	const resizeWidth = useImageEditorStore((s) => s.resizeWidth);
-	const resizeHeight = useImageEditorStore((s) => s.resizeHeight);
-	const resizeLockAspect = useImageEditorStore((s) => s.resizeLockAspect);
-	const setFilter = useImageEditorStore((s) => s.setFilter);
-	const commitFilters = useImageEditorStore((s) => s.commitFilters);
-	const applyFilterPreset = useImageEditorStore((s) => s.applyFilterPreset);
-	const resetFilters = useImageEditorStore((s) => s.resetFilters);
-	const setExportFormat = useImageEditorStore((s) => s.setExportFormat);
-	const setExportQuality = useImageEditorStore((s) => s.setExportQuality);
-	const setShowOriginal = useImageEditorStore((s) => s.setShowOriginal);
-	const setResizeWidth = useImageEditorStore((s) => s.setResizeWidth);
-	const setResizeHeight = useImageEditorStore((s) => s.setResizeHeight);
-	const setResizeLockAspect = useImageEditorStore((s) => s.setResizeLockAspect);
-	const applyResize = useImageEditorStore((s) => s.applyResize);
+	const {
+		file,
+		originalData,
+		filters,
+		exportFormat,
+		exportQuality,
+		resizeWidth,
+		resizeHeight,
+		resizeLockAspect,
+		setFilter,
+		commitFilters,
+		applyFilterPreset,
+		resetFilters,
+		setExportFormat,
+		setExportQuality,
+		setShowOriginal,
+		setResizeWidth,
+		setResizeHeight,
+		setResizeLockAspect,
+		applyResize,
+	} = useImageEditorStore(
+		useShallow((s) => ({
+			file: s.file,
+			originalData: s.originalData,
+			filters: s.filters,
+			exportFormat: s.exportFormat,
+			exportQuality: s.exportQuality,
+			resizeWidth: s.resizeWidth,
+			resizeHeight: s.resizeHeight,
+			resizeLockAspect: s.resizeLockAspect,
+			setFilter: s.setFilter,
+			commitFilters: s.commitFilters,
+			applyFilterPreset: s.applyFilterPreset,
+			resetFilters: s.resetFilters,
+			setExportFormat: s.setExportFormat,
+			setExportQuality: s.setExportQuality,
+			setShowOriginal: s.setShowOriginal,
+			setResizeWidth: s.setResizeWidth,
+			setResizeHeight: s.setResizeHeight,
+			setResizeLockAspect: s.setResizeLockAspect,
+			applyResize: s.applyResize,
+		})),
+	);
 
 	const [mode, setMode] = useState<ImageMode>('resize');
 	const [showInfo, setShowInfo] = useState(false);
 	const exportRendererRef = useRef<PhotoWebGLRenderer | null>(null);
+	const resizeWidthInputId = useId();
+	const resizeHeightInputId = useId();
 
 	const handleSliderCommit = useCallback(() => {
 		commitFilters();
@@ -226,7 +253,7 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 							onClick={() => {
 								setMode(tab.mode);
 							}}
-							className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[13px] font-semibold uppercase tracking-wider transition-all cursor-pointer ${
+							className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[14px] font-semibold uppercase tracking-wider transition-all cursor-pointer ${
 								isActive
 									? 'text-accent border-b-2 border-accent'
 									: 'text-text-tertiary hover:text-text-secondary'
@@ -246,18 +273,26 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 						{file ? <span className="truncate">{file.name}</span> : 'Choose Image'}
 					</Button>
 					{file && onNew && (
-						<Button variant="ghost" size="icon" onClick={onNew} title="New (discard current)">
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={onNew}
+							title="New (discard current)"
+							aria-label="New file (discard current image)"
+						>
 							<FilePlus2 size={16} />
 						</Button>
 					)}
 				</div>
 				{file && (
 					<div className="flex items-center gap-1.5 mt-1.5">
-						<p className="text-[13px] text-text-tertiary flex-1">{formatFileSize(file.size)}</p>
+						<p className="text-[14px] text-text-tertiary flex-1">{formatFileSize(file.size)}</p>
 						<button
 							onClick={() => {
 								setShowInfo(true);
 							}}
+							type="button"
+							aria-label="Open image file info"
 							className="h-5 w-5 flex items-center justify-center rounded text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
 							title="File info"
 						>
@@ -273,7 +308,7 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 					<>
 						{originalData ? (
 							<>
-								<h3 className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider">
+								<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider">
 									Dimensions
 								</h3>
 								<div className="flex flex-wrap gap-1">
@@ -283,7 +318,7 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 											onClick={() => {
 												handleApplyPreset(key);
 											}}
-											className="rounded-md bg-surface-raised/60 px-2 py-1 text-[13px] font-medium text-text-tertiary hover:bg-surface-raised hover:text-text transition-all cursor-pointer"
+											className="rounded-md bg-surface-raised/60 px-2 py-1 text-[14px] font-medium text-text-tertiary hover:bg-surface-raised hover:text-text transition-all cursor-pointer"
 											title={preset.description}
 										>
 											{preset.name}
@@ -293,8 +328,14 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 
 								<div className="flex items-center gap-2">
 									<div className="flex-1">
-										<label className="text-[13px] text-text-tertiary mb-1 block">W</label>
+										<label
+											htmlFor={resizeWidthInputId}
+											className="text-[14px] text-text-tertiary mb-1 block"
+										>
+											W
+										</label>
 										<input
+											id={resizeWidthInputId}
 											type="number"
 											min={1}
 											max={8192}
@@ -302,13 +343,15 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 											onChange={(e) => {
 												setResizeWidth(e.target.value ? Number(e.target.value) : null);
 											}}
-											className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[13px] font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
+											className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[14px] font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
 										/>
 									</div>
 									<button
 										onClick={() => {
 											setResizeLockAspect(!resizeLockAspect);
 										}}
+										type="button"
+										aria-label={resizeLockAspect ? 'Unlock aspect ratio' : 'Lock aspect ratio'}
 										title={resizeLockAspect ? 'Unlock aspect ratio' : 'Lock aspect ratio'}
 										className={`mt-4 h-8 w-8 flex items-center justify-center rounded-md transition-colors cursor-pointer ${
 											resizeLockAspect
@@ -319,8 +362,14 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 										{resizeLockAspect ? <Lock size={12} /> : <Unlock size={12} />}
 									</button>
 									<div className="flex-1">
-										<label className="text-[13px] text-text-tertiary mb-1 block">H</label>
+										<label
+											htmlFor={resizeHeightInputId}
+											className="text-[14px] text-text-tertiary mb-1 block"
+										>
+											H
+										</label>
 										<input
+											id={resizeHeightInputId}
 											type="number"
 											min={1}
 											max={8192}
@@ -328,7 +377,7 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 											onChange={(e) => {
 												setResizeHeight(e.target.value ? Number(e.target.value) : null);
 											}}
-											className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[13px] font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
+											className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[14px] font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
 										/>
 									</div>
 								</div>
@@ -343,7 +392,7 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 								</Button>
 							</>
 						) : (
-							<p className="text-[13px] text-text-tertiary">Load an image to resize.</p>
+							<p className="text-[14px] text-text-tertiary">Load an image to resize.</p>
 						)}
 					</>
 				)}
@@ -351,24 +400,24 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 				{mode === 'adjust' && (
 					<>
 						<div className="flex items-center justify-between">
-							<h3 className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider">
+							<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider">
 								Light
 							</h3>
 							<button
 								onClick={resetFilters}
-								className="text-[13px] text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
+								className="text-[14px] text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
 							>
 								Reset
 							</button>
 						</div>
 						{renderSliders(LIGHT_SLIDERS)}
 
-						<h3 className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider mt-2">
+						<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mt-2">
 							Color
 						</h3>
 						{renderSliders(COLOR_SLIDERS)}
 
-						<h3 className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider mt-2">
+						<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mt-2">
 							Effects
 						</h3>
 						{renderSliders(EFFECTS_SLIDERS)}
@@ -377,7 +426,7 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 
 				{mode === 'presets' && (
 					<>
-						<h3 className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider">
+						<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider">
 							Color Presets
 						</h3>
 						<div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
@@ -387,7 +436,7 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 									onClick={() => {
 										applyFilterPreset(preset);
 									}}
-									className="rounded-md bg-surface-raised/60 py-2 text-[13px] font-medium text-text-tertiary hover:bg-surface-raised hover:text-text transition-all cursor-pointer"
+									className="rounded-md bg-surface-raised/60 py-2 text-[14px] font-medium text-text-tertiary hover:bg-surface-raised hover:text-text transition-all cursor-pointer"
 								>
 									{preset.name}
 								</button>
@@ -398,7 +447,7 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 
 				{mode === 'export' && (
 					<>
-						<h3 className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider">
+						<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider">
 							Format
 						</h3>
 						<div className="flex gap-1.5">
@@ -408,7 +457,7 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 									onClick={() => {
 										setExportFormat(opt.value);
 									}}
-									className={`flex-1 rounded-md py-1.5 text-[13px] font-medium transition-all cursor-pointer ${
+									className={`flex-1 rounded-md py-1.5 text-[14px] font-medium transition-all cursor-pointer ${
 										exportFormat === opt.value
 											? 'bg-accent/15 text-accent border border-accent/30'
 											: 'bg-surface-raised/60 text-text-tertiary border border-transparent hover:bg-surface-raised hover:text-text'
@@ -432,7 +481,7 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 							/>
 						)}
 						{estSize != null && (
-							<p className="text-[13px] text-text-tertiary">Est. {formatFileSize(estSize)}</p>
+							<p className="text-[14px] text-text-tertiary">Est. {formatFileSize(estSize)}</p>
 						)}
 					</>
 				)}

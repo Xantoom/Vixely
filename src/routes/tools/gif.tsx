@@ -1,13 +1,18 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { Film, FilePlus2, Settings, Info, Lock, Unlock, Maximize2, Download } from 'lucide-react';
-import { useState, useRef, useCallback, useEffect } from 'react';
-import { Helmet } from 'react-helmet-async';
+import { useState, useRef, useCallback, useEffect, useId } from 'react';
 import { toast } from 'sonner';
+import { useShallow } from 'zustand/react/shallow';
 import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
 import { FileMetadataModal } from '@/components/FileMetadataModal.tsx';
+import { Seo } from '@/components/Seo.tsx';
 import { Drawer } from '@/components/ui/Drawer.tsx';
 import { Button, Slider, Timeline } from '@/components/ui/index.ts';
 import { gifPresetEntries, GIF_ACCEPT } from '@/config/presets.ts';
+import { useObjectUrlState } from '@/hooks/useObjectUrlState.ts';
+import { usePendingActionConfirmation } from '@/hooks/usePendingActionConfirmation.ts';
+import { usePreventUnload } from '@/hooks/usePreventUnload.ts';
+import { useSingleFileDrop } from '@/hooks/useSingleFileDrop.ts';
 import { useVideoProcessor } from '@/hooks/useVideoProcessor.ts';
 import { useGifEditorStore, type GifMode } from '@/stores/gifEditor.ts';
 import { formatFileSize, formatNumber } from '@/utils/format.ts';
@@ -27,18 +32,27 @@ const MODE_TABS: { mode: GifMode; label: string; icon: typeof Settings }[] = [
 /* ── Toggle Switch ── */
 
 function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+	const labelId = useId();
+
 	return (
 		<div className="flex items-center justify-between">
-			<label className="text-[13px] font-medium text-text-secondary">{label}</label>
+			<span id={labelId} className="text-[14px] font-medium text-text-secondary">
+				{label}
+			</span>
 			<button
 				onClick={() => {
 					onChange(!checked);
 				}}
+				type="button"
+				role="switch"
+				aria-checked={checked}
+				aria-labelledby={labelId}
 				className={`h-6 w-10 rounded-full transition-colors cursor-pointer ${
 					checked ? 'bg-accent' : 'bg-surface-raised'
 				}`}
 			>
 				<div
+					aria-hidden
 					className={`h-4 w-4 rounded-full bg-white transition-transform mx-1 ${
 						checked ? 'translate-x-4' : 'translate-x-0'
 					}`}
@@ -52,18 +66,23 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
 
 function GifFoundry() {
 	const { ready, processing, progress, error, createGif } = useVideoProcessor();
-	const mode = useGifEditorStore((s) => s.mode);
-	const speed = useGifEditorStore((s) => s.speed);
-	const reverse = useGifEditorStore((s) => s.reverse);
-	const colorReduction = useGifEditorStore((s) => s.colorReduction);
-	const setMode = useGifEditorStore((s) => s.setMode);
-	const setSpeed = useGifEditorStore((s) => s.setSpeed);
-	const setReverse = useGifEditorStore((s) => s.setReverse);
-	const setColorReduction = useGifEditorStore((s) => s.setColorReduction);
-	const resetStore = useGifEditorStore((s) => s.resetAll);
+	const { mode, speed, reverse, colorReduction, setMode, setSpeed, setReverse, setColorReduction, resetStore } =
+		useGifEditorStore(
+			useShallow((s) => ({
+				mode: s.mode,
+				speed: s.speed,
+				reverse: s.reverse,
+				colorReduction: s.colorReduction,
+				setMode: s.setMode,
+				setSpeed: s.setSpeed,
+				setReverse: s.setReverse,
+				setColorReduction: s.setColorReduction,
+				resetStore: s.resetAll,
+			})),
+		);
 
 	const [file, setFile] = useState<File | null>(null);
-	const [videoUrl, setVideoUrl] = useState<string | null>(null);
+	const [videoUrl, setVideoUrl] = useObjectUrlState();
 	const [isGifSource, setIsGifSource] = useState(false);
 	const [duration, setDuration] = useState(0);
 	const [currentTime, setCurrentTime] = useState(0);
@@ -74,60 +93,30 @@ function GifFoundry() {
 	const [height, setHeight] = useState<number | null>(null);
 	const [lockAspect, setLockAspect] = useState(true);
 	const [sourceAspect, setSourceAspect] = useState(16 / 9);
+	const [sourceWidth, setSourceWidth] = useState<number | null>(null);
+	const [sourceHeight, setSourceHeight] = useState<number | null>(null);
 	const [loop, setLoop] = useState(true);
-	const [resultUrl, setResultUrl] = useState<string | null>(null);
+	const [resultUrl, setResultUrl] = useObjectUrlState();
 	const [resultSize, setResultSize] = useState(0);
 
-	const [showResetModal, setShowResetModal] = useState(false);
 	const [showInfo, setShowInfo] = useState(false);
 	const [drawerOpen, setDrawerOpen] = useState(false);
-	const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
-	const [isDragging, setIsDragging] = useState(false);
+	const trimStartInputId = useId();
+	const trimDurationInputId = useId();
+	const resizeWidthInputId = useId();
+	const resizeHeightInputId = useId();
+	const { isConfirmOpen, requestAction, confirmPendingAction, cancelPendingAction } = usePendingActionConfirmation(
+		file !== null,
+	);
 
 	const videoRef = useRef<HTMLVideoElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
-	const dragCounter = useRef(0);
 
 	const isDirty = file !== null;
-
-	/* ── Beforeunload ── */
-	useEffect(() => {
-		if (!isDirty && !processing) return;
-		const handler = (e: BeforeUnloadEvent) => {
-			e.preventDefault();
-		};
-		window.addEventListener('beforeunload', handler);
-		return () => {
-			window.removeEventListener('beforeunload', handler);
-		};
-	}, [isDirty, processing]);
-
-	/* ── Confirm Action ── */
-	const confirmAction = useCallback(
-		(action: () => void) => {
-			if (isDirty) {
-				setPendingAction(() => action);
-				setShowResetModal(true);
-			} else {
-				action();
-			}
-		},
-		[isDirty],
-	);
-
-	const handleConfirmReset = useCallback(() => {
-		setShowResetModal(false);
-		pendingAction?.();
-		setPendingAction(null);
-	}, [pendingAction]);
-
-	const handleCancelReset = useCallback(() => {
-		setShowResetModal(false);
-		setPendingAction(null);
-	}, []);
+	usePreventUnload(isDirty || processing);
 
 	const handleNew = useCallback(() => {
-		confirmAction(() => {
+		requestAction(() => {
 			setFile(null);
 			setVideoUrl(null);
 			setIsGifSource(false);
@@ -139,31 +128,56 @@ function GifFoundry() {
 			setWidth(480);
 			setHeight(null);
 			setLockAspect(true);
+			setSourceAspect(16 / 9);
+			setSourceWidth(null);
+			setSourceHeight(null);
 			setLoop(true);
 			setResultUrl(null);
 			setResultSize(0);
 			resetStore();
 		});
-	}, [confirmAction, resetStore]);
+	}, [requestAction, resetStore, setResultUrl, setVideoUrl]);
 
 	/* ── File Handling ── */
-	const handleFile = useCallback((f: File) => {
-		setFile(f);
-		setResultUrl(null);
-		setResultSize(0);
+	const handleFile = useCallback(
+		(f: File) => {
+			setFile(f);
+			setResultUrl(null);
+			setResultSize(0);
+			setSourceWidth(null);
+			setSourceHeight(null);
 
-		const gifSource = f.type === 'image/gif' || f.name.toLowerCase().endsWith('.gif');
-		setIsGifSource(gifSource);
-		setVideoUrl(URL.createObjectURL(f));
+			const gifSource = f.type === 'image/gif' || f.name.toLowerCase().endsWith('.gif');
+			setIsGifSource(gifSource);
+			setVideoUrl(URL.createObjectURL(f));
 
-		if (gifSource) {
-			setDuration(10);
-			setTrimStart(0);
-			setTrimEnd(5);
-		}
+			if (gifSource) {
+				const probeUrl = URL.createObjectURL(f);
+				const probeImage = new Image();
+				probeImage.onload = () => {
+					const nextWidth = probeImage.naturalWidth || 0;
+					const nextHeight = probeImage.naturalHeight || 0;
+					if (nextWidth > 0 && nextHeight > 0) {
+						setSourceWidth(nextWidth);
+						setSourceHeight(nextHeight);
+						setSourceAspect(nextWidth / nextHeight);
+					}
+					URL.revokeObjectURL(probeUrl);
+				};
+				probeImage.onerror = () => {
+					URL.revokeObjectURL(probeUrl);
+				};
+				probeImage.src = probeUrl;
 
-		toast.success('File loaded', { description: f.name });
-	}, []);
+				setDuration(10);
+				setTrimStart(0);
+				setTrimEnd(5);
+			}
+
+			toast.success('File loaded', { description: f.name });
+		},
+		[setResultUrl, setVideoUrl],
+	);
 
 	const handleVideoLoaded = useCallback(() => {
 		const video = videoRef.current;
@@ -175,6 +189,8 @@ function GifFoundry() {
 		setCurrentTime(0);
 		if (video.videoWidth > 0 && video.videoHeight > 0) {
 			setSourceAspect(video.videoWidth / video.videoHeight);
+			setSourceWidth(video.videoWidth);
+			setSourceHeight(video.videoHeight);
 		}
 	}, []);
 
@@ -201,45 +217,13 @@ function GifFoundry() {
 		}
 	}, [trimStart, trimEnd, processing]);
 
-	/* ── Drag-and-drop handlers ── */
-	const handleDragEnter = useCallback((e: React.DragEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-		dragCounter.current++;
-		if (dragCounter.current === 1) setIsDragging(true);
-	}, []);
-
-	const handleDragLeave = useCallback((e: React.DragEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-		dragCounter.current--;
-		if (dragCounter.current === 0) setIsDragging(false);
-	}, []);
-
-	const handleDragOver = useCallback((e: React.DragEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-	}, []);
-
-	const handleDrop = useCallback(
-		(e: React.DragEvent) => {
-			e.preventDefault();
-			e.stopPropagation();
-			dragCounter.current = 0;
-			setIsDragging(false);
-
-			const f = e.dataTransfer.files[0];
-			if (!f) return;
-
-			if (!f.type.startsWith('video/') && f.type !== 'image/gif') {
-				toast.error('Invalid file type', { description: 'Drop a video or GIF file' });
-				return;
-			}
-
-			handleFile(f);
+	const { isDragging, dropHandlers } = useSingleFileDrop<HTMLDivElement>({
+		onFile: handleFile,
+		acceptFile: (droppedFile) => droppedFile.type.startsWith('video/') || droppedFile.type === 'image/gif',
+		onRejectedFile: () => {
+			toast.error('Invalid file type', { description: 'Drop a video or GIF file' });
 		},
-		[handleFile],
-	);
+	});
 
 	/* ── Keyboard shortcuts ── */
 	useEffect(() => {
@@ -336,6 +320,7 @@ function GifFoundry() {
 	/* ── Computed ── */
 	const clipDuration = Math.max(trimEnd - trimStart, 0);
 	const estimatedFrames = Math.ceil(clipDuration * fps);
+	const outputHeight = height ?? Math.round(width / sourceAspect);
 
 	/* ── Sidebar Content by Mode ── */
 	const sidebarContent = (
@@ -350,7 +335,7 @@ function GifFoundry() {
 							onClick={() => {
 								setMode(tab.mode);
 							}}
-							className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[13px] font-semibold uppercase tracking-wider transition-all cursor-pointer ${
+							className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[14px] font-semibold uppercase tracking-wider transition-all cursor-pointer ${
 								isActive
 									? 'text-accent border-b-2 border-accent'
 									: 'text-text-tertiary hover:text-text-secondary'
@@ -385,7 +370,13 @@ function GifFoundry() {
 					</Button>
 					{file && (
 						<>
-							<Button variant="ghost" size="icon" onClick={handleNew} title="New (discard current)">
+							<Button
+								variant="ghost"
+								size="icon"
+								onClick={handleNew}
+								title="New (discard current)"
+								aria-label="New file (discard current media)"
+							>
 								<FilePlus2 size={16} />
 							</Button>
 							<Button
@@ -395,13 +386,14 @@ function GifFoundry() {
 									setShowInfo(true);
 								}}
 								title="File info"
+								aria-label="Open file info"
 							>
 								<Info size={16} />
 							</Button>
 						</>
 					)}
 				</div>
-				{file && <p className="mt-1.5 text-[13px] text-text-tertiary">{formatFileSize(file.size)}</p>}
+				{file && <p className="mt-1.5 text-[14px] text-text-tertiary">{formatFileSize(file.size)}</p>}
 			</div>
 
 			{/* Mode Content */}
@@ -410,7 +402,7 @@ function GifFoundry() {
 					<>
 						{/* Presets */}
 						<div>
-							<h3 className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">
+							<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">
 								Quick Presets
 							</h3>
 							<div className="grid grid-cols-2 gap-1.5">
@@ -422,8 +414,8 @@ function GifFoundry() {
 										}}
 										className="rounded-lg px-2.5 py-2 text-left cursor-pointer bg-surface-raised/50 border border-transparent text-text-secondary hover:bg-surface-raised hover:text-text transition-all"
 									>
-										<p className="text-[13px] font-medium truncate">{preset.name}</p>
-										<p className="text-[13px] text-text-tertiary truncate">{preset.description}</p>
+										<p className="text-[14px] font-medium truncate">{preset.name}</p>
+										<p className="text-[14px] text-text-tertiary truncate">{preset.description}</p>
 									</button>
 								))}
 							</div>
@@ -464,13 +456,19 @@ function GifFoundry() {
 						{/* GIF source trim inputs */}
 						{isGifSource && (
 							<div>
-								<h3 className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
+								<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
 									Trim
 								</h3>
 								<div className="flex items-center gap-2">
 									<div className="flex-1">
-										<label className="text-[13px] text-text-tertiary mb-1 block">Start (s)</label>
+										<label
+											htmlFor={trimStartInputId}
+											className="text-[14px] text-text-tertiary mb-1 block"
+										>
+											Start (s)
+										</label>
 										<input
+											id={trimStartInputId}
 											type="number"
 											min={0}
 											step={0.1}
@@ -478,14 +476,18 @@ function GifFoundry() {
 											onChange={(e) => {
 												setTrimStart(Math.max(0, Number(e.target.value)));
 											}}
-											className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[13px] font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
+											className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[14px] font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
 										/>
 									</div>
 									<div className="flex-1">
-										<label className="text-[13px] text-text-tertiary mb-1 block">
+										<label
+											htmlFor={trimDurationInputId}
+											className="text-[14px] text-text-tertiary mb-1 block"
+										>
 											Duration (s)
 										</label>
 										<input
+											id={trimDurationInputId}
 											type="number"
 											min={0.5}
 											step={0.5}
@@ -493,7 +495,7 @@ function GifFoundry() {
 											onChange={(e) => {
 												setTrimEnd(trimStart + Math.max(0.5, Number(e.target.value)));
 											}}
-											className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[13px] font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
+											className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[14px] font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
 										/>
 									</div>
 								</div>
@@ -506,13 +508,19 @@ function GifFoundry() {
 					<>
 						{/* Width / Height */}
 						<div>
-							<h3 className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">
+							<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">
 								Dimensions
 							</h3>
 							<div className="flex items-center gap-2">
 								<div className="flex-1">
-									<label className="text-[13px] text-text-tertiary mb-1 block">Width</label>
+									<label
+										htmlFor={resizeWidthInputId}
+										className="text-[14px] text-text-tertiary mb-1 block"
+									>
+										Width
+									</label>
 									<input
+										id={resizeWidthInputId}
 										type="number"
 										min={16}
 										max={1920}
@@ -520,13 +528,15 @@ function GifFoundry() {
 										onChange={(e) => {
 											handleWidthChange(Math.max(16, Number(e.target.value)));
 										}}
-										className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[13px] font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
+										className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[14px] font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
 									/>
 								</div>
 								<button
 									onClick={() => {
 										setLockAspect(!lockAspect);
 									}}
+									type="button"
+									aria-label={lockAspect ? 'Unlock aspect ratio' : 'Lock aspect ratio'}
 									title={lockAspect ? 'Unlock aspect ratio' : 'Lock aspect ratio'}
 									className={`mt-4 h-8 w-8 flex items-center justify-center rounded-md transition-colors cursor-pointer ${
 										lockAspect ? 'text-accent bg-accent/10' : 'text-text-tertiary hover:text-text'
@@ -535,8 +545,14 @@ function GifFoundry() {
 									{lockAspect ? <Lock size={12} /> : <Unlock size={12} />}
 								</button>
 								<div className="flex-1">
-									<label className="text-[13px] text-text-tertiary mb-1 block">Height</label>
+									<label
+										htmlFor={resizeHeightInputId}
+										className="text-[14px] text-text-tertiary mb-1 block"
+									>
+										Height
+									</label>
 									<input
+										id={resizeHeightInputId}
 										type="number"
 										min={16}
 										max={1920}
@@ -544,7 +560,7 @@ function GifFoundry() {
 										onChange={(e) => {
 											handleHeightChange(Math.max(16, Number(e.target.value)));
 										}}
-										className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[13px] font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
+										className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[14px] font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
 									/>
 								</div>
 							</div>
@@ -565,7 +581,7 @@ function GifFoundry() {
 
 						{/* Common size presets */}
 						<div>
-							<label className="text-[13px] text-text-tertiary mb-2 block">Common Sizes</label>
+							<label className="text-[14px] text-text-tertiary mb-2 block">Common Sizes</label>
 							<div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
 								{[
 									{ label: '320', w: 320 },
@@ -580,7 +596,7 @@ function GifFoundry() {
 										onClick={() => {
 											handleWidthChange(s.w);
 										}}
-										className={`rounded-md py-1.5 text-[13px] font-medium transition-all cursor-pointer ${
+										className={`rounded-md py-1.5 text-[14px] font-medium transition-all cursor-pointer ${
 											width === s.w
 												? 'bg-accent/15 text-accent border border-accent/30'
 												: 'bg-surface-raised/60 text-text-tertiary border border-transparent hover:bg-surface-raised'
@@ -608,34 +624,34 @@ function GifFoundry() {
 								setColorReduction(Number(e.target.value));
 							}}
 						/>
-						<div className="flex justify-between text-[13px] text-text-tertiary -mt-2">
+						<div className="flex justify-between text-[14px] text-text-tertiary -mt-2">
 							<span>Smaller file</span>
 							<span>Better quality</span>
 						</div>
 
 						{/* Estimates */}
 						<div className="rounded-lg bg-bg/50 p-3 flex flex-col gap-1.5">
-							<div className="flex justify-between text-[13px]">
+							<div className="flex justify-between text-[14px]">
 								<span className="text-text-tertiary">Frames</span>
 								<span className="font-mono text-text-secondary">{formatNumber(estimatedFrames)}</span>
 							</div>
-							<div className="flex justify-between text-[13px]">
+							<div className="flex justify-between text-[14px]">
 								<span className="text-text-tertiary">Duration</span>
 								<span className="font-mono text-text-secondary">{formatNumber(clipDuration, 1)}s</span>
 							</div>
-							<div className="flex justify-between text-[13px]">
+							<div className="flex justify-between text-[14px]">
 								<span className="text-text-tertiary">Resolution</span>
 								<span className="font-mono text-text-secondary">
-									{width} x {height ?? Math.round(width / sourceAspect)}
+									{width} x {outputHeight}
 								</span>
 							</div>
-							<div className="flex justify-between text-[13px]">
+							<div className="flex justify-between text-[14px]">
 								<span className="text-text-tertiary">Speed</span>
 								<span className="font-mono text-text-secondary">
 									{speed}x{reverse ? ' (reversed)' : ''}
 								</span>
 							</div>
-							<div className="flex justify-between text-[13px]">
+							<div className="flex justify-between text-[14px]">
 								<span className="text-text-tertiary">Colors</span>
 								<span className="font-mono text-text-secondary">{colorReduction}</span>
 							</div>
@@ -644,8 +660,8 @@ function GifFoundry() {
 						{/* Result info */}
 						{resultUrl && (
 							<div className="rounded-lg bg-success/5 border border-success/20 px-3 py-2">
-								<p className="text-[13px] text-success font-medium">GIF ready</p>
-								<p className="text-[13px] text-text-tertiary mt-0.5">{formatFileSize(resultSize)}</p>
+								<p className="text-[14px] text-success font-medium">GIF ready</p>
+								<p className="text-[14px] text-text-tertiary mt-0.5">{formatFileSize(resultSize)}</p>
 							</div>
 						)}
 					</>
@@ -678,41 +694,42 @@ function GifFoundry() {
 					</Button>
 				)}
 
-				{error && <p className="text-[13px] text-danger bg-danger/10 rounded-md px-2.5 py-1.5">{error}</p>}
+				{error && <p className="text-[14px] text-danger bg-danger/10 rounded-md px-2.5 py-1.5">{error}</p>}
 			</div>
 		</>
 	);
 
 	return (
 		<div data-editor="gif" className="h-full flex flex-col">
-			<Helmet>
-				<title>GIF — Vixely</title>
-				<meta name="description" content="Convert videos to optimized GIFs. All local, all private." />
-			</Helmet>
+			<Seo
+				title="GIF Editor — Vixely"
+				description="Convert videos to optimized GIFs with trim, resize, and palette controls entirely in your browser."
+				path="/tools/gif"
+			/>
+			<h1 className="sr-only">GIF Editor</h1>
 
-			<div className="h-[2px] gradient-accent shrink-0" />
+			<div className="h-0.5 gradient-accent shrink-0" />
 			<div className="flex flex-1 min-h-0 animate-fade-in">
 				{/* ── Main Area ── */}
 				<div className="flex-1 flex flex-col min-w-0">
 					{/* Workspace */}
 					<div
 						className="flex-1 flex items-center justify-center workspace-bg p-3 sm:p-6 overflow-hidden relative"
-						onDragEnter={handleDragEnter}
-						onDragLeave={handleDragLeave}
-						onDragOver={handleDragOver}
-						onDrop={handleDrop}
+						{...dropHandlers}
 					>
 						{videoUrl ? (
 							<div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 max-w-full max-h-full w-full overflow-auto">
 								{/* Source */}
 								<div className="flex-1 min-w-0 max-h-full flex flex-col">
-									<p className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider mb-2 shrink-0">
+									<p className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-2 shrink-0">
 										Source
 									</p>
 									{isGifSource ? (
 										<img
 											src={videoUrl}
 											alt="GIF source"
+											width={sourceWidth ?? undefined}
+											height={sourceHeight ?? undefined}
 											className="max-w-full max-h-full rounded-lg bg-black object-contain"
 										/>
 									) : (
@@ -732,10 +749,10 @@ function GifFoundry() {
 								{resultUrl && !processing && (
 									<div className="flex-1 min-w-0 max-h-full flex flex-col">
 										<div className="flex items-center justify-between mb-2 shrink-0">
-											<p className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider">
+											<p className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider">
 												Result
 											</p>
-											<span className="text-[13px] font-mono text-success">
+											<span className="text-[14px] font-mono text-success">
 												{formatFileSize(resultSize)}
 											</span>
 										</div>
@@ -743,6 +760,8 @@ function GifFoundry() {
 											<img
 												src={resultUrl}
 												alt="Generated GIF"
+												width={width}
+												height={outputHeight}
 												className="max-w-full max-h-full object-contain"
 											/>
 										</div>
@@ -760,7 +779,7 @@ function GifFoundry() {
 												style={{ width: `${progress * 100}%` }}
 											/>
 										</div>
-										<p className="mt-2 text-[13px] text-text-tertiary">Optimizing palette...</p>
+										<p className="mt-2 text-[14px] text-text-tertiary">Optimizing palette...</p>
 									</div>
 								)}
 							</div>
@@ -807,6 +826,9 @@ function GifFoundry() {
 					onClick={() => {
 						setDrawerOpen(true);
 					}}
+					type="button"
+					aria-label="Open GIF settings"
+					title="Open GIF settings"
 				>
 					<Settings size={20} className="text-white" />
 				</button>
@@ -845,7 +867,7 @@ function GifFoundry() {
 			)}
 
 			{/* Confirm reset modal */}
-			{showResetModal && <ConfirmResetModal onConfirm={handleConfirmReset} onCancel={handleCancelReset} />}
+			{isConfirmOpen && <ConfirmResetModal onConfirm={confirmPendingAction} onCancel={cancelPendingAction} />}
 		</div>
 	);
 }
@@ -867,7 +889,7 @@ function EmptyState({ isDragging, onChooseFile }: { isDragging: boolean; onChoos
 			<p className="text-sm font-medium text-text-secondary">
 				{isDragging ? 'Drop your file here' : 'No file loaded'}
 			</p>
-			<p className="mt-1 text-[13px] text-text-tertiary">
+			<p className="mt-1 text-[14px] text-text-tertiary">
 				{isDragging ? 'Release to load' : 'Drop a file or click to get started'}
 			</p>
 			{!isDragging && (

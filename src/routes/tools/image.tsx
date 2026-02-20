@@ -1,15 +1,19 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { ImageIcon, Settings } from 'lucide-react';
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { Helmet } from 'react-helmet-async';
 import { toast } from 'sonner';
+import { useShallow } from 'zustand/react/shallow';
 import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
 import { ImageCanvas } from '@/components/image/ImageCanvas.tsx';
 import { ImageSidebar } from '@/components/image/ImageSidebar.tsx';
 import { ImageToolbar } from '@/components/image/ImageToolbar.tsx';
+import { Seo } from '@/components/Seo.tsx';
 import { Drawer } from '@/components/ui/Drawer.tsx';
 import { Button } from '@/components/ui/index.ts';
 import { IMAGE_ACCEPT } from '@/config/presets.ts';
+import { usePendingActionConfirmation } from '@/hooks/usePendingActionConfirmation.ts';
+import { usePreventUnload } from '@/hooks/usePreventUnload.ts';
+import { useSingleFileDrop } from '@/hooks/useSingleFileDrop.ts';
 import { useImageEditorStore } from '@/stores/imageEditor.ts';
 import { consumePendingImageTransfer } from '@/utils/crossEditorTransfer.ts';
 
@@ -25,60 +29,29 @@ const ACCEPTED_TYPES = new Set(
 export const Route = createFileRoute('/tools/image')({ component: ImageLab });
 
 function ImageLab() {
-	const originalData = useImageEditorStore((s) => s.originalData);
-	const loadImage = useImageEditorStore((s) => s.loadImage);
-	const undo = useImageEditorStore((s) => s.undo);
-	const redo = useImageEditorStore((s) => s.redo);
-	const clearAll = useImageEditorStore((s) => s.clearAll);
-	const isDirty = useImageEditorStore((s) => s.isDirty);
+	const { originalData, loadImage, undo, redo, clearAll, hasUnsavedChanges } = useImageEditorStore(
+		useShallow((s) => ({
+			originalData: s.originalData,
+			loadImage: s.loadImage,
+			undo: s.undo,
+			redo: s.redo,
+			clearAll: s.clearAll,
+			hasUnsavedChanges: s.isDirty(),
+		})),
+	);
 
 	const canvasContainerRef = useRef<HTMLDivElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
-	const [isDragging, setIsDragging] = useState(false);
-	const dragCounter = useRef(0);
-	const [showResetModal, setShowResetModal] = useState(false);
 	const [drawerOpen, setDrawerOpen] = useState(false);
-	const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
-
-	useEffect(() => {
-		if (!isDirty()) return;
-		const handler = (e: BeforeUnloadEvent) => {
-			e.preventDefault();
-		};
-		window.addEventListener('beforeunload', handler);
-		return () => {
-			window.removeEventListener('beforeunload', handler);
-		};
-	});
-
-	const confirmAction = useCallback(
-		(action: () => void) => {
-			if (isDirty()) {
-				setPendingAction(() => action);
-				setShowResetModal(true);
-			} else {
-				action();
-			}
-		},
-		[isDirty],
-	);
-
-	const handleConfirmReset = useCallback(() => {
-		setShowResetModal(false);
-		pendingAction?.();
-		setPendingAction(null);
-	}, [pendingAction]);
-
-	const handleCancelReset = useCallback(() => {
-		setShowResetModal(false);
-		setPendingAction(null);
-	}, []);
+	const { isConfirmOpen, requestAction, confirmPendingAction, cancelPendingAction } =
+		usePendingActionConfirmation(hasUnsavedChanges);
+	usePreventUnload(hasUnsavedChanges);
 
 	const handleNew = useCallback(() => {
-		confirmAction(() => {
+		requestAction(() => {
 			clearAll();
 		});
-	}, [clearAll, confirmAction]);
+	}, [clearAll, requestAction]);
 
 	const handleLoadFile = useCallback(
 		(f: File) => {
@@ -92,12 +65,24 @@ function ImageLab() {
 				const imageData = ctx.getImageData(0, 0, img.width, img.height);
 				loadImage(f, imageData);
 				URL.revokeObjectURL(img.src);
-				toast.success('Image loaded', { description: `${img.width} \u00d7 ${img.height}` });
+				toast.success('Image loaded', { description: `${img.width} × ${img.height}` });
+			};
+			img.onerror = () => {
+				URL.revokeObjectURL(img.src);
+				toast.error('Failed to load image');
 			};
 			img.src = URL.createObjectURL(f);
 		},
 		[loadImage],
 	);
+
+	const { isDragging, dropHandlers } = useSingleFileDrop<HTMLDivElement>({
+		onFile: handleLoadFile,
+		acceptFile: (file) => file.type.startsWith('image/') || ACCEPTED_TYPES.has(file.type),
+		onRejectedFile: () => {
+			toast.error('Invalid file type', { description: 'Drop an image file (PNG, JPG, WebP, etc.)' });
+		},
+	});
 
 	const handleOpenFile = useCallback(() => {
 		fileInputRef.current?.click();
@@ -108,45 +93,6 @@ function ImageLab() {
 		if (!transferredFile) return;
 		handleLoadFile(transferredFile);
 	}, [handleLoadFile]);
-
-	const handleDragEnter = useCallback((e: React.DragEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-		dragCounter.current++;
-		if (dragCounter.current === 1) setIsDragging(true);
-	}, []);
-
-	const handleDragLeave = useCallback((e: React.DragEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-		dragCounter.current--;
-		if (dragCounter.current === 0) setIsDragging(false);
-	}, []);
-
-	const handleDragOver = useCallback((e: React.DragEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-	}, []);
-
-	const handleDrop = useCallback(
-		(e: React.DragEvent) => {
-			e.preventDefault();
-			e.stopPropagation();
-			dragCounter.current = 0;
-			setIsDragging(false);
-
-			const file = e.dataTransfer.files[0];
-			if (!file) return;
-
-			if (!file.type.startsWith('image/') && !ACCEPTED_TYPES.has(file.type)) {
-				toast.error('Invalid file type', { description: 'Drop an image file (PNG, JPG, WebP, etc.)' });
-				return;
-			}
-
-			handleLoadFile(file);
-		},
-		[handleLoadFile],
-	);
 
 	useEffect(() => {
 		const onKeyDown = (e: KeyboardEvent) => {
@@ -173,13 +119,12 @@ function ImageLab() {
 
 	return (
 		<div data-editor="image" className="h-full flex flex-col">
-			<Helmet>
-				<title>Image — Vixely</title>
-				<meta
-					name="description"
-					content="Apply real-time image filters. Brightness, contrast, saturation — all client-side."
-				/>
-			</Helmet>
+			<Seo
+				title="Image Editor — Vixely"
+				description="Apply real-time image filters, resize, crop, and export directly in your browser."
+				path="/tools/image"
+			/>
+			<h1 className="sr-only">Image Editor</h1>
 
 			<input
 				ref={fileInputRef}
@@ -192,17 +137,14 @@ function ImageLab() {
 				}}
 			/>
 
-			<div className="h-[2px] gradient-accent shrink-0" />
+			<div className="h-0.5 gradient-accent shrink-0" />
 			<div className="flex flex-1 min-h-0 animate-fade-in">
 				<div className="flex-1 flex flex-col min-w-0">
 					<ImageToolbar containerRef={canvasContainerRef} />
 					<div
 						ref={canvasContainerRef}
 						className={`flex-1 relative overflow-hidden checkerboard ${isDragging ? 'drop-zone-active' : ''}`}
-						onDragEnter={handleDragEnter}
-						onDragLeave={handleDragLeave}
-						onDragOver={handleDragOver}
-						onDrop={handleDrop}
+						{...dropHandlers}
 					>
 						{originalData ? (
 							<ImageCanvas containerRef={canvasContainerRef} />
@@ -227,6 +169,9 @@ function ImageLab() {
 					onClick={() => {
 						setDrawerOpen(true);
 					}}
+					type="button"
+					aria-label="Open image settings"
+					title="Open image settings"
 				>
 					<Settings size={20} className="text-white" />
 				</button>
@@ -244,7 +189,7 @@ function ImageLab() {
 					<ImageSidebar onOpenFile={handleOpenFile} onNew={handleNew} />
 				</Drawer>
 			</div>
-			{showResetModal && <ConfirmResetModal onConfirm={handleConfirmReset} onCancel={handleCancelReset} />}
+			{isConfirmOpen && <ConfirmResetModal onConfirm={confirmPendingAction} onCancel={cancelPendingAction} />}
 		</div>
 	);
 }
@@ -264,7 +209,7 @@ function EmptyState({ isDragging, onOpenFile }: { isDragging: boolean; onOpenFil
 			<p className="text-sm font-medium text-text-secondary">
 				{isDragging ? 'Drop your image here' : 'No image loaded'}
 			</p>
-			<p className="mt-1 text-[13px] text-text-tertiary">
+			<p className="mt-1 text-[14px] text-text-tertiary">
 				{isDragging ? 'Release to load' : 'Drop a file or click to get started'}
 			</p>
 			{!isDragging && (

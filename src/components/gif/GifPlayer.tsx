@@ -16,7 +16,7 @@ export function GifPlayer({ sourceUrl, resultUrl, resultSize, isGifSource, proce
 		<div className="flex items-start gap-6 max-w-5xl w-full">
 			{/* Source */}
 			<div className="flex-1 min-w-0">
-				<p className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">Source</p>
+				<p className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">Source</p>
 				{isGifSource ? (
 					<img src={sourceUrl} alt="GIF source" className="w-full rounded-lg bg-black" />
 				) : (
@@ -28,8 +28,8 @@ export function GifPlayer({ sourceUrl, resultUrl, resultSize, isGifSource, proce
 			{resultUrl && !processing && (
 				<div className="flex-1 min-w-0">
 					<div className="flex items-center justify-between mb-2">
-						<p className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider">Result</p>
-						<span className="text-[13px] font-mono text-success">{formatFileSize(resultSize)}</span>
+						<p className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider">Result</p>
+						<span className="text-[14px] font-mono text-success">{formatFileSize(resultSize)}</span>
 					</div>
 					<div className="rounded-lg border border-success/20 bg-surface overflow-hidden">
 						<img src={resultUrl} alt="Generated GIF" className="w-full" />
@@ -48,7 +48,7 @@ export function GifPlayer({ sourceUrl, resultUrl, resultSize, isGifSource, proce
 							style={{ width: `${progress * 100}%` }}
 						/>
 					</div>
-					<p className="mt-2 text-[13px] text-text-tertiary">Optimizing palette...</p>
+					<p className="mt-2 text-[14px] text-text-tertiary">Optimizing palette...</p>
 				</div>
 			)}
 		</div>

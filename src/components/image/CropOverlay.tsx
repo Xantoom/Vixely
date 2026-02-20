@@ -1,4 +1,5 @@
 import { useRef, useCallback, useEffect, type RefObject } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useImageEditorStore, type CropRect, type ViewTransform } from '@/stores/imageEditor.ts';
 import { formatDimensions } from '@/utils/format.ts';
 
@@ -50,9 +51,9 @@ function clampRect(r: CropRect, imgW: number, imgH: number): CropRect {
 }
 
 export function CropOverlay({ containerRef, view, imageWidth, imageHeight, getIsPanning }: CropOverlayProps) {
-	const crop = useImageEditorStore((s) => s.crop);
-	const cropAspectRatio = useImageEditorStore((s) => s.cropAspectRatio);
-	const setCrop = useImageEditorStore((s) => s.setCrop);
+	const { crop, cropAspectRatio, setCrop } = useImageEditorStore(
+		useShallow((s) => ({ crop: s.crop, cropAspectRatio: s.cropAspectRatio, setCrop: s.setCrop })),
+	);
 
 	const dragging = useRef<{ handle: Handle; startX: number; startY: number; startCrop: CropRect } | null>(null);
 	const creating = useRef<{ startX: number; startY: number } | null>(null);
@@ -291,7 +292,7 @@ export function CropOverlay({ containerRef, view, imageWidth, imageHeight, getIs
 
 			{/* Crop dimensions label */}
 			<div
-				className="absolute text-[13px] font-mono text-white bg-black/60 rounded px-1.5 py-0.5 pointer-events-none"
+				className="absolute text-[14px] font-mono text-white bg-black/60 rounded px-1.5 py-0.5 pointer-events-none"
 				style={{ left: sx + sw / 2, top: sy + sh + 8, transform: 'translateX(-50%)' }}
 			>
 				{formatDimensions(Math.round(crop.width), Math.round(crop.height))}

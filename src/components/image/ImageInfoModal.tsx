@@ -41,8 +41,8 @@ export function ImageInfoModal({ file, width, height, onClose }: ImageInfoModalP
 				<div className="flex flex-col gap-2.5">
 					{rows.map(([label, value]) => (
 						<div key={label} className="flex items-center justify-between">
-							<span className="text-[13px] text-text-tertiary">{label}</span>
-							<span className="text-[13px] font-medium text-text-secondary truncate ml-4 max-w-[200px] text-right">
+							<span className="text-[14px] text-text-tertiary">{label}</span>
+							<span className="text-[14px] font-medium text-text-secondary truncate ml-4 max-w-[200px] text-right">
 								{value}
 							</span>
 						</div>

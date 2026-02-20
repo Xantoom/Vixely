@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
 import { DEFAULT_FILTER_PARAMS, filtersAreDefault } from '@/modules/shared-core/types/filters.ts';
+import { withUpdatedKey } from '@/stores/storeHelpers.ts';
 
 export type { FilterParams as Filters } from '@/modules/shared-core/types/filters.ts';
 export { DEFAULT_FILTER_PARAMS as DEFAULT_FILTERS } from '@/modules/shared-core/types/filters.ts';
@@ -29,6 +30,10 @@ export type ExportFormat = 'png' | 'jpeg' | 'webp';
 
 const MAX_HISTORY = 20;
 const MAX_HISTORY_BYTES = 512 * 1024 * 1024;
+type CanvasContext = { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D };
+
+let sourceScratchContext: CanvasContext | null = null;
+let targetScratchContext: CanvasContext | null = null;
 
 function entryBytes(e: HistoryEntry): number {
 	return e.imageData.data.byteLength;
@@ -43,6 +48,40 @@ function trimStack(stack: HistoryEntry[], limit: number, byteLimit: number): His
 		s = s.slice(1);
 	}
 	return s;
+}
+
+function ensureCanvasContext(
+	cached: CanvasContext | null,
+	width: number,
+	height: number,
+	willReadFrequently = false,
+): CanvasContext {
+	if (!cached) {
+		const canvas = document.createElement('canvas');
+		const ctx = canvas.getContext('2d', { willReadFrequently });
+		if (!ctx) throw new Error('Canvas context unavailable');
+		cached = { canvas, ctx };
+	}
+	if (cached.canvas.width !== width) cached.canvas.width = width;
+	if (cached.canvas.height !== height) cached.canvas.height = height;
+	return cached;
+}
+
+function rasterizeImageDataRegion(
+	source: ImageData,
+	sx: number,
+	sy: number,
+	sw: number,
+	sh: number,
+	dw: number,
+	dh: number,
+): ImageData {
+	sourceScratchContext = ensureCanvasContext(sourceScratchContext, source.width, source.height);
+	targetScratchContext = ensureCanvasContext(targetScratchContext, dw, dh, true);
+	sourceScratchContext.ctx.putImageData(source, 0, 0);
+	targetScratchContext.ctx.clearRect(0, 0, dw, dh);
+	targetScratchContext.ctx.drawImage(sourceScratchContext.canvas, sx, sy, sw, sh, 0, 0, dw, dh);
+	return targetScratchContext.ctx.getImageData(0, 0, dw, dh);
 }
 
 export interface ImageEditorState {
@@ -155,7 +194,7 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 	},
 
 	setFilter: (key, value) => {
-		set((s) => ({ filters: { ...s.filters, [key]: value } }));
+		set((s) => ({ filters: withUpdatedKey(s.filters, key, value) }));
 	},
 
 	commitFilters: () => {
@@ -241,19 +280,7 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 		const ch = Math.min(Math.round(height), source.height - cy);
 		if (cw <= 0 || ch <= 0) return;
 
-		const canvas = document.createElement('canvas');
-		canvas.width = cw;
-		canvas.height = ch;
-		const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
-
-		const tmpCanvas = document.createElement('canvas');
-		tmpCanvas.width = source.width;
-		tmpCanvas.height = source.height;
-		const tmpCtx = tmpCanvas.getContext('2d')!;
-		tmpCtx.putImageData(source, 0, 0);
-		ctx.drawImage(tmpCanvas, cx, cy, cw, ch, 0, 0, cw, ch);
-
-		const croppedData = ctx.getImageData(0, 0, cw, ch);
+		const croppedData = rasterizeImageDataRegion(source, cx, cy, cw, ch, cw, ch);
 
 		set({
 			originalData: croppedData,
@@ -313,19 +340,7 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 		const entry = currentEntry(s);
 
 		const source = s.originalData;
-		const srcCanvas = document.createElement('canvas');
-		srcCanvas.width = source.width;
-		srcCanvas.height = source.height;
-		const srcCtx = srcCanvas.getContext('2d')!;
-		srcCtx.putImageData(source, 0, 0);
-
-		const dstCanvas = document.createElement('canvas');
-		dstCanvas.width = w;
-		dstCanvas.height = h;
-		const dstCtx = dstCanvas.getContext('2d', { willReadFrequently: true })!;
-		dstCtx.drawImage(srcCanvas, 0, 0, w, h);
-
-		const resizedData = dstCtx.getImageData(0, 0, w, h);
+		const resizedData = rasterizeImageDataRegion(source, 0, 0, source.width, source.height, w, h);
 
 		set({
 			originalData: resizedData,

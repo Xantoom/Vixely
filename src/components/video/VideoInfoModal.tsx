@@ -1,7 +1,8 @@
-import { X, FileText, Film, AudioLines, Subtitles, LoaderCircle, AlertCircle, Paperclip } from 'lucide-react';
+import { AlertCircle, AudioLines, FileText, Film, LoaderCircle, Subtitles, X } from 'lucide-react';
 import type { ProbeResult, StreamInfo } from '@/stores/videoEditor.ts';
 import type { DetailedProbeResultData, DetailedProbeStreamInfo } from '@/workers/ffmpeg-worker.ts';
-import { formatFileSize, formatDimensions, formatNumber } from '@/utils/format.ts';
+import { formatDimensions, formatFileSize } from '@/utils/format.ts';
+import { LANG_NAMES } from '@/utils/languageUtils.ts';
 
 interface VideoInfoModalProps {
 	file: File;
@@ -18,8 +19,8 @@ interface VideoInfoModalProps {
 function fractionToNumber(raw?: string): number | null {
 	if (!raw) return null;
 	if (!raw.includes('/')) {
-		const n = Number(raw);
-		return Number.isFinite(n) ? n : null;
+		const value = Number(raw);
+		return Number.isFinite(value) ? value : null;
 	}
 	const [numRaw, denRaw] = raw.split('/');
 	const num = Number(numRaw);
@@ -28,307 +29,246 @@ function fractionToNumber(raw?: string): number | null {
 	return num / den;
 }
 
-function formatLocalizedNumber(value: number, maximumFractionDigits = 0): string {
-	if (!Number.isFinite(value)) return '';
-	if (maximumFractionDigits <= 0) return formatNumber(Math.round(value), 0);
-	return value.toLocaleString(undefined, { maximumFractionDigits });
-}
-
-function formatLocalizedFromRaw(raw?: string, maximumFractionDigits = 0): string | null {
+function toNumber(raw?: string): number | null {
 	if (!raw) return null;
-	const n = Number(raw);
-	if (!Number.isFinite(n)) return null;
-	return formatLocalizedNumber(n, maximumFractionDigits);
+	const value = Number(raw);
+	return Number.isFinite(value) ? value : null;
 }
 
-function formatBitrateKbps(raw?: string): string | null {
-	if (!raw) return null;
-	const n = Number(raw);
-	if (!Number.isFinite(n) || n <= 0) return null;
-	return `${formatLocalizedNumber(Math.round(n / 1000), 0)} kb/s`;
+function formatDuration(seconds: number | null): string {
+	if (!seconds || seconds <= 0) return 'Unknown';
+	const total = Math.floor(seconds);
+	const h = Math.floor(total / 3600);
+	const m = Math.floor((total % 3600) / 60);
+	const s = total % 60;
+	if (h > 0) return `${h}h ${m}m ${s}s`;
+	if (m > 0) return `${m}m ${s}s`;
+	return `${s}s`;
 }
 
-function formatSeconds(raw?: string): string | null {
-	if (!raw) return null;
-	const n = Number(raw);
-	if (!Number.isFinite(n) || n <= 0) return null;
-	const totalSec = Math.floor(n);
-	const h = Math.floor(totalSec / 3600);
-	const m = Math.floor((totalSec % 3600) / 60);
-	const s = totalSec % 60;
-	if (h > 0)
-		return `${formatLocalizedNumber(h, 0)} h ${formatLocalizedNumber(m, 0)} min ${formatLocalizedNumber(s, 0)} s`;
-	if (m > 0) return `${formatLocalizedNumber(m, 0)} min ${formatLocalizedNumber(s, 0)} s`;
-	return `${formatLocalizedNumber(s, 0)} s`;
+function formatFps(value: number | null): string {
+	if (!value || !Number.isFinite(value) || value <= 0) return 'Unknown';
+	return `${value.toFixed(value >= 100 ? 1 : 2)} fps`;
 }
 
-function DetailRow({ label, value }: { label: string; value: string | null | undefined }) {
-	if (!value) return null;
+function formatBitrate(rawBps?: string, kbps?: number): string {
+	if (rawBps) {
+		const value = Number(rawBps);
+		if (Number.isFinite(value) && value > 0) return `${Math.round(value / 1000).toLocaleString()} kb/s`;
+	}
+	if (kbps && kbps > 0) return `${Math.round(kbps).toLocaleString()} kb/s`;
+	return '-';
+}
+
+function codecLabel(codec?: string): string {
+	if (!codec) return 'Unknown';
+	const normalized = codec.trim().toLowerCase();
+	const map: Record<string, string> = {
+		hevc: 'H.265',
+		h264: 'H.264',
+		avc: 'H.264',
+		av1: 'AV1',
+		vp9: 'VP9',
+		aac: 'AAC',
+		opus: 'Opus',
+		ac3: 'AC-3',
+		eac3: 'E-AC-3',
+		flac: 'FLAC',
+		mp3: 'MP3',
+		ass: 'ASS',
+		subrip: 'SRT',
+		webvtt: 'WebVTT',
+	};
+	return map[normalized] ?? codec.toUpperCase();
+}
+
+function formatLabelFromDetailed(stream: DetailedProbeStreamInfo | undefined): string {
+	const longName = stream?.codec_long_name?.trim();
+	if (longName) return longName;
+	const shortName = stream?.codec_name?.trim();
+	if (shortName) return shortName.toUpperCase();
+	return 'Unknown';
+}
+
+function languageLabel(stream: StreamInfo): string {
+	if (stream.language && stream.language.trim()) {
+		const normalized = stream.language.trim().toLowerCase();
+		if (normalized === 'und' || normalized === 'unk') return 'Undetermined';
+		return LANG_NAMES[normalized] ?? stream.language.trim().toUpperCase();
+	}
+	if (stream.title && stream.title.trim()) return stream.title;
+	return 'Undetermined';
+}
+
+function channelLabel(channels?: number): string {
+	if (!channels || channels <= 0) return '-';
+	if (channels === 1) return 'Mono';
+	if (channels === 2) return 'Stereo';
+	if (channels === 6) return '5.1';
+	if (channels === 8) return '7.1';
+	return `${channels}ch`;
+}
+
+function getDetailedVideoStream(
+	detailedProbe: DetailedProbeResultData | null | undefined,
+): DetailedProbeStreamInfo | null {
+	return detailedProbe?.streams.find((stream) => stream.codec_type === 'video') ?? null;
+}
+
+function buildDetailedTrackMap(
+	detailedProbe: DetailedProbeResultData | null | undefined,
+): Map<number, DetailedProbeStreamInfo> {
+	const map = new Map<number, DetailedProbeStreamInfo>();
+	for (const stream of detailedProbe?.streams ?? []) {
+		if (stream.codec_type !== 'video' && stream.codec_type !== 'audio' && stream.codec_type !== 'subtitle')
+			continue;
+		if (typeof stream.index !== 'number') continue;
+		map.set(stream.index, stream);
+	}
+	return map;
+}
+
+function OverviewMetric({ label, value }: { label: string; value: string }) {
 	return (
-		<div className="flex justify-between text-[14px] gap-4">
+		<div className="rounded-xl border border-border/70 bg-bg/35 px-3 py-2.5">
+			<p className="text-[14px] uppercase tracking-[0.08em] text-text-tertiary">{label}</p>
+			<p className="mt-1 text-[15px] font-semibold text-text">{value}</p>
+		</div>
+	);
+}
+
+function Pill({ children }: { children: React.ReactNode }) {
+	return (
+		<span className="inline-flex items-center rounded-full border border-border/70 bg-bg/40 px-2 py-0.5 text-[14px] text-text-secondary">
+			{children}
+		</span>
+	);
+}
+
+function FactChip({ label, value }: { label: string; value: string }) {
+	return (
+		<span className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-bg/30 px-2.5 py-1 text-[14px] text-text-secondary">
+			<span className="text-text-tertiary">{label}:</span>
+			<span className="font-medium text-text">{value}</span>
+		</span>
+	);
+}
+
+function VideoDetailRow({ label, value }: { label: string; value: string }) {
+	return (
+		<div className="flex items-start justify-between gap-3 text-[14px]">
 			<span className="text-text-tertiary">{label}</span>
-			<span className="font-mono text-text-secondary text-right break-all">{value}</span>
+			<span className="max-w-[70%] break-all text-right text-text-secondary">{value}</span>
 		</div>
 	);
 }
 
-function labelFromKey(key: string): string {
-	return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-}
+function AudioTracksTable({
+	streams,
+	detailedMap,
+}: {
+	streams: StreamInfo[];
+	detailedMap: Map<number, DetailedProbeStreamInfo>;
+}) {
+	if (streams.length === 0) {
+		return <p className="text-[14px] text-text-tertiary">No audio tracks</p>;
+	}
 
-function valueToDisplay(value: unknown): string | null {
-	if (typeof value === 'string') return value || null;
-	if (typeof value === 'number') return Number.isFinite(value) ? formatLocalizedNumber(value, 3) : null;
-	if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-	return null;
-}
-
-function isTechnicalStatsTag(key: string): boolean {
-	const normalized = key.toUpperCase();
-	if (normalized.startsWith('_STATISTICS_') || normalized.startsWith('STATISTICS_')) return true;
-	return /^(BPS|DURATION|NUMBER_OF_FRAMES|NUMBER_OF_BYTES)(-|$)/.test(normalized);
-}
-
-function getTagValue(tags: Record<string, string> | undefined, key: string): string | null {
-	if (!tags) return null;
-	const exact = tags[key];
-	if (typeof exact === 'string' && exact) return exact;
-	const found = Object.entries(tags).find(([k]) => k.toLowerCase() === key.toLowerCase());
-	if (!found) return null;
-	return found[1] || null;
-}
-
-function sanitizeCodecLabel(value: string | null | undefined): string | null {
-	if (!value) return null;
-	const cleaned = value.replace(/[,\s]+$/g, '').trim();
-	return cleaned || null;
-}
-
-function isAttachmentLikeStream(stream: DetailedProbeStreamInfo): boolean {
-	const mimetype = getTagValue(stream.tags, 'mimetype')?.toLowerCase();
-	if (stream.codec_type === 'attachment') return true;
-	if (stream.disposition?.attached_pic === 1) return true;
-	if (mimetype?.startsWith('image/')) return true;
-	return false;
-}
-
-function StreamSection({ icon: Icon, label, streams }: { icon: typeof Film; label: string; streams: StreamInfo[] }) {
-	if (streams.length === 0) return null;
 	return (
-		<div>
-			<div className="flex items-center gap-2 mb-2">
-				<Icon size={13} className="text-accent" />
-				<span className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider">{label}</span>
-			</div>
-			<div className="flex flex-col gap-2">
-				{streams.map((s) => {
-					const tagRows = Object.entries(s.tags ?? {}).filter(
-						([k]) =>
-							k.toLowerCase() !== 'language' && k.toLowerCase() !== 'title' && !isTechnicalStatsTag(k),
-					);
-					const dispositionRows = Object.entries(s.disposition ?? {}).filter(
-						([k]) => k !== 'default' && k !== 'forced',
-					);
-					const language = s.language ?? getTagValue(s.tags, 'language');
-					const title = s.title ?? getTagValue(s.tags, 'title');
-
-					return (
-						<div key={s.index} className="rounded-lg bg-bg/50 px-3 py-2 flex flex-col gap-1">
-							<DetailRow label="Codec" value={sanitizeCodecLabel(s.codec)} />
-							<DetailRow label="Title" value={title} />
-							{s.type === 'video' && s.width && s.height && (
-								<DetailRow label="Resolution" value={formatDimensions(s.width, s.height)} />
-							)}
-							{s.type === 'video' && s.fps && (
-								<DetailRow label="Frame rate" value={`${formatLocalizedNumber(s.fps, 3)} fps`} />
-							)}
-							{s.type === 'audio' && s.sampleRate && (
-								<DetailRow label="Sample rate" value={`${formatLocalizedNumber(s.sampleRate, 0)} Hz`} />
-							)}
-							{s.type === 'audio' && s.channels && (
-								<DetailRow
-									label="Channels"
-									value={
-										s.channels === 1
-											? 'Mono'
-											: s.channels === 2
-												? 'Stereo'
-												: `${formatLocalizedNumber(s.channels, 0)}ch`
-									}
-								/>
-							)}
-							<DetailRow label="Language" value={language} />
-							{s.bitrate && (
-								<DetailRow label="Bitrate" value={`${formatLocalizedNumber(s.bitrate, 0)} kb/s`} />
-							)}
-							<DetailRow
-								label="Default"
-								value={s.isDefault != null ? (s.isDefault ? 'Yes' : 'No') : null}
-							/>
-							<DetailRow label="Forced" value={s.isForced != null ? (s.isForced ? 'Yes' : 'No') : null} />
-							{tagRows.map(([key, value]) => (
-								<DetailRow key={`tag-${key}`} label={labelFromKey(key)} value={value} />
-							))}
-							{dispositionRows.map(([key, value]) => (
-								<DetailRow
-									key={`disp-${key}`}
-									label={`Disposition ${labelFromKey(key)}`}
-									value={valueToDisplay(value)}
-								/>
-							))}
-						</div>
-					);
-				})}
+		<div className="overflow-x-auto rounded-xl border border-border/70 bg-bg/35">
+			<div className="max-h-64 overflow-y-auto">
+				<table className="w-full min-w-[860px] table-fixed text-[14px]">
+					<thead className="sticky top-0 z-10 bg-surface-raised/90 backdrop-blur-sm">
+						<tr className="text-left text-text-tertiary">
+							<th className="px-3 py-2 font-medium w-14">#</th>
+							<th className="px-3 py-2 font-medium">Language</th>
+							<th className="px-3 py-2 font-medium">Format</th>
+							<th className="px-3 py-2 font-medium">Codec</th>
+							<th className="px-3 py-2 font-medium">Bitrate</th>
+							<th className="px-3 py-2 font-medium">Channels</th>
+							<th className="px-3 py-2 font-medium">Flags</th>
+						</tr>
+					</thead>
+					<tbody>
+						{streams.map((stream, idx) => {
+							const detailed = detailedMap.get(stream.index);
+							const flags = [stream.isDefault ? 'Default' : null, stream.isForced ? 'Forced' : null]
+								.filter(Boolean)
+								.join(', ');
+							return (
+								<tr
+									key={`audio-${stream.index}`}
+									className={idx % 2 === 0 ? 'bg-transparent' : 'bg-bg/20'}
+								>
+									<td className="px-3 py-2 text-text-tertiary">{idx + 1}</td>
+									<td className="px-3 py-2 text-text-secondary truncate">{languageLabel(stream)}</td>
+									<td className="px-3 py-2 text-text-secondary truncate">
+										{formatLabelFromDetailed(detailed)}
+									</td>
+									<td className="px-3 py-2 text-text">{codecLabel(stream.codec)}</td>
+									<td className="px-3 py-2 text-text">
+										{formatBitrate(detailed?.bit_rate, stream.bitrate)}
+									</td>
+									<td className="px-3 py-2 text-text">{channelLabel(stream.channels)}</td>
+									<td className="px-3 py-2 text-text-tertiary">{flags || '-'}</td>
+								</tr>
+							);
+						})}
+					</tbody>
+				</table>
 			</div>
 		</div>
 	);
 }
 
-function DetailedStreamCard({ stream }: { stream: DetailedProbeStreamInfo }) {
-	const fps = fractionToNumber(stream.avg_frame_rate) ?? fractionToNumber(stream.r_frame_rate);
-	const frameRateMode =
-		stream.avg_frame_rate &&
-		stream.r_frame_rate &&
-		stream.avg_frame_rate !== '0/0' &&
-		stream.r_frame_rate !== '0/0' &&
-		stream.avg_frame_rate !== stream.r_frame_rate
-			? 'Variable'
-			: 'Constant';
-	const defaultFlag = stream.disposition?.default === 1 ? 'Yes' : 'No';
-	const forcedFlag = stream.disposition?.forced === 1 ? 'Yes' : 'No';
-	const tagRows = Object.entries(stream.tags ?? {}).filter(
-		([k]) => k.toLowerCase() !== 'language' && k.toLowerCase() !== 'title' && !isTechnicalStatsTag(k),
-	);
-	const dispositionRows = Object.entries(stream.disposition ?? {}).filter(([k]) => k !== 'default' && k !== 'forced');
-	const language = getTagValue(stream.tags, 'language');
-	const title = getTagValue(stream.tags, 'title');
-	const knownKeys = new Set([
-		'index',
-		'codec_type',
-		'codec_name',
-		'codec_long_name',
-		'profile',
-		'codec_tag_string',
-		'codec_tag',
-		'width',
-		'height',
-		'display_aspect_ratio',
-		'sample_aspect_ratio',
-		'pix_fmt',
-		'color_range',
-		'color_space',
-		'color_transfer',
-		'color_primaries',
-		'chroma_location',
-		'bits_per_raw_sample',
-		'field_order',
-		'avg_frame_rate',
-		'r_frame_rate',
-		'sample_rate',
-		'channels',
-		'channel_layout',
-		'bit_rate',
-		'duration',
-		'start_time',
-		'tags',
-		'disposition',
-	]);
-	const extraRows = Object.entries(stream)
-		.filter(([key]) => !knownKeys.has(key))
-		.map(([key, value]) => ({ key, value: valueToDisplay(value) }))
-		.filter((row) => row.value != null);
+function SubtitleTracksTable({
+	streams,
+	detailedMap,
+}: {
+	streams: StreamInfo[];
+	detailedMap: Map<number, DetailedProbeStreamInfo>;
+}) {
+	if (streams.length === 0) {
+		return <p className="text-[14px] text-text-tertiary">No subtitle tracks</p>;
+	}
 
 	return (
-		<div className="rounded-lg bg-bg/50 px-3 py-2 flex flex-col gap-1">
-			<DetailRow label="ID" value={stream.index != null ? formatLocalizedNumber(stream.index + 1, 0) : null} />
-			<DetailRow label="Type" value={stream.codec_type ?? null} />
-			<DetailRow label="Format" value={sanitizeCodecLabel(stream.codec_long_name ?? stream.codec_name ?? null)} />
-			<DetailRow label="Format profile" value={stream.profile ?? null} />
-			<DetailRow label="Codec ID" value={stream.codec_tag_string ?? null} />
-			<DetailRow label="Duration" value={formatSeconds(stream.duration)} />
-			<DetailRow label="Bit rate" value={formatBitrateKbps(stream.bit_rate)} />
-			{stream.codec_type === 'video' && (
-				<>
-					<DetailRow
-						label="Resolution"
-						value={stream.width && stream.height ? formatDimensions(stream.width, stream.height) : null}
-					/>
-					<DetailRow label="Display aspect ratio" value={stream.display_aspect_ratio} />
-					<DetailRow label="Frame rate mode" value={frameRateMode} />
-					<DetailRow label="Frame rate" value={fps != null ? `${formatLocalizedNumber(fps, 3)} fps` : null} />
-					<DetailRow label="Color space" value={stream.color_space} />
-					<DetailRow label="Chroma subsampling" value={stream.chroma_location} />
-					<DetailRow
-						label="Bit depth"
-						value={
-							formatLocalizedFromRaw(stream.bits_per_raw_sample, 0)
-								? `${formatLocalizedFromRaw(stream.bits_per_raw_sample, 0)} bits`
-								: null
-						}
-					/>
-					<DetailRow label="Color range" value={stream.color_range} />
-					<DetailRow label="Color primaries" value={stream.color_primaries} />
-					<DetailRow label="Transfer characteristics" value={stream.color_transfer} />
-					<DetailRow label="Matrix coefficients" value={stream.color_space} />
-				</>
-			)}
-			{stream.codec_type === 'audio' && (
-				<>
-					<DetailRow
-						label="Sampling rate"
-						value={
-							formatLocalizedFromRaw(stream.sample_rate, 0)
-								? `${formatLocalizedFromRaw(stream.sample_rate, 0)} Hz`
-								: null
-						}
-					/>
-					<DetailRow
-						label="Channels"
-						value={stream.channels != null ? `${formatLocalizedNumber(stream.channels, 0)} channels` : null}
-					/>
-					<DetailRow label="Channel layout" value={stream.channel_layout} />
-				</>
-			)}
-			<DetailRow label="Language" value={language} />
-			<DetailRow label="Title" value={title} />
-			<DetailRow label="Default" value={defaultFlag} />
-			<DetailRow label="Forced" value={forcedFlag} />
-			{tagRows.map(([key, value]) => (
-				<DetailRow key={`tag-${key}`} label={labelFromKey(key)} value={value} />
-			))}
-			{dispositionRows.map(([key, value]) => (
-				<DetailRow
-					key={`disp-${key}`}
-					label={`Disposition ${labelFromKey(key)}`}
-					value={valueToDisplay(value)}
-				/>
-			))}
-			{extraRows.map((row) => (
-				<DetailRow key={`extra-${row.key}`} label={labelFromKey(row.key)} value={row.value} />
-			))}
-		</div>
-	);
-}
-
-function AttachmentCard({ stream }: { stream: DetailedProbeStreamInfo }) {
-	const filename = getTagValue(stream.tags, 'filename');
-	const mimetype = getTagValue(stream.tags, 'mimetype');
-	const title = getTagValue(stream.tags, 'title');
-	const kind =
-		stream.disposition?.attached_pic === 1 || mimetype?.toLowerCase().startsWith('image/') ? 'Cover' : 'Attachment';
-
-	return (
-		<div className="rounded-lg bg-bg/50 px-3 py-2 flex flex-col gap-1">
-			<DetailRow label="ID" value={stream.index != null ? formatLocalizedNumber(stream.index + 1, 0) : null} />
-			<DetailRow label="Type" value={kind} />
-			<DetailRow label="Filename" value={filename} />
-			<DetailRow label="Mimetype" value={mimetype} />
-			<DetailRow label="Title" value={title} />
-			<DetailRow label="Format" value={sanitizeCodecLabel(stream.codec_name ?? null)} />
-			<DetailRow
-				label="Resolution"
-				value={stream.width && stream.height ? formatDimensions(stream.width, stream.height) : null}
-			/>
+		<div className="overflow-x-auto rounded-xl border border-border/70 bg-bg/35">
+			<div className="max-h-64 overflow-y-auto">
+				<table className="w-full min-w-[760px] table-fixed text-[14px]">
+					<thead className="sticky top-0 z-10 bg-surface-raised/90 backdrop-blur-sm">
+						<tr className="text-left text-text-tertiary">
+							<th className="px-3 py-2 font-medium w-14">#</th>
+							<th className="px-3 py-2 font-medium">Language</th>
+							<th className="px-3 py-2 font-medium">Format</th>
+							<th className="px-3 py-2 font-medium">Codec</th>
+							<th className="px-3 py-2 font-medium">Flags</th>
+						</tr>
+					</thead>
+					<tbody>
+						{streams.map((stream, idx) => {
+							const detailed = detailedMap.get(stream.index);
+							const flags = [stream.isDefault ? 'Default' : null, stream.isForced ? 'Forced' : null]
+								.filter(Boolean)
+								.join(', ');
+							return (
+								<tr
+									key={`subtitle-${stream.index}`}
+									className={idx % 2 === 0 ? 'bg-transparent' : 'bg-bg/20'}
+								>
+									<td className="px-3 py-2 text-text-tertiary">{idx + 1}</td>
+									<td className="px-3 py-2 text-text-secondary truncate">{languageLabel(stream)}</td>
+									<td className="px-3 py-2 text-text-secondary truncate">
+										{formatLabelFromDetailed(detailed)}
+									</td>
+									<td className="px-3 py-2 text-text">{codecLabel(stream.codec)}</td>
+									<td className="px-3 py-2 text-text-tertiary">{flags || '-'}</td>
+								</tr>
+							);
+						})}
+					</tbody>
+				</table>
+			</div>
 		</div>
 	);
 }
@@ -344,7 +284,37 @@ export function VideoInfoModal({
 	detailedProbeError = null,
 	onClose,
 }: VideoInfoModalProps) {
-	const lastModified = new Date(file.lastModified).toLocaleDateString(undefined, {
+	const videoStreams = probeResult?.streams.filter((stream) => stream.type === 'video') ?? [];
+	const audioStreams = probeResult?.streams.filter((stream) => stream.type === 'audio') ?? [];
+	const subtitleStreams = probeResult?.streams.filter((stream) => stream.type === 'subtitle') ?? [];
+	const primaryVideo = videoStreams[0] ?? null;
+	const detailedVideo = getDetailedVideoStream(detailedProbe);
+	const detailedTrackMap = buildDetailedTrackMap(detailedProbe);
+
+	const resolvedDuration = duration > 0 ? duration : (toNumber(detailedProbe?.format.duration) ?? null);
+	const resolvedFps = primaryVideo?.fps ?? fractionToNumber(detailedVideo?.avg_frame_rate) ?? null;
+	const resolvedResolution =
+		primaryVideo?.width && primaryVideo?.height
+			? formatDimensions(primaryVideo.width, primaryVideo.height)
+			: detailedVideo?.width && detailedVideo?.height
+				? formatDimensions(detailedVideo.width, detailedVideo.height)
+				: 'Unknown';
+	const resolvedVideoCodec = codecLabel(primaryVideo?.codec ?? detailedVideo?.codec_name ?? undefined);
+	const resolvedBitrate = formatBitrate(detailedProbe?.format.bit_rate, probeResult?.bitrate);
+	const formatLabel =
+		detailedProbe?.format.format_long_name ??
+		detailedProbe?.format.format_name ??
+		probeResult?.format ??
+		(file.type.trim() || 'Unknown');
+
+	const loadingLabel =
+		metadataLoadStage === 'fonts'
+			? 'Extracting subtitle fonts'
+			: metadataLoadStage === 'fast-probe'
+				? 'Reading stream map'
+				: 'Loading metadata';
+
+	const lastModified = new Date(file.lastModified).toLocaleString(undefined, {
 		year: 'numeric',
 		month: 'short',
 		day: 'numeric',
@@ -352,196 +322,138 @@ export function VideoInfoModal({
 		minute: '2-digit',
 	});
 
-	const videoStreams = probeResult?.streams.filter((s) => s.type === 'video') ?? [];
-	const audioStreams = probeResult?.streams.filter((s) => s.type === 'audio') ?? [];
-	const subtitleStreams = probeResult?.streams.filter((s) => s.type === 'subtitle') ?? [];
-
-	const detailedFormat = detailedProbe?.format;
-	const detailedStreams = detailedProbe?.streams ?? [];
-	const detailedAttachmentStreams = detailedStreams.filter(isAttachmentLikeStream);
-	const detailedMediaStreams = detailedStreams.filter((s) => !isAttachmentLikeStream(s));
-	const detailedVideo = detailedMediaStreams.find((s) => s.codec_type === 'video');
-	const formatTagRows = Object.entries(detailedFormat?.tags ?? {}).filter(
-		([k]) =>
-			k.toLowerCase() !== 'major_brand' &&
-			k.toLowerCase() !== 'compatible_brands' &&
-			k.toLowerCase() !== 'encoder' &&
-			k.toLowerCase() !== 'writing_application' &&
-			k.toLowerCase() !== 'writing_library' &&
-			!isTechnicalStatsTag(k),
-	);
-	const knownFormatKeys = new Set([
-		'duration',
-		'bit_rate',
-		'format_name',
-		'format_long_name',
-		'size',
-		'probe_score',
-		'tags',
-	]);
-	const formatExtraRows = Object.entries(detailedFormat ?? {})
-		.filter(([k]) => !knownFormatKeys.has(k))
-		.map(([key, value]) => ({ key, value: valueToDisplay(value) }))
-		.filter((row) => row.value != null);
-	const overallFps = fractionToNumber(detailedVideo?.avg_frame_rate) ?? fractionToNumber(detailedVideo?.r_frame_rate);
-	const detailsStillLoading = detailedProbePending && detailedStreams.length === 0;
-	const metadataStatusLabel =
-		streamInfoPending || detailsStillLoading
-			? 'Loading metadata...'
-			: metadataLoadStage === 'fonts'
-				? 'Extracting subtitle fonts...'
-				: metadataLoadStage === 'error' || detailedProbeError
-					? 'Limited metadata available'
-					: null;
-
 	return (
-		<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
-			<div className="relative w-full max-w-[calc(100vw-2rem)] sm:max-w-3xl lg:max-w-4xl mx-4 rounded-2xl border border-border bg-surface p-5 sm:p-6 animate-scale-in shadow-2xl max-h-[85vh] overflow-y-auto">
-				<button
-					onClick={onClose}
-					className="absolute top-4 right-4 h-8 w-8 flex items-center justify-center rounded-md text-text-tertiary hover:text-text hover:bg-surface-raised/60 transition-colors cursor-pointer"
-				>
-					<X size={16} />
-				</button>
+		<div
+			className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-sm"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="media-metadata-title"
+		>
+			<div className="relative mx-4 w-full max-w-5xl overflow-hidden rounded-3xl border border-border/70 bg-surface shadow-2xl">
+				<div className="pointer-events-none absolute -top-24 -left-16 h-52 w-52 rounded-full bg-accent/15 blur-3xl" />
+				<div className="pointer-events-none absolute -right-16 bottom-0 h-44 w-44 rounded-full bg-accent/10 blur-3xl" />
 
-				<div className="flex items-center gap-3 mb-5">
-					<div className="h-10 w-10 rounded-xl gradient-accent flex items-center justify-center">
-						<FileText size={20} className="text-white" />
-					</div>
-					<h2 className="text-base font-bold">File Info</h2>
-				</div>
-
-				<div className="rounded-lg bg-bg/50 p-3 text-[13px] text-text-tertiary mb-4">
-					For privacy, browser apps cannot access your full local path (like `D:\...`).
-				</div>
-				{metadataStatusLabel && (
-					<div
-						className={`rounded-lg p-2.5 mb-4 text-[13px] inline-flex items-center gap-1.5 ${
-							metadataLoadStage === 'error'
-								? 'bg-warning/10 text-warning border border-warning/30'
-								: 'bg-accent/10 text-accent border border-accent/25'
-						}`}
-					>
-						{metadataLoadStage === 'error' ? (
-							<AlertCircle size={13} />
-						) : (
-							<LoaderCircle
-								size={13}
-								className={streamInfoPending || detailedProbePending ? 'animate-spin' : ''}
-							/>
-						)}
-						{metadataStatusLabel}
-					</div>
-				)}
-
-				{/* General */}
-				<div className="flex flex-col gap-2 mb-4">
-					<DetailRow label="File name" value={file.name} />
-					<DetailRow label="File size" value={formatFileSize(file.size)} />
-					<DetailRow label="Type" value={file.type || 'Unknown'} />
-					<DetailRow
-						label="Format"
-						value={detailedFormat?.format_long_name ?? detailedFormat?.format_name ?? probeResult?.format}
-					/>
-					<DetailRow label="Title" value={getTagValue(detailedFormat?.tags, 'title')} />
-					<DetailRow label="Format profile" value={getTagValue(detailedFormat?.tags, 'major_brand')} />
-					<DetailRow label="Codec ID" value={getTagValue(detailedFormat?.tags, 'compatible_brands')} />
-					<DetailRow
-						label="Duration"
-						value={
-							formatSeconds(detailedFormat?.duration) ??
-							(duration > 0 ? `${formatLocalizedNumber(duration, 2)} s` : null)
-						}
-					/>
-					<DetailRow
-						label="Overall bit rate"
-						value={
-							formatBitrateKbps(detailedFormat?.bit_rate) ??
-							(probeResult && probeResult.bitrate > 0
-								? `${formatLocalizedNumber(probeResult.bitrate, 0)} kb/s`
-								: null)
-						}
-					/>
-					<DetailRow
-						label="Frame rate"
-						value={overallFps != null ? `${formatLocalizedNumber(overallFps, 3)} FPS` : null}
-					/>
-					<DetailRow
-						label="Writing application"
-						value={
-							getTagValue(detailedFormat?.tags, 'writing_application') ??
-							getTagValue(detailedFormat?.tags, 'encoder')
-						}
-					/>
-					<DetailRow label="Writing library" value={getTagValue(detailedFormat?.tags, 'writing_library')} />
-					{formatTagRows.map(([key, value]) => (
-						<DetailRow key={`format-tag-${key}`} label={labelFromKey(key)} value={value} />
-					))}
-					{formatExtraRows.map((row) => (
-						<DetailRow key={`format-extra-${row.key}`} label={labelFromKey(row.key)} value={row.value} />
-					))}
-					<DetailRow label="Last modified" value={lastModified} />
-				</div>
-
-				{detailsStillLoading && (
-					<p className="text-[13px] text-text-tertiary mb-3">Loading extended metadata...</p>
-				)}
-				{detailedProbeError && (
-					<p className="text-[13px] text-warning bg-warning/10 rounded-md px-2.5 py-1.5 mb-3">
-						{detailedProbeError}
-					</p>
-				)}
-
-				{/* Streams */}
-				<div className="flex flex-col gap-4">
-					{detailedMediaStreams.length > 0 ? (
-						<>
-							<div>
-								<div className="flex items-center gap-2 mb-2">
-									<Film size={13} className="text-accent" />
-									<span className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider">
-										Detailed Streams
-									</span>
-								</div>
-								<div className="flex flex-col gap-2">
-									{detailedMediaStreams.map((stream, idx) => (
-										<DetailedStreamCard
-											key={`${stream.codec_type ?? 'stream'}-${stream.index ?? idx}`}
-											stream={stream}
-										/>
-									))}
-								</div>
-							</div>
-						</>
-					) : (
-						<>
-							<StreamSection icon={Film} label="Video Streams" streams={videoStreams} />
-							<StreamSection icon={AudioLines} label="Audio Streams" streams={audioStreams} />
-							<StreamSection icon={Subtitles} label="Subtitle Streams" streams={subtitleStreams} />
-						</>
-					)}
-					{detailedAttachmentStreams.length > 0 && (
+				<div className="relative border-b border-border/70 px-5 py-4 sm:px-6">
+					<div className="flex items-start justify-between gap-4">
 						<div>
-							<div className="flex items-center gap-2 mb-2">
-								<Paperclip size={13} className="text-accent" />
-								<span className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider">
-									Attachments
-								</span>
+							<div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-bg/40 px-2.5 py-1 text-[14px] uppercase tracking-[0.08em] text-text-tertiary">
+								<FileText size={12} />
+								Metadata
 							</div>
-							<div className="flex flex-col gap-2">
-								{detailedAttachmentStreams.map((stream, idx) => (
-									<AttachmentCard key={`attachment-${stream.index ?? idx}`} stream={stream} />
-								))}
-							</div>
+							<h2 id="media-metadata-title" className="mt-2 text-lg font-semibold text-text">
+								Media Metadata
+							</h2>
+							<p className="mt-0.5 max-w-full break-all text-sm text-text-tertiary" title={file.name}>
+								{file.name}
+							</p>
+						</div>
+
+						<button
+							onClick={onClose}
+							className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-text-tertiary transition-colors hover:bg-surface-raised/70 hover:text-text cursor-pointer"
+							title="Close"
+						>
+							<X size={15} />
+						</button>
+					</div>
+
+					{(streamInfoPending || detailedProbePending) && (
+						<div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-[14px] text-accent">
+							<LoaderCircle size={12} className="animate-spin" />
+							{loadingLabel}
+						</div>
+					)}
+
+					{detailedProbeError && (
+						<div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-warning/30 bg-warning/10 px-2.5 py-1 text-[14px] text-warning">
+							<AlertCircle size={12} />
+							Some details could not be read
 						</div>
 					)}
 				</div>
 
-				{!probeResult && !detailedProbePending && (
-					<p className="text-[13px] text-text-tertiary mt-2">
-						Stream details will appear once Mediabunny finishes probing.
-					</p>
-				)}
+				<div className="relative max-h-[76vh] overflow-y-auto px-5 py-4 sm:px-6 sm:py-5">
+					<div className="rounded-2xl border border-border/70 bg-surface-raised/35 p-4">
+						<p className="text-[14px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
+							Overview
+						</p>
+						<div className="mt-2 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+							<OverviewMetric label="Duration" value={formatDuration(resolvedDuration)} />
+							<OverviewMetric label="Resolution" value={resolvedResolution} />
+							<OverviewMetric label="Frame Rate" value={formatFps(resolvedFps)} />
+						</div>
+						<div className="mt-3 flex flex-wrap gap-2">
+							<FactChip label="Video codec" value={resolvedVideoCodec} />
+							<FactChip label="Bitrate" value={resolvedBitrate} />
+							<FactChip
+								label="Tracks"
+								value={`${audioStreams.length} audio / ${subtitleStreams.length} subtitles`}
+							/>
+						</div>
+					</div>
+
+					<div className="mt-4 rounded-2xl border border-border/70 bg-surface-raised/35 p-4">
+						<div className="mb-2 flex items-center gap-2">
+							<Film size={14} className="text-accent" />
+							<h3 className="text-[14px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
+								Video
+							</h3>
+							<Pill>{codecLabel(primaryVideo?.codec ?? detailedVideo?.codec_name)}</Pill>
+						</div>
+						<div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+							<div className="rounded-xl border border-border/70 bg-bg/35 p-3">
+								<p className="mb-2 text-[14px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
+									Source File
+								</p>
+								<div className="space-y-1.5">
+									<VideoDetailRow label="Name" value={file.name} />
+									<VideoDetailRow label="Format" value={formatLabel} />
+									<VideoDetailRow label="Type" value={file.type || 'Unknown'} />
+									<VideoDetailRow label="Size" value={formatFileSize(file.size)} />
+									<VideoDetailRow label="Modified" value={lastModified} />
+								</div>
+							</div>
+							<div className="rounded-xl border border-border/70 bg-bg/35 p-3">
+								<p className="mb-2 text-[14px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
+									Playback Profile
+								</p>
+								<div className="space-y-1.5">
+									<VideoDetailRow label="Codec" value={resolvedVideoCodec} />
+									<VideoDetailRow label="Resolution" value={resolvedResolution} />
+									<VideoDetailRow label="Frame rate" value={formatFps(resolvedFps)} />
+									<VideoDetailRow label="Bitrate" value={resolvedBitrate} />
+									<VideoDetailRow label="Duration" value={formatDuration(resolvedDuration)} />
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<div className="mt-4 rounded-2xl border border-border/70 bg-surface-raised/35 p-4">
+						<div className="mb-2 flex items-center justify-between gap-2">
+							<div className="flex items-center gap-2">
+								<AudioLines size={14} className="text-accent" />
+								<h3 className="text-[14px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
+									Audio Tracks
+								</h3>
+							</div>
+							<Pill>{audioStreams.length}</Pill>
+						</div>
+						<AudioTracksTable streams={audioStreams} detailedMap={detailedTrackMap} />
+					</div>
+
+					<div className="mt-4 rounded-2xl border border-border/70 bg-surface-raised/35 p-4">
+						<div className="mb-2 flex items-center justify-between gap-2">
+							<div className="flex items-center gap-2">
+								<Subtitles size={14} className="text-accent" />
+								<h3 className="text-[14px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
+									Subtitle Tracks
+								</h3>
+							</div>
+							<Pill>{subtitleStreams.length}</Pill>
+						</div>
+						<SubtitleTracksTable streams={subtitleStreams} detailedMap={detailedTrackMap} />
+					</div>
+				</div>
 			</div>
 		</div>
 	);

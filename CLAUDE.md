@@ -1,36 +1,52 @@
-# CLAUDE.md
+# GUIDELINES
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This project is a Media converting, editing, exporting app fully web-client based.
 
-## Project Overview
+## TECH STACK
 
-**Vixely** is a local-first, privacy-focused media editing suite that runs entirely in the browser. Files never leave
-the user's device.
+- **Frontend:** React 19, Typescript 5.9, TailwindCSS 4 (custom theme), Tanstack Router, Tanstack React Query 5.
+- **Server/Bundler:** Bun 1.3 for package manager, Vite Rolldown (for now in BETA 8.0.0).
+- **Advanced:** You can use Rust and WebAssembly if needed.
+- **Production:** Github CI/CD Pipelines with a develop branch and main branch (main = production), Deployed on Railway.com (auto deploy when Merge on main and CI passed), DNS records on Cloudflare, Domain name on Hostinger (vixely.app).
+- **Environment:** On Railway, NODE_ENV=PRODUCTION, PORT=80.
+- **Librairies:** Mediabunny (full docs, 3 files, in folder ./docs/mediabunny), Mediabunny extension for AC3/EAC3, JASSUB pour ASS subs, Zustand for stores, Oxlint/tsgolint for linter, Oxfmt for formatter.
 
-Left sidebar on every page. Upper bar et right sidebar on editors pages. Three main editors with real-time preview:
+## PROJECT DESCRIPTION
 
-- **Video:** (Blue) Cut/trim, resize, adjustable sliders (color correction, effects etc.), export (codec, container,
-  bitrate or cq, etc.).
-- **Image:** (Orange) Resize, adjustable sliders (color correction, effects etc.), export (format, quality).
-- **GIF:** (Green) Create GIF from Video, Resize, edit settings (frames, framerate, etc.), adjustable sliders (color
-  correction, effects etc.), export (quality etc.)
+Vixely is a **web app**, **client-based**. Meaning I try to do everything in the client instead of the server.
+Thanks to [Mediabunny library](https://mediabunny.dev/), we can do: reading, writing, and converting media files, directly in the browser.
 
-## Tech Stack
+The App has 3 functionnalities:
 
-- **Frontend:** React 19 + TailwindCSS
-- **Image Core:** Custom Rust → WebAssembly modules for pixel manipulation
-- **Video Core:** Multi-threaded FFmpeg.wasm with virtual file system (zero-copy mounting)
-- **Processing:** Web Workers + SharedArrayBuffer for off-main-thread work
-- **Libraries:** Zustand, Tanstack Router, Tanstack Query, Bun + Vite. Using Bun as a package manager.
-- **Production:** Deployed on Railway, Code on Github, DNS on Cloudflare, Domain name on Hostinger.
-- **Environment Variables:** On Railway, NODE_ENV=PRODUCTION, and PORT=80.
+- **A Video editor**: Get Metadata, Trim/Cut, Resize/Crop, Color Correction, Choose tracks (audios and subtitles), Export.
+- **An Image editor**: Get Metadata, Resize/Crop, Color Correction, Export. Target is [Photopea](https://www.photopea.com/).
+- **A GIF editor**: Get Metadata, Trim/Cut, Resize/Crop, Color Correction, Export. Target is [Ezgif](https://ezgif.com/).
 
-## GUIDELINES
+Everything except Export should be in **real-time preview**, **smooth** and **fast**.
 
-- Use oxlint (.oxlintrc.json) and Oxfmt (.oxfmtrc.jsonc)
-- Use Frontend design skills when doing front or design
-- Think about SEO, performance (every action should be the fastest for user), and 60fps target.
-- **Always** use skills, like vercel-react-best-practices.
-- Don't write comments if unnecessary.
-- Be careful about UI and UX design, always think about User experience.
-- Be careful about responsive (should work on ANY device).
+It should be possible also to capture a frame in video editor, and either to download it, or export it to the image editor. Also from a video to the GIF editor, and from the GIF editor to the Image editor.
+
+We should have **presets**, stored in json files to quickly edit them, to have already configured settings for differents social networks: Discord, Twitch, TikTok, Twitter, Youtube etc. Max size, codec, bitrates, quality, resolution etc.
+
+For now, the app is free to use. Later I'll add some ads with Google Adsense I think.
+
+## DIRECTIVES
+
+- **Use skills** when it's needed.
+- Frontend should be **modern, but clean**. Nothing fancy neons and stuffs. Dark mode only and by default.
+- User experience is **vital**, the user should experience smooth, simple and fast UI (60fps minimum).
+- The app should be **responsive** and should be adapted to mobile, tablet (tablet mode should be more close to mobile version), and PC (16/9 monitors, or 3/2, 21/9 or even 32/9). Every size must use the areas smartly.
+- Be careful about **SEO**, **Accessibility**, **UE/NON-UE LAWS (GPDR etc.)**.
+- When you finish a task, run lint then formatter, and if there is errors, fix them.
+- Code should be the cleanest possible, respect best pratices and folder structure should be clear.
+
+## Coding Style & Naming Conventions
+
+Formatting is enforced by `.editorconfig` and `.oxfmtrc.jsonc`: tabs, width 4, UTF-8, LF, semicolons, single quotes,
+trailing commas. Lint rules are in `.oxlintrc.json`.
+Use TypeScript strict mode patterns. Naming:
+
+- React components: `PascalCase` file names (for example `VideoPlayer.tsx`)
+- Hooks: `useSomething.ts`
+- Stores/util modules: `camelCase.ts`
+  Use `@/` imports for `src/*` paths. Do not manually edit generated files such as `src/routeTree.gen.ts`.

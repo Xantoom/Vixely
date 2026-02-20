@@ -2,9 +2,9 @@ name: CI
 
 on:
     push:
-        branches: [main]
+        branches: [main, develop]
     pull_request:
-        branches: [main]
+        branches: [main, develop]
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.ref }}
@@ -33,9 +33,7 @@ jobs:
               run: bun install --frozen-lockfile
 
             - name: Generate build artifacts for lint
-              run: |
-                  bun run build:wasm
-                  bun run generate:routes
+              run: bun run build:prep
 
             - name: Lint
               run: bun run lint
@@ -44,7 +42,7 @@ jobs:
               run: bun run fmt:check
 
             - name: Build
-              run: bun x vite build
+              run: bun run build:web
 
             - name: Upload build artifact
               if: github.ref == 'refs/heads/main' && github.event_name == 'push'

@@ -41,17 +41,17 @@ function FormatCard({
 			<div className="flex items-center justify-between">
 				<div className="flex items-center gap-2.5">
 					<span
-						className={`text-[13px] font-bold font-mono px-1.5 py-0.5 rounded ${
+						className={`text-[14px] font-bold font-mono px-1.5 py-0.5 rounded ${
 							selected ? 'bg-accent/20 text-accent' : 'bg-surface-raised text-text-tertiary'
 						}`}
 					>
 						{ext}
 					</span>
-					<span className="text-[13px] font-medium text-text">{label}</span>
+					<span className="text-[14px] font-medium text-text">{label}</span>
 				</div>
 				<div className="flex items-center gap-3">
-					<span className={`text-[13px] font-medium ${qualityColor}`}>{quality}</span>
-					<span className="text-[13px] text-text-tertiary font-mono">{size}</span>
+					<span className={`text-[14px] font-medium ${qualityColor}`}>{quality}</span>
+					<span className="text-[14px] text-text-tertiary font-mono">{size}</span>
 				</div>
 			</div>
 		</button>
@@ -154,7 +154,7 @@ export function FrameCaptureDialog({ pngData, timestamp, onClose, onExportToImag
 					</div>
 					<div>
 						<h2 className="text-base font-bold">Capture Frame</h2>
-						<p className="text-[13px] text-text-tertiary">Choose format and action</p>
+						<p className="text-[14px] text-text-tertiary">Choose format and action</p>
 					</div>
 				</div>
 
@@ -163,10 +163,10 @@ export function FrameCaptureDialog({ pngData, timestamp, onClose, onExportToImag
 					<div>
 						<div className="flex items-center gap-2 mb-2">
 							<div className="h-2 w-2 rounded-full bg-emerald-400" />
-							<span className="text-[13px] font-semibold text-text-secondary uppercase tracking-wider">
+							<span className="text-[14px] font-semibold text-text-secondary uppercase tracking-wider">
 								Lossless
 							</span>
-							<span className="text-[13px] text-text-tertiary ml-auto">Perfect quality</span>
+							<span className="text-[14px] text-text-tertiary ml-auto">Perfect quality</span>
 						</div>
 						<FormatCard
 							ext=".PNG"
@@ -187,10 +187,10 @@ export function FrameCaptureDialog({ pngData, timestamp, onClose, onExportToImag
 					<div>
 						<div className="flex items-center gap-2 mb-2">
 							<div className="h-2 w-2 rounded-full bg-amber-400" />
-							<span className="text-[13px] font-semibold text-text-secondary uppercase tracking-wider">
+							<span className="text-[14px] font-semibold text-text-secondary uppercase tracking-wider">
 								Lossy
 							</span>
-							<span className="text-[13px] text-text-tertiary ml-auto">Smaller file</span>
+							<span className="text-[14px] text-text-tertiary ml-auto">Smaller file</span>
 						</div>
 						<div className="flex flex-col gap-1.5">
 							<FormatCard
@@ -242,7 +242,7 @@ export function FrameCaptureDialog({ pngData, timestamp, onClose, onExportToImag
 					</Button>
 				</div>
 				{actionDisabled && (
-					<p className="mt-2 text-[13px] text-text-tertiary">Image editor transfer unavailable.</p>
+					<p className="mt-2 text-[14px] text-text-tertiary">Image editor transfer unavailable.</p>
 				)}
 			</div>
 		</div>

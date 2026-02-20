@@ -45,12 +45,12 @@ export function ColorCorrectionPanel() {
 	return (
 		<div className="flex flex-col gap-4">
 			<div className="flex items-center justify-between">
-				<h3 className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider">
+				<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider">
 					Color Correction
 				</h3>
 				<button
 					onClick={resetFilters}
-					className="text-[13px] text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
+					className="text-[14px] text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
 				>
 					Reset
 				</button>
@@ -71,7 +71,7 @@ export function ColorCorrectionPanel() {
 				/>
 			))}
 
-			<p className="text-[13px] text-text-tertiary leading-relaxed">
+			<p className="text-[14px] text-text-tertiary leading-relaxed">
 				Preview is real-time. Filters are applied during export via Mediabunny.
 			</p>
 		</div>

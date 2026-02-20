@@ -14,7 +14,9 @@ export function readPixelsAsImageData(renderer: PhotoWebGLRenderer): ImageData {
 	for (let y = 0; y < height; y++) {
 		const srcOffset = y * rowSize;
 		const dstOffset = (height - 1 - y) * rowSize;
-		flipped.set(pixels.subarray(srcOffset, srcOffset + rowSize), dstOffset);
+		for (let x = 0; x < rowSize; x++) {
+			flipped[dstOffset + x] = pixels[srcOffset + x]!;
+		}
 	}
 
 	return new ImageData(flipped, width, height);

@@ -19,8 +19,8 @@ RUN bun install --frozen-lockfile
 
 COPY . .
 
-# Build WASM module first, then Vite app
-RUN bun run build:wasm && bun run build
+# Build app (includes WASM build + route generation + Vite build)
+RUN bun run build
 
 # ── Stage 2: Serve ──
 FROM nginx:1-alpine
