@@ -2,10 +2,10 @@
 	"video": {
 		"tiktok_video": {
 			"name": "TikTok Video",
-			"description": "Vertical 1080x1920",
-			"maxSizeMB": null,
+			"description": "TikTok post target (9:16, 3s-10m, up to 4GB)",
+			"maxSizeMB": 4096,
 			"format": "mp4",
-			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "22", "-pix_fmt", "yuv420p"],
+			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "21", "-pix_fmt", "yuv420p"],
 			"width": 1080,
 			"height": 1920
 		}
@@ -13,7 +13,7 @@
 	"image": {
 		"tiktok_profile": {
 			"name": "TikTok Profile",
-			"description": "Profile picture 200x200",
+			"description": "Profile picture target (minimum 20x20)",
 			"width": 200,
 			"height": 200,
 			"format": "png",
@@ -22,7 +22,7 @@
 		},
 		"tiktok_cover": {
 			"name": "TikTok Video Cover",
-			"description": "Video cover image 1080x1920",
+			"description": "Vertical cover image target 1080x1920",
 			"width": 1080,
 			"height": 1920,
 			"format": "png",
@@ -33,7 +33,7 @@
 	"gif": {
 		"tiktok_gif": {
 			"name": "TikTok GIF",
-			"description": "Vertical GIF 540x960",
+			"description": "Vertical GIF draft target (for conversion workflows)",
 			"width": 540,
 			"fps": 15,
 			"maxDuration": 10

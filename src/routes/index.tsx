@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Video, ImageIcon, Film, ShieldCheck } from 'lucide-react';
-import { Helmet } from 'react-helmet-async';
+import { Seo } from '@/components/Seo.tsx';
 
 export const Route = createFileRoute('/')({ component: HomePage });
 
@@ -51,13 +51,11 @@ const heroBadge = (
 function HomePage() {
 	return (
 		<>
-			<Helmet>
-				<title>Vixely — Private, Local-First Media Editing Suite</title>
-				<meta
-					name="description"
-					content="Edit video, images, and GIFs entirely in your browser. No uploads, no servers. Powered by WebAssembly."
-				/>
-			</Helmet>
+			<Seo
+				title="Vixely — Private, Local-First Media Editing Suite"
+				description="Edit video, images, and GIFs entirely in your browser. No uploads, no servers. Powered by WebAssembly."
+				path="/"
+			/>
 
 			<div className="h-full flex flex-col items-center justify-center overflow-hidden bg-home-glow px-4">
 				{heroBadge}

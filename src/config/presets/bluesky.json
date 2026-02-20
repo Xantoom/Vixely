@@ -1,32 +1,42 @@
 {
-	"video": {},
+	"video": {
+		"bluesky_video": {
+			"name": "Bluesky Video",
+			"description": "MP4 post target (max 100MB)",
+			"maxSizeMB": 100,
+			"format": "mp4",
+			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "24", "-pix_fmt", "yuv420p"],
+			"width": null,
+			"height": null
+		}
+	},
 	"image": {
 		"bluesky_avatar": {
 			"name": "Bluesky Avatar",
-			"description": "Profile picture 1000x1000",
+			"description": "Profile picture target 1000x1000 (keep under 1MB)",
 			"width": 1000,
 			"height": 1000,
 			"format": "png",
 			"exportFormat": "jpeg",
-			"exportQuality": 85
+			"exportQuality": 80
 		},
 		"bluesky_banner": {
 			"name": "Bluesky Banner",
-			"description": "Profile banner 3000x1000",
+			"description": "Profile banner target 3000x1000 (keep under 1MB)",
 			"width": 3000,
 			"height": 1000,
 			"format": "png",
 			"exportFormat": "jpeg",
-			"exportQuality": 85
+			"exportQuality": 76
 		},
 		"bluesky_post": {
 			"name": "Bluesky Post",
-			"description": "In-feed image 2000x1125 (16:9)",
+			"description": "In-feed image target 2000x1125 (max 1MB per image)",
 			"width": 2000,
 			"height": 1125,
 			"format": "png",
 			"exportFormat": "jpeg",
-			"exportQuality": 85
+			"exportQuality": 78
 		}
 	},
 	"gif": {}

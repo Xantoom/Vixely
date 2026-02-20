@@ -1,35 +1,35 @@
 {
 	"video": {
 		"discord_free": {
-			"name": "Discord Free (25MB)",
-			"description": "Fits free Discord upload limit",
-			"maxSizeMB": 25,
+			"name": "Discord Free (10MB)",
+			"description": "Fits 2026 free Discord upload limit",
+			"maxSizeMB": 10,
 			"format": "mp4",
-			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast"],
+			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "28", "-pix_fmt", "yuv420p"],
 			"width": null,
 			"height": null
 		},
 		"discord_nitro_basic": {
 			"name": "Discord Nitro Basic (50MB)",
-			"description": "Fits Nitro Basic upload limit",
+			"description": "Fits 2026 Nitro Basic upload limit",
 			"maxSizeMB": 50,
 			"format": "mp4",
-			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast"],
+			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "24", "-pix_fmt", "yuv420p"],
 			"width": null,
 			"height": null
 		},
 		"discord_nitro": {
 			"name": "Discord Nitro (500MB)",
-			"description": "Fits full Nitro upload limit",
+			"description": "Fits 2026 full Nitro upload limit",
 			"maxSizeMB": 500,
 			"format": "mp4",
-			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "18"],
+			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p"],
 			"width": null,
 			"height": null
 		},
 		"discord_banner": {
 			"name": "Discord Banner",
-			"description": "Animated server banner 960x540",
+			"description": "Animated server banner target 960x540",
 			"maxSizeMB": null,
 			"format": "mp4",
 			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "23"],
@@ -85,7 +85,7 @@
 		},
 		"discord_sticker": {
 			"name": "Discord Sticker",
-			"description": "Animated sticker 320x320 (max 500KB)",
+			"description": "Animated sticker target 320x320 (max 500KB)",
 			"width": 320,
 			"fps": 15,
 			"maxDuration": 5

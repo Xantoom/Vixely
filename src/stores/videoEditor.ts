@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { AdvancedVideoSettings } from '@/components/video/AdvancedSettings.tsx';
+import { withUpdatedKey } from '@/stores/storeHelpers.ts';
 
 export type VideoMode = 'presets' | 'trim' | 'resize' | 'adjust' | 'export';
 
@@ -83,6 +84,19 @@ export const DEFAULT_ADVANCED_SETTINGS: AdvancedVideoSettings = {
 	audioBitrate: '96k',
 };
 
+function splitMediaStreamsByType(streams: StreamInfo[]): { audio: StreamInfo[]; subtitle: StreamInfo[] } {
+	const audio: StreamInfo[] = [];
+	const subtitle: StreamInfo[] = [];
+	for (const stream of streams) {
+		if (stream.type === 'audio') {
+			audio.push(stream);
+		} else if (stream.type === 'subtitle') {
+			subtitle.push(stream);
+		}
+	}
+	return { audio, subtitle };
+}
+
 export interface VideoEditorState {
 	mode: VideoMode;
 	filters: VideoFilters;
@@ -92,7 +106,6 @@ export interface VideoEditorState {
 	resize: ResizeSettings;
 	trimInputMode: TrimInputMode;
 	advancedSettings: AdvancedVideoSettings;
-	useCustomExport: boolean;
 
 	setMode: (mode: VideoMode) => void;
 	setFilter: <K extends keyof VideoFilters>(key: K, value: VideoFilters[K]) => void;
@@ -103,7 +116,6 @@ export interface VideoEditorState {
 	setResize: (resize: Partial<ResizeSettings>) => void;
 	setTrimInputMode: (mode: TrimInputMode) => void;
 	setAdvancedSettings: (settings: AdvancedVideoSettings) => void;
-	setUseCustomExport: (v: boolean) => void;
 	resetAll: () => void;
 
 	ffmpegFilterArgs: () => string[];
@@ -120,14 +132,13 @@ export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
 	resize: { ...DEFAULT_RESIZE },
 	trimInputMode: 'time',
 	advancedSettings: { ...DEFAULT_ADVANCED_SETTINGS },
-	useCustomExport: true,
 
 	setMode: (mode) => {
 		set({ mode });
 	},
 
 	setFilter: (key, value) => {
-		set((s) => ({ filters: { ...s.filters, [key]: value } }));
+		set((s) => ({ filters: withUpdatedKey(s.filters, key, value) }));
 	},
 
 	resetFilters: () => {
@@ -175,10 +186,6 @@ export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
 		set({ advancedSettings: settings });
 	},
 
-	setUseCustomExport: (v) => {
-		set({ useCustomExport: v });
-	},
-
 	resetAll: () => {
 		set({
 			mode: 'presets',
@@ -189,7 +196,6 @@ export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
 			resize: { ...DEFAULT_RESIZE },
 			trimInputMode: 'time',
 			advancedSettings: { ...DEFAULT_ADVANCED_SETTINGS },
-			useCustomExport: true,
 		});
 	},
 
@@ -215,11 +221,12 @@ export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
 	trackArgs: () => {
 		const { tracks, probeResult } = get();
 		const args: string[] = [];
+		const streamsByType = probeResult ? splitMediaStreamsByType(probeResult.streams) : null;
 
 		if (!tracks.audioEnabled) {
 			args.push('-an');
-		} else if (probeResult) {
-			const audioStreams = probeResult.streams.filter((s) => s.type === 'audio');
+		} else if (streamsByType) {
+			const audioStreams = streamsByType.audio;
 			if (audioStreams.length > 1) {
 				const stream = audioStreams[tracks.audioTrackIndex];
 				if (stream) args.push('-map', `0:${stream.index}`);
@@ -228,8 +235,8 @@ export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
 
 		if (!tracks.subtitleEnabled) {
 			args.push('-sn');
-		} else if (probeResult) {
-			const subStreams = probeResult.streams.filter((s) => s.type === 'subtitle');
+		} else if (streamsByType) {
+			const subStreams = streamsByType.subtitle;
 			if (subStreams.length > 1) {
 				const stream = subStreams[tracks.subtitleTrackIndex];
 				if (stream) args.push('-map', `0:${stream.index}`);

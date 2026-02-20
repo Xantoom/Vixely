@@ -1,8 +1,9 @@
 import type JASSUB from 'jassub';
 import { AudioLines, Check, CircleOff, Languages, Maximize, Pause, Play, Volume2, VolumeX } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { formatPlayerTime } from '@/components/ui/index.ts';
-import { useVideoEditorStore } from '@/stores/videoEditor.ts';
+import { useVideoEditorStore, type StreamInfo } from '@/stores/videoEditor.ts';
 import { formatChannels, getLanguageName } from '@/utils/languageUtils.ts';
 
 interface EmbeddedFont {
@@ -28,6 +29,8 @@ interface VideoPlayerProps {
 
 const BROWSER_UNSUPPORTED_AUDIO_CODECS = new Set(['eac3', 'ac3', 'dts', 'truehd', 'mlp', 'dts-hd', 'dtshd']);
 const AC3_DECODER_REGISTRATION_FLAG = '__vixelyAc3DecoderRegistered';
+const FULLSCREEN_STYLE = { width: '100vw', height: '100vh' } as const;
+const EMPTY_STREAMS: readonly StreamInfo[] = [];
 
 function ensureAc3DecoderRegistered(registerAc3Decoder: () => void): void {
 	const flags = globalThis as Record<string, unknown>;
@@ -98,6 +101,36 @@ function getFontFamilyFromFilename(filename: string): string {
 }
 
 type ScrubPreviewRequest = { sequence: number; time: number };
+type ResizeZoneDragContext = {
+	pointerId: number;
+	startClientX: number;
+	startClientY: number;
+	startWidth: number;
+	startHeight: number;
+	sourceWidth: number;
+	sourceHeight: number;
+	lockAspect: boolean;
+};
+type TrackMenuStream = { label: string; details: string; isDefault?: boolean; isForced?: boolean };
+type TrackMenuProps = {
+	label: string;
+	enabled: boolean;
+	onToggle: () => void;
+	onClose: () => void;
+	canDisable: boolean;
+	selectedIndex: number;
+	onSelect: (index: number) => void;
+	streams: TrackMenuStream[];
+};
+type TrackSelectorButtonProps = {
+	hasTracks: boolean;
+	enabled: boolean;
+	isOpen: boolean;
+	title: string;
+	icon: ReactNode;
+	onToggle: () => void;
+	children?: ReactNode;
+};
 
 export function VideoPlayer({
 	src,
@@ -153,28 +186,64 @@ export function VideoPlayer({
 	const scrubPreviewSequenceRef = useRef(0);
 	const scrubPreviewDecodeActiveRef = useRef(false);
 	const [showScrubPreviewFrame, setShowScrubPreviewFrame] = useState(false);
+	const [selectionHandleActive, setSelectionHandleActive] = useState(false);
+	const resizeZoneDragRef = useRef<ResizeZoneDragContext | null>(null);
+	const seekBarRectRef = useRef<DOMRect | null>(null);
 
-	const probeResult = useVideoEditorStore((s) => s.probeResult);
-	const tracks = useVideoEditorStore((s) => s.tracks);
-	const setTracks = useVideoEditorStore((s) => s.setTracks);
-	const videoFilters = useVideoEditorStore((s) => s.filters);
-	const subtitleEnabled = tracks.subtitleEnabled;
-	const audioStreams = useMemo(() => probeResult?.streams.filter((s) => s.type === 'audio') ?? [], [probeResult]);
-	const subtitleStreams = useMemo(
-		() => probeResult?.streams.filter((s) => s.type === 'subtitle') ?? [],
-		[probeResult],
+	const {
+		videoMode,
+		streams,
+		audioEnabled,
+		subtitleEnabled,
+		audioTrackIndex,
+		subtitleTrackIndex,
+		setTracks,
+		setResize,
+		brightness,
+		contrast,
+		saturation,
+		hue,
+		resizeWidth,
+		resizeHeight,
+		resizeOriginalWidth,
+		resizeOriginalHeight,
+		resizeLockAspect,
+	} = useVideoEditorStore(
+		useShallow((s) => ({
+			videoMode: s.mode,
+			streams: s.probeResult?.streams ?? EMPTY_STREAMS,
+			audioEnabled: s.tracks.audioEnabled,
+			subtitleEnabled: s.tracks.subtitleEnabled,
+			audioTrackIndex: s.tracks.audioTrackIndex,
+			subtitleTrackIndex: s.tracks.subtitleTrackIndex,
+			setTracks: s.setTracks,
+			setResize: s.setResize,
+			brightness: s.filters.brightness,
+			contrast: s.filters.contrast,
+			saturation: s.filters.saturation,
+			hue: s.filters.hue,
+			resizeWidth: s.resize.width,
+			resizeHeight: s.resize.height,
+			resizeOriginalWidth: s.resize.originalWidth,
+			resizeOriginalHeight: s.resize.originalHeight,
+			resizeLockAspect: s.resize.lockAspect,
+		})),
 	);
+	const audioEnabledRef = useRef(audioEnabled);
+	audioEnabledRef.current = audioEnabled;
+	const audioStreams = useMemo(() => streams.filter((s) => s.type === 'audio'), [streams]);
+	const subtitleStreams = useMemo(() => streams.filter((s) => s.type === 'subtitle'), [streams]);
 	const hasAudio = audioStreams.length > 0;
 	const hasSubtitles = subtitleStreams.length > 0;
 	const selectedAudioCodec = useMemo(() => {
-		if (!tracks.audioEnabled || audioStreams.length === 0) return null;
-		const stream = audioStreams[tracks.audioTrackIndex];
+		if (!audioEnabled || audioStreams.length === 0) return null;
+		const stream = audioStreams[audioTrackIndex];
 		return stream?.codec?.trim().toLowerCase() ?? null;
-	}, [tracks.audioEnabled, tracks.audioTrackIndex, audioStreams]);
+	}, [audioEnabled, audioTrackIndex, audioStreams]);
 	const useDecodedAudioPreview = useMemo(() => {
-		if (!previewFile || !tracks.audioEnabled || selectedAudioCodec == null) return false;
+		if (!previewFile || !audioEnabled || selectedAudioCodec == null) return false;
 		return BROWSER_UNSUPPORTED_AUDIO_CODECS.has(selectedAudioCodec);
-	}, [previewFile, tracks.audioEnabled, selectedAudioCodec]);
+	}, [previewFile, audioEnabled, selectedAudioCodec]);
 	const audioTrackMenuStreams = useMemo(() => {
 		return audioStreams.map((s, i) => {
 			const lang = getLanguageName(s.language);
@@ -194,7 +263,6 @@ export function VideoPlayer({
 		});
 	}, [subtitleStreams]);
 	const combinedFilter = useMemo(() => {
-		const { brightness, contrast, saturation, hue } = videoFilters;
 		const parts: string[] = [];
 		if (brightness !== 0) parts.push(`brightness(${1 + brightness})`);
 		if (contrast !== 1) parts.push(`contrast(${contrast})`);
@@ -202,7 +270,7 @@ export function VideoPlayer({
 		if (hue !== 0) parts.push(`hue-rotate(${hue}deg)`);
 		if (metadataLoading) parts.push('blur(2px)');
 		return parts.length > 0 ? parts.join(' ') : undefined;
-	}, [videoFilters, metadataLoading]);
+	}, [brightness, contrast, saturation, hue, metadataLoading]);
 	const sleep = useCallback(async (ms: number): Promise<void> => {
 		await new Promise<void>((resolve) => setTimeout(resolve, ms));
 	}, []);
@@ -323,7 +391,7 @@ export function VideoPlayer({
 		async (fromTime: number) => {
 			const video = videoRef.current;
 			const sink = decodedAudioSinkRef.current;
-			if (!video || !sink || !tracks.audioEnabled) return;
+			if (!video || !sink || !audioEnabledRef.current) return;
 			stopDecodedAudioSources(false);
 			const streamVersion = decodedAudioStreamVersionRef.current + 1;
 			decodedAudioStreamVersionRef.current = streamVersion;
@@ -366,7 +434,7 @@ export function VideoPlayer({
 				console.error('[video] Decoded audio preview failed', err);
 			}
 		},
-		[ensureDecodedAudioGraph, sleep, stopDecodedAudioSources, tracks.audioEnabled, videoRef],
+		[ensureDecodedAudioGraph, sleep, stopDecodedAudioSources, videoRef],
 	);
 
 	const destroyAssRenderer = useCallback(() => {
@@ -715,7 +783,7 @@ export function VideoPlayer({
 	useEffect(() => {
 		const video = videoRef.current;
 		if (!video) return;
-		if (!useDecodedAudioPreview || !previewFile || tracks.audioTrackIndex < 0) {
+		if (!useDecodedAudioPreview || !previewFile || audioTrackIndex < 0) {
 			stopDecodedAudioSources();
 			return;
 		}
@@ -735,7 +803,7 @@ export function VideoPlayer({
 					input.dispose();
 					return;
 				}
-				const selectedTrack = audioTracks[tracks.audioTrackIndex];
+				const selectedTrack = audioTracks[audioTrackIndex];
 				if (!selectedTrack) {
 					input.dispose();
 					return;
@@ -751,7 +819,7 @@ export function VideoPlayer({
 				decodedAudioSinkRef.current = new AudioBufferSink(selectedTrack);
 
 				const startFromVideo = () => {
-					if (!tracks.audioEnabled || video.paused) return;
+					if (!audioEnabledRef.current || video.paused) return;
 					void startDecodedAudioStream(video.currentTime);
 				};
 				const handlePlay = () => {
@@ -761,7 +829,7 @@ export function VideoPlayer({
 					stopDecodedAudioSources();
 				};
 				const handleSeeked = () => {
-					if (!tracks.audioEnabled) {
+					if (!audioEnabledRef.current) {
 						stopDecodedAudioSources();
 						return;
 					}
@@ -772,7 +840,7 @@ export function VideoPlayer({
 					startFromVideo();
 				};
 				const handleRateChange = () => {
-					if (!tracks.audioEnabled || video.paused) return;
+					if (!audioEnabledRef.current || video.paused) return;
 					startFromVideo();
 				};
 				const handleEnded = () => {
@@ -819,14 +887,24 @@ export function VideoPlayer({
 			teardown?.();
 		};
 	}, [
+		audioTrackIndex,
 		previewFile,
 		startDecodedAudioStream,
 		stopDecodedAudioSources,
-		tracks.audioEnabled,
-		tracks.audioTrackIndex,
 		useDecodedAudioPreview,
 		videoRef,
 	]);
+
+	useEffect(() => {
+		const video = videoRef.current;
+		if (!video || !useDecodedAudioPreview) return;
+		if (!audioEnabled) {
+			stopDecodedAudioSources();
+			return;
+		}
+		if (video.paused) return;
+		void startDecodedAudioStream(video.currentTime);
+	}, [audioEnabled, startDecodedAudioStream, stopDecodedAudioSources, useDecodedAudioPreview, videoRef]);
 
 	useEffect(() => {
 		const video = videoRef.current;
@@ -889,59 +967,92 @@ export function VideoPlayer({
 		}
 	}, [videoRef]);
 
+	const resolveSeekBarRect = useCallback((force = false): DOMRect | null => {
+		const bar = seekBarRef.current;
+		if (!bar) return null;
+		if (force || seekBarRectRef.current == null) {
+			seekBarRectRef.current = bar.getBoundingClientRect();
+		}
+		return seekBarRectRef.current;
+	}, []);
+
+	useEffect(() => {
+		const bar = seekBarRef.current;
+		if (!bar) return;
+		const observer = new ResizeObserver(() => {
+			seekBarRectRef.current = null;
+		});
+		observer.observe(bar);
+		return () => {
+			observer.disconnect();
+		};
+	}, []);
+
 	const updateSeekHover = useCallback(
-		(clientX: number): number | null => {
-			const bar = seekBarRef.current;
-			if (!bar || duration <= 0) return null;
-			const rect = bar.getBoundingClientRect();
+		(clientX: number, forceRect = false): number | null => {
+			if (duration <= 0) return null;
+			const rect = resolveSeekBarRect(forceRect);
+			if (!rect) return null;
+			if (rect.width <= 0) return null;
 			const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-			setSeekHoverRatio(ratio);
+			setSeekHoverRatio((prev) => {
+				if (prev != null && Math.abs(prev - ratio) <= 0.001) return prev;
+				return ratio;
+			});
 			return ratio;
 		},
-		[duration],
+		[duration, resolveSeekBarRect],
 	);
 
-	const handleSeek = useCallback(
-		(e: React.PointerEvent) => {
-			const v = videoRef.current;
-			if (!v) return;
-			const ratio = updateSeekHover(e.clientX);
-			if (ratio == null) return;
+	const seekToRatio = useCallback(
+		(ratio: number) => {
+			const video = videoRef.current;
+			if (!video) return;
 			const targetTime = ratio * duration;
-			if (typeof v.fastSeek === 'function') {
-				v.fastSeek(targetTime);
+			if (typeof video.fastSeek === 'function') {
+				video.fastSeek(targetTime);
 			} else {
-				v.currentTime = targetTime;
+				video.currentTime = targetTime;
 			}
 			setCurrentTime(targetTime);
 			onSeek?.(targetTime);
 		},
-		[videoRef, duration, onSeek, updateSeekHover],
+		[duration, onSeek, videoRef],
+	);
+
+	const handleSeek = useCallback(
+		(e: React.PointerEvent) => {
+			const ratio = updateSeekHover(e.clientX, true);
+			if (ratio == null) return;
+			seekToRatio(ratio);
+		},
+		[seekToRatio, updateSeekHover],
 	);
 
 	const handleSeekPointerMove = useCallback(
 		(e: React.PointerEvent) => {
-			updateSeekHover(e.clientX);
-			if (e.buttons === 1) handleSeek(e);
+			const ratio = updateSeekHover(e.clientX);
+			if (e.buttons === 1 && ratio != null) seekToRatio(ratio);
 		},
-		[handleSeek, updateSeekHover],
+		[seekToRatio, updateSeekHover],
 	);
 
 	const handleSeekPointerEnter = useCallback(
 		(e: React.PointerEvent) => {
-			updateSeekHover(e.clientX);
+			updateSeekHover(e.clientX, true);
 		},
 		[updateSeekHover],
 	);
 
 	const handleSeekPointerLeave = useCallback(() => {
 		setSeekHoverRatio(null);
+		seekBarRectRef.current = null;
 	}, []);
 
 	const toggleMute = useCallback(() => {
 		const v = videoRef.current;
 		if (!v) return;
-		const next = !muted;
+		const next = !mutedRef.current;
 		if (useDecodedAudioPreview) {
 			const gain = decodedAudioGainRef.current;
 			if (gain) gain.gain.value = next ? 0 : volume;
@@ -950,7 +1061,7 @@ export function VideoPlayer({
 			v.muted = next;
 		}
 		setMuted(next);
-	}, [videoRef, muted, useDecodedAudioPreview, volume]);
+	}, [videoRef, useDecodedAudioPreview, volume]);
 
 	const handleVolumeChange = useCallback(
 		(e: React.ChangeEvent<HTMLInputElement>) => {
@@ -966,12 +1077,12 @@ export function VideoPlayer({
 			if (val === 0) {
 				if (!useDecodedAudioPreview) v.muted = true;
 				setMuted(true);
-			} else if (muted) {
+			} else if (mutedRef.current) {
 				if (!useDecodedAudioPreview) v.muted = false;
 				setMuted(false);
 			}
 		},
-		[muted, useDecodedAudioPreview, videoRef],
+		[useDecodedAudioPreview, videoRef],
 	);
 
 	const toggleFullscreen = useCallback(() => {
@@ -988,33 +1099,236 @@ export function VideoPlayer({
 		setPlaying(false);
 	}, []);
 
+	useEffect(() => {
+		if (videoMode === 'resize') return;
+		resizeZoneDragRef.current = null;
+		setSelectionHandleActive(false);
+	}, [videoMode]);
+
 	const pct = duration > 0 ? (currentTime / duration) * 100 : 0;
-	const playerFrameStyle = useMemo(() => {
+	const isResizeMode = videoMode === 'resize';
+	const sourceDimensions = useMemo(() => {
+		const width = resizeOriginalWidth > 0 ? resizeOriginalWidth : videoSize.width;
+		const height = resizeOriginalHeight > 0 ? resizeOriginalHeight : videoSize.height;
+		return { width, height };
+	}, [resizeOriginalHeight, resizeOriginalWidth, videoSize.height, videoSize.width]);
+	const displayFrameSize = useMemo(() => {
 		const { width: videoWidth, height: videoHeight } = videoSize;
 		const { width: containerWidth, height: containerHeight } = containerSize;
-		if (!videoWidth || !videoHeight || !containerWidth || !containerHeight) {
+		if (!videoWidth || !videoHeight || !containerWidth || !containerHeight) return { width: 0, height: 0 };
+		const scale = Math.min(containerWidth / videoWidth, containerHeight / videoHeight);
+		return {
+			width: Math.max(1, Math.round(videoWidth * scale)),
+			height: Math.max(1, Math.round(videoHeight * scale)),
+		};
+	}, [videoSize, containerSize]);
+	const targetResizeDimensions = useMemo(() => {
+		const width = resizeWidth > 0 ? resizeWidth : sourceDimensions.width;
+		const height = resizeHeight > 0 ? resizeHeight : sourceDimensions.height;
+		return { width, height };
+	}, [resizeHeight, resizeWidth, sourceDimensions.height, sourceDimensions.width]);
+	const hasResizeSelectionZone = useMemo(() => {
+		return (
+			isResizeMode &&
+			displayFrameSize.width > 0 &&
+			displayFrameSize.height > 0 &&
+			sourceDimensions.width > 0 &&
+			sourceDimensions.height > 0
+		);
+	}, [
+		displayFrameSize.height,
+		displayFrameSize.width,
+		isResizeMode,
+		sourceDimensions.height,
+		sourceDimensions.width,
+	]);
+	const resizeZoneRect = useMemo(() => {
+		if (!hasResizeSelectionZone) return null;
+		const widthRatio = Math.min(1, Math.max(0.04, targetResizeDimensions.width / sourceDimensions.width));
+		const heightRatio = Math.min(1, Math.max(0.04, targetResizeDimensions.height / sourceDimensions.height));
+		const zoneWidth = Math.max(26, Math.min(displayFrameSize.width, displayFrameSize.width * widthRatio));
+		const zoneHeight = Math.max(26, Math.min(displayFrameSize.height, displayFrameSize.height * heightRatio));
+		return {
+			width: zoneWidth,
+			height: zoneHeight,
+			left: Math.max(0, (displayFrameSize.width - zoneWidth) / 2),
+			top: Math.max(0, (displayFrameSize.height - zoneHeight) / 2),
+		};
+	}, [
+		displayFrameSize.height,
+		displayFrameSize.width,
+		hasResizeSelectionZone,
+		sourceDimensions.height,
+		sourceDimensions.width,
+		targetResizeDimensions.height,
+		targetResizeDimensions.width,
+	]);
+	const resizeIsUpscaled = useMemo(() => {
+		return (
+			targetResizeDimensions.width > sourceDimensions.width ||
+			targetResizeDimensions.height > sourceDimensions.height
+		);
+	}, [sourceDimensions.height, sourceDimensions.width, targetResizeDimensions.height, targetResizeDimensions.width]);
+
+	const updateResizeFromZonePointer = useCallback(
+		(clientX: number, clientY: number, context: ResizeZoneDragContext) => {
+			if (displayFrameSize.width <= 0 || displayFrameSize.height <= 0) return;
+			const deltaX = clientX - context.startClientX;
+			const deltaY = clientY - context.startClientY;
+			const pxToSourceWidth = context.sourceWidth / displayFrameSize.width;
+			const pxToSourceHeight = context.sourceHeight / displayFrameSize.height;
+			let nextWidth = context.startWidth + deltaX * pxToSourceWidth;
+			let nextHeight = context.startHeight + deltaY * pxToSourceHeight;
+			nextWidth = Math.max(16, Math.min(7680, nextWidth));
+			nextHeight = Math.max(16, Math.min(7680, nextHeight));
+
+			if (context.lockAspect) {
+				const widthDelta = Math.abs(deltaX * pxToSourceWidth);
+				const heightDelta = Math.abs(deltaY * pxToSourceHeight);
+				if (widthDelta >= heightDelta) {
+					setResize({ width: Math.round(nextWidth) });
+				} else {
+					setResize({ height: Math.round(nextHeight) });
+				}
+				return;
+			}
+
+			setResize({ width: Math.round(nextWidth), height: Math.round(nextHeight) });
+		},
+		[displayFrameSize.height, displayFrameSize.width, setResize],
+	);
+
+	const handleResizeZoneHandlePointerDown = useCallback(
+		(e: React.PointerEvent<HTMLButtonElement>) => {
+			if (!hasResizeSelectionZone) return;
+			const sourceWidth = sourceDimensions.width;
+			const sourceHeight = sourceDimensions.height;
+			if (!sourceWidth || !sourceHeight) return;
+			e.preventDefault();
+			(e.currentTarget as HTMLButtonElement).setPointerCapture(e.pointerId);
+			resizeZoneDragRef.current = {
+				pointerId: e.pointerId,
+				startClientX: e.clientX,
+				startClientY: e.clientY,
+				startWidth: targetResizeDimensions.width,
+				startHeight: targetResizeDimensions.height,
+				sourceWidth,
+				sourceHeight,
+				lockAspect: resizeLockAspect,
+			};
+			setSelectionHandleActive(true);
+		},
+		[
+			hasResizeSelectionZone,
+			resizeLockAspect,
+			sourceDimensions.height,
+			sourceDimensions.width,
+			targetResizeDimensions.height,
+			targetResizeDimensions.width,
+		],
+	);
+
+	const handleResizeZoneHandlePointerMove = useCallback(
+		(e: React.PointerEvent<HTMLButtonElement>) => {
+			const context = resizeZoneDragRef.current;
+			if (!context || context.pointerId !== e.pointerId) return;
+			e.preventDefault();
+			updateResizeFromZonePointer(e.clientX, e.clientY, context);
+		},
+		[updateResizeFromZonePointer],
+	);
+
+	const endResizeZoneDrag = useCallback(() => {
+		resizeZoneDragRef.current = null;
+		setSelectionHandleActive(false);
+	}, []);
+
+	const handleResizeZoneHandlePointerUp = useCallback(
+		(e: React.PointerEvent<HTMLButtonElement>) => {
+			const context = resizeZoneDragRef.current;
+			if (!context || context.pointerId !== e.pointerId) return;
+			(e.currentTarget as HTMLButtonElement).releasePointerCapture(e.pointerId);
+			endResizeZoneDrag();
+		},
+		[endResizeZoneDrag],
+	);
+
+	const handleResizeZoneHandlePointerCancel = useCallback(
+		(e: React.PointerEvent<HTMLButtonElement>) => {
+			const context = resizeZoneDragRef.current;
+			if (!context || context.pointerId !== e.pointerId) return;
+			(e.currentTarget as HTMLButtonElement).releasePointerCapture(e.pointerId);
+			endResizeZoneDrag();
+		},
+		[endResizeZoneDrag],
+	);
+
+	const playerFrameStyle = useMemo(() => {
+		if (!displayFrameSize.width || !displayFrameSize.height) {
 			return { width: '100%', height: '100%' } as const;
 		}
-		const scale = Math.min(containerWidth / videoWidth, containerHeight / videoHeight);
-		return { width: `${videoWidth * scale}px`, height: `${videoHeight * scale}px` } as const;
-	}, [videoSize, containerSize]);
+		return { width: `${displayFrameSize.width}px`, height: `${displayFrameSize.height}px` } as const;
+	}, [displayFrameSize.height, displayFrameSize.width]);
+	const closeTrackMenu = useCallback(() => {
+		setOpenMenu(null);
+	}, []);
+	const toggleAudioMenu = useCallback(() => {
+		setOpenMenu((prev) => (prev === 'audio' ? null : 'audio'));
+	}, []);
+	const toggleSubtitleMenu = useCallback(() => {
+		setOpenMenu((prev) => (prev === 'subtitle' ? null : 'subtitle'));
+	}, []);
+	const toggleAudioTrackEnabled = useCallback(() => {
+		setTracks({ audioEnabled: !audioEnabled });
+	}, [audioEnabled, setTracks]);
+	const selectAudioTrack = useCallback(
+		(index: number) => {
+			setTracks({ audioTrackIndex: index });
+		},
+		[setTracks],
+	);
+	const toggleSubtitleTrackEnabled = useCallback(() => {
+		setTracks({ subtitleEnabled: !subtitleEnabled });
+	}, [setTracks, subtitleEnabled]);
+	const selectSubtitleTrack = useCallback(
+		(index: number) => {
+			setTracks({ subtitleTrackIndex: index });
+		},
+		[setTracks],
+	);
+	const handleContainerDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+		e.preventDefault();
+	}, []);
+	const handleFramePointerLeave = useCallback(() => {
+		if (playing) setShowControls(false);
+	}, [playing]);
+	const handleVideoPlay = useCallback(() => {
+		setPlaying(true);
+	}, []);
+	const handleVideoPause = useCallback(() => {
+		setPlaying(false);
+	}, []);
+	const handleVideoError = useCallback((e: React.SyntheticEvent<HTMLVideoElement>) => {
+		const video = e.currentTarget;
+		const err = video.error;
+		if (err) console.error('[video] Media error', { code: err.code, message: err.message });
+	}, []);
+	const handleVideoDragStart = useCallback((e: React.DragEvent<HTMLVideoElement>) => {
+		e.preventDefault();
+	}, []);
 
 	return (
 		<div
 			ref={containerRef}
 			className="relative w-full h-full group overflow-hidden flex items-center justify-center"
-			style={isFullscreen ? { width: '100vw', height: '100vh' } : undefined}
-			onDragOver={(e) => {
-				e.preventDefault();
-			}}
+			style={isFullscreen ? FULLSCREEN_STYLE : undefined}
+			onDragOver={handleContainerDragOver}
 		>
 			<div
 				className="relative overflow-hidden rounded-xl transition-[width,height] duration-200"
 				style={playerFrameStyle}
 				onPointerMove={resetHideTimer}
-				onPointerLeave={() => {
-					if (playing) setShowControls(false);
-				}}
+				onPointerLeave={handleFramePointerLeave}
 			>
 				<video
 					ref={videoRef}
@@ -1022,23 +1336,13 @@ export function VideoPlayer({
 					onLoadedMetadata={handleMetadata}
 					onTimeUpdate={handleTimeUpdate}
 					onSeeked={handleSeeked}
-					onPlay={() => {
-						setPlaying(true);
-					}}
-					onPause={() => {
-						setPlaying(false);
-					}}
+					onPlay={handleVideoPlay}
+					onPause={handleVideoPause}
 					onEnded={handleEnded}
-					onError={(e) => {
-						const video = e.currentTarget;
-						const err = video.error;
-						if (err) console.error('[video] Media error', { code: err.code, message: err.message });
-					}}
+					onError={handleVideoError}
 					onClick={togglePlay}
 					draggable={false}
-					onDragStart={(e) => {
-						e.preventDefault();
-					}}
+					onDragStart={handleVideoDragStart}
 					className="w-full h-full object-contain cursor-pointer transition-[filter] duration-200"
 					style={combinedFilter ? { filter: combinedFilter } : undefined}
 				/>
@@ -1050,9 +1354,38 @@ export function VideoPlayer({
 					style={combinedFilter ? { filter: combinedFilter } : undefined}
 					aria-hidden="true"
 				/>
+				{hasResizeSelectionZone && resizeZoneRect && (
+					<div className="pointer-events-none absolute inset-0 z-15">
+						<div
+							className="absolute border-2 border-accent/70 bg-accent/10 shadow-[0_0_0_1px_rgba(0,0,0,0.35)]"
+							style={{
+								left: `${resizeZoneRect.left}px`,
+								top: `${resizeZoneRect.top}px`,
+								width: `${resizeZoneRect.width}px`,
+								height: `${resizeZoneRect.height}px`,
+							}}
+						>
+							<div className="absolute -top-6 left-0 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-mono text-white">
+								{targetResizeDimensions.width}×{targetResizeDimensions.height}
+								{resizeIsUpscaled ? ' • upscale' : ''}
+							</div>
+							<button
+								type="button"
+								className={`pointer-events-auto absolute -bottom-2 -right-2 h-4 w-4 rounded-sm border border-white/70 bg-accent shadow-sm ${
+									selectionHandleActive ? 'cursor-grabbing' : 'cursor-nwse-resize'
+								}`}
+								onPointerDown={handleResizeZoneHandlePointerDown}
+								onPointerMove={handleResizeZoneHandlePointerMove}
+								onPointerUp={handleResizeZoneHandlePointerUp}
+								onPointerCancel={handleResizeZoneHandlePointerCancel}
+								aria-label="Resize output selection zone"
+							/>
+						</div>
+					</div>
+				)}
 
 				<div
-					className={`absolute bottom-0 left-0 right-0 z-20 rounded-b-xl bg-gradient-to-t from-black/80 to-transparent px-3 sm:px-4 pt-8 pb-3 transition-opacity duration-200 ${
+					className={`absolute bottom-0 left-0 right-0 z-20 rounded-b-xl bg-linear-to-t from-black/80 to-transparent px-3 sm:px-4 pt-8 pb-3 transition-opacity duration-200 ${
 						showControls || !playing ? 'opacity-100' : 'opacity-0 pointer-events-none'
 					}`}
 				>
@@ -1064,6 +1397,8 @@ export function VideoPlayer({
 						onPointerEnter={handleSeekPointerEnter}
 						onPointerMove={handleSeekPointerMove}
 						onPointerLeave={handleSeekPointerLeave}
+						onPointerUp={handleSeekPointerLeave}
+						onPointerCancel={handleSeekPointerLeave}
 					>
 						{seekHoverRatio != null && (
 							<div
@@ -1100,88 +1435,50 @@ export function VideoPlayer({
 						<div className="flex-1" />
 
 						{/* Audio track selector */}
-						<div className="relative">
-							<button
-								onClick={
-									hasAudio
-										? () => {
-												setOpenMenu(openMenu === 'audio' ? null : 'audio');
-											}
-										: undefined
-								}
-								className={`h-8 w-8 flex items-center justify-center rounded-full transition-colors ${
-									!hasAudio
-										? 'text-white/30 cursor-not-allowed'
-										: openMenu === 'audio'
-											? 'bg-white/20 text-white cursor-pointer'
-											: 'text-white hover:bg-white/10 cursor-pointer'
-								} ${hasAudio && !tracks.audioEnabled ? 'opacity-50' : ''}`}
-								title="Audio tracks"
-								disabled={!hasAudio}
-							>
-								<AudioLines size={16} />
-							</button>
+						<TrackSelectorButton
+							hasTracks={hasAudio}
+							enabled={audioEnabled}
+							isOpen={openMenu === 'audio'}
+							title="Audio tracks"
+							icon={<AudioLines size={16} />}
+							onToggle={toggleAudioMenu}
+						>
 							{hasAudio && openMenu === 'audio' && (
 								<TrackMenu
 									label="Audio"
-									enabled={tracks.audioEnabled}
-									onToggle={() => {
-										setTracks({ audioEnabled: !tracks.audioEnabled });
-									}}
-									onClose={() => {
-										setOpenMenu(null);
-									}}
+									enabled={audioEnabled}
+									onToggle={toggleAudioTrackEnabled}
+									onClose={closeTrackMenu}
 									canDisable
-									selectedIndex={tracks.audioTrackIndex}
-									onSelect={(i) => {
-										setTracks({ audioTrackIndex: i });
-									}}
+									selectedIndex={audioTrackIndex}
+									onSelect={selectAudioTrack}
 									streams={audioTrackMenuStreams}
 								/>
 							)}
-						</div>
+						</TrackSelectorButton>
 
 						{/* Subtitle track selector */}
-						<div className="relative">
-							<button
-								onClick={
-									hasSubtitles
-										? () => {
-												setOpenMenu(openMenu === 'subtitle' ? null : 'subtitle');
-											}
-										: undefined
-								}
-								className={`h-8 w-8 flex items-center justify-center rounded-full transition-colors ${
-									!hasSubtitles
-										? 'text-white/30 cursor-not-allowed'
-										: openMenu === 'subtitle'
-											? 'bg-white/20 text-white cursor-pointer'
-											: 'text-white hover:bg-white/10 cursor-pointer'
-								} ${hasSubtitles && !tracks.subtitleEnabled ? 'opacity-50' : ''}`}
-								title="Subtitle tracks"
-								disabled={!hasSubtitles}
-							>
-								<Languages size={16} />
-							</button>
+						<TrackSelectorButton
+							hasTracks={hasSubtitles}
+							enabled={subtitleEnabled}
+							isOpen={openMenu === 'subtitle'}
+							title="Subtitle tracks"
+							icon={<Languages size={16} />}
+							onToggle={toggleSubtitleMenu}
+						>
 							{hasSubtitles && openMenu === 'subtitle' && (
 								<TrackMenu
 									label="Subtitles"
-									enabled={tracks.subtitleEnabled}
-									onToggle={() => {
-										setTracks({ subtitleEnabled: !tracks.subtitleEnabled });
-									}}
-									onClose={() => {
-										setOpenMenu(null);
-									}}
+									enabled={subtitleEnabled}
+									onToggle={toggleSubtitleTrackEnabled}
+									onClose={closeTrackMenu}
 									canDisable
-									selectedIndex={tracks.subtitleTrackIndex}
-									onSelect={(i) => {
-										setTracks({ subtitleTrackIndex: i });
-									}}
+									selectedIndex={subtitleTrackIndex}
+									onSelect={selectSubtitleTrack}
 									streams={subtitleTrackMenuStreams}
 								/>
 							)}
-						</div>
+						</TrackSelectorButton>
 
 						{/* Volume */}
 						<button
@@ -1230,7 +1527,39 @@ export function VideoPlayer({
 	);
 }
 
-function TrackMenu({
+const TrackSelectorButton = memo(function TrackSelectorButton({
+	hasTracks,
+	enabled,
+	isOpen,
+	title,
+	icon,
+	onToggle,
+	children,
+}: TrackSelectorButtonProps) {
+	return (
+		<div className="relative">
+			<button
+				onClick={hasTracks ? onToggle : undefined}
+				className={`h-8 w-8 flex items-center justify-center rounded-full transition-colors ${
+					!hasTracks
+						? 'text-white/30 cursor-not-allowed'
+						: isOpen
+							? 'bg-white/20 text-white cursor-pointer'
+							: 'text-white hover:bg-white/10 cursor-pointer'
+				} ${hasTracks && !enabled ? 'opacity-50' : ''}`}
+				title={title}
+				disabled={!hasTracks}
+			>
+				{icon}
+			</button>
+			{children}
+		</div>
+	);
+});
+
+TrackSelectorButton.displayName = 'TrackSelectorButton';
+
+const TrackMenu = memo(function TrackMenu({
 	label,
 	enabled,
 	onToggle,
@@ -1239,16 +1568,20 @@ function TrackMenu({
 	selectedIndex,
 	onSelect,
 	streams,
-}: {
-	label: string;
-	enabled: boolean;
-	onToggle: () => void;
-	onClose: () => void;
-	canDisable: boolean;
-	selectedIndex: number;
-	onSelect: (index: number) => void;
-	streams: { label: string; details: string; isDefault?: boolean; isForced?: boolean }[];
-}) {
+}: TrackMenuProps) {
+	const handleDisableClick = useCallback(() => {
+		onToggle();
+		onClose();
+	}, [onClose, onToggle]);
+	const handleSelectTrack = useCallback(
+		(index: number) => {
+			if (!enabled) onToggle();
+			onSelect(index);
+			onClose();
+		},
+		[enabled, onClose, onSelect, onToggle],
+	);
+
 	return (
 		<div className="absolute bottom-full right-0 mb-2 w-[min(18rem,80vw)] rounded-lg border border-white/15 bg-neutral-950/95 backdrop-blur-md shadow-[0_10px_20px_rgba(0,0,0,0.45)] animate-fade-in overflow-hidden">
 			<div className="px-3 py-2 border-b border-white/10">
@@ -1258,12 +1591,9 @@ function TrackMenu({
 			<div className="p-1.5 space-y-0.5">
 				{canDisable && (
 					<button
-						onClick={() => {
-							onToggle();
-							onClose();
-						}}
+						onClick={handleDisableClick}
 						className={`w-full text-left rounded-md px-2.5 py-2 transition-colors cursor-pointer ${
-							!enabled ? 'bg-white/10 text-white' : 'text-white/60 hover:bg-white/[0.06] hover:text-white'
+							!enabled ? 'bg-white/10 text-white' : 'text-white/60 hover:bg-white/6 hover:text-white'
 						}`}
 					>
 						<div className="flex items-center gap-2.5">
@@ -1281,14 +1611,12 @@ function TrackMenu({
 							<button
 								key={i}
 								onClick={() => {
-									if (!enabled) onToggle();
-									onSelect(i);
-									onClose();
+									handleSelectTrack(i);
 								}}
 								className={`w-full text-left rounded-md px-2.5 py-2 transition-all cursor-pointer ${
 									isActive
 										? 'bg-accent/15 text-white'
-										: 'text-white/80 hover:bg-white/[0.06] hover:text-white'
+										: 'text-white/80 hover:bg-white/6 hover:text-white'
 								}`}
 							>
 								<div className="flex items-center gap-2.5">
@@ -1329,4 +1657,6 @@ function TrackMenu({
 			</div>
 		</div>
 	);
-}
+});
+
+TrackMenu.displayName = 'TrackMenu';

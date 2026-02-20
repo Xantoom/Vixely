@@ -22,7 +22,7 @@
 	"image": {
 		"twitch_emote_1x": {
 			"name": "Twitch Emote 1x",
-			"description": "28x28 subscriber emote",
+			"description": "Emote variant 28x28 (1x)",
 			"width": 28,
 			"height": 28,
 			"format": "png",
@@ -31,7 +31,7 @@
 		},
 		"twitch_emote_2x": {
 			"name": "Twitch Emote 2x",
-			"description": "56x56 subscriber emote",
+			"description": "Emote variant 56x56 (2x)",
 			"width": 56,
 			"height": 56,
 			"format": "png",
@@ -40,7 +40,7 @@
 		},
 		"twitch_emote_3x": {
 			"name": "Twitch Emote 3x",
-			"description": "112x112 subscriber emote",
+			"description": "Emote variant 112x112 (large)",
 			"width": 112,
 			"height": 112,
 			"format": "png",
@@ -78,7 +78,7 @@
 	"gif": {
 		"twitch_emote": {
 			"name": "Twitch Animated Emote",
-			"description": "Animated emote 112x112",
+			"description": "Animated emote target 112x112 (served as 28/56/112)",
 			"width": 112,
 			"fps": 24,
 			"maxDuration": null

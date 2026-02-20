@@ -1,5 +1,6 @@
 import { MoveHorizontal } from 'lucide-react';
 import { useCallback, useRef, type RefObject } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useImageEditorStore } from '@/stores/imageEditor.ts';
 
 interface CompareSliderProps {
@@ -7,11 +8,15 @@ interface CompareSliderProps {
 }
 
 export function CompareSlider({ containerRef }: CompareSliderProps) {
-	const comparePosition = useImageEditorStore((s) => s.comparePosition);
-	const setComparePosition = useImageEditorStore((s) => s.setComparePosition);
-	const view = useImageEditorStore((s) => s.view);
-	const imageWidth = useImageEditorStore((s) => s.originalData?.width ?? 0);
-	const imageHeight = useImageEditorStore((s) => s.originalData?.height ?? 0);
+	const { comparePosition, setComparePosition, view, imageWidth, imageHeight } = useImageEditorStore(
+		useShallow((s) => ({
+			comparePosition: s.comparePosition,
+			setComparePosition: s.setComparePosition,
+			view: s.view,
+			imageWidth: s.originalData?.width ?? 0,
+			imageHeight: s.originalData?.height ?? 0,
+		})),
+	);
 	const draggingRef = useRef(false);
 
 	const imgW = imageWidth;

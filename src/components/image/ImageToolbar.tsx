@@ -23,6 +23,8 @@ function IconButton({
 			onClick={onClick}
 			disabled={disabled}
 			title={title}
+			type="button"
+			aria-label={title}
 			className={`h-8 w-8 flex items-center justify-center rounded-md transition-all cursor-pointer
 				${active ? 'bg-accent/15 text-accent' : 'text-text-tertiary hover:text-text hover:bg-surface-raised/60'}
 				${disabled ? 'opacity-30 pointer-events-none' : ''}`}

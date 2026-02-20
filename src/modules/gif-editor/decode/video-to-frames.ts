@@ -31,17 +31,14 @@ export async function extractFrames(options: FrameExtractionOptions): Promise<Vi
 
 		const fps = Math.max(1, targetFps);
 		const frameCount = Math.max(1, Math.min(maxFrames, Math.ceil(duration * fps)));
-		const timestamps = Array.from({ length: frameCount }, (_, i) => effectiveStart + i / fps);
 
 		const sink = new CanvasSink(videoTrack, { poolSize: 1 });
-		const wrappedFrames = await Promise.all(
-			timestamps.map(async (timestamp) => {
-				return sink.getCanvas(timestamp);
-			}),
-		);
-
 		const frames: VideoFrame[] = [];
-		for (const [index, wrapped] of wrappedFrames.entries()) {
+		for (let index = 0; index < frameCount; index += 1) {
+			const timestamp = effectiveStart + index / fps;
+			// Decode sequentially to avoid overwhelming decoder/canvas allocations.
+			// oxlint-disable-next-line eslint/no-await-in-loop
+			const wrapped = await sink.getCanvas(timestamp);
 			if (!wrapped) continue;
 			const frame = new VideoFrame(wrapped.canvas, {
 				timestamp: Math.round(wrapped.timestamp * 1_000_000),
@@ -49,7 +46,6 @@ export async function extractFrames(options: FrameExtractionOptions): Promise<Vi
 			});
 			frames.push(frame);
 			onProgress?.(frames.length, frameCount);
-			if (index >= maxFrames) break;
 		}
 
 		return frames;

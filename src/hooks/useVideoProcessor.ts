@@ -257,170 +257,32 @@ export function useVideoProcessor() {
 	const exportStartRef = useRef<number>(0);
 	const lastProgressEmitRef = useRef(0);
 
-	const attachWorker = useCallback((worker: Worker) => {
-		worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
-			const msg = e.data;
-
-			switch (msg.type) {
-				case 'READY':
-					setState((s) => ({ ...s, ready: true }));
-					break;
-				case 'STARTED':
-					setState((s) => ({ ...s, started: true }));
-					break;
-
-				case 'PROGRESS':
-					// Keep UI smooth under heavy worker log/progress throughput.
-					if (msg.progress < 1) {
-						const now = performance.now();
-						if (now - lastProgressEmitRef.current < 80) break;
-						lastProgressEmitRef.current = now;
-					}
-					setState((s) => {
-						const rawFfmpegProgress =
-							Number.isFinite(msg.progress) && msg.progress > 0 ? Math.min(0.999, msg.progress) : null;
-						const timeProgress = normalizeProgressFromTime(
-							msg.time,
-							exportExpectedDurationRef.current,
-							rawFfmpegProgress ?? undefined,
-						);
-						const nextProgress =
-							exportExpectedDurationRef.current > 0
-								? (timeProgress ?? rawFfmpegProgress ?? s.progress)
-								: (rawFfmpegProgress ?? timeProgress ?? s.progress);
-						return {
-							...s,
-							progress: Math.max(s.progress, nextProgress),
-							exportStats: {
-								fps: msg.fps,
-								frame: msg.frame,
-								speed: msg.speed,
-								elapsedMs: Date.now() - exportStartRef.current,
-							},
-						};
-					});
-					break;
-
-				case 'DONE':
-					setState((s) => ({ ...s, processing: false, started: false, progress: 1 }));
-					exportExpectedDurationRef.current = 0;
-					resolveRef.current?.(msg.data);
-					resolveRef.current = null;
-					rejectRef.current = null;
-					break;
-
-				case 'PROBE_RESULT':
-					if (probeCacheKeyRef.current) {
-						useVideoMetadataStore
-							.getState()
-							.upsertMetadata(probeCacheKeyRef.current, { probe: msg.result });
-					}
-					setProbeStatus(null);
-					probeCacheKeyRef.current = null;
-					if (msg.fonts && msg.fonts.length > 0) {
-						probeFontsResolveRef.current?.(msg.fonts);
-					}
-					probeFontsResolveRef.current = null;
-					probeResolveRef.current?.(msg.result);
-					probeResolveRef.current = null;
-					probeRejectRef.current = null;
-					break;
-				case 'PROBE_STATUS':
-					setProbeStatus(msg.status);
-					break;
-				case 'PROBE_DETAILS_RESULT':
-					if (probeDetailsCacheKeyRef.current) {
-						useVideoMetadataStore
-							.getState()
-							.upsertMetadata(probeDetailsCacheKeyRef.current, { probeDetails: msg.result });
-					}
-					probeDetailsCacheKeyRef.current = null;
-					probeDetailsResolveRef.current?.(msg.result);
-					probeDetailsResolveRef.current = null;
-					probeDetailsRejectRef.current = null;
-					break;
-
-				case 'SUBTITLE_PREVIEW_RESULT':
-					if (subtitlePendingRef.current?.requestId !== msg.requestId) break;
-					subtitlePendingRef.current.resolve({ format: msg.format, content: msg.content });
-					subtitlePendingRef.current = null;
-					break;
-				case 'FONTS_RESULT':
-					fontsPendingRef.current?.resolve(msg.fonts);
-					fontsPendingRef.current = null;
-					break;
-
-				case 'ERROR':
-					console.error('[hook] worker ERROR:', msg.error);
-					setState((s) => ({ ...s, processing: false, started: false, error: msg.error }));
-					exportExpectedDurationRef.current = 0;
-					setProbeStatus(null);
-					rejectRef.current?.(new Error(msg.error));
-					resolveRef.current = null;
-					rejectRef.current = null;
-					probeRejectRef.current?.(new Error(msg.error));
-					probeResolveRef.current = null;
-					probeRejectRef.current = null;
-					probeCacheKeyRef.current = null;
-					probeFontsResolveRef.current = null;
-					probeDetailsRejectRef.current?.(new Error(msg.error));
-					probeDetailsResolveRef.current = null;
-					probeDetailsRejectRef.current = null;
-					probeDetailsCacheKeyRef.current = null;
-					fontsPendingRef.current?.reject(new Error(msg.error));
-					fontsPendingRef.current = null;
-					subtitlePendingRef.current?.reject(new Error(msg.error));
-					subtitlePendingRef.current = null;
-					break;
-
-				case 'LOG':
-					if (DEBUG_WORKER_LOGS) console.debug('[hook] worker LOG:', msg.message);
-					break;
-			}
-		};
-
-		let crashHandled = false;
-		worker.onerror = (e) => {
-			if (crashHandled) return;
-			crashHandled = true;
-			console.error('[hook] worker onerror:', e.message, e);
-			const err = new Error(e.message ?? 'Worker crashed');
-			setState((s) => ({ ...s, ready: false, processing: false, started: false, error: err.message }));
-			setProbeStatus(null);
-			resolveRef.current = null;
-			rejectRef.current?.(err);
-			rejectRef.current = null;
-			probeResolveRef.current = null;
-			probeRejectRef.current?.(err);
-			probeRejectRef.current = null;
-			probeCacheKeyRef.current = null;
-			probeFontsResolveRef.current = null;
-			probeDetailsResolveRef.current = null;
-			probeDetailsRejectRef.current?.(err);
-			probeDetailsRejectRef.current = null;
-			probeDetailsCacheKeyRef.current = null;
-			fontsPendingRef.current?.reject(err);
-			fontsPendingRef.current = null;
-			subtitlePendingRef.current?.reject(err);
-			subtitlePendingRef.current = null;
-
-			worker.terminate();
-			const next = createWorker();
-			attachWorker(next);
-		};
-
-		workerRef.current = worker;
+	const clearForegroundRequest = useCallback(() => {
+		resolveRef.current = null;
+		rejectRef.current = null;
+		exportExpectedDurationRef.current = 0;
 	}, []);
 
-	useEffect(() => {
-		const worker = createWorker();
-		attachWorker(worker);
+	const rejectForegroundRequest = useCallback(
+		(err: Error) => {
+			rejectRef.current?.(err);
+			clearForegroundRequest();
+		},
+		[clearForegroundRequest],
+	);
 
-		return () => {
-			worker.terminate();
-			workerRef.current = null;
-		};
-	}, [attachWorker]);
+	const clearBackgroundRequests = useCallback(() => {
+		setProbeStatus(null);
+		probeResolveRef.current = null;
+		probeRejectRef.current = null;
+		probeCacheKeyRef.current = null;
+		probeFontsResolveRef.current = null;
+		probeDetailsResolveRef.current = null;
+		probeDetailsRejectRef.current = null;
+		probeDetailsCacheKeyRef.current = null;
+		subtitlePendingRef.current = null;
+		fontsPendingRef.current = null;
+	}, []);
 
 	const rejectBackgroundRequests = useCallback((err: Error) => {
 		setProbeStatus(null);
@@ -428,6 +290,7 @@ export function useVideoProcessor() {
 		probeResolveRef.current = null;
 		probeRejectRef.current = null;
 		probeCacheKeyRef.current = null;
+		probeFontsResolveRef.current = null;
 		probeDetailsRejectRef.current?.(err);
 		probeDetailsResolveRef.current = null;
 		probeDetailsRejectRef.current = null;
@@ -437,6 +300,146 @@ export function useVideoProcessor() {
 		fontsPendingRef.current?.reject(err);
 		fontsPendingRef.current = null;
 	}, []);
+
+	const attachWorker = useCallback(
+		(worker: Worker) => {
+			worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
+				const msg = e.data;
+
+				switch (msg.type) {
+					case 'READY':
+						setState((s) => ({ ...s, ready: true }));
+						break;
+					case 'STARTED':
+						setState((s) => ({ ...s, started: true }));
+						break;
+
+					case 'PROGRESS':
+						// Keep UI smooth under heavy worker log/progress throughput.
+						if (msg.progress < 1) {
+							const now = performance.now();
+							if (now - lastProgressEmitRef.current < 80) break;
+							lastProgressEmitRef.current = now;
+						}
+						setState((s) => {
+							const rawFfmpegProgress =
+								Number.isFinite(msg.progress) && msg.progress > 0
+									? Math.min(0.999, msg.progress)
+									: null;
+							const timeProgress = normalizeProgressFromTime(
+								msg.time,
+								exportExpectedDurationRef.current,
+								rawFfmpegProgress ?? undefined,
+							);
+							const nextProgress =
+								exportExpectedDurationRef.current > 0
+									? (timeProgress ?? rawFfmpegProgress ?? s.progress)
+									: (rawFfmpegProgress ?? timeProgress ?? s.progress);
+							return {
+								...s,
+								progress: Math.max(s.progress, nextProgress),
+								exportStats: {
+									fps: msg.fps,
+									frame: msg.frame,
+									speed: msg.speed,
+									elapsedMs: Date.now() - exportStartRef.current,
+								},
+							};
+						});
+						break;
+
+					case 'DONE':
+						setState((s) => ({ ...s, processing: false, started: false, progress: 1 }));
+						resolveRef.current?.(msg.data);
+						clearForegroundRequest();
+						break;
+
+					case 'PROBE_RESULT':
+						if (probeCacheKeyRef.current) {
+							useVideoMetadataStore
+								.getState()
+								.upsertMetadata(probeCacheKeyRef.current, { probe: msg.result });
+						}
+						setProbeStatus(null);
+						probeCacheKeyRef.current = null;
+						if (msg.fonts && msg.fonts.length > 0) {
+							probeFontsResolveRef.current?.(msg.fonts);
+						}
+						probeFontsResolveRef.current = null;
+						probeResolveRef.current?.(msg.result);
+						probeResolveRef.current = null;
+						probeRejectRef.current = null;
+						break;
+					case 'PROBE_STATUS':
+						setProbeStatus(msg.status);
+						break;
+					case 'PROBE_DETAILS_RESULT':
+						if (probeDetailsCacheKeyRef.current) {
+							useVideoMetadataStore
+								.getState()
+								.upsertMetadata(probeDetailsCacheKeyRef.current, { probeDetails: msg.result });
+						}
+						probeDetailsCacheKeyRef.current = null;
+						probeDetailsResolveRef.current?.(msg.result);
+						probeDetailsResolveRef.current = null;
+						probeDetailsRejectRef.current = null;
+						break;
+
+					case 'SUBTITLE_PREVIEW_RESULT':
+						if (subtitlePendingRef.current?.requestId !== msg.requestId) break;
+						subtitlePendingRef.current.resolve({ format: msg.format, content: msg.content });
+						subtitlePendingRef.current = null;
+						break;
+					case 'FONTS_RESULT':
+						fontsPendingRef.current?.resolve(msg.fonts);
+						fontsPendingRef.current = null;
+						break;
+
+					case 'ERROR':
+						console.error('[hook] worker ERROR:', msg.error);
+						setState((s) => ({ ...s, processing: false, started: false, error: msg.error }));
+						const err = new Error(msg.error);
+						rejectForegroundRequest(err);
+						rejectBackgroundRequests(err);
+						break;
+
+					case 'LOG':
+						if (DEBUG_WORKER_LOGS) console.debug('[hook] worker LOG:', msg.message);
+						break;
+				}
+			};
+
+			let crashHandled = false;
+			worker.onerror = (e) => {
+				if (crashHandled) return;
+				crashHandled = true;
+				console.error('[hook] worker onerror:', e.message, e);
+				const err = new Error(e.message ?? 'Worker crashed');
+				setState((s) => ({ ...s, ready: false, processing: false, started: false, error: err.message }));
+				rejectForegroundRequest(err);
+				rejectBackgroundRequests(err);
+
+				worker.terminate();
+				const next = createWorker();
+				attachWorker(next);
+			};
+
+			workerRef.current = worker;
+		},
+		[clearForegroundRequest, rejectBackgroundRequests, rejectForegroundRequest],
+	);
+
+	useEffect(() => {
+		const worker = createWorker();
+		attachWorker(worker);
+
+		return () => {
+			clearForegroundRequest();
+			clearBackgroundRequests();
+			worker.terminate();
+			workerRef.current = null;
+		};
+	}, [attachWorker, clearBackgroundRequests, clearForegroundRequest]);
 
 	const restartWorker = useCallback(
 		(stateUpdater?: (s: VideoProcessorState) => VideoProcessorState) => {
@@ -450,14 +453,21 @@ export function useVideoProcessor() {
 		[attachWorker],
 	);
 
+	const getWorkerOrReject = useCallback((reject: (err: Error) => void): Worker | null => {
+		const worker = workerRef.current;
+		if (!worker) {
+			reject(new Error('Worker not initialized'));
+			return null;
+		}
+		return worker;
+	}, []);
+
 	const cancel = useCallback(() => {
 		if (!workerRef.current) return;
 
 		// Reject pending promises
 		const err = new Error('Cancelled');
-		rejectRef.current?.(err);
-		resolveRef.current = null;
-		rejectRef.current = null;
+		rejectForegroundRequest(err);
 		rejectBackgroundRequests(err);
 
 		// Kill the stuck worker and spin up a fresh one
@@ -470,15 +480,13 @@ export function useVideoProcessor() {
 			exportStats: INITIAL_STATS,
 			error: null,
 		}));
-	}, [rejectBackgroundRequests, restartWorker]);
+	}, [rejectBackgroundRequests, rejectForegroundRequest, restartWorker]);
 
 	const sendCommand = useCallback(
 		async (message: WorkerRequest): Promise<Uint8Array> => {
 			return new Promise<Uint8Array>((resolve, reject) => {
-				if (!workerRef.current) {
-					reject(new Error('Worker not initialized'));
-					return;
-				}
+				const worker = getWorkerOrReject(reject);
+				if (!worker) return;
 
 				const isPriorityCommand =
 					message.type === 'TRANSCODE' || message.type === 'GIF' || message.type === 'SCREENSHOT';
@@ -518,10 +526,10 @@ export function useVideoProcessor() {
 				}));
 				resolveRef.current = resolve;
 				rejectRef.current = reject;
-				workerRef.current.postMessage(message);
+				worker.postMessage(message);
 			});
 		},
-		[rejectBackgroundRequests, restartWorker],
+		[getWorkerOrReject, rejectBackgroundRequests, restartWorker],
 	);
 
 	const transcode = useCallback(
@@ -568,10 +576,8 @@ export function useVideoProcessor() {
 			onFonts?: (fonts: Array<{ name: string; data: Uint8Array }>) => void,
 		): Promise<ProbeResultData> => {
 			return new Promise<ProbeResultData>((resolve, reject) => {
-				if (!workerRef.current) {
-					reject(new Error('Worker not initialized'));
-					return;
-				}
+				const worker = getWorkerOrReject(reject);
+				if (!worker) return;
 				const key = cacheKeyForFile(file);
 				const cached = useVideoMetadataStore.getState().getMetadata(key);
 				if (cached?.probe) {
@@ -585,67 +591,58 @@ export function useVideoProcessor() {
 				probeRejectRef.current = reject;
 				probeCacheKeyRef.current = key;
 				probeFontsResolveRef.current = onFonts ?? null;
-				workerRef.current.postMessage({ type: 'PROBE', file });
+				worker.postMessage({ type: 'PROBE', file });
 			});
 		},
-		[],
+		[getWorkerOrReject],
 	);
 
-	const probeDetails = useCallback(async (file: File): Promise<DetailedProbeResultData> => {
-		return new Promise<DetailedProbeResultData>((resolve, reject) => {
-			if (!workerRef.current) {
-				reject(new Error('Worker not initialized'));
-				return;
-			}
-			const key = cacheKeyForFile(file);
-			const cached = useVideoMetadataStore.getState().getMetadata(key);
-			if (cached?.probeDetails) {
-				resolve(cached.probeDetails);
-				return;
-			}
-			probeDetailsRejectRef.current?.(new Error('Superseded by newer detailed probe request'));
-			probeDetailsResolveRef.current = resolve;
-			probeDetailsRejectRef.current = reject;
-			probeDetailsCacheKeyRef.current = key;
-			workerRef.current.postMessage({ type: 'PROBE_DETAILS', file });
-		});
-	}, []);
+	const probeDetails = useCallback(
+		async (file: File): Promise<DetailedProbeResultData> => {
+			return new Promise<DetailedProbeResultData>((resolve, reject) => {
+				const worker = getWorkerOrReject(reject);
+				if (!worker) return;
+				const key = cacheKeyForFile(file);
+				const cached = useVideoMetadataStore.getState().getMetadata(key);
+				if (cached?.probeDetails) {
+					resolve(cached.probeDetails);
+					return;
+				}
+				probeDetailsRejectRef.current?.(new Error('Superseded by newer detailed probe request'));
+				probeDetailsResolveRef.current = resolve;
+				probeDetailsRejectRef.current = reject;
+				probeDetailsCacheKeyRef.current = key;
+				worker.postMessage({ type: 'PROBE_DETAILS', file });
+			});
+		},
+		[getWorkerOrReject],
+	);
 
 	const extractSubtitlePreview = useCallback(
 		async (file: File, streamIndex: number, subtitleCodec?: string): Promise<SubtitlePreviewData> => {
 			return new Promise<SubtitlePreviewData>((resolve, reject) => {
-				if (!workerRef.current) {
-					reject(new Error('Worker not initialized'));
-					return;
-				}
+				const worker = getWorkerOrReject(reject);
+				if (!worker) return;
 				const requestId = ++subtitleRequestIdRef.current;
 				subtitlePendingRef.current?.reject(new Error('Superseded by newer subtitle preview request'));
 				subtitlePendingRef.current = { requestId, resolve, reject };
-				workerRef.current.postMessage({
-					type: 'SUBTITLE_PREVIEW',
-					requestId,
-					file,
-					streamIndex,
-					subtitleCodec,
-				});
+				worker.postMessage({ type: 'SUBTITLE_PREVIEW', requestId, file, streamIndex, subtitleCodec });
 			});
 		},
-		[],
+		[getWorkerOrReject],
 	);
 
 	const extractFonts = useCallback(
 		async (file: File, attachments: FontAttachmentInfo[]): Promise<Array<{ name: string; data: Uint8Array }>> => {
 			return new Promise((resolve, reject) => {
-				if (!workerRef.current) {
-					reject(new Error('Worker not initialized'));
-					return;
-				}
+				const worker = getWorkerOrReject(reject);
+				if (!worker) return;
 				fontsPendingRef.current?.reject(new Error('Superseded by newer font extraction request'));
 				fontsPendingRef.current = { resolve, reject };
-				workerRef.current.postMessage({ type: 'EXTRACT_FONTS', file, attachments });
+				worker.postMessage({ type: 'EXTRACT_FONTS', file, attachments });
 			});
 		},
-		[],
+		[getWorkerOrReject],
 	);
 
 	return {

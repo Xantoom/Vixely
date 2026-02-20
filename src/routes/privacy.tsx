@@ -1,15 +1,16 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { Helmet } from 'react-helmet-async';
+import { Seo } from '@/components/Seo.tsx';
 
 export const Route = createFileRoute('/privacy')({ component: PrivacyPage });
 
 function PrivacyPage() {
 	return (
 		<>
-			<Helmet>
-				<title>Privacy Policy — Vixely</title>
-				<meta name="description" content="Vixely's privacy policy. Your files never leave your device." />
-			</Helmet>
+			<Seo
+				title="Privacy Policy — Vixely"
+				description="Vixely privacy policy. Your files stay on your device and are never uploaded."
+				path="/privacy"
+			/>
 
 			<div className="max-w-2xl mx-auto px-8 py-16 animate-fade-in">
 				<Link

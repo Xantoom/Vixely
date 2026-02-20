@@ -14,7 +14,7 @@ export function formatFileSize(bytes: number): string {
 
 /** Format image dimensions as "W x H" with locale number separators. */
 export function formatDimensions(w: number, h: number): string {
-	return `${w.toLocaleString(locale)} \u00d7 ${h.toLocaleString(locale)}`;
+	return `${w.toLocaleString(locale)} × ${h.toLocaleString(locale)}`;
 }
 
 /** Generic locale number formatter. */

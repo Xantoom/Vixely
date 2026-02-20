@@ -264,6 +264,19 @@ interface ParsedTranscodeSettings {
 	explicitTrackIds: Set<number>;
 }
 
+const TRANSCODE_VIDEO_CODEC_MAP: Readonly<Record<string, NonNullable<ParsedTranscodeSettings['videoCodec']>>> = {
+	libx264: 'avc',
+	libx265: 'hevc',
+	'libvpx-vp9': 'vp9',
+	'libaom-av1': 'av1',
+};
+
+const TRANSCODE_AUDIO_CODEC_MAP: Readonly<Record<string, NonNullable<ParsedTranscodeSettings['audioCodec']>>> = {
+	aac: 'aac',
+	libopus: 'opus',
+	opus: 'opus',
+};
+
 // ── Helpers ──
 
 function post(payload: WorkerResponse, transfer?: Transferable[]): void {
@@ -312,6 +325,45 @@ function parseOutputContainer(outputName: string): OutputContainer {
 	return 'mp4';
 }
 
+async function mapInBatches<T, U>(
+	items: readonly T[],
+	mapper: (item: T, index: number) => Promise<U>,
+	batchSize = 4,
+): Promise<U[]> {
+	if (items.length === 0) return [];
+	const size = Math.max(1, Math.floor(batchSize));
+	const results: U[] = Array.from({ length: items.length });
+
+	const runBatch = async (start: number): Promise<void> => {
+		if (start >= items.length) return;
+		const end = Math.min(items.length, start + size);
+		const batchPromises: Promise<U>[] = [];
+		for (let index = start; index < end; index += 1) {
+			batchPromises.push(mapper(items[index]!, index));
+		}
+		const batchResults = await Promise.all(batchPromises);
+		for (let offset = 0; offset < batchResults.length; offset += 1) {
+			results[start + offset] = batchResults[offset]!;
+		}
+		await runBatch(end);
+	};
+
+	await runBatch(0);
+	return results;
+}
+
+function isMediaTrack(track: InputTrack): boolean {
+	return track.type === 'video' || track.type === 'audio' || track.type === 'subtitle';
+}
+
+function toMediaTracks(tracks: readonly InputTrack[]): InputTrack[] {
+	const result: InputTrack[] = [];
+	for (const track of tracks) {
+		if (isMediaTrack(track)) result.push(track);
+	}
+	return result;
+}
+
 function splitFilterChain(value: string): string[] {
 	return value
 		.split(',')
@@ -357,7 +409,7 @@ function parseTrackMapToken(value: string): { wildcardType?: 'audio' | 'subtitle
 	return {};
 }
 
-function toDispositionRecord(track: InputTrack): Record<string, number> | undefined {
+function toDispositionRecord(track: InputTrack): Record<string, number> {
 	const disposition = track.disposition;
 	return {
 		default: disposition.default ? 1 : 0,
@@ -498,10 +550,8 @@ function parseTranscodeSettings(msg: TranscodeMessage): ParsedTranscodeSettings 
 			case '-c:v': {
 				if (value && value !== 'copy') {
 					settings.videoForceTranscode = true;
-					if (value === 'libx264') settings.videoCodec = 'avc';
-					if (value === 'libx265') settings.videoCodec = 'hevc';
-					if (value === 'libvpx-vp9') settings.videoCodec = 'vp9';
-					if (value === 'libaom-av1') settings.videoCodec = 'av1';
+					const codec = TRANSCODE_VIDEO_CODEC_MAP[value];
+					if (codec) settings.videoCodec = codec;
 				}
 				i += 1;
 				break;
@@ -509,8 +559,8 @@ function parseTranscodeSettings(msg: TranscodeMessage): ParsedTranscodeSettings 
 			case '-c:a': {
 				if (value && value !== 'copy') {
 					settings.audioForceTranscode = true;
-					if (value === 'aac') settings.audioCodec = 'aac';
-					if (value === 'libopus' || value === 'opus') settings.audioCodec = 'opus';
+					const codec = TRANSCODE_AUDIO_CODEC_MAP[value];
+					if (codec) settings.audioCodec = codec;
 				}
 				i += 1;
 				break;
@@ -657,18 +707,6 @@ async function computeQuickTrackStats(track: InputTrack): Promise<{ fps?: number
 	}
 }
 
-function toDetailedDisposition(track: InputTrack): Record<string, number> {
-	const disposition = track.disposition;
-	return {
-		default: disposition.default ? 1 : 0,
-		forced: disposition.forced ? 1 : 0,
-		original: disposition.original ? 1 : 0,
-		commentary: disposition.commentary ? 1 : 0,
-		hearing_impaired: disposition.hearingImpaired ? 1 : 0,
-		visual_impaired: disposition.visuallyImpaired ? 1 : 0,
-	};
-}
-
 function toFpsFraction(fps: number | undefined): string | undefined {
 	if (!fps || !Number.isFinite(fps) || fps <= 0) return undefined;
 	const scaled = Math.round(fps * 1000);
@@ -685,6 +723,23 @@ function parseAttachmentSelection(attachments: FontAttachmentInfo[]): Set<string
 	return names;
 }
 
+function splitSelectedTrackIdsByType(
+	tracks: readonly InputTrack[],
+	explicitTrackIds: ReadonlySet<number>,
+): { selectedAudioTrackIds: Set<number>; selectedSubtitleTrackIds: Set<number> } {
+	const selectedAudioTrackIds = new Set<number>();
+	const selectedSubtitleTrackIds = new Set<number>();
+	if (explicitTrackIds.size === 0) return { selectedAudioTrackIds, selectedSubtitleTrackIds };
+
+	for (const track of tracks) {
+		if (!explicitTrackIds.has(track.id)) continue;
+		if (track.type === 'audio') selectedAudioTrackIds.add(track.id);
+		if (track.type === 'subtitle') selectedSubtitleTrackIds.add(track.id);
+	}
+
+	return { selectedAudioTrackIds, selectedSubtitleTrackIds };
+}
+
 async function handleProbe(msg: ProbeMessage): Promise<void> {
 	post({ type: 'PROBE_STATUS', status: 'Reading stream metadata...' });
 
@@ -697,17 +752,17 @@ async function handleProbe(msg: ProbeMessage): Promise<void> {
 			input.getMetadataTags(),
 		]);
 
-		const mediaTracks = tracks.filter(
-			(track) => track.type === 'video' || track.type === 'audio' || track.type === 'subtitle',
-		);
-		const streamEntries = await Promise.all(
-			mediaTracks.map(async (track) => {
+		const mediaTracks = toMediaTracks(tracks);
+		const streamEntries = await mapInBatches(
+			mediaTracks,
+			async (track) => {
 				const stream = makeProbeStreamInfo(track);
 				const stats = await computeQuickTrackStats(track);
 				if (stats.fps != null) stream.fps = stats.fps;
 				if (stats.bitrate != null) stream.bitrate = stats.bitrate;
 				return stream;
-			}),
+			},
+			4,
 		);
 
 		const fontAttachments: FontAttachmentInfo[] = [];
@@ -761,11 +816,10 @@ async function handleProbeDetails(msg: ProbeDetailsMessage): Promise<void> {
 			input.getMimeType(),
 		]);
 
-		const mediaTracks = tracks.filter(
-			(track) => track.type === 'video' || track.type === 'audio' || track.type === 'subtitle',
-		);
-		const streams = await Promise.all(
-			mediaTracks.map(async (track) => {
+		const mediaTracks = toMediaTracks(tracks);
+		const streams = await mapInBatches(
+			mediaTracks,
+			async (track) => {
 				const [packetStats, trackDuration, startTime] = await Promise.all([
 					track.computePacketStats().catch(() => null),
 					track.computeDuration().catch(() => undefined),
@@ -780,6 +834,8 @@ async function handleProbeDetails(msg: ProbeDetailsMessage): Promise<void> {
 						? packetStats.averageBitrate
 						: undefined;
 
+				const language = maybeTrackLanguage(track);
+				const title = maybeTrackTitle(track);
 				const detail: DetailedProbeStreamInfo = {
 					index: track.id,
 					codec_type: track.type,
@@ -795,11 +851,8 @@ async function handleProbeDetails(msg: ProbeDetailsMessage): Promise<void> {
 					duration:
 						trackDuration != null && Number.isFinite(trackDuration) ? String(trackDuration) : undefined,
 					start_time: startTime != null && Number.isFinite(startTime) ? String(startTime) : undefined,
-					disposition: toDetailedDisposition(track),
-					tags: {
-						...(maybeTrackLanguage(track) ? { language: maybeTrackLanguage(track) } : {}),
-						...(maybeTrackTitle(track) ? { title: maybeTrackTitle(track) } : {}),
-					},
+					disposition: toDispositionRecord(track),
+					tags: { ...(language ? { language } : {}), ...(title ? { title } : {}) },
 				};
 
 				if (track.isVideoTrack()) {
@@ -821,7 +874,8 @@ async function handleProbeDetails(msg: ProbeDetailsMessage): Promise<void> {
 				}
 
 				return detail;
-			}),
+			},
+			4,
 		);
 
 		if (isMatroskaFile(msg.file) && !streams.some((s) => s.codec_type === 'subtitle')) {
@@ -968,21 +1022,24 @@ async function handleGif(msg: GifMessage): Promise<void> {
 		const frameCtx = frameCanvas.getContext('2d', { alpha: true });
 		if (!frameCtx) throw new Error('Failed to create frame context');
 
-		const frameRequests = Array.from({ length: outputFrameCount }, async (_, i) => {
-			const offset = i * sourceStep;
-			const sourceTime = msg.reverse ? clipStart + Math.max(clipDuration - offset, 0) : clipStart + offset;
-			const wrapped = await sink.getCanvas(sourceTime);
-			return { i, wrapped };
-		});
-		const wrappedFrames = await Promise.all(frameRequests);
+		const frameIndices = Array.from({ length: outputFrameCount }, (_, index) => index);
+		const wrappedFrames = await mapInBatches(
+			frameIndices,
+			async (i) => {
+				const offset = i * sourceStep;
+				const sourceTime = msg.reverse ? clipStart + Math.max(clipDuration - offset, 0) : clipStart + offset;
+				const wrapped = await sink.getCanvas(sourceTime);
+				return { i, wrapped };
+			},
+			1,
+		);
 
 		const frames: Uint8Array[] = [];
 		for (const { i, wrapped } of wrappedFrames) {
 			if (!wrapped) continue;
 			frameCtx.clearRect(0, 0, frameCanvas.width, frameCanvas.height);
 			frameCtx.drawImage(wrapped.canvas, 0, 0, frameCanvas.width, frameCanvas.height);
-			const imageData = frameCtx.getImageData(0, 0, frameCanvas.width, frameCanvas.height);
-			frames.push(new Uint8Array(imageData.data));
+			frames.push(new Uint8Array(frameCtx.getImageData(0, 0, frameCanvas.width, frameCanvas.height).data));
 			const progress = Math.min(0.85, ((i + 1) / outputFrameCount) * 0.85);
 			post({ type: 'PROGRESS', progress, time: i / fps, fps, frame: i + 1, speed });
 		}
@@ -1024,14 +1081,9 @@ async function handleTranscode(msg: TranscodeMessage): Promise<void> {
 		const output = new Output({ format: outputFormatForContainer(parsed.container), target: new BufferTarget() });
 
 		const tracks = await input.getTracks();
-		const audioTrackIds = new Set(tracks.filter((track) => track.type === 'audio').map((track) => track.id));
-		const subtitleTrackIds = new Set(tracks.filter((track) => track.type === 'subtitle').map((track) => track.id));
-
-		const selectedAudioTrackIds = new Set(
-			Array.from(parsed.explicitTrackIds).filter((trackId) => audioTrackIds.has(trackId)),
-		);
-		const selectedSubtitleTrackIds = new Set(
-			Array.from(parsed.explicitTrackIds).filter((trackId) => subtitleTrackIds.has(trackId)),
+		const { selectedAudioTrackIds, selectedSubtitleTrackIds } = splitSelectedTrackIdsByType(
+			tracks,
+			parsed.explicitTrackIds,
 		);
 
 		const includeAnyAudio = parsed.includeAllAudio || selectedAudioTrackIds.size > 0;

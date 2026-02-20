@@ -16,12 +16,12 @@ import {
 	StepForward,
 	LoaderCircle,
 } from 'lucide-react';
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { Helmet } from 'react-helmet-async';
+import { useState, useRef, useCallback, useEffect, useMemo, useId } from 'react';
 import { toast } from 'sonner';
 import type { AdvancedVideoSettings } from '@/components/video/AdvancedSettings.tsx';
 import type { SubtitlePreviewData } from '@/hooks/useVideoProcessor.ts';
 import type { DetailedProbeResultData } from '@/workers/ffmpeg-worker.ts';
+import { Seo } from '@/components/Seo.tsx';
 import { Drawer } from '@/components/ui/Drawer.tsx';
 import { Button, Slider, Timeline, formatTimecode, formatCompactTime } from '@/components/ui/index.ts';
 import {
@@ -42,9 +42,15 @@ import {
 	isValidAudioCombo,
 } from '@/config/codecs.ts';
 import { videoPresetEntries, buildVideoArgs, VIDEO_ACCEPT } from '@/config/presets.ts';
+import { useFrameStepController } from '@/hooks/useFrameStepController.ts';
+import { useObjectUrlState } from '@/hooks/useObjectUrlState.ts';
+import { usePreventUnload } from '@/hooks/usePreventUnload.ts';
+import { useSingleFileDrop } from '@/hooks/useSingleFileDrop.ts';
+import { useTimelineScrubController } from '@/hooks/useTimelineScrubController.ts';
+import { useVideoMetadataLoader, type MetadataLoadStage } from '@/hooks/useVideoMetadataLoader.ts';
 import { useVideoProcessor } from '@/hooks/useVideoProcessor.ts';
+import { buildFfmpegExportPlan } from '@/modules/video-editor/export/ffmpeg-export-plan.ts';
 import { useVideoEditorStore, type VideoMode } from '@/stores/videoEditor.ts';
-import { cacheKeyForFile, useVideoMetadataStore } from '@/stores/videoMetadata.ts';
 import { setPendingImageTransfer } from '@/utils/crossEditorTransfer.ts';
 import { formatFileSize, formatNumber } from '@/utils/format.ts';
 import { formatChannels, getLanguageName } from '@/utils/languageUtils.ts';
@@ -53,28 +59,7 @@ export const Route = createFileRoute('/tools/video')({ component: VideoStudio })
 
 const VIDEO_PRESETS = videoPresetEntries();
 
-const CONTAINER_AUDIO_CODECS: Record<string, Set<string>> = {
-	webm: new Set(['libopus', 'opus', 'libvorbis', 'vorbis']),
-	mp4: new Set(['aac', 'mp3', 'libmp3lame', 'libopus', 'opus', 'flac', 'ac3', 'eac3']),
-	mkv: new Set([
-		'aac',
-		'mp3',
-		'libmp3lame',
-		'libopus',
-		'opus',
-		'flac',
-		'ac3',
-		'eac3',
-		'dts',
-		'truehd',
-		'pcm_s16le',
-		'pcm_s24le',
-	]),
-};
-
 const VIDEO_FILENAME_RE = /\.(mp4|mkv|webm|mov|m4v|avi|mts|m2ts|ts)$/i;
-
-type MetadataLoadStage = 'idle' | 'fast-probe' | 'fonts' | 'ready' | 'error';
 
 async function convertPngToFormat(pngData: Uint8Array, format: 'jpeg' | 'webp'): Promise<Blob> {
 	return new Promise((resolve, reject) => {
@@ -146,17 +131,22 @@ function groupPresetsByPlatform(presets: [string, { name: string; description: s
 	return order.filter((p) => groups[p]).map((p) => ({ platform: p, presets: groups[p]! }));
 }
 
-function ToggleSwitch({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) {
+function ToggleSwitch({ enabled, onToggle, label }: { enabled: boolean; onToggle: () => void; label: string }) {
 	return (
 		<button
 			onClick={onToggle}
-			className={`ml-auto relative w-8 h-[18px] rounded-full transition-colors cursor-pointer shrink-0 ${
+			type="button"
+			role="switch"
+			aria-checked={enabled}
+			aria-label={label}
+			className={`ml-auto relative w-8 h-4.5 rounded-full transition-colors cursor-pointer shrink-0 ${
 				enabled ? 'bg-accent' : 'bg-border'
 			}`}
 		>
 			<div
-				className={`absolute top-[2px] left-[2px] h-[14px] w-[14px] rounded-full bg-white transition-transform ${
-					enabled ? 'translate-x-[14px]' : ''
+				aria-hidden
+				className={`absolute top-0.5 left-0.5 h-3.5 w-3.5 rounded-full bg-white transition-transform ${
+					enabled ? 'translate-x-3.5' : ''
 				}`}
 			/>
 		</button>
@@ -221,8 +211,6 @@ function VideoStudio() {
 	const setTrimInputMode = useVideoEditorStore((s) => s.setTrimInputMode);
 	const advancedSettings = useVideoEditorStore((s) => s.advancedSettings);
 	const setAdvancedSettings = useVideoEditorStore((s) => s.setAdvancedSettings);
-	const useCustomExport = useVideoEditorStore((s) => s.useCustomExport);
-	const setUseCustomExport = useVideoEditorStore((s) => s.setUseCustomExport);
 	const ffmpegFilterArgs = useVideoEditorStore((s) => s.ffmpegFilterArgs);
 	const resizeFilterArgs = useVideoEditorStore((s) => s.resizeFilterArgs);
 
@@ -234,13 +222,13 @@ function VideoStudio() {
 	);
 
 	const [file, setFile] = useState<File | null>(null);
-	const [videoUrl, setVideoUrl] = useState<string | null>(null);
+	const [videoUrl, setVideoUrl] = useObjectUrlState();
 	const [duration, setDuration] = useState(0);
 	const [currentTime, setCurrentTime] = useState(0);
 	const [trimStart, setTrimStart] = useState(0);
 	const [trimEnd, setTrimEnd] = useState(0);
 	const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
-	const [resultUrl, setResultUrl] = useState<string | null>(null);
+	const [resultUrl, setResultUrl] = useObjectUrlState();
 	const [resultExt, setResultExt] = useState<string | null>(null);
 	const [audioExportMode, setAudioExportMode] = useState<'all' | 'single'>('all');
 	const [subtitleExportMode, setSubtitleExportMode] = useState<'all' | 'single'>('all');
@@ -259,27 +247,20 @@ function VideoStudio() {
 	const [embeddedFonts, setEmbeddedFonts] = useState<Array<{ name: string; data: Uint8Array }>>([]);
 	const [showInfo, setShowInfo] = useState(false);
 	const [drawerOpen, setDrawerOpen] = useState(false);
-	const [isDragging, setIsDragging] = useState(false);
-	const [timelineScrubbing, setTimelineScrubbing] = useState(false);
 	const [exportError, setExportError] = useState<string | null>(null);
+	const trimStartFrameInputId = useId();
+	const trimEndFrameInputId = useId();
 
 	const videoRef = useRef<HTMLVideoElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const preBurnedAssInputRef = useRef<HTMLInputElement>(null);
-	const dragCounter = useRef(0);
 	const progressRef = useRef(0);
 	const startedRef = useRef(started);
 	const exportStatsRef = useRef(exportStats);
-	const frameHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const scrubSeekTimeRef = useRef<number | null>(null);
-	const scrubSeekRafRef = useRef<number | null>(null);
-	const lastSeekDispatchMsRef = useRef(0);
-	const isTimelineScrubbingRef = useRef(false);
-	const probeRequestIdRef = useRef(0);
-	const detailedProbeRequestIdRef = useRef(0);
 	const subtitleCacheRef = useRef<Map<string, SubtitlePreviewData>>(new Map());
 
 	const isDirty = file !== null;
+	usePreventUnload(isDirty || processing);
 
 	const videoStreamInfo = useMemo(() => probeResult?.streams.find((s) => s.type === 'video') ?? null, [probeResult]);
 	const videoFps = videoStreamInfo?.fps ?? 30;
@@ -295,10 +276,6 @@ function VideoStudio() {
 	const minTrimDuration = frameDuration;
 	const metadataExportLocked = streamInfoPending;
 	const metadataVideoLoading = streamInfoPending || detailedProbePending;
-
-	useEffect(() => {
-		if (!selectedPreset && !useCustomExport) setUseCustomExport(true);
-	}, [selectedPreset, useCustomExport, setUseCustomExport]);
 
 	useEffect(() => {
 		progressRef.current = progress;
@@ -321,14 +298,6 @@ function VideoStudio() {
 			clearTimeout(timer);
 		};
 	}, [exportError]);
-
-	const clampToTrim = useCallback(
-		(time: number) => {
-			if (!Number.isFinite(time)) return trimStart;
-			return Math.min(trimEnd, Math.max(trimStart, time));
-		},
-		[trimStart, trimEnd],
-	);
 
 	const clampTrimStart = useCallback(
 		(value: number) => {
@@ -400,151 +369,39 @@ function VideoStudio() {
 		metadataLoadStage,
 	]);
 
-	useEffect(() => {
-		if (!isDirty && !processing) return;
-		const handler = (e: BeforeUnloadEvent) => {
-			e.preventDefault();
-		};
-		window.addEventListener('beforeunload', handler);
-		return () => {
-			window.removeEventListener('beforeunload', handler);
-		};
-	}, [isDirty, processing]);
+	const loadVideoMetadata = useVideoMetadataLoader({
+		probe,
+		probeDetails,
+		preBurnedAssInputRef,
+		subtitleCacheRef,
+		setFile,
+		setResultUrl,
+		setResultExt,
+		setStreamInfoPending,
+		setMetadataLoadStage,
+		setDetailedProbe,
+		setDetailedProbePending,
+		setDetailedProbeError,
+		setSelectedPreset,
+		setCaptureMenuOpen,
+		setTrimStart,
+		setTrimEnd,
+		setDuration,
+		setCurrentTime,
+		setAudioExportMode,
+		setSubtitleExportMode,
+		setUsePreBurnedAssSource,
+		setPreBurnedAssSourceFile,
+		setVideoNoReencode,
+		setAudioNoReencode,
+		setVideoUrl,
+		setEmbeddedFonts,
+		setProbeResult,
+		setTracks,
+		setResize,
+	});
 
-	const handleFile = useCallback(
-		(f: File) => {
-			const probeRequestId = ++probeRequestIdRef.current;
-			const detailedProbeRequestId = ++detailedProbeRequestIdRef.current;
-			if (videoUrl) URL.revokeObjectURL(videoUrl);
-			setFile(f);
-			setResultUrl(null);
-			setResultExt(null);
-			setStreamInfoPending(true);
-			setMetadataLoadStage('fast-probe');
-			setDetailedProbe(null);
-			setDetailedProbePending(true);
-			setDetailedProbeError(null);
-			setSelectedPreset(null);
-			setCaptureMenuOpen(false);
-			setTrimStart(0);
-			setTrimEnd(0);
-			setDuration(0);
-			setCurrentTime(0);
-			setAudioExportMode('all');
-			setSubtitleExportMode('all');
-			setUsePreBurnedAssSource(false);
-			setPreBurnedAssSourceFile(null);
-			setVideoNoReencode(false);
-			setAudioNoReencode(true);
-			setVideoUrl(URL.createObjectURL(f));
-			if (preBurnedAssInputRef.current) preBurnedAssInputRef.current.value = '';
-			toast.success('Video loaded', { description: f.name });
-
-			setEmbeddedFonts([]);
-			subtitleCacheRef.current.clear();
-			const metadataKey = cacheKeyForFile(f);
-			useVideoMetadataStore.getState().clearMetadata(metadataKey);
-
-			probe(f, (fonts) => {
-				if (probeRequestId !== probeRequestIdRef.current) return;
-				setEmbeddedFonts(fonts);
-			})
-				.then((result) => {
-					if (probeRequestId !== probeRequestIdRef.current) return;
-					setStreamInfoPending(false);
-					setMetadataLoadStage('ready');
-
-					const videoStream = result.streams.find((s) => s.type === 'video');
-					const probedAudioStreams = result.streams.filter((s) => s.type === 'audio');
-					const probedSubtitleStreams = result.streams.filter((s) => s.type === 'subtitle');
-
-					const defaultAudioTrackIndex = (() => {
-						const i = probedAudioStreams.findIndex((s) => s.isDefault);
-						return i >= 0 ? i : 0;
-					})();
-
-					const defaultSubtitleTrackIndex = (() => {
-						const iDefault = probedSubtitleStreams.findIndex((s) => s.isDefault);
-						if (iDefault >= 0) return iDefault;
-						const iForced = probedSubtitleStreams.findIndex((s) => s.isForced);
-						if (iForced >= 0) return iForced;
-						return 0;
-					})();
-
-					setProbeResult({
-						duration: result.duration,
-						bitrate: result.bitrate,
-						format: result.format,
-						streams: result.streams.map((s) => ({
-							index: s.index,
-							type: s.type,
-							codec: s.codec,
-							width: s.width,
-							height: s.height,
-							fps: s.fps,
-							sampleRate: s.sampleRate,
-							channels: s.channels,
-							language: s.language,
-							title: s.title,
-							bitrate: s.bitrate,
-							isDefault: s.isDefault,
-							isForced: s.isForced,
-							tags: s.tags,
-							disposition: s.disposition,
-						})),
-					});
-					setTracks({
-						audioEnabled: probedAudioStreams.length > 0,
-						audioTrackIndex: defaultAudioTrackIndex,
-						subtitleEnabled: probedSubtitleStreams.some((s) => s.isDefault || s.isForced),
-						subtitleTrackIndex: defaultSubtitleTrackIndex,
-					});
-
-					const vs = videoStream;
-					if (vs?.width && vs.height) {
-						setResize({
-							width: vs.width,
-							height: vs.height,
-							originalWidth: vs.width,
-							originalHeight: vs.height,
-							scalePercent: 100,
-						});
-					}
-
-					probeDetails(f)
-						.then((detailedResult) => {
-							if (detailedProbeRequestId !== detailedProbeRequestIdRef.current) return;
-							setDetailedProbe(detailedResult);
-						})
-						.catch((err: unknown) => {
-							if (detailedProbeRequestId !== detailedProbeRequestIdRef.current) return;
-							if (err instanceof Error && err.message.includes('Superseded')) return;
-							setDetailedProbeError(err instanceof Error ? err.message : String(err));
-						})
-						.finally(() => {
-							if (detailedProbeRequestId !== detailedProbeRequestIdRef.current) return;
-							setDetailedProbePending(false);
-						});
-				})
-				.catch((err: unknown) => {
-					if (probeRequestId !== probeRequestIdRef.current) return;
-					setStreamInfoPending(false);
-					setMetadataLoadStage('error');
-					setProbeResult(null);
-					setTracks({
-						audioEnabled: false,
-						audioTrackIndex: 0,
-						subtitleEnabled: false,
-						subtitleTrackIndex: 0,
-					});
-					setEmbeddedFonts([]);
-					toast.error('Failed to read video metadata', {
-						description: err instanceof Error ? err.message : 'Could not read stream metadata.',
-					});
-				});
-		},
-		[probe, probeDetails, setProbeResult, setTracks, setResize, videoUrl],
-	);
+	const handleFile = loadVideoMetadata;
 
 	const handlePreBurnedAssSourceFile = useCallback((f: File) => {
 		if (!isVideoFileLike(f)) {
@@ -568,133 +425,14 @@ function VideoStudio() {
 		setCurrentTime(0);
 	}, []);
 
-	const applyVideoSeek = useCallback(
-		(time: number, mode: 'exact' | 'fast' = 'exact') => {
-			if (!Number.isFinite(time)) return;
-			const video = videoRef.current;
-			const clamped = clampToTrim(time);
-			if (!Number.isFinite(clamped)) return;
-			if (video && mode === 'fast' && typeof video.fastSeek === 'function') {
-				try {
-					video.fastSeek(clamped);
-					return;
-				} catch {
-					// Fallback to exact seek
-				}
-			}
-			if (video && (!Number.isFinite(video.currentTime) || Math.abs(video.currentTime - clamped) > 1e-4)) {
-				video.currentTime = clamped;
-			}
-		},
-		[clampToTrim],
-	);
-
-	const runScrubSeekLoop = useCallback(() => {
-		scrubSeekRafRef.current = null;
-		const pending = scrubSeekTimeRef.current;
-		if (pending == null) return;
-		const video = videoRef.current;
-		if (!video) {
-			scrubSeekTimeRef.current = null;
-			return;
-		}
-		const clamped = clampToTrim(pending);
-		if (!Number.isFinite(clamped)) {
-			scrubSeekTimeRef.current = null;
-			return;
-		}
-
-		const now = performance.now();
-		const isScrubbing = isTimelineScrubbingRef.current;
-		const minIntervalMs = isScrubbing ? 90 : video.seeking ? 33 : 16;
-		const current = Number.isFinite(video.currentTime) ? video.currentTime : NaN;
-		const hasMeaningfulDelta =
-			!Number.isFinite(current) || Math.abs(current - clamped) > (isScrubbing ? 0.03 : 0.03);
-		if (hasMeaningfulDelta && now - lastSeekDispatchMsRef.current >= minIntervalMs) {
-			applyVideoSeek(clamped, isScrubbing ? 'fast' : 'exact');
-			lastSeekDispatchMsRef.current = now;
-		}
-
-		const refreshed = Number.isFinite(video.currentTime) ? video.currentTime : NaN;
-		if (Number.isFinite(refreshed) && Math.abs(refreshed - clamped) <= 0.02) {
-			scrubSeekTimeRef.current = null;
-		}
-
-		if (scrubSeekTimeRef.current != null) {
-			scrubSeekRafRef.current = requestAnimationFrame(() => {
-				runScrubSeekLoop();
-			});
-		}
-	}, [applyVideoSeek, clampToTrim]);
-
-	const handleSeek = useCallback(
-		(time: number) => {
-			if (!Number.isFinite(time)) return;
-			const clamped = clampToTrim(time);
-			if (!Number.isFinite(clamped)) return;
-			setCurrentTime(clamped);
-			scrubSeekTimeRef.current = clamped;
-			if (scrubSeekRafRef.current != null) return;
-			scrubSeekRafRef.current = requestAnimationFrame(() => {
-				runScrubSeekLoop();
-			});
-		},
-		[clampToTrim, runScrubSeekLoop],
-	);
-
-	const handleTimelineScrubStart = useCallback(() => {
-		isTimelineScrubbingRef.current = true;
-		setTimelineScrubbing(true);
-	}, []);
-
-	const handleTimelineScrubEnd = useCallback(() => {
-		isTimelineScrubbingRef.current = false;
-		setTimelineScrubbing(false);
-		const pending = scrubSeekTimeRef.current;
-		if (pending == null) return;
-		const clamped = clampToTrim(pending);
-		if (!Number.isFinite(clamped)) return;
-		scrubSeekTimeRef.current = clamped;
-		setCurrentTime(clamped);
-		applyVideoSeek(clamped, 'exact');
-		if (scrubSeekRafRef.current == null) {
-			scrubSeekRafRef.current = requestAnimationFrame(() => {
-				runScrubSeekLoop();
-			});
-		}
-	}, [applyVideoSeek, clampToTrim, runScrubSeekLoop]);
-
-	const handleTimeUpdate = useCallback(() => {
-		const video = videoRef.current;
-		if (!video) return;
-		const pendingSeek = scrubSeekTimeRef.current;
-		if (pendingSeek != null) {
-			if (!Number.isFinite(video.currentTime)) return;
-			const pendingDelta = Math.abs(video.currentTime - pendingSeek);
-			if (pendingDelta > 0.04) return;
-			scrubSeekTimeRef.current = null;
-		}
-		if (!Number.isFinite(video.currentTime)) {
-			video.currentTime = trimStart;
-			setCurrentTime(trimStart);
-			return;
-		}
-
-		if (video.currentTime < trimStart) {
-			video.currentTime = trimStart;
-			setCurrentTime(trimStart);
-			return;
-		}
-
-		if (video.currentTime >= trimEnd) {
-			video.currentTime = trimEnd;
-			setCurrentTime(trimEnd);
-			if (!video.paused) video.pause();
-			return;
-		}
-
-		setCurrentTime(video.currentTime);
-	}, [trimStart, trimEnd]);
+	const {
+		timelineScrubbing,
+		clampToTrim,
+		handleSeek,
+		handleTimelineScrubStart,
+		handleTimelineScrubEnd,
+		handleTimeUpdate,
+	} = useTimelineScrubController({ videoRef, trimStart, trimEnd, processing, setCurrentTime });
 
 	const togglePlaybackInTrim = useCallback(() => {
 		const video = videoRef.current;
@@ -710,82 +448,22 @@ function VideoStudio() {
 		}
 	}, [frameDuration, processing, trimStart, trimEnd]);
 
-	const stopFrameHold = useCallback(() => {
-		if (!frameHoldTimerRef.current) return;
-		clearTimeout(frameHoldTimerRef.current);
-		frameHoldTimerRef.current = null;
-	}, []);
+	const { stepCurrentFrame, startFrameHold, stopFrameHold } = useFrameStepController({
+		videoRef,
+		processing,
+		frameDuration,
+		videoFps,
+		clampToTrim,
+		handleSeek,
+	});
 
-	useEffect(() => {
-		return () => {
-			stopFrameHold();
-		};
-	}, [stopFrameHold]);
-
-	useEffect(() => {
-		return () => {
-			if (scrubSeekRafRef.current != null) {
-				cancelAnimationFrame(scrubSeekRafRef.current);
-				scrubSeekRafRef.current = null;
-			}
-			scrubSeekTimeRef.current = null;
-			isTimelineScrubbingRef.current = false;
-		};
-	}, []);
-
-	useEffect(() => {
-		const video = videoRef.current;
-		if (video && !processing) {
-			const clamped = clampToTrim(video.currentTime);
-			if (Math.abs(clamped - video.currentTime) > 0.0001) {
-				video.currentTime = clamped;
-				setCurrentTime(clamped);
-			}
-			if (clamped >= trimEnd && !video.paused) {
-				video.pause();
-			}
-		}
-	}, [trimStart, trimEnd, processing, clampToTrim]);
-
-	/* ── Drag-and-drop handlers ── */
-	const handleDragEnter = useCallback((e: React.DragEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-		dragCounter.current++;
-		if (dragCounter.current === 1) setIsDragging(true);
-	}, []);
-
-	const handleDragLeave = useCallback((e: React.DragEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-		dragCounter.current--;
-		if (dragCounter.current === 0) setIsDragging(false);
-	}, []);
-
-	const handleDragOver = useCallback((e: React.DragEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-	}, []);
-
-	const handleDrop = useCallback(
-		(e: React.DragEvent) => {
-			e.preventDefault();
-			e.stopPropagation();
-			dragCounter.current = 0;
-			setIsDragging(false);
-
-			const f = e.dataTransfer.files[0];
-			if (!f) return;
-
-			if (!isVideoFileLike(f)) {
-				toast.error('Invalid file type', { description: 'Drop a video file (MP4, WebM, MOV, etc.)' });
-				return;
-			}
-
-			handleFile(f);
+	const { isDragging, dropHandlers } = useSingleFileDrop<HTMLDivElement>({
+		onFile: handleFile,
+		acceptFile: isVideoFileLike,
+		onRejectedFile: () => {
+			toast.error('Invalid file type', { description: 'Drop a video file (MP4, WebM, MOV, etc.)' });
 		},
-		[handleFile],
-	);
+	});
 
 	/* ── Keyboard shortcuts ── */
 	useEffect(() => {
@@ -874,231 +552,45 @@ function VideoStudio() {
 			return;
 		}
 
-		const usingPreBurnedSource = usePreBurnedAssSource && preBurnedAssSourceFile != null;
-		const sourceFile = usingPreBurnedSource ? preBurnedAssSourceFile : file;
-
-		const isCustom = useCustomExport || !selectedPreset;
-		const encodeThreads = String(pickEncodeThreads());
-
 		setResultUrl(null);
 		setResultExt(null);
 		progressRef.current = 0;
 		exportStartRef.current = Date.now();
-		const clipDuration = Math.max(trimEnd - trimStart, minTrimDuration);
-		const trimEpsilon = Math.max(minTrimDuration * 0.5, 0.01);
-		const hasTrimStart = trimStart > trimEpsilon;
-		const hasTrimRange = duration > 0 && clipDuration < Math.max(duration - trimEpsilon, 0);
-
-		const args: string[] = [];
-
-		// Trim args
-		if (hasTrimStart) args.push('-ss', trimStart.toFixed(3));
-		if (hasTrimRange) args.push('-t', clipDuration.toFixed(3));
-
-		const selectedAudioStream =
-			tracks.audioEnabled && audioExportMode === 'single' ? audioStreams[tracks.audioTrackIndex] : undefined;
-		const selectedSubtitleStream =
-			!usingPreBurnedSource && tracks.subtitleEnabled && subtitleExportMode === 'single'
-				? subtitleStreams[tracks.subtitleTrackIndex]
-				: undefined;
-		const includeAudioTracks = tracks.audioEnabled && audioStreams.length > 0;
-		const includeSubtitleTracks = !usingPreBurnedSource && tracks.subtitleEnabled && subtitleStreams.length > 0;
-		const selectedAudioStreamsForExport = includeAudioTracks
-			? audioExportMode === 'all'
-				? audioStreams
-				: selectedAudioStream
-					? [selectedAudioStream]
-					: []
-			: [];
-		const selectedAudioStreamCount = selectedAudioStreamsForExport.length;
-		const audioCodecToLib: Record<string, string> = { aac: 'aac', opus: 'libopus', libopus: 'libopus' };
-		const selectedSourceAudioCodecs = selectedAudioStreamsForExport
-			.map((stream) => {
-				const source = stream.codec?.toLowerCase().trim() ?? '';
-				return audioCodecToLib[source] ?? source;
-			})
-			.filter(Boolean);
-		const selectedSourceAudioMaxBitrateKbps = selectedAudioStreamsForExport.reduce((max, stream) => {
-			const bitrate = stream.bitrate != null && Number.isFinite(stream.bitrate) ? Math.round(stream.bitrate) : 0;
-			return Math.max(max, Math.max(0, bitrate));
-		}, 0);
-		const selectedSourceAudioTotalBitrateKbps = selectedAudioStreamsForExport.reduce((sum, stream) => {
-			const bitrate = stream.bitrate != null && Number.isFinite(stream.bitrate) ? Math.round(stream.bitrate) : 0;
-			return sum + Math.max(0, bitrate);
-		}, 0);
-		const sourceClipBytesEstimate =
-			duration > 0
-				? Math.round((sourceFile.size * Math.max(clipDuration, minTrimDuration)) / duration)
-				: sourceFile.size;
-
-		// Build -vf filter chain (resize + color correction)
-		const vfParts = [...resizeFilterArgs(), ...ffmpegFilterArgs()];
-		const noVideoFilters = vfParts.length === 0;
-
-		let outputName: string;
-		let ext: string;
-		let includeAudio = includeAudioTracks;
-
-		if (isCustom) {
-			const s = advancedSettings;
-			includeAudio = includeAudio && (audioNoReencode || s.audioCodec !== 'none');
-			const canCopyVideo = videoNoReencode && noVideoFilters;
-			if (videoNoReencode && !noVideoFilters) {
-				console.warn('[video] No-reencode override: active filters require re-encoding video');
-			}
-			const canCopyAudio =
-				includeAudio &&
-				selectedSourceAudioCodecs.length > 0 &&
-				selectedSourceAudioCodecs.every((codec) => codec === s.audioCodec);
-
-			if (canCopyVideo) {
-				args.push('-c:v', 'copy');
-			} else {
-				const videoThreads = encodeThreads;
-				if (vfParts.length > 0) args.push('-vf', vfParts.join(','));
-				args.push('-threads', videoThreads);
-				args.push('-c:v', s.codec);
-				if (s.codec === 'libx264' || s.codec === 'libx265') {
-					args.push('-preset', s.preset);
-				}
-
-				const rateControl = s.rateControl === 'qp' && !codecSupportsQp(s.codec) ? 'crf' : s.rateControl;
-				if (rateControl === 'bitrate') {
-					const targetKbps = Math.max(150, Math.round(s.targetBitrateKbps));
-					const maxRateKbps = Math.max(targetKbps, Math.round(targetKbps * 1.25));
-					const bufSizeKbps = Math.max(targetKbps * 2, 300);
-					args.push('-b:v', `${targetKbps}k`, '-maxrate', `${maxRateKbps}k`, '-bufsize', `${bufSizeKbps}k`);
-				} else if (rateControl === 'qp') {
-					args.push('-qp', String(s.qp));
-				} else {
-					args.push('-crf', String(s.crf));
-					if (s.codec === 'libvpx-vp9' || s.codec === 'libaom-av1') {
-						args.push('-b:v', '0');
-					}
-				}
-
-				if (s.codec === 'libx265') {
-					args.push('-pix_fmt', 'yuv420p');
-					args.push('-tag:v', 'hvc1');
-				}
-			}
-
-			if (includeAudio) {
-				const audioContainerOk = (() => {
-					const supported = CONTAINER_AUDIO_CODECS[s.container];
-					if (!supported) return true;
-					return selectedSourceAudioCodecs.every((c) => supported.has(c));
-				})();
-
-				if ((audioNoReencode || canCopyAudio) && audioContainerOk) {
-					args.push('-c:a', 'copy');
-				} else {
-					if (audioNoReencode && !audioContainerOk) {
-						console.warn(
-							`[video] Audio re-encode: source incompatible with ${s.container}, converting to ${s.audioCodec}`,
-						);
-					}
-					args.push('-c:a', s.audioCodec, '-b:a', s.audioBitrate);
-				}
-			}
-
-			ext = s.container;
-			outputName = `output.${ext}`;
-		} else {
-			const {
-				args: presetArgs,
-				format,
-				selectedAudioCodec: presetAudioCodec,
-				recommendedAudioBitrateKbps: presetAudioBitrateKbps,
-				shouldReencodeAudio: forcePresetAudioReencode,
-			} = buildVideoArgs(selectedPreset, clipDuration, {
-				sourceSizeBytes: sourceClipBytesEstimate,
-				inputWidth: videoStreamInfo?.width,
-				inputHeight: videoStreamInfo?.height,
-				inputFps: videoFps,
-				includeAudio: includeAudioTracks,
-				sourceAudioCodecs: selectedSourceAudioCodecs,
-				sourceAudioMaxBitrateKbps: selectedSourceAudioMaxBitrateKbps,
-				sourceAudioTotalBitrateKbps: selectedSourceAudioTotalBitrateKbps,
-				sourceAudioTrackCount: selectedAudioStreamCount,
-			});
-
-			const canCopyVideo = videoNoReencode && noVideoFilters;
-			if (videoNoReencode && !noVideoFilters) {
-				console.warn('[video] No-reencode override: active filters require re-encoding video');
-			}
-
-			if (canCopyVideo) {
-				args.push('-c:v', 'copy');
-			} else {
-				const presetVfIdx = presetArgs.indexOf('-vf');
-				if (presetVfIdx !== -1 && vfParts.length > 0) {
-					const presetVf = presetArgs[presetVfIdx + 1]!;
-					const combined = [presetVf, ...vfParts].join(',');
-					args.push('-vf', combined);
-					for (let i = 0; i < presetArgs.length; i++) {
-						if (i !== presetVfIdx && i !== presetVfIdx + 1) args.push(presetArgs[i]!);
-					}
-				} else {
-					if (vfParts.length > 0) args.push('-vf', vfParts.join(','));
-					args.push(...presetArgs);
-				}
-				args.push('-threads', encodeThreads);
-			}
-
-			if (includeAudioTracks) {
-				const presetAudioContainerOk = (() => {
-					const supported = CONTAINER_AUDIO_CODECS[format];
-					if (!supported) return true;
-					return selectedSourceAudioCodecs.every((c) => supported.has(c));
-				})();
-
-				if (audioNoReencode && !forcePresetAudioReencode && presetAudioContainerOk) {
-					args.push('-c:a', 'copy');
-				} else {
-					if (audioNoReencode && (!presetAudioContainerOk || forcePresetAudioReencode)) {
-						console.warn(
-							`[video] Audio re-encode: source audio incompatible with ${format}, converting to ${presetAudioCodec}`,
-						);
-					}
-					args.push('-c:a', presetAudioCodec, '-b:a', `${presetAudioBitrateKbps}k`);
-				}
-			}
-
-			ext = format;
-			outputName = `output.${ext}`;
-		}
-
-		// Explicit stream mapping keeps selected tracks deterministic.
-		args.push('-map', '0:v:0');
-		if (includeAudio) {
-			if (usingPreBurnedSource || audioExportMode === 'all') {
-				args.push('-map', '0:a?');
-			} else if (selectedAudioStream) {
-				args.push('-map', `0:${selectedAudioStream.index}`);
-			}
-		}
-		if (includeSubtitleTracks) {
-			const BITMAP_SUB_CODECS = new Set(['hdmv_pgs_subtitle', 'pgssub', 'dvd_subtitle', 'dvdsub']);
-			const hasBitmapSubs = subtitleStreams.some((s) => BITMAP_SUB_CODECS.has(s.codec?.toLowerCase() ?? ''));
-
-			if (ext === 'webm' && hasBitmapSubs) {
-				console.error('[video] Bitmap subtitles not supported in WebM, skipping');
-			} else {
-				if (subtitleExportMode === 'all') {
-					args.push('-map', '0:s?');
-				} else if (selectedSubtitleStream) {
-					args.push('-map', `0:${selectedSubtitleStream.index}`);
-				}
-				if (ext === 'mp4') {
-					args.push('-c:s', 'mov_text');
-				} else if (ext === 'webm') {
-					args.push('-c:s', 'webvtt');
-				} else {
-					args.push('-c:s', 'copy');
-				}
-			}
-		}
+		const {
+			sourceFile,
+			args,
+			outputName,
+			ext,
+			clipDuration,
+			usingPreBurnedSource,
+			includeAudio,
+			includeSubtitleTracks,
+			isCustomExport,
+			selectedAudioStream,
+			selectedSubtitleStream,
+		} = buildFfmpegExportPlan({
+			file,
+			preBurnedAssSourceFile,
+			usePreBurnedAssSource,
+			selectedPreset,
+			advancedSettings,
+			videoNoReencode,
+			audioNoReencode,
+			audioExportMode,
+			subtitleExportMode,
+			tracks,
+			audioStreams,
+			subtitleStreams,
+			resizeFilterArgs: resizeFilterArgs(),
+			ffmpegFilterArgs: ffmpegFilterArgs(),
+			trimStart,
+			trimEnd,
+			duration,
+			minTrimDuration,
+			videoFps,
+			videoStreamInfo,
+			encodeThreads: String(pickEncodeThreads()),
+		});
 
 		let timeoutError: Error | null = null;
 		// Large media startup can take a while; avoid cancelling valid startup work too early.
@@ -1127,7 +619,7 @@ function VideoStudio() {
 						selectedAudioStreamIndex: selectedAudioStream?.index ?? null,
 						selectedSubtitleStreamIndex: selectedSubtitleStream?.index ?? null,
 					},
-					codecMode: { useCustomExport: isCustom, videoNoReencode, audioNoReencode, selectedPreset },
+					codecMode: { isCustomExportMode: isCustomExport, videoNoReencode, audioNoReencode, selectedPreset },
 					command: { expectedDurationSec: clipDuration, args, outputName },
 				};
 				timeoutError = new Error(timeoutReason);
@@ -1192,7 +684,6 @@ function VideoStudio() {
 		trimEnd,
 		duration,
 		selectedPreset,
-		useCustomExport,
 		advancedSettings,
 		probeResult,
 		tracks,
@@ -1223,7 +714,7 @@ function VideoStudio() {
 			return;
 		}
 		let ext = 'mp4';
-		if (useCustomExport) {
+		if (selectedPreset == null) {
 			ext = advancedSettings.container;
 		} else if (selectedPreset) {
 			const { format } = buildVideoArgs(selectedPreset, 1);
@@ -1233,7 +724,7 @@ function VideoStudio() {
 		a.href = resultUrl;
 		a.download = `vixely-export.${ext}`;
 		a.click();
-	}, [resultUrl, resultExt, selectedPreset, useCustomExport, advancedSettings]);
+	}, [resultUrl, resultExt, selectedPreset, advancedSettings]);
 
 	/* ── Frame helpers ── */
 	const timeToFrames = useCallback((t: number) => Math.round(t * videoFps), [videoFps]);
@@ -1300,43 +791,9 @@ function VideoStudio() {
 		[setTrimBoundaryByFrame, timeToFrames, trimStart, trimEnd],
 	);
 
-	const stepCurrentFrame = useCallback(
-		(direction: -1 | 1) => {
-			const video = videoRef.current;
-			if (!video) return;
-			if (!video.paused) video.pause();
-			const target = clampToTrim(video.currentTime + direction * frameDuration);
-			handleSeek(target);
-		},
-		[clampToTrim, frameDuration, handleSeek],
-	);
-
-	const startFrameHold = useCallback(
-		(direction: -1 | 1) => {
-			if (processing) return;
-			stopFrameHold();
-			const release = () => {
-				stopFrameHold();
-				window.removeEventListener('pointerup', release);
-				window.removeEventListener('pointercancel', release);
-			};
-			window.addEventListener('pointerup', release, { once: true });
-			window.addEventListener('pointercancel', release, { once: true });
-			stepCurrentFrame(direction);
-			const startedAt = performance.now();
-			const tick = () => {
-				const elapsed = performance.now() - startedAt;
-				const targetRate = Math.min(videoFps, Math.max(2, 3 + elapsed / 120));
-				stepCurrentFrame(direction);
-				frameHoldTimerRef.current = setTimeout(tick, 1000 / Math.max(1, targetRate));
-			};
-			frameHoldTimerRef.current = setTimeout(tick, 220);
-		},
-		[processing, stopFrameHold, stepCurrentFrame, videoFps],
-	);
-
 	/* ── Sidebar content ── */
 	const clipDuration = Math.max(trimEnd - trimStart, 0);
+	const isCustomExportMode = selectedPreset == null;
 	const presetLabel = selectedPreset
 		? (VIDEO_PRESETS.find(([key]) => key === selectedPreset)?.[1]?.name ?? null)
 		: null;
@@ -1400,11 +857,9 @@ function VideoStudio() {
 														const isSame = selectedPreset === key;
 														if (isSame) {
 															setSelectedPreset(null);
-															setUseCustomExport(true);
 															return;
 														}
 														setSelectedPreset(key);
-														setUseCustomExport(false);
 													}}
 													className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all cursor-pointer ${
 														selectedPreset === key
@@ -1607,10 +1062,14 @@ function VideoStudio() {
 								<div className="flex flex-col gap-2">
 									<div className="flex items-center gap-2">
 										<div className="flex-1">
-											<label className="text-[13px] text-text-tertiary mb-1 block">
+											<label
+												htmlFor={trimStartFrameInputId}
+												className="text-[13px] text-text-tertiary mb-1 block"
+											>
 												Start (frame)
 											</label>
 											<input
+												id={trimStartFrameInputId}
 												type="number"
 												min={0}
 												max={totalFrames}
@@ -1647,10 +1106,14 @@ function VideoStudio() {
 									</div>
 									<div className="flex items-center gap-2">
 										<div className="flex-1">
-											<label className="text-[13px] text-text-tertiary mb-1 block">
+											<label
+												htmlFor={trimEndFrameInputId}
+												className="text-[13px] text-text-tertiary mb-1 block"
+											>
 												End (frame)
 											</label>
 											<input
+												id={trimEndFrameInputId}
 												type="number"
 												min={0}
 												max={totalFrames}
@@ -1791,11 +1254,11 @@ function VideoStudio() {
 							<div className="grid grid-cols-2 rounded-lg border border-border/60 bg-bg/40 p-0.5">
 								<button
 									onClick={() => {
-										setUseCustomExport(false);
+										setVideoMode('presets');
 									}}
 									disabled={!selectedPreset}
 									className={`rounded-md px-3 py-2 text-sm font-semibold transition-colors cursor-pointer ${
-										!useCustomExport
+										!isCustomExportMode
 											? 'bg-accent/15 text-accent'
 											: 'text-text-tertiary hover:text-text-secondary disabled:opacity-40'
 									}`}
@@ -1804,10 +1267,10 @@ function VideoStudio() {
 								</button>
 								<button
 									onClick={() => {
-										setUseCustomExport(true);
+										setSelectedPreset(null);
 									}}
 									className={`rounded-md px-3 py-2 text-sm font-semibold transition-colors cursor-pointer ${
-										useCustomExport
+										isCustomExportMode
 											? 'bg-accent/15 text-accent'
 											: 'text-text-tertiary hover:text-text-secondary'
 									}`}
@@ -1827,12 +1290,12 @@ function VideoStudio() {
 									</div>
 									<span
 										className={`text-xs font-medium px-2 py-0.5 rounded-md ${
-											useCustomExport
+											isCustomExportMode
 												? 'text-accent bg-accent/10'
 												: 'text-text-tertiary bg-surface-raised/50'
 										}`}
 									>
-										{useCustomExport ? 'Custom' : 'Preset'}
+										{isCustomExportMode ? 'Custom' : 'Preset'}
 									</span>
 								</div>
 								<div className="p-4 flex flex-col gap-3.5">
@@ -1880,7 +1343,7 @@ function VideoStudio() {
 												</p>
 											</div>
 										</div>
-									) : !useCustomExport ? (
+									) : !isCustomExportMode ? (
 										<div className="rounded-lg border border-border/50 bg-bg/30 px-3.5 py-2.5">
 											<p className="text-sm font-medium text-text">
 												{presetLabel ?? 'Select a preset from the Presets tab'}
@@ -2115,6 +1578,7 @@ function VideoStudio() {
 											onToggle={() => {
 												setTracks({ audioEnabled: !tracks.audioEnabled });
 											}}
+											label={tracks.audioEnabled ? 'Disable audio tracks' : 'Enable audio tracks'}
 										/>
 									</div>
 									{tracks.audioEnabled ? (
@@ -2245,7 +1709,7 @@ function VideoStudio() {
 												</button>
 											</div>
 
-											{useCustomExport && !audioNoReencode && (
+											{isCustomExportMode && !audioNoReencode && (
 												<>
 													<div className="h-px bg-border/40" />
 													<div className="flex flex-col gap-3">
@@ -2340,6 +1804,11 @@ function VideoStudio() {
 										onToggle={() => {
 											setUsePreBurnedAssSource((prev) => !prev);
 										}}
+										label={
+											usePreBurnedAssSource
+												? 'Disable ASS fidelity mode'
+												: 'Enable ASS fidelity mode'
+										}
 									/>
 								</div>
 								{usePreBurnedAssSource ? (
@@ -2405,6 +1874,11 @@ function VideoStudio() {
 											onToggle={() => {
 												setTracks({ subtitleEnabled: !tracks.subtitleEnabled });
 											}}
+											label={
+												tracks.subtitleEnabled
+													? 'Disable subtitle tracks'
+													: 'Enable subtitle tracks'
+											}
 										/>
 									</div>
 									{tracks.subtitleEnabled ? (
@@ -2531,14 +2005,14 @@ function VideoStudio() {
 											Format
 										</span>
 										<span className="text-sm font-medium text-text font-mono">
-											{useCustomExport
+											{isCustomExportMode
 												? advancedSettings.container.toUpperCase()
 												: selectedPreset
 													? (presetLabel ?? selectedPreset)
 													: '—'}
 										</span>
 									</div>
-									{useCustomExport && !videoNoReencode && (
+									{isCustomExportMode && !videoNoReencode && (
 										<div className="flex items-center justify-between py-2.5 border-b border-border/30">
 											<span className="text-xs font-medium text-text-tertiary uppercase tracking-wide">
 												Codec
@@ -2566,8 +2040,8 @@ function VideoStudio() {
 											</span>
 											<span className="text-sm font-medium text-text font-mono">
 												{hasResizeAdjustments
-													? `${resize.width}\u00d7${resize.height}`
-													: `${videoStreamInfo.width}\u00d7${videoStreamInfo.height}`}
+													? `${resize.width}×${resize.height}`
+													: `${videoStreamInfo.width}×${videoStreamInfo.height}`}
 											</span>
 										</div>
 									)}
@@ -2725,10 +2199,12 @@ function VideoStudio() {
 
 	return (
 		<div data-editor="video" className="h-full flex flex-col">
-			<Helmet>
-				<title>Video — Vixely</title>
-				<meta name="description" content="Trim, crop, and convert videos locally in your browser." />
-			</Helmet>
+			<Seo
+				title="Video Editor — Vixely"
+				description="Trim, crop, resize, adjust colors, and export videos locally in your browser."
+				path="/tools/video"
+			/>
+			<h1 className="sr-only">Video Editor</h1>
 			<input
 				ref={fileInputRef}
 				type="file"
@@ -2751,17 +2227,14 @@ function VideoStudio() {
 				}}
 			/>
 
-			<div className="h-[2px] gradient-accent shrink-0" />
+			<div className="h-0.5 gradient-accent shrink-0" />
 			<div className="flex flex-1 min-h-0 animate-fade-in">
 				{/* ── Main Area ── */}
 				<div className="flex-1 flex flex-col min-w-0">
 					{/* Player */}
 					<div
 						className="flex-1 flex items-center justify-center workspace-bg p-3 sm:p-6 overflow-hidden relative"
-						onDragEnter={handleDragEnter}
-						onDragLeave={handleDragLeave}
-						onDragOver={handleDragOver}
-						onDrop={handleDrop}
+						{...dropHandlers}
 					>
 						{videoUrl ? (
 							<VideoPlayer
@@ -2839,6 +2312,7 @@ function VideoStudio() {
 										}}
 										disabled={!file || processing}
 										title="Previous frame"
+										aria-label="Previous frame"
 									>
 										<StepBack size={16} />
 									</Button>
@@ -2862,6 +2336,7 @@ function VideoStudio() {
 										}}
 										disabled={!file || processing}
 										title="Next frame"
+										aria-label="Next frame"
 									>
 										<StepForward size={16} />
 									</Button>
@@ -2876,6 +2351,9 @@ function VideoStudio() {
 											}}
 											disabled={!file || processing}
 											title="Capture current frame"
+											aria-label="Capture current frame"
+											aria-haspopup="menu"
+											aria-expanded={captureMenuOpen}
 										>
 											<Camera size={16} />
 										</Button>
@@ -2920,6 +2398,8 @@ function VideoStudio() {
 											onClick={() => {
 												setShowInfo(true);
 											}}
+											type="button"
+											aria-label="Open video file info"
 											className="inline-flex items-center gap-1 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
 											title="File info"
 										>
@@ -2940,6 +2420,9 @@ function VideoStudio() {
 							onClick={() => {
 								setDrawerOpen(true);
 							}}
+							type="button"
+							aria-label="Open video settings"
+							title="Open video settings"
 						>
 							<Settings size={20} className="text-white" />
 						</button>
