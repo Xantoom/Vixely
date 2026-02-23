@@ -1,4 +1,4 @@
-import type { AdvancedVideoSettings } from '@/components/video/AdvancedSettings.tsx';
+import type { AdvancedVideoSettings } from '@/stores/videoEditor.ts';
 import type { StreamInfo, TrackSelection } from '@/stores/videoEditor.ts';
 import { buildVideoArgs } from '@/config/presets.ts';
 

@@ -1,35 +1,70 @@
-import { Palette, Scissors, Download, LayoutGrid } from 'lucide-react';
+import { Layers, Scissors, Scaling, Palette, Download } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useVideoEditorStore, type VideoMode } from '@/stores/videoEditor.ts';
 
-const tabs: { mode: VideoMode; label: string; icon: typeof Palette }[] = [
-	{ mode: 'presets', label: 'Presets', icon: LayoutGrid },
-	{ mode: 'adjust', label: 'Adjust', icon: Palette },
+interface VideoModeTabsProps {
+	hasTrimChanges?: boolean;
+	selectedPreset?: string | null;
+}
+
+const TABS: { mode: VideoMode; label: string; icon: typeof Layers }[] = [
+	{ mode: 'presets', label: 'Presets', icon: Layers },
 	{ mode: 'trim', label: 'Trim', icon: Scissors },
+	{ mode: 'resize', label: 'Resize', icon: Scaling },
+	{ mode: 'adjust', label: 'Adjust', icon: Palette },
 	{ mode: 'export', label: 'Export', icon: Download },
 ];
 
-export function VideoModeTabs() {
-	const { mode, setMode } = useVideoEditorStore(useShallow((s) => ({ mode: s.mode, setMode: s.setMode })));
+export function VideoModeTabs({ hasTrimChanges = false, selectedPreset = null }: VideoModeTabsProps) {
+	const { mode, setMode, filters, resize } = useVideoEditorStore(
+		useShallow((s) => ({ mode: s.mode, setMode: s.setMode, filters: s.filters, resize: s.resize })),
+	);
+
+	const hasColorChanges =
+		filters.brightness !== 0 || filters.contrast !== 1 || filters.saturation !== 1 || filters.hue !== 0;
+	const hasResizeChanges =
+		resize.originalWidth > 0 && (resize.width !== resize.originalWidth || resize.height !== resize.originalHeight);
+
+	const activity: Record<VideoMode, boolean> = {
+		presets: selectedPreset != null,
+		trim: hasTrimChanges,
+		resize: hasResizeChanges,
+		adjust: hasColorChanges,
+		export: false,
+	};
 
 	return (
-		<div className="flex border-b border-border bg-surface">
-			{tabs.map((tab) => {
+		<div className="flex shrink-0 overflow-x-auto border-b border-border bg-surface">
+			{TABS.map((tab) => {
 				const isActive = mode === tab.mode;
+				const hasActivity = activity[tab.mode];
+
 				return (
 					<button
 						key={tab.mode}
 						onClick={() => {
 							setMode(tab.mode);
 						}}
-						className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[14px] font-semibold uppercase tracking-wider transition-all cursor-pointer ${
-							isActive
-								? 'text-accent border-b-2 border-accent'
-								: 'text-text-tertiary hover:text-text-secondary'
+						className={`relative flex min-w-0 flex-1 cursor-pointer select-none flex-col items-center gap-1 py-3 text-[11px] font-semibold uppercase tracking-wider transition-colors ${
+							isActive ? 'text-accent' : 'text-text-tertiary hover:text-text-secondary'
 						}`}
 					>
-						<tab.icon size={16} />
-						{tab.label}
+						{/* Active underline */}
+						{isActive && <div className="absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-accent" />}
+
+						{/* Icon + activity dot */}
+						<div className="relative">
+							<tab.icon size={15} strokeWidth={isActive ? 2.2 : 1.8} />
+							{hasActivity && (
+								<div
+									className={`absolute -right-1 -top-0.5 h-1.5 w-1.5 rounded-full ${
+										isActive ? 'bg-accent' : 'bg-accent/60'
+									}`}
+								/>
+							)}
+						</div>
+
+						<span>{tab.label}</span>
 					</button>
 				);
 			})}

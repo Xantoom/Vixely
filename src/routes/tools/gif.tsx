@@ -7,7 +7,7 @@ import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
 import { FileMetadataModal } from '@/components/FileMetadataModal.tsx';
 import { Seo } from '@/components/Seo.tsx';
 import { Drawer } from '@/components/ui/Drawer.tsx';
-import { Button, Slider, Timeline } from '@/components/ui/index.ts';
+import { Button, Slider, Timeline, Toggle } from '@/components/ui/index.ts';
 import { gifPresetEntries, GIF_ACCEPT } from '@/config/presets.ts';
 import { useObjectUrlState } from '@/hooks/useObjectUrlState.ts';
 import { usePendingActionConfirmation } from '@/hooks/usePendingActionConfirmation.ts';
@@ -28,39 +28,6 @@ const MODE_TABS: { mode: GifMode; label: string; icon: typeof Settings }[] = [
 	{ mode: 'resize', label: 'Resize', icon: Maximize2 },
 	{ mode: 'export', label: 'Export', icon: Download },
 ];
-
-/* ── Toggle Switch ── */
-
-function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
-	const labelId = useId();
-
-	return (
-		<div className="flex items-center justify-between">
-			<span id={labelId} className="text-[14px] font-medium text-text-secondary">
-				{label}
-			</span>
-			<button
-				onClick={() => {
-					onChange(!checked);
-				}}
-				type="button"
-				role="switch"
-				aria-checked={checked}
-				aria-labelledby={labelId}
-				className={`h-6 w-10 rounded-full transition-colors cursor-pointer ${
-					checked ? 'bg-accent' : 'bg-surface-raised'
-				}`}
-			>
-				<div
-					aria-hidden
-					className={`h-4 w-4 rounded-full bg-white transition-transform mx-1 ${
-						checked ? 'translate-x-4' : 'translate-x-0'
-					}`}
-				/>
-			</button>
-		</div>
-	);
-}
 
 /* ── Main Component ── */
 
@@ -435,7 +402,16 @@ function GifFoundry() {
 						/>
 
 						{/* Loop */}
-						<Toggle checked={loop} onChange={setLoop} label="Loop" />
+						<div className="flex items-center justify-between">
+							<span className="text-[14px] font-medium text-text-secondary">Loop</span>
+							<Toggle
+								enabled={loop}
+								onToggle={() => {
+									setLoop(!loop);
+								}}
+								label="Toggle loop"
+							/>
+						</div>
 
 						{/* Speed */}
 						<Slider
@@ -451,7 +427,16 @@ function GifFoundry() {
 						/>
 
 						{/* Reverse */}
-						<Toggle checked={reverse} onChange={setReverse} label="Reverse" />
+						<div className="flex items-center justify-between">
+							<span className="text-[14px] font-medium text-text-secondary">Reverse</span>
+							<Toggle
+								enabled={reverse}
+								onToggle={() => {
+									setReverse(!reverse);
+								}}
+								label="Toggle reverse"
+							/>
+						</div>
 
 						{/* GIF source trim inputs */}
 						{isGifSource && (

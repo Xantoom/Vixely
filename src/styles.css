@@ -134,6 +134,12 @@
 	}
 }
 
+@keyframes marchingAnts {
+	to {
+		stroke-dashoffset: -10;
+	}
+}
+
 /* ── Reduced Motion ── */
 
 @media (prefers-reduced-motion: reduce) {

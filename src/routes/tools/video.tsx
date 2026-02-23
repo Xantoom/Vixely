@@ -1,37 +1,33 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import {
 	Camera,
+	Download,
 	Video,
 	Settings,
 	Info,
-	Layers,
 	Palette,
 	Scissors,
-	Download,
 	Scaling,
 	Volume2,
 	Subtitles,
-	AlertCircle,
 	StepBack,
 	StepForward,
 	LoaderCircle,
 } from 'lucide-react';
 import { useState, useRef, useCallback, useEffect, useMemo, useId } from 'react';
 import { toast } from 'sonner';
-import type { AdvancedVideoSettings } from '@/components/video/AdvancedSettings.tsx';
 import type { SubtitlePreviewData } from '@/hooks/useVideoProcessor.ts';
+import type { AdvancedVideoSettings } from '@/stores/videoEditor.ts';
 import type { DetailedProbeResultData } from '@/workers/ffmpeg-worker.ts';
 import { Seo } from '@/components/Seo.tsx';
 import { Drawer } from '@/components/ui/Drawer.tsx';
-import { Button, Slider, Timeline, formatTimecode, formatCompactTime } from '@/components/ui/index.ts';
-import {
-	getPlatformIcon,
-	getPlatformKey,
-	getPlatformLabel,
-	PlatformIconComponent,
-} from '@/components/video/PlatformIcons.tsx';
+import { Button, Slider, Timeline, Toggle, formatTimecode, formatCompactTime } from '@/components/ui/index.ts';
+import { AdjustPanel } from '@/components/video/AdjustPanel.tsx';
+import { getPlatformKey } from '@/components/video/PlatformIcons.tsx';
+import { PresetsPanel } from '@/components/video/PresetsPanel.tsx';
 import { ResizePanel } from '@/components/video/ResizePanel.tsx';
 import { VideoInfoModal } from '@/components/video/VideoInfoModal.tsx';
+import { VideoModeTabs } from '@/components/video/VideoModeTabs.tsx';
 import { VideoPlayer } from '@/components/video/VideoPlayer.tsx';
 import {
 	VIDEO_CODECS,
@@ -50,7 +46,7 @@ import { useTimelineScrubController } from '@/hooks/useTimelineScrubController.t
 import { useVideoMetadataLoader, type MetadataLoadStage } from '@/hooks/useVideoMetadataLoader.ts';
 import { useVideoProcessor } from '@/hooks/useVideoProcessor.ts';
 import { buildFfmpegExportPlan } from '@/modules/video-editor/export/ffmpeg-export-plan.ts';
-import { useVideoEditorStore, type VideoMode } from '@/stores/videoEditor.ts';
+import { useVideoEditorStore } from '@/stores/videoEditor.ts';
 import { setPendingImageTransfer } from '@/utils/crossEditorTransfer.ts';
 import { formatFileSize, formatNumber } from '@/utils/format.ts';
 import { formatChannels, getLanguageName } from '@/utils/languageUtils.ts';
@@ -108,16 +104,6 @@ function isVideoFileLike(file: File): boolean {
 	return file.type.startsWith('video/') || VIDEO_FILENAME_RE.test(file.name);
 }
 
-/* ── Mode Tab Config ── */
-
-const VIDEO_MODE_TABS: { mode: VideoMode; label: string; icon: typeof Layers }[] = [
-	{ mode: 'presets', label: 'Presets', icon: Layers },
-	{ mode: 'trim', label: 'Trim', icon: Scissors },
-	{ mode: 'resize', label: 'Resize', icon: Scaling },
-	{ mode: 'adjust', label: 'Adjust', icon: Palette },
-	{ mode: 'export', label: 'Export', icon: Download },
-];
-
 /* ── Group presets by platform ── */
 
 function groupPresetsByPlatform(presets: [string, { name: string; description: string }][]) {
@@ -129,28 +115,6 @@ function groupPresetsByPlatform(presets: [string, { name: string; description: s
 	}
 	const order = ['discord', 'twitch', 'youtube', 'twitter', 'tiktok', 'bluesky', 'general'];
 	return order.filter((p) => groups[p]).map((p) => ({ platform: p, presets: groups[p]! }));
-}
-
-function ToggleSwitch({ enabled, onToggle, label }: { enabled: boolean; onToggle: () => void; label: string }) {
-	return (
-		<button
-			onClick={onToggle}
-			type="button"
-			role="switch"
-			aria-checked={enabled}
-			aria-label={label}
-			className={`ml-auto relative w-8 h-4.5 rounded-full transition-colors cursor-pointer shrink-0 ${
-				enabled ? 'bg-accent' : 'bg-border'
-			}`}
-		>
-			<div
-				aria-hidden
-				className={`absolute top-0.5 left-0.5 h-3.5 w-3.5 rounded-full bg-white transition-transform ${
-					enabled ? 'translate-x-3.5' : ''
-				}`}
-			/>
-		</button>
-	);
 }
 
 function codecSupportsQp(codec: string): boolean {
@@ -199,8 +163,6 @@ function VideoStudio() {
 	const videoMode = useVideoEditorStore((s) => s.mode);
 	const setVideoMode = useVideoEditorStore((s) => s.setMode);
 	const videoFilters = useVideoEditorStore((s) => s.filters);
-	const setVideoFilter = useVideoEditorStore((s) => s.setFilter);
-	const resetVideoFilters = useVideoEditorStore((s) => s.resetFilters);
 	const probeResult = useVideoEditorStore((s) => s.probeResult);
 	const setProbeResult = useVideoEditorStore((s) => s.setProbeResult);
 	const tracks = useVideoEditorStore((s) => s.tracks);
@@ -808,116 +770,32 @@ function VideoStudio() {
 	const sidebarContent = (
 		<>
 			{/* Mode Tabs */}
-			<div className="flex border-b border-border bg-surface overflow-x-auto">
-				{VIDEO_MODE_TABS.map((tab) => {
-					const isActive = videoMode === tab.mode;
-					return (
-						<button
-							key={tab.mode}
-							onClick={() => {
-								setVideoMode(tab.mode);
-							}}
-							className={`flex-1 flex flex-col items-center gap-1 py-3 text-[13px] font-semibold uppercase tracking-wider transition-all cursor-pointer ${
-								isActive
-									? 'text-accent border-b-2 border-accent'
-									: 'text-text-tertiary hover:text-text-secondary'
-							}`}
-						>
-							<tab.icon size={16} />
-							{tab.label}
-						</button>
-					);
-				})}
-			</div>
+			<VideoModeTabs hasTrimChanges={hasTrimAdjustments} selectedPreset={selectedPreset} />
 
 			{/* Tab Content */}
 			<div className="p-4 flex flex-col gap-4 flex-1 overflow-y-auto">
 				{/* ── Presets Tab ── */}
 				{videoMode === 'presets' && (
-					<>
-						<h3 className="text-sm font-semibold text-text-tertiary uppercase tracking-wider mb-1">
-							One-Click Presets
-						</h3>
-						<div className="flex flex-col gap-4">
-							{groupedPresets.map(({ platform, presets }) => (
-								<div key={platform}>
-									<div className="flex items-center gap-2 mb-2">
-										<PlatformIconComponent platform={platform} size={14} />
-										<span className="text-[13px] font-semibold text-text-tertiary uppercase tracking-wider">
-											{getPlatformLabel(platform)}
-										</span>
-									</div>
-									<div className="flex flex-col gap-1.5">
-										{presets.map(([key, preset]) => {
-											const iconData = getPlatformIcon(key);
-											return (
-												<button
-													key={key}
-													onClick={() => {
-														const isSame = selectedPreset === key;
-														if (isSame) {
-															setSelectedPreset(null);
-															return;
-														}
-														setSelectedPreset(key);
-													}}
-													className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all cursor-pointer ${
-														selectedPreset === key
-															? 'bg-accent/10 border border-accent/30 text-text'
-															: 'bg-surface-raised/50 border border-transparent text-text-secondary hover:bg-surface-raised hover:text-text'
-													}`}
-												>
-													<div
-														className={`h-8 w-8 rounded-md flex items-center justify-center shrink-0 ${
-															selectedPreset === key
-																? 'bg-accent text-bg'
-																: 'bg-surface-raised text-text-tertiary'
-														}`}
-													>
-														{iconData ? (
-															<iconData.Icon
-																size={14}
-																className={
-																	selectedPreset === key
-																		? 'text-bg'
-																		: iconData.colorClass
-																}
-															/>
-														) : (
-															<span className="text-[13px] font-bold">V</span>
-														)}
-													</div>
-													<div className="min-w-0">
-														<p className="text-[13px] font-medium truncate">
-															{preset.name}
-														</p>
-														<p className="text-[13px] text-text-tertiary truncate">
-															{preset.description}
-														</p>
-													</div>
-												</button>
-											);
-										})}
-									</div>
-								</div>
-							))}
-						</div>
-					</>
+					<PresetsPanel
+						groupedPresets={groupedPresets}
+						selectedPreset={selectedPreset}
+						onSelectPreset={setSelectedPreset}
+					/>
 				)}
 
 				{/* ── Trim Tab ── */}
 				{videoMode === 'trim' && (
 					<>
 						<div className="flex items-center justify-between">
-							<h3 className="text-sm font-semibold text-text-tertiary uppercase tracking-wider">
+							<h3 className="text-[11px] font-bold uppercase tracking-widest text-text-tertiary">
 								Trim Range
 							</h3>
-							<div className="flex rounded-md border border-border overflow-hidden">
+							<div className="flex gap-0.5 rounded-md border border-border/60 bg-bg/40 p-0.5">
 								<button
 									onClick={() => {
 										setTrimInputMode('time');
 									}}
-									className={`px-2 py-0.5 text-[13px] font-semibold uppercase cursor-pointer transition-colors ${
+									className={`cursor-pointer rounded px-2.5 py-1 text-[12px] font-semibold uppercase tracking-wider transition-colors ${
 										trimInputMode === 'time'
 											? 'bg-accent/15 text-accent'
 											: 'text-text-tertiary hover:text-text-secondary'
@@ -929,7 +807,7 @@ function VideoStudio() {
 									onClick={() => {
 										setTrimInputMode('frames');
 									}}
-									className={`px-2 py-0.5 text-[13px] font-semibold uppercase cursor-pointer transition-colors ${
+									className={`cursor-pointer rounded px-2.5 py-1 text-[12px] font-semibold uppercase tracking-wider transition-colors ${
 										trimInputMode === 'frames'
 											? 'bg-accent/15 text-accent'
 											: 'text-text-tertiary hover:text-text-secondary'
@@ -1152,22 +1030,31 @@ function VideoStudio() {
 							</>
 						)}
 
-						<div className="rounded-lg bg-bg/50 p-3 flex flex-col gap-1.5">
-							<div className="flex justify-between text-sm">
-								<span className="text-text-tertiary">Clip duration</span>
-								<span className="font-mono text-text-secondary">{formatCompactTime(clipDuration)}</span>
+						<div className="rounded-lg border border-border/60 bg-bg/40">
+							<div className="flex items-center justify-between px-3.5 py-2.5">
+								<span className="text-[12px] text-text-tertiary">Clip duration</span>
+								<span className="font-mono text-[13px] font-semibold text-accent">
+									{formatCompactTime(clipDuration)}
+								</span>
 							</div>
-							<div className="flex justify-between text-sm">
-								<span className="text-text-tertiary">Total</span>
-								<span className="font-mono text-text-secondary">{formatCompactTime(duration)}</span>
+							<div className="h-px bg-border/40" />
+							<div className="flex items-center justify-between px-3.5 py-2.5">
+								<span className="text-[12px] text-text-tertiary">Total</span>
+								<span className="font-mono text-[13px] text-text-secondary">
+									{formatCompactTime(duration)}
+								</span>
 							</div>
-							<div className="flex justify-between text-sm">
-								<span className="text-text-tertiary">Current</span>
-								<span className="font-mono text-text-secondary">{formatTimecode(currentTime)}</span>
+							<div className="h-px bg-border/40" />
+							<div className="flex items-center justify-between px-3.5 py-2.5">
+								<span className="text-[12px] text-text-tertiary">Current</span>
+								<span className="font-mono text-[13px] text-text-secondary">
+									{formatTimecode(currentTime)}
+								</span>
 							</div>
-							<div className="flex justify-between text-sm">
-								<span className="text-text-tertiary">Frame</span>
-								<span className="font-mono text-text-secondary">
+							<div className="h-px bg-border/40" />
+							<div className="flex items-center justify-between px-3.5 py-2.5">
+								<span className="text-[12px] text-text-tertiary">Frame</span>
+								<span className="font-mono text-[13px] text-text-secondary">
 									{formatNumber(timeToFrames(currentTime))} / {formatNumber(timeToFrames(duration))}
 								</span>
 							</div>
@@ -1179,73 +1066,7 @@ function VideoStudio() {
 				{videoMode === 'resize' && <ResizePanel />}
 
 				{/* ── Adjust Tab ── */}
-				{videoMode === 'adjust' && (
-					<>
-						<div className="flex items-center gap-2 rounded-lg bg-accent/5 border border-accent/20 px-3 py-2">
-							<AlertCircle size={13} className="text-accent shrink-0" />
-							<p className="text-[13px] text-text-secondary">
-								Preview is approximate. Final export is processed with Mediabunny.
-							</p>
-						</div>
-						<div className="flex items-center justify-between">
-							<h3 className="text-sm font-semibold text-text-tertiary uppercase tracking-wider">
-								Color Correction
-							</h3>
-							<button
-								onClick={resetVideoFilters}
-								className="text-[13px] text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
-							>
-								Reset
-							</button>
-						</div>
-						<div className="flex flex-col gap-3">
-							<Slider
-								label="Brightness"
-								displayValue={`${videoFilters.brightness >= 0 ? '+' : ''}${(videoFilters.brightness * 100).toFixed(0)}`}
-								min={-0.5}
-								max={0.5}
-								step={0.01}
-								value={videoFilters.brightness}
-								onChange={(e) => {
-									setVideoFilter('brightness', Number(e.target.value));
-								}}
-							/>
-							<Slider
-								label="Contrast"
-								displayValue={(videoFilters.contrast * 100).toFixed(0)}
-								min={0.2}
-								max={3}
-								step={0.01}
-								value={videoFilters.contrast}
-								onChange={(e) => {
-									setVideoFilter('contrast', Number(e.target.value));
-								}}
-							/>
-							<Slider
-								label="Saturation"
-								displayValue={(videoFilters.saturation * 100).toFixed(0)}
-								min={0}
-								max={3}
-								step={0.01}
-								value={videoFilters.saturation}
-								onChange={(e) => {
-									setVideoFilter('saturation', Number(e.target.value));
-								}}
-							/>
-							<Slider
-								label="Hue"
-								displayValue={`${videoFilters.hue >= 0 ? '+' : ''}${videoFilters.hue.toFixed(0)}\u00b0`}
-								min={-180}
-								max={180}
-								step={1}
-								value={videoFilters.hue}
-								onChange={(e) => {
-									setVideoFilter('hue', Number(e.target.value));
-								}}
-							/>
-						</div>
-					</>
-				)}
+				{videoMode === 'adjust' && <AdjustPanel />}
 
 				{/* ── Export Tab ── */}
 				{videoMode === 'export' && (
@@ -1573,7 +1394,7 @@ function VideoStudio() {
 											<Volume2 size={14} className="text-text-tertiary" />
 											<span className="text-sm font-semibold text-text-secondary">Audio</span>
 										</div>
-										<ToggleSwitch
+										<Toggle
 											enabled={tracks.audioEnabled}
 											onToggle={() => {
 												setTracks({ audioEnabled: !tracks.audioEnabled });
@@ -1799,7 +1620,7 @@ function VideoStudio() {
 											Pre-burned source for full styling
 										</span>
 									</div>
-									<ToggleSwitch
+									<Toggle
 										enabled={usePreBurnedAssSource}
 										onToggle={() => {
 											setUsePreBurnedAssSource((prev) => !prev);
@@ -1869,7 +1690,7 @@ function VideoStudio() {
 											<Subtitles size={14} className="text-text-tertiary" />
 											<span className="text-sm font-semibold text-text-secondary">Subtitles</span>
 										</div>
-										<ToggleSwitch
+										<Toggle
 											enabled={tracks.subtitleEnabled}
 											onToggle={() => {
 												setTracks({ subtitleEnabled: !tracks.subtitleEnabled });
