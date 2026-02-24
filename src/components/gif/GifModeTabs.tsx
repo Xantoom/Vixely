@@ -1,4 +1,4 @@
-import { Crop, RotateCw, Palette, Zap, Settings, Maximize2, Download } from 'lucide-react';
+import { Crop, Layers, RotateCw, Palette, Type, Zap, Settings, Maximize2, Download } from 'lucide-react';
 import type { GifMode } from '@/stores/gifEditor.ts';
 
 export const GIF_MODE_TABS: { mode: GifMode; label: string; icon: typeof Settings }[] = [
@@ -8,6 +8,8 @@ export const GIF_MODE_TABS: { mode: GifMode; label: string; icon: typeof Setting
 	{ mode: 'rotate', label: 'Rotate', icon: RotateCw },
 	{ mode: 'filters', label: 'Filters', icon: Palette },
 	{ mode: 'optimize', label: 'Optimize', icon: Zap },
+	{ mode: 'frames', label: 'Frames', icon: Layers },
+	{ mode: 'text', label: 'Text', icon: Type },
 	{ mode: 'export', label: 'Export', icon: Download },
 ];
 

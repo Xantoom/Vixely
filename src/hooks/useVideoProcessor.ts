@@ -25,6 +25,19 @@ interface GifRequest {
 	maxColors?: number;
 }
 
+interface ExtractGifFramesRequest {
+	type: 'EXTRACT_GIF_FRAMES';
+	file: File;
+	fps: number;
+	width: number;
+	height?: number;
+	startTime?: number;
+	duration?: number;
+	speed?: number;
+	reverse?: boolean;
+	thumbWidth?: number;
+}
+
 interface ScreenshotRequest {
 	type: 'SCREENSHOT';
 	file: File;
@@ -58,6 +71,7 @@ interface ExtractFontsRequest {
 type WorkerRequest =
 	| TranscodeRequest
 	| GifRequest
+	| ExtractGifFramesRequest
 	| ScreenshotRequest
 	| ProbeRequest
 	| ProbeDetailsRequest
@@ -126,6 +140,12 @@ interface FontsResultResponse {
 	fonts: Array<{ name: string; data: Uint8Array }>;
 }
 
+interface FramesExtractedResponse {
+	type: 'FRAMES_EXTRACTED';
+	frames: Array<{ index: number; blob: Blob; width: number; height: number; timeMs: number }>;
+	totalFrames: number;
+}
+
 type WorkerResponse =
 	| ProgressResponse
 	| DoneResponse
@@ -137,7 +157,8 @@ type WorkerResponse =
 	| ProbeResultResponse
 	| ProbeDetailsResultResponse
 	| SubtitlePreviewResultResponse
-	| FontsResultResponse;
+	| FontsResultResponse
+	| FramesExtractedResponse;
 
 // ── Hook State ──
 
@@ -174,6 +195,18 @@ interface GifOptions {
 	speed?: number;
 	reverse?: boolean;
 	maxColors?: number;
+}
+
+interface ExtractFramesOptions {
+	file: File;
+	fps?: number;
+	width?: number;
+	height?: number;
+	startTime?: number;
+	duration?: number;
+	speed?: number;
+	reverse?: boolean;
+	thumbWidth?: number;
 }
 
 interface ScreenshotOptions {
@@ -253,6 +286,10 @@ export function useVideoProcessor() {
 		resolve: (fonts: Array<{ name: string; data: Uint8Array }>) => void;
 		reject: (err: Error) => void;
 	} | null>(null);
+	const framesResolveRef = useRef<
+		((frames: Array<{ index: number; blob: Blob; width: number; height: number; timeMs: number }>) => void) | null
+	>(null);
+	const framesRejectRef = useRef<((err: Error) => void) | null>(null);
 	const exportExpectedDurationRef = useRef(0);
 	const exportStartRef = useRef<number>(0);
 	const lastProgressEmitRef = useRef(0);
@@ -395,12 +432,22 @@ export function useVideoProcessor() {
 						fontsPendingRef.current = null;
 						break;
 
+					case 'FRAMES_EXTRACTED':
+						setState((s) => ({ ...s, processing: false, progress: 1 }));
+						framesResolveRef.current?.(msg.frames);
+						framesResolveRef.current = null;
+						framesRejectRef.current = null;
+						break;
+
 					case 'ERROR':
 						console.error('[hook] worker ERROR:', msg.error);
 						setState((s) => ({ ...s, processing: false, started: false, error: msg.error }));
 						const err = new Error(msg.error);
 						rejectForegroundRequest(err);
 						rejectBackgroundRequests(err);
+						framesRejectRef.current?.(err);
+						framesRejectRef.current = null;
+						framesResolveRef.current = null;
 						break;
 
 					case 'LOG':
@@ -563,6 +610,33 @@ export function useVideoProcessor() {
 		[sendCommand],
 	);
 
+	const extractGifFrames = useCallback(
+		async (
+			opts: ExtractFramesOptions,
+		): Promise<Array<{ index: number; blob: Blob; width: number; height: number; timeMs: number }>> => {
+			return new Promise((resolve, reject) => {
+				const worker = getWorkerOrReject(reject);
+				if (!worker) return;
+				framesResolveRef.current = resolve;
+				framesRejectRef.current = reject;
+				setState((s) => ({ ...s, processing: true, progress: 0, error: null }));
+				worker.postMessage({
+					type: 'EXTRACT_GIF_FRAMES',
+					file: opts.file,
+					fps: opts.fps ?? 15,
+					width: opts.width ?? 480,
+					height: opts.height,
+					startTime: opts.startTime,
+					duration: opts.duration,
+					speed: opts.speed,
+					reverse: opts.reverse,
+					thumbWidth: opts.thumbWidth,
+				});
+			});
+		},
+		[getWorkerOrReject],
+	);
+
 	const captureFrame = useCallback(
 		async (opts: ScreenshotOptions): Promise<Uint8Array> => {
 			return sendCommand({ type: 'SCREENSHOT', file: opts.file, timestamp: opts.timestamp });
@@ -649,6 +723,7 @@ export function useVideoProcessor() {
 		...state,
 		transcode,
 		createGif,
+		extractGifFrames,
 		captureFrame,
 		probe,
 		probeStatus,

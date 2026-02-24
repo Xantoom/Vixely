@@ -45,6 +45,19 @@ interface GifMessage {
 	maxColors?: number;
 }
 
+interface ExtractGifFramesMessage {
+	type: 'EXTRACT_GIF_FRAMES';
+	file: File;
+	fps: number;
+	width: number;
+	height?: number;
+	startTime?: number;
+	duration?: number;
+	speed?: number;
+	reverse?: boolean;
+	thumbWidth?: number;
+}
+
 interface ScreenshotMessage {
 	type: 'SCREENSHOT';
 	file: File;
@@ -78,6 +91,7 @@ interface ExtractFontsMessage {
 type WorkerMessage =
 	| TranscodeMessage
 	| GifMessage
+	| ExtractGifFramesMessage
 	| ScreenshotMessage
 	| ProbeMessage
 	| ProbeDetailsMessage
@@ -144,6 +158,12 @@ interface SubtitlePreviewResultPayload {
 interface FontsResultPayload {
 	type: 'FONTS_RESULT';
 	fonts: Array<{ name: string; data: Uint8Array }>;
+}
+
+interface FramesExtractedPayload {
+	type: 'FRAMES_EXTRACTED';
+	frames: Array<{ index: number; blob: Blob; width: number; height: number; timeMs: number }>;
+	totalFrames: number;
 }
 
 export interface ProbeStreamInfo {
@@ -236,7 +256,8 @@ type WorkerResponse =
 	| ProbeResultPayload
 	| ProbeDetailsResultPayload
 	| SubtitlePreviewResultPayload
-	| FontsResultPayload;
+	| FontsResultPayload
+	| FramesExtractedPayload;
 
 type OutputContainer = 'mp4' | 'mkv' | 'webm';
 
@@ -992,6 +1013,74 @@ async function handleScreenshot(msg: ScreenshotMessage): Promise<void> {
 	}
 }
 
+async function handleExtractGifFrames(msg: ExtractGifFramesMessage): Promise<void> {
+	post({ type: 'STARTED', job: 'gif' });
+
+	const input = new Input({ source: new BlobSource(msg.file), formats: ALL_FORMATS });
+	try {
+		const videoTrack = await input.getPrimaryVideoTrack();
+		if (!videoTrack) throw new Error('No video track found');
+
+		const trackStart = await videoTrack.getFirstTimestamp();
+		const trackDuration = await videoTrack.computeDuration();
+		const clipStart = clamp(msg.startTime ?? trackStart, trackStart, Math.max(trackStart, trackDuration));
+		const clipDuration = Math.max(0.1, msg.duration ?? Math.max(0.1, trackDuration - clipStart));
+		const speed = clamp(msg.speed ?? 1, 0.1, 8);
+		const fps = clamp(Math.round(msg.fps), 1, 60);
+		const outputFrameCount = Math.max(1, Math.min(600, Math.round((clipDuration / speed) * fps)));
+		const sourceStep = speed / fps;
+		const thumbW = msg.thumbWidth ?? 120;
+
+		const height =
+			msg.height ?? Math.max(1, Math.round((msg.width / videoTrack.displayWidth) * videoTrack.displayHeight));
+		const thumbH = Math.round(thumbW * (height / msg.width));
+
+		const sink = new CanvasSink(videoTrack, {
+			width: Math.max(1, thumbW),
+			height: Math.max(1, thumbH),
+			fit: 'contain',
+			poolSize: 1,
+		});
+
+		const thumbCanvas = new OffscreenCanvas(thumbW, thumbH);
+		const thumbCtx = thumbCanvas.getContext('2d', { alpha: true });
+		if (!thumbCtx) throw new Error('Failed to create thumbnail context');
+
+		const extractedFrames: Array<{ index: number; blob: Blob; width: number; height: number; timeMs: number }> = [];
+
+		const frameIndices = Array.from({ length: outputFrameCount }, (_, index) => index);
+		await mapInBatches(
+			frameIndices,
+			async (i) => {
+				const offset = i * sourceStep;
+				const sourceTime = msg.reverse ? clipStart + Math.max(clipDuration - offset, 0) : clipStart + offset;
+				const wrapped = await sink.getCanvas(sourceTime);
+				if (!wrapped) return;
+
+				thumbCtx.clearRect(0, 0, thumbCanvas.width, thumbCanvas.height);
+				thumbCtx.drawImage(wrapped.canvas, 0, 0, thumbCanvas.width, thumbCanvas.height);
+
+				const blob = await thumbCanvas.convertToBlob({ type: 'image/png' });
+				extractedFrames.push({
+					index: i,
+					blob,
+					width: thumbW,
+					height: thumbH,
+					timeMs: Math.round(sourceTime * 1000),
+				});
+
+				const progress = (i + 1) / outputFrameCount;
+				post({ type: 'PROGRESS', progress, time: sourceTime, fps, frame: i + 1, speed });
+			},
+			1,
+		);
+
+		post({ type: 'FRAMES_EXTRACTED', frames: extractedFrames, totalFrames: extractedFrames.length });
+	} finally {
+		input.dispose();
+	}
+}
+
 async function handleGif(msg: GifMessage): Promise<void> {
 	post({ type: 'STARTED', job: 'gif' });
 
@@ -1334,6 +1423,9 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
 				break;
 			case 'GIF':
 				await handleGif(e.data);
+				break;
+			case 'EXTRACT_GIF_FRAMES':
+				await handleExtractGifFrames(e.data);
 				break;
 			case 'SCREENSHOT':
 				await handleScreenshot(e.data);

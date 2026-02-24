@@ -8,11 +8,13 @@ import { FileMetadataModal } from '@/components/FileMetadataModal.tsx';
 import { GifCropPanel } from '@/components/gif/GifCropPanel.tsx';
 import { GifExportPanel } from '@/components/gif/GifExportPanel.tsx';
 import { GifFiltersPanel } from '@/components/gif/GifFiltersPanel.tsx';
+import { GifFramesPanel } from '@/components/gif/GifFramesPanel.tsx';
 import { GifModeTabs } from '@/components/gif/GifModeTabs.tsx';
 import { GifOptimizePanel } from '@/components/gif/GifOptimizePanel.tsx';
 import { GifResizePanel } from '@/components/gif/GifResizePanel.tsx';
 import { GifRotatePanel } from '@/components/gif/GifRotatePanel.tsx';
 import { GifSettingsPanel } from '@/components/gif/GifSettingsPanel.tsx';
+import { GifTextOverlayPanel } from '@/components/gif/GifTextOverlayPanel.tsx';
 import { Seo } from '@/components/Seo.tsx';
 import { Drawer } from '@/components/ui/Drawer.tsx';
 import { Button, Timeline } from '@/components/ui/index.ts';
@@ -30,7 +32,7 @@ export const Route = createFileRoute('/tools/gif')({ component: GifFoundry });
 const GIF_PRESETS = gifPresetEntries();
 
 function GifFoundry() {
-	const { ready, processing, progress, error, createGif } = useVideoProcessor();
+	const { ready, processing, progress, error, createGif, extractGifFrames } = useVideoProcessor();
 	const store = useGifEditorStore(
 		useShallow((s) => ({
 			mode: s.mode,
@@ -47,6 +49,8 @@ function GifFoundry() {
 			frameSkip: s.frameSkip,
 			setMode: s.setMode,
 			resetAll: s.resetAll,
+			setExtractedFrames: s.setExtractedFrames,
+			clearExtractedFrames: s.clearExtractedFrames,
 		})),
 	);
 
@@ -244,6 +248,41 @@ function GifFoundry() {
 		[trimStart, duration, lockAspect, sourceAspect],
 	);
 
+	/* ── Extract Frames ── */
+	const handleExtractFrames = useCallback(async () => {
+		if (!file) return;
+		toast('Extracting frames...');
+		store.clearExtractedFrames();
+		const clipDuration = Math.max(trimEnd - trimStart, 0.5);
+		try {
+			const frames = await extractGifFrames({
+				file,
+				fps,
+				width,
+				height: height ?? undefined,
+				startTime: trimStart > 0 ? trimStart : undefined,
+				duration: clipDuration,
+				speed: store.speed !== 1 ? store.speed : undefined,
+				reverse: store.reverse || undefined,
+				thumbWidth: 120,
+			});
+			const defaultDelay = Math.round(100 / fps);
+			const extractedFrames = frames.map((f) => ({
+				index: f.index,
+				url: URL.createObjectURL(f.blob),
+				width: f.width,
+				height: f.height,
+				timeMs: f.timeMs,
+				delayCentiseconds: defaultDelay,
+				selected: false,
+			}));
+			store.setExtractedFrames(extractedFrames);
+			toast.success(`Extracted ${extractedFrames.length} frames`);
+		} catch {
+			toast.error('Frame extraction failed');
+		}
+	}, [file, fps, width, height, trimStart, trimEnd, store, extractGifFrames]);
+
 	/* ── Generate ── */
 	const handleGenerate = useCallback(async () => {
 		if (!file) return;
@@ -390,6 +429,19 @@ function GifFoundry() {
 				{store.mode === 'filters' && <GifFiltersPanel />}
 
 				{store.mode === 'optimize' && <GifOptimizePanel />}
+
+				{store.mode === 'frames' && (
+					<GifFramesPanel
+						file={file}
+						processing={processing}
+						progress={progress}
+						onExtractFrames={() => {
+							void handleExtractFrames();
+						}}
+					/>
+				)}
+
+				{store.mode === 'text' && <GifTextOverlayPanel />}
 
 				{store.mode === 'export' && (
 					<GifExportPanel
