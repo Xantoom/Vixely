@@ -43,6 +43,55 @@ interface GifMessage {
 	speed?: number;
 	reverse?: boolean;
 	maxColors?: number;
+	// Encoding
+	loopCount?: number;
+	compressionSpeed?: number;
+	frameDelaysCs?: number[];
+	// Transforms
+	cropX?: number;
+	cropY?: number;
+	cropW?: number;
+	cropH?: number;
+	rotation?: 0 | 90 | 180 | 270;
+	flipH?: boolean;
+	flipV?: boolean;
+	// Filters (CSS-mapped)
+	filterExposure?: number;
+	filterBrightness?: number;
+	filterContrast?: number;
+	filterSaturation?: number;
+	filterHue?: number;
+	filterSepia?: number;
+	filterBlur?: number;
+	filterHighlights?: number;
+	filterShadows?: number;
+	filterTemperature?: number;
+	filterTint?: number;
+	filterVignette?: number;
+	filterGrain?: number;
+	// Text overlays
+	textOverlays?: Array<{
+		text: string;
+		x: number;
+		y: number;
+		fontSize: number;
+		fontFamily: string;
+		color: string;
+		outlineColor: string;
+		outlineWidth: number;
+		opacity: number;
+	}>;
+	// Image overlay
+	imageOverlayBlob?: Blob;
+	imageOverlayX?: number;
+	imageOverlayY?: number;
+	imageOverlayWidth?: number;
+	imageOverlayHeight?: number;
+	imageOverlayOpacity?: number;
+	// Fade
+	fadeInFrames?: number;
+	fadeOutFrames?: number;
+	fadeColor?: string;
 }
 
 interface ExtractGifFramesMessage {
@@ -1098,16 +1147,56 @@ async function handleGif(msg: GifMessage): Promise<void> {
 		const outputFrameCount = Math.max(1, Math.min(600, Math.round((clipDuration / speed) * fps)));
 		const sourceStep = speed / fps;
 
-		const height =
-			msg.height ?? Math.max(1, Math.round((msg.width / videoTrack.displayWidth) * videoTrack.displayHeight));
-		const sink = new CanvasSink(videoTrack, {
-			width: Math.max(1, msg.width),
-			height: Math.max(1, height),
-			fit: 'contain',
-			poolSize: 1,
-		});
+		// ── Determine canvas size with crop/rotation ──
+		const hasCrop =
+			msg.cropX != null &&
+			msg.cropY != null &&
+			msg.cropW != null &&
+			msg.cropH != null &&
+			msg.cropW > 0 &&
+			msg.cropH > 0;
+		const rotation = msg.rotation ?? 0;
+		const flipH = msg.flipH ?? false;
+		const flipV = msg.flipV ?? false;
+		const hasRotation = rotation !== 0 || flipH || flipV;
 
-		const frameCanvas = new OffscreenCanvas(Math.max(1, msg.width), Math.max(1, height));
+		// Source canvas dimensions (after crop, before rotation)
+		const sourceW = hasCrop ? Math.max(1, Math.round(msg.cropW!)) : Math.max(1, msg.width);
+		const sourceH = hasCrop
+			? Math.max(1, Math.round(msg.cropH!))
+			: Math.max(
+					1,
+					msg.height ??
+						Math.max(1, Math.round((msg.width / videoTrack.displayWidth) * videoTrack.displayHeight)),
+				);
+
+		// Sink reads at original resolution (before crop), crop applied during frame compositing
+		const sinkW = Math.max(1, msg.width);
+		const sinkH = Math.max(
+			1,
+			msg.height ?? Math.max(1, Math.round((msg.width / videoTrack.displayWidth) * videoTrack.displayHeight)),
+		);
+
+		// Output dimensions (swap W/H for 90/270 rotation)
+		const outputW = rotation === 90 || rotation === 270 ? sourceH : sourceW;
+		const outputH = rotation === 90 || rotation === 270 ? sourceW : sourceH;
+
+		const sink = new CanvasSink(videoTrack, { width: sinkW, height: sinkH, fit: 'contain', poolSize: 1 });
+
+		// ── Pre-load image overlay bitmap ──
+		let overlayBitmap: ImageBitmap | null = null;
+		if (msg.imageOverlayBlob) {
+			try {
+				overlayBitmap = await createImageBitmap(msg.imageOverlayBlob);
+			} catch {
+				// ignore — overlay won't be applied
+			}
+		}
+
+		// ── Build CSS filter string ──
+		const cssFilter = buildCssFilter(msg);
+
+		const frameCanvas = new OffscreenCanvas(outputW, outputH);
 		const frameCtx = frameCanvas.getContext('2d', { alpha: true });
 		if (!frameCtx) throw new Error('Failed to create frame context');
 
@@ -1127,11 +1216,66 @@ async function handleGif(msg: GifMessage): Promise<void> {
 		for (const { i, wrapped } of wrappedFrames) {
 			if (!wrapped) continue;
 			frameCtx.clearRect(0, 0, frameCanvas.width, frameCanvas.height);
-			frameCtx.drawImage(wrapped.canvas, 0, 0, frameCanvas.width, frameCanvas.height);
+
+			// Apply CSS filter
+			if (cssFilter) frameCtx.filter = cssFilter;
+
+			// Apply rotation/flip (canvas transform handles visual rotation; drawImage always uses source dims)
+			if (hasRotation) {
+				frameCtx.save();
+				applyCanvasTransform(frameCtx, outputW, outputH, rotation, flipH, flipV);
+			}
+
+			// Draw frame — destination always sourceW × sourceH (transform handles rotation)
+			if (hasCrop) {
+				frameCtx.drawImage(
+					wrapped.canvas,
+					msg.cropX!,
+					msg.cropY!,
+					msg.cropW!,
+					msg.cropH!,
+					0,
+					0,
+					sourceW,
+					sourceH,
+				);
+			} else {
+				frameCtx.drawImage(wrapped.canvas, 0, 0, sourceW, sourceH);
+			}
+
+			if (hasRotation) frameCtx.restore();
+
+			// Reset filter for overlays
+			if (cssFilter) frameCtx.filter = 'none';
+
+			// Apply advanced pixel effects (vignette, grain, highlights/shadows, temperature/tint)
+			applyPixelEffects(frameCtx, outputW, outputH, msg);
+
+			// Draw image overlay
+			if (overlayBitmap) {
+				applyImageOverlay(frameCtx, overlayBitmap, outputW, outputH, msg);
+			}
+
+			// Draw text overlays
+			if (msg.textOverlays && msg.textOverlays.length > 0) {
+				applyTextOverlays(frameCtx, outputW, outputH, msg.textOverlays);
+			}
+
+			// Apply fade overlay
+			const fadeAlpha = getFadeAlpha(i, outputFrameCount, msg.fadeInFrames ?? 0, msg.fadeOutFrames ?? 0);
+			if (fadeAlpha > 0 && msg.fadeColor !== 'transparent') {
+				frameCtx.globalAlpha = fadeAlpha;
+				frameCtx.fillStyle = msg.fadeColor === 'white' ? '#ffffff' : '#000000';
+				frameCtx.fillRect(0, 0, outputW, outputH);
+				frameCtx.globalAlpha = 1;
+			}
+
 			frames.push(new Uint8Array(frameCtx.getImageData(0, 0, frameCanvas.width, frameCanvas.height).data));
 			const progress = Math.min(0.85, ((i + 1) / outputFrameCount) * 0.85);
 			post({ type: 'PROGRESS', progress, time: i / fps, fps, frame: i + 1, speed });
 		}
+
+		overlayBitmap?.close();
 
 		if (frames.length === 0) throw new Error('No frames extracted for GIF');
 
@@ -1141,7 +1285,9 @@ async function handleGif(msg: GifMessage): Promise<void> {
 			height: frameCanvas.height,
 			fps,
 			maxColors: clamp(msg.maxColors ?? 256, 2, 256),
-			speed: 10,
+			speed: msg.compressionSpeed ?? 10,
+			loopCount: msg.loopCount ?? 0,
+			frameDelaysCs: msg.frameDelaysCs,
 			onProgress: (progress) => {
 				post({
 					type: 'PROGRESS',
@@ -1159,6 +1305,197 @@ async function handleGif(msg: GifMessage): Promise<void> {
 	} finally {
 		input.dispose();
 	}
+}
+
+// ── Transform Helpers ──
+
+function buildCssFilter(msg: GifMessage): string {
+	const parts: string[] = [];
+	const exposure = msg.filterExposure ?? 1;
+	const brightness = msg.filterBrightness ?? 0;
+	const contrast = msg.filterContrast ?? 1;
+	const saturation = msg.filterSaturation ?? 1;
+	const hue = msg.filterHue ?? 0;
+	const sepia = msg.filterSepia ?? 0;
+	const blur = msg.filterBlur ?? 0;
+
+	// Combined brightness-style: exposure * (1 + brightness offset mapped to multiplier)
+	const brightnessVal = exposure * (1 + brightness);
+	if (Math.abs(brightnessVal - 1) > 0.01) parts.push(`brightness(${brightnessVal.toFixed(3)})`);
+	if (Math.abs(contrast - 1) > 0.01) parts.push(`contrast(${contrast.toFixed(3)})`);
+	if (Math.abs(saturation - 1) > 0.01) parts.push(`saturate(${saturation.toFixed(3)})`);
+	if (Math.abs(hue) > 0.5) parts.push(`hue-rotate(${hue.toFixed(1)}deg)`);
+	if (sepia > 0.01) parts.push(`sepia(${sepia.toFixed(3)})`);
+	if (blur > 0.1) parts.push(`blur(${blur.toFixed(2)}px)`);
+
+	return parts.join(' ');
+}
+
+function applyCanvasTransform(
+	ctx: OffscreenCanvasRenderingContext2D,
+	outputW: number,
+	outputH: number,
+	rotation: number,
+	flipH: boolean,
+	flipV: boolean,
+): void {
+	// Source dims (pre-rotation) - 90°/270° swaps W and H
+	const srcW = rotation === 90 || rotation === 270 ? outputH : outputW;
+	const srcH = rotation === 90 || rotation === 270 ? outputW : outputH;
+
+	ctx.translate(outputW / 2, outputH / 2);
+	if (rotation === 90) ctx.rotate(Math.PI / 2);
+	else if (rotation === 180) ctx.rotate(Math.PI);
+	else if (rotation === 270) ctx.rotate(-Math.PI / 2);
+	if (flipH) ctx.scale(-1, 1);
+	if (flipV) ctx.scale(1, -1);
+	ctx.translate(-srcW / 2, -srcH / 2);
+}
+
+function applyImageOverlay(
+	ctx: OffscreenCanvasRenderingContext2D,
+	bitmap: ImageBitmap,
+	canvasW: number,
+	canvasH: number,
+	msg: GifMessage,
+): void {
+	const w = msg.imageOverlayWidth ?? bitmap.width;
+	const h = msg.imageOverlayHeight ?? bitmap.height;
+	const opacity = msg.imageOverlayOpacity ?? 1;
+
+	// Special positioning: -1 = align to right/bottom, -2 = center
+	let x = msg.imageOverlayX ?? 0;
+	let y = msg.imageOverlayY ?? 0;
+	if (x === -1) x = canvasW - w;
+	else if (x === -2) x = (canvasW - w) / 2;
+	if (y === -1) y = canvasH - h;
+	else if (y === -2) y = (canvasH - h) / 2;
+
+	ctx.globalAlpha = clamp(opacity, 0, 1);
+	ctx.drawImage(bitmap, x, y, w, h);
+	ctx.globalAlpha = 1;
+}
+
+function applyTextOverlays(
+	ctx: OffscreenCanvasRenderingContext2D,
+	canvasW: number,
+	canvasH: number,
+	overlays: NonNullable<GifMessage['textOverlays']>,
+): void {
+	for (const o of overlays) {
+		ctx.save();
+		ctx.globalAlpha = o.opacity;
+		ctx.font = `${o.fontSize}px ${o.fontFamily}`;
+		ctx.textBaseline = 'top';
+
+		// Resolve percentage positions (0-100) to pixel positions
+		const x = (o.x / 100) * canvasW;
+		const y = (o.y / 100) * canvasH;
+
+		if (o.outlineWidth > 0) {
+			ctx.lineWidth = o.outlineWidth;
+			ctx.strokeStyle = o.outlineColor;
+			ctx.strokeText(o.text, x, y);
+		}
+		ctx.fillStyle = o.color;
+		ctx.fillText(o.text, x, y);
+		ctx.restore();
+	}
+}
+
+function applyPixelEffects(ctx: OffscreenCanvasRenderingContext2D, w: number, h: number, msg: GifMessage): void {
+	const vignette = msg.filterVignette ?? 0;
+	const grain = msg.filterGrain ?? 0;
+	const highlights = msg.filterHighlights ?? 0;
+	const shadows = msg.filterShadows ?? 0;
+	const temperature = msg.filterTemperature ?? 0;
+	const tint = msg.filterTint ?? 0;
+
+	const hasPixelEffects =
+		Math.abs(vignette) > 0.01 ||
+		Math.abs(grain) > 0.01 ||
+		Math.abs(highlights) > 0.01 ||
+		Math.abs(shadows) > 0.01 ||
+		Math.abs(temperature) > 0.01 ||
+		Math.abs(tint) > 0.01;
+
+	if (!hasPixelEffects) return;
+
+	// Pixel-level manipulation
+	const imageData = ctx.getImageData(0, 0, w, h);
+	const data = imageData.data;
+	const cx = w / 2;
+	const cy = h / 2;
+	const maxDist = Math.sqrt(cx * cx + cy * cy);
+
+	for (let i = 0; i < data.length; i += 4) {
+		const pixel = i >> 2;
+		const px = pixel % w;
+		const py = Math.floor(pixel / w);
+		let r = data[i] ?? 0;
+		let g = data[i + 1] ?? 0;
+		let b = data[i + 2] ?? 0;
+
+		// Temperature: shift R and B channels
+		if (Math.abs(temperature) > 0.01) {
+			r = clamp(r + temperature * 30, 0, 255);
+			b = clamp(b - temperature * 30, 0, 255);
+		}
+		// Tint: shift G channel
+		if (Math.abs(tint) > 0.01) {
+			g = clamp(g + tint * 20, 0, 255);
+		}
+		// Highlights: brighten bright pixels
+		if (Math.abs(highlights) > 0.01) {
+			const lum = (r + g + b) / 3 / 255;
+			const weight = Math.max(0, lum - 0.5) * 2;
+			const adj = highlights * 40 * weight;
+			r = clamp(r + adj, 0, 255);
+			g = clamp(g + adj, 0, 255);
+			b = clamp(b + adj, 0, 255);
+		}
+		// Shadows: darken dark pixels
+		if (Math.abs(shadows) > 0.01) {
+			const lum = (r + g + b) / 3 / 255;
+			const weight = Math.max(0, 0.5 - lum) * 2;
+			const adj = shadows * 40 * weight;
+			r = clamp(r + adj, 0, 255);
+			g = clamp(g + adj, 0, 255);
+			b = clamp(b + adj, 0, 255);
+		}
+		// Vignette: darken edges
+		if (vignette > 0.01) {
+			const dx = px - cx;
+			const dy = py - cy;
+			const dist = Math.sqrt(dx * dx + dy * dy) / maxDist;
+			const factor = 1 - vignette * Math.pow(dist, 2);
+			r = clamp(r * factor, 0, 255);
+			g = clamp(g * factor, 0, 255);
+			b = clamp(b * factor, 0, 255);
+		}
+		// Grain: add noise
+		if (grain > 0.01) {
+			const noise = (Math.random() - 0.5) * grain * 80;
+			r = clamp(r + noise, 0, 255);
+			g = clamp(g + noise, 0, 255);
+			b = clamp(b + noise, 0, 255);
+		}
+
+		data[i] = r;
+		data[i + 1] = g;
+		data[i + 2] = b;
+	}
+	ctx.putImageData(imageData, 0, 0);
+}
+
+function getFadeAlpha(frameIndex: number, totalFrames: number, fadeInFrames: number, fadeOutFrames: number): number {
+	if (fadeInFrames > 0 && frameIndex < fadeInFrames) {
+		return 1 - frameIndex / fadeInFrames;
+	}
+	if (fadeOutFrames > 0 && frameIndex >= totalFrames - fadeOutFrames) {
+		return (frameIndex - (totalFrames - fadeOutFrames)) / fadeOutFrames;
+	}
+	return 0;
 }
 
 async function handleTranscode(msg: TranscodeMessage): Promise<void> {

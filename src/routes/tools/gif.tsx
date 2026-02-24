@@ -53,6 +53,12 @@ function GifFoundry() {
 			filters: s.filters,
 			compressionSpeed: s.compressionSpeed,
 			frameSkip: s.frameSkip,
+			extractedFrames: s.extractedFrames,
+			textOverlays: s.textOverlays,
+			imageOverlay: s.imageOverlay,
+			fadeInDuration: s.fadeInDuration,
+			fadeOutDuration: s.fadeOutDuration,
+			fadeColor: s.fadeColor,
 			setMode: s.setMode,
 			resetAll: s.resetAll,
 			setExtractedFrames: s.setExtractedFrames,
@@ -296,31 +302,102 @@ function GifFoundry() {
 		toast('Generating GIF...');
 		const clipDuration = Math.max(trimEnd - trimStart, 0.5);
 
-		// Compute effective dimensions considering crop
-		let effectiveWidth = width;
-		let effectiveHeight = height ?? undefined;
-		if (store.crop) {
-			effectiveWidth = Math.round(store.crop.width);
-			effectiveHeight = Math.round(store.crop.height);
-		}
-
 		// Apply frame skip to FPS
 		let effectiveFps = fps;
 		if (store.frameSkip === 'every2nd') effectiveFps = Math.max(1, Math.round(fps / 2));
 		else if (store.frameSkip === 'every3rd') effectiveFps = Math.max(1, Math.round(fps / 3));
 		else if (store.frameSkip === 'every4th') effectiveFps = Math.max(1, Math.round(fps / 4));
 
+		// Crop params (passed to worker for per-frame crop)
+		const cropParams = store.crop
+			? {
+					cropX: Math.round(store.crop.x),
+					cropY: Math.round(store.crop.y),
+					cropW: Math.round(store.crop.width),
+					cropH: Math.round(store.crop.height),
+				}
+			: {};
+
+		// Filter params
+		const f = store.filters;
+		const filterParams = {
+			filterExposure: f.exposure !== 1 ? f.exposure : undefined,
+			filterBrightness: f.brightness !== 0 ? f.brightness : undefined,
+			filterContrast: f.contrast !== 1 ? f.contrast : undefined,
+			filterSaturation: f.saturation !== 1 ? f.saturation : undefined,
+			filterHue: f.hue !== 0 ? f.hue : undefined,
+			filterSepia: f.sepia !== 0 ? f.sepia : undefined,
+			filterBlur: f.blur !== 0 ? f.blur : undefined,
+			filterHighlights: f.highlights !== 0 ? f.highlights : undefined,
+			filterShadows: f.shadows !== 0 ? f.shadows : undefined,
+			filterTemperature: f.temperature !== 0 ? f.temperature : undefined,
+			filterTint: f.tint !== 0 ? f.tint : undefined,
+			filterVignette: f.vignette !== 0 ? f.vignette : undefined,
+			filterGrain: f.grain !== 0 ? f.grain : undefined,
+		};
+
+		// Text overlays
+		const textOverlays =
+			store.textOverlays.length > 0
+				? store.textOverlays.map((o) => ({
+						text: o.text,
+						x: o.x,
+						y: o.y,
+						fontSize: o.fontSize,
+						fontFamily: o.fontFamily,
+						color: o.color,
+						outlineColor: o.outlineColor,
+						outlineWidth: o.outlineWidth,
+						opacity: o.opacity,
+					}))
+				: undefined;
+
+		// Image overlay
+		const hasImageOverlay = store.imageOverlay.file !== null;
+		let imageOverlayBlob: Blob | undefined;
+		if (hasImageOverlay && store.imageOverlay.file) {
+			imageOverlayBlob = store.imageOverlay.file;
+		}
+
+		// Fade — convert seconds to frame count
+		const fadeInFrames =
+			store.fadeInDuration > 0 ? Math.max(1, Math.round(store.fadeInDuration * effectiveFps)) : undefined;
+		const fadeOutFrames =
+			store.fadeOutDuration > 0 ? Math.max(1, Math.round(store.fadeOutDuration * effectiveFps)) : undefined;
+
+		// Per-frame delays from frame editor (if frames have been extracted and edited)
+		const frameDelaysCs =
+			store.extractedFrames.length > 0 ? store.extractedFrames.map((f) => f.delayCentiseconds) : undefined;
+
 		try {
 			const data = await createGif({
 				file,
 				fps: effectiveFps,
-				width: effectiveWidth,
-				height: effectiveHeight,
+				width,
+				height: height ?? undefined,
 				startTime: trimStart > 0 ? trimStart : undefined,
 				duration: clipDuration,
 				speed: store.speed !== 1 ? store.speed : undefined,
 				reverse: store.reverse || undefined,
-				maxColors: store.colorReduction < 256 ? store.colorReduction : undefined,
+				maxColors: store.colorReduction,
+				loopCount: store.loopCount,
+				compressionSpeed: store.compressionSpeed,
+				frameDelaysCs,
+				...cropParams,
+				rotation: store.rotation !== 0 ? store.rotation : undefined,
+				flipH: store.flipH || undefined,
+				flipV: store.flipV || undefined,
+				...filterParams,
+				textOverlays,
+				imageOverlayBlob,
+				imageOverlayX: hasImageOverlay ? store.imageOverlay.x : undefined,
+				imageOverlayY: hasImageOverlay ? store.imageOverlay.y : undefined,
+				imageOverlayWidth: hasImageOverlay ? store.imageOverlay.width : undefined,
+				imageOverlayHeight: hasImageOverlay ? store.imageOverlay.height : undefined,
+				imageOverlayOpacity: hasImageOverlay ? store.imageOverlay.opacity : undefined,
+				fadeInFrames,
+				fadeOutFrames,
+				fadeColor: store.fadeInDuration > 0 || store.fadeOutDuration > 0 ? store.fadeColor : undefined,
 			});
 
 			const blob = new Blob([new Uint8Array(data)], { type: 'image/gif' });

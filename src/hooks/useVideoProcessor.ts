@@ -23,6 +23,49 @@ interface GifRequest {
 	speed?: number;
 	reverse?: boolean;
 	maxColors?: number;
+	loopCount?: number;
+	compressionSpeed?: number;
+	frameDelaysCs?: number[];
+	cropX?: number;
+	cropY?: number;
+	cropW?: number;
+	cropH?: number;
+	rotation?: 0 | 90 | 180 | 270;
+	flipH?: boolean;
+	flipV?: boolean;
+	filterExposure?: number;
+	filterBrightness?: number;
+	filterContrast?: number;
+	filterSaturation?: number;
+	filterHue?: number;
+	filterSepia?: number;
+	filterBlur?: number;
+	filterHighlights?: number;
+	filterShadows?: number;
+	filterTemperature?: number;
+	filterTint?: number;
+	filterVignette?: number;
+	filterGrain?: number;
+	textOverlays?: Array<{
+		text: string;
+		x: number;
+		y: number;
+		fontSize: number;
+		fontFamily: string;
+		color: string;
+		outlineColor: string;
+		outlineWidth: number;
+		opacity: number;
+	}>;
+	imageOverlayBlob?: Blob;
+	imageOverlayX?: number;
+	imageOverlayY?: number;
+	imageOverlayWidth?: number;
+	imageOverlayHeight?: number;
+	imageOverlayOpacity?: number;
+	fadeInFrames?: number;
+	fadeOutFrames?: number;
+	fadeColor?: string;
 }
 
 interface ExtractGifFramesRequest {
@@ -195,6 +238,49 @@ interface GifOptions {
 	speed?: number;
 	reverse?: boolean;
 	maxColors?: number;
+	loopCount?: number;
+	compressionSpeed?: number;
+	frameDelaysCs?: number[];
+	cropX?: number;
+	cropY?: number;
+	cropW?: number;
+	cropH?: number;
+	rotation?: 0 | 90 | 180 | 270;
+	flipH?: boolean;
+	flipV?: boolean;
+	filterExposure?: number;
+	filterBrightness?: number;
+	filterContrast?: number;
+	filterSaturation?: number;
+	filterHue?: number;
+	filterSepia?: number;
+	filterBlur?: number;
+	filterHighlights?: number;
+	filterShadows?: number;
+	filterTemperature?: number;
+	filterTint?: number;
+	filterVignette?: number;
+	filterGrain?: number;
+	textOverlays?: Array<{
+		text: string;
+		x: number;
+		y: number;
+		fontSize: number;
+		fontFamily: string;
+		color: string;
+		outlineColor: string;
+		outlineWidth: number;
+		opacity: number;
+	}>;
+	imageOverlayBlob?: Blob;
+	imageOverlayX?: number;
+	imageOverlayY?: number;
+	imageOverlayWidth?: number;
+	imageOverlayHeight?: number;
+	imageOverlayOpacity?: number;
+	fadeInFrames?: number;
+	fadeOutFrames?: number;
+	fadeColor?: string;
 }
 
 interface ExtractFramesOptions {
@@ -605,6 +691,39 @@ export function useVideoProcessor() {
 				speed: opts.speed,
 				reverse: opts.reverse,
 				maxColors: opts.maxColors,
+				loopCount: opts.loopCount,
+				compressionSpeed: opts.compressionSpeed,
+				frameDelaysCs: opts.frameDelaysCs,
+				cropX: opts.cropX,
+				cropY: opts.cropY,
+				cropW: opts.cropW,
+				cropH: opts.cropH,
+				rotation: opts.rotation,
+				flipH: opts.flipH,
+				flipV: opts.flipV,
+				filterExposure: opts.filterExposure,
+				filterBrightness: opts.filterBrightness,
+				filterContrast: opts.filterContrast,
+				filterSaturation: opts.filterSaturation,
+				filterHue: opts.filterHue,
+				filterSepia: opts.filterSepia,
+				filterBlur: opts.filterBlur,
+				filterHighlights: opts.filterHighlights,
+				filterShadows: opts.filterShadows,
+				filterTemperature: opts.filterTemperature,
+				filterTint: opts.filterTint,
+				filterVignette: opts.filterVignette,
+				filterGrain: opts.filterGrain,
+				textOverlays: opts.textOverlays,
+				imageOverlayBlob: opts.imageOverlayBlob,
+				imageOverlayX: opts.imageOverlayX,
+				imageOverlayY: opts.imageOverlayY,
+				imageOverlayWidth: opts.imageOverlayWidth,
+				imageOverlayHeight: opts.imageOverlayHeight,
+				imageOverlayOpacity: opts.imageOverlayOpacity,
+				fadeInFrames: opts.fadeInFrames,
+				fadeOutFrames: opts.fadeOutFrames,
+				fadeColor: opts.fadeColor,
 			});
 		},
 		[sendCommand],
