@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { Film, FilePlus2, Settings, Info } from 'lucide-react';
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
 import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
@@ -106,6 +106,30 @@ function GifFoundry() {
 
 	const videoRef = useRef<HTMLVideoElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
+
+	// Live CSS preview for filters + rotation/flip
+	const previewStyle = useMemo((): React.CSSProperties => {
+		const f = store.filters;
+		const parts: string[] = [];
+		const brightness = (f.exposure ?? 1) * (1 + (f.brightness ?? 0));
+		if (Math.abs(brightness - 1) > 0.01) parts.push(`brightness(${brightness.toFixed(3)})`);
+		if (Math.abs((f.contrast ?? 1) - 1) > 0.01) parts.push(`contrast(${(f.contrast ?? 1).toFixed(3)})`);
+		if (Math.abs((f.saturation ?? 1) - 1) > 0.01) parts.push(`saturate(${(f.saturation ?? 1).toFixed(3)})`);
+		if (Math.abs(f.hue ?? 0) > 0.5) parts.push(`hue-rotate(${(f.hue ?? 0).toFixed(1)}deg)`);
+		if ((f.sepia ?? 0) > 0.01) parts.push(`sepia(${(f.sepia ?? 0).toFixed(3)})`);
+		if ((f.blur ?? 0) > 0.1) parts.push(`blur(${(f.blur ?? 0).toFixed(2)}px)`);
+
+		const transforms: string[] = [];
+		if (store.rotation !== 0) transforms.push(`rotate(${store.rotation}deg)`);
+		if (store.flipH) transforms.push('scaleX(-1)');
+		if (store.flipV) transforms.push('scaleY(-1)');
+
+		return {
+			filter: parts.length > 0 ? parts.join(' ') : undefined,
+			transform: transforms.length > 0 ? transforms.join(' ') : undefined,
+			transition: 'filter 0.15s, transform 0.15s',
+		};
+	}, [store.filters, store.rotation, store.flipH, store.flipV]);
 
 	const isDirty = file !== null;
 	usePreventUnload(isDirty || processing);
@@ -646,6 +670,7 @@ function GifFoundry() {
 											alt="GIF source"
 											width={sourceWidth ?? undefined}
 											height={sourceHeight ?? undefined}
+											style={previewStyle}
 											className="max-w-full max-h-full rounded-lg bg-black object-contain"
 										/>
 									) : (
@@ -656,6 +681,7 @@ function GifFoundry() {
 											onTimeUpdate={handleTimeUpdate}
 											loop={loop}
 											controls
+											style={previewStyle}
 											className="max-w-full max-h-full rounded-lg bg-black"
 										/>
 									)}
