@@ -37,6 +37,18 @@ export const Route = createFileRoute('/tools/gif')({ component: GifFoundry });
 
 const GIF_PRESETS = gifPresetEntries();
 
+const ASPECT_RATIO_MAP: Record<string, number> = {
+	'1:1': 1,
+	'4:3': 4 / 3,
+	'16:9': 16 / 9,
+	'3:2': 3 / 2,
+	'9:16': 9 / 16,
+	'21:9': 21 / 9,
+};
+function parseAspectPreset(preset: string): number | undefined {
+	return ASPECT_RATIO_MAP[preset];
+}
+
 function GifFoundry() {
 	const { ready, processing, progress, error, createGif, extractGifFrames } = useVideoProcessor();
 	const store = useGifEditorStore(
@@ -59,6 +71,8 @@ function GifFoundry() {
 			fadeInDuration: s.fadeInDuration,
 			fadeOutDuration: s.fadeOutDuration,
 			fadeColor: s.fadeColor,
+			aspectPreset: s.aspectPreset,
+			aspectPaddingColor: s.aspectPaddingColor,
 			setMode: s.setMode,
 			resetAll: s.resetAll,
 			setExtractedFrames: s.setExtractedFrames,
@@ -398,6 +412,8 @@ function GifFoundry() {
 				fadeInFrames,
 				fadeOutFrames,
 				fadeColor: store.fadeInDuration > 0 || store.fadeOutDuration > 0 ? store.fadeColor : undefined,
+				aspectRatio: store.aspectPreset !== 'free' ? parseAspectPreset(store.aspectPreset) : undefined,
+				aspectPaddingColor: store.aspectPreset !== 'free' ? store.aspectPaddingColor : undefined,
 			});
 
 			const blob = new Blob([new Uint8Array(data)], { type: 'image/gif' });

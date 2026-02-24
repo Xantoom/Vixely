@@ -66,6 +66,8 @@ interface GifRequest {
 	fadeInFrames?: number;
 	fadeOutFrames?: number;
 	fadeColor?: string;
+	aspectRatio?: number;
+	aspectPaddingColor?: string;
 }
 
 interface ExtractGifFramesRequest {
@@ -281,6 +283,8 @@ interface GifOptions {
 	fadeInFrames?: number;
 	fadeOutFrames?: number;
 	fadeColor?: string;
+	aspectRatio?: number;
+	aspectPaddingColor?: string;
 }
 
 interface ExtractFramesOptions {
@@ -724,6 +728,8 @@ export function useVideoProcessor() {
 				fadeInFrames: opts.fadeInFrames,
 				fadeOutFrames: opts.fadeOutFrames,
 				fadeColor: opts.fadeColor,
+				aspectRatio: opts.aspectRatio,
+				aspectPaddingColor: opts.aspectPaddingColor,
 			});
 		},
 		[sendCommand],

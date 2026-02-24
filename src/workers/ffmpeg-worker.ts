@@ -92,6 +92,9 @@ interface GifMessage {
 	fadeInFrames?: number;
 	fadeOutFrames?: number;
 	fadeColor?: string;
+	// Aspect ratio padding
+	aspectRatio?: number; // target ratio (width/height), e.g. 16/9
+	aspectPaddingColor?: string; // CSS color for padding fill
 }
 
 interface ExtractGifFramesMessage {
@@ -1181,6 +1184,22 @@ async function handleGif(msg: GifMessage): Promise<void> {
 		const outputW = rotation === 90 || rotation === 270 ? sourceH : sourceW;
 		const outputH = rotation === 90 || rotation === 270 ? sourceW : sourceH;
 
+		// Aspect ratio padding: compute final canvas dims with letterbox/pillarbox
+		const targetRatio = msg.aspectRatio ?? null;
+		let finalW = outputW;
+		let finalH = outputH;
+		if (targetRatio) {
+			const actualRatio = outputW / outputH;
+			if (actualRatio > targetRatio) {
+				finalH = Math.round(outputW / targetRatio);
+			} else {
+				finalW = Math.round(outputH * targetRatio);
+			}
+		}
+		const padX = Math.round((finalW - outputW) / 2);
+		const padY = Math.round((finalH - outputH) / 2);
+		const hasAspectPad = finalW !== outputW || finalH !== outputH;
+
 		const sink = new CanvasSink(videoTrack, { width: sinkW, height: sinkH, fit: 'contain', poolSize: 1 });
 
 		// ── Pre-load image overlay bitmap ──
@@ -1196,9 +1215,15 @@ async function handleGif(msg: GifMessage): Promise<void> {
 		// ── Build CSS filter string ──
 		const cssFilter = buildCssFilter(msg);
 
+		// Intermediate canvas for per-frame transforms (outputW × outputH)
 		const frameCanvas = new OffscreenCanvas(outputW, outputH);
 		const frameCtx = frameCanvas.getContext('2d', { alpha: true });
 		if (!frameCtx) throw new Error('Failed to create frame context');
+
+		// Final canvas for encoder (finalW × finalH — includes aspect padding if any)
+		const finalCanvas = hasAspectPad ? new OffscreenCanvas(finalW, finalH) : frameCanvas;
+		const finalCtx = hasAspectPad ? finalCanvas.getContext('2d', { alpha: true }) : frameCtx;
+		if (!finalCtx) throw new Error('Failed to create final frame context');
 
 		const frameIndices = Array.from({ length: outputFrameCount }, (_, index) => index);
 		const wrappedFrames = await mapInBatches(
@@ -1270,7 +1295,15 @@ async function handleGif(msg: GifMessage): Promise<void> {
 				frameCtx.globalAlpha = 1;
 			}
 
-			frames.push(new Uint8Array(frameCtx.getImageData(0, 0, frameCanvas.width, frameCanvas.height).data));
+			// Composite onto final canvas with aspect-ratio padding (if needed)
+			if (hasAspectPad) {
+				finalCtx.clearRect(0, 0, finalW, finalH);
+				finalCtx.fillStyle = msg.aspectPaddingColor ?? '#000000';
+				finalCtx.fillRect(0, 0, finalW, finalH);
+				finalCtx.drawImage(frameCanvas, padX, padY);
+			}
+
+			frames.push(new Uint8Array(finalCtx.getImageData(0, 0, finalCanvas.width, finalCanvas.height).data));
 			const progress = Math.min(0.85, ((i + 1) / outputFrameCount) * 0.85);
 			post({ type: 'PROGRESS', progress, time: i / fps, fps, frame: i + 1, speed });
 		}
@@ -1281,8 +1314,8 @@ async function handleGif(msg: GifMessage): Promise<void> {
 
 		const blob = await encodeGif({
 			frames,
-			width: frameCanvas.width,
-			height: frameCanvas.height,
+			width: finalCanvas.width,
+			height: finalCanvas.height,
 			fps,
 			maxColors: clamp(msg.maxColors ?? 256, 2, 256),
 			speed: msg.compressionSpeed ?? 10,
