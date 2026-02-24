@@ -67,7 +67,7 @@ export interface ImageOverlay {
 
 export type FadeColor = 'black' | 'white' | 'transparent';
 
-export type ConvertFormat = 'mp4' | 'webp' | 'apng' | 'png-sequence';
+export type ConvertFormat = 'webm' | 'webp' | 'apng' | 'png-sequence';
 
 export type AspectPreset = 'free' | '1:1' | '4:3' | '16:9' | '3:2' | '9:16' | '21:9';
 
@@ -213,7 +213,7 @@ export const useGifEditorStore = create<GifEditorState>((set, get) => ({
 	fadeOutDuration: 0,
 	fadeColor: 'black',
 
-	convertFormat: 'mp4',
+	convertFormat: 'webm',
 
 	aspectPreset: 'free',
 	aspectPaddingColor: '#000000',
@@ -395,7 +395,7 @@ export const useGifEditorStore = create<GifEditorState>((set, get) => ({
 			fadeInDuration: 0,
 			fadeOutDuration: 0,
 			fadeColor: 'black',
-			convertFormat: 'mp4',
+			convertFormat: 'webm',
 			aspectPreset: 'free',
 			aspectPaddingColor: '#000000',
 		});
