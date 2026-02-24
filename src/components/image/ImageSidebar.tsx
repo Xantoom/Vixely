@@ -4,8 +4,10 @@ import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
 import { Button, Slider } from '@/components/ui/index.ts';
 import { filterPresetEntries, imagePresetEntries } from '@/config/presets.ts';
+import { buildFallbackFilterString } from '@/modules/photo-editor/render/fallback-filters.ts';
 import { PhotoWebGLRenderer } from '@/modules/photo-editor/render/webgl-renderer.ts';
 import { useImageEditorStore, type Filters, type ExportFormat } from '@/stores/imageEditor.ts';
+import { buildExportFilename } from '@/utils/exportFilename.ts';
 import { formatFileSize, estimateImageSize } from '@/utils/format.ts';
 import { ImageInfoModal } from './ImageInfoModal.tsx';
 
@@ -165,31 +167,55 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 
 		const mimeType = `image/${exportFormat}`;
 		const ext = exportFormat === 'jpeg' ? 'jpg' : exportFormat;
-
-		// Create an offscreen WebGL renderer for export
-		const offscreen = new OffscreenCanvas(originalData.width, originalData.height);
-		if (!exportRendererRef.current) {
-			exportRendererRef.current = new PhotoWebGLRenderer(offscreen);
-		}
-		const renderer = exportRendererRef.current;
-		renderer.loadImageData(originalData);
-		renderer.render(filters);
-
-		// Read from the WebGL canvas
-		const canvas = renderer.canvas;
-		if (!(canvas instanceof OffscreenCanvas)) {
-			toast.error('Export failed');
-			return;
-		}
 		const quality = exportFormat === 'png' ? undefined : exportQuality / 100;
-		const blob = await canvas.convertToBlob({ type: mimeType, quality });
+		let blob: Blob | null = null;
+
+		try {
+			// Create an offscreen WebGL renderer for export
+			const offscreen = new OffscreenCanvas(originalData.width, originalData.height);
+			if (!exportRendererRef.current) {
+				exportRendererRef.current = new PhotoWebGLRenderer(offscreen);
+			}
+			const renderer = exportRendererRef.current;
+			renderer.loadImageData(originalData);
+			renderer.render(filters);
+
+			// Read from the WebGL canvas
+			const canvas = renderer.canvas;
+			if (!(canvas instanceof OffscreenCanvas)) {
+				throw new Error('WebGL export canvas unavailable');
+			}
+			blob = await canvas.convertToBlob({ type: mimeType, quality });
+		} catch (err) {
+			console.warn('[image] WebGL export failed, falling back to 2D canvas export', err);
+			const fallbackCanvas = new OffscreenCanvas(originalData.width, originalData.height);
+			const ctx = fallbackCanvas.getContext('2d');
+			if (!ctx) {
+				toast.error('Export failed');
+				return;
+			}
+
+			const bitmap = await createImageBitmap(originalData);
+			try {
+				ctx.clearRect(0, 0, fallbackCanvas.width, fallbackCanvas.height);
+				ctx.filter = buildFallbackFilterString(filters);
+				ctx.drawImage(bitmap, 0, 0);
+				ctx.filter = 'none';
+			} finally {
+				bitmap.close();
+			}
+
+			blob = await fallbackCanvas.convertToBlob({ type: mimeType, quality });
+			toast('Exported with compatibility renderer');
+		}
+		if (!blob) return;
 		const a = document.createElement('a');
 		a.href = URL.createObjectURL(blob);
-		a.download = `vixely-export.${ext}`;
+		a.download = buildExportFilename(file?.name, ext);
 		a.click();
 		URL.revokeObjectURL(a.href);
 		toast.success('Image exported', { description: formatFileSize(blob.size) });
-	}, [originalData, exportFormat, exportQuality, filters]);
+	}, [file, originalData, exportFormat, exportQuality, filters]);
 
 	const handleApplyResize = useCallback(() => {
 		applyResize();

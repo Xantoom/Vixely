@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/index.ts';
 import { useObjectUrlState } from '@/hooks/useObjectUrlState.ts';
 import { encodeGif } from '@/modules/gif-editor/encode/gif-encoder.ts';
 import { useGifEditorStore } from '@/stores/gifEditor.ts';
+import { buildExportFilename } from '@/utils/exportFilename.ts';
 import { formatFileSize } from '@/utils/format.ts';
 
 const ACCEPTED_TYPES = 'image/png,image/jpeg,image/gif,image/webp,image/bmp';
@@ -207,11 +208,12 @@ export function GifMakerPanel() {
 
 	const handleDownload = useCallback(() => {
 		if (!resultUrl) return;
+		const firstSourceName = images[0]?.file.name;
 		const a = document.createElement('a');
 		a.href = resultUrl;
-		a.download = 'created.gif';
+		a.download = buildExportFilename(firstSourceName, 'gif', 'created');
 		a.click();
-	}, [resultUrl]);
+	}, [resultUrl, images]);
 
 	return (
 		<>

@@ -5,6 +5,7 @@ import { useShallow } from 'zustand/react/shallow';
 import type { ConvertFormat } from '@/stores/gifEditor.ts';
 import { Button } from '@/components/ui/index.ts';
 import { useGifEditorStore } from '@/stores/gifEditor.ts';
+import { buildExportFilename } from '@/utils/exportFilename.ts';
 import { formatFileSize } from '@/utils/format.ts';
 
 // ── ImageDecoder type shims ─────────────────────────────────────────────────
@@ -242,9 +243,9 @@ export function GifFormatConvertPanel({ file, sourceWidth, sourceHeight }: GifFo
 		const fmt = FORMAT_OPTIONS.find((f) => f.value === convertFormat);
 		const a = document.createElement('a');
 		a.href = resultUrl;
-		a.download = `converted.${fmt?.ext ?? 'bin'}`;
+		a.download = buildExportFilename(file?.name, fmt?.ext ?? 'bin', 'converted');
 		a.click();
-	}, [resultUrl, convertFormat]);
+	}, [resultUrl, convertFormat, file]);
 
 	const hasDecoder = typeof window !== 'undefined' && 'ImageDecoder' in window;
 	const selectedFmt = FORMAT_OPTIONS.find((f) => f.value === convertFormat);

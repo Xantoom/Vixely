@@ -48,6 +48,7 @@ import { useVideoProcessor } from '@/hooks/useVideoProcessor.ts';
 import { buildFfmpegExportPlan } from '@/modules/video-editor/export/ffmpeg-export-plan.ts';
 import { useVideoEditorStore } from '@/stores/videoEditor.ts';
 import { setPendingImageTransfer } from '@/utils/crossEditorTransfer.ts';
+import { buildExportFilename } from '@/utils/exportFilename.ts';
 import { formatFileSize, formatNumber } from '@/utils/format.ts';
 import { formatChannels, getLanguageName } from '@/utils/languageUtils.ts';
 
@@ -614,14 +615,15 @@ function VideoStudio() {
 			clearTimeout(timeoutId);
 			const blob = new Blob([new Uint8Array(result)], { type: `video/${ext}` });
 			const url = URL.createObjectURL(blob);
+			const downloadName = buildExportFilename(sourceFile.name, ext);
 			setResultUrl(url);
 			setResultExt(ext);
-			toast.success('Export complete', { description: `vixely-export.${ext}` });
+			toast.success('Export complete', { description: downloadName });
 
 			// Auto-download
 			const a = document.createElement('a');
 			a.href = url;
-			a.download = `vixely-export.${ext}`;
+			a.download = downloadName;
 			a.click();
 		} catch (err) {
 			clearTimeout(timeoutId);
@@ -671,7 +673,7 @@ function VideoStudio() {
 		if (resultExt) {
 			const a = document.createElement('a');
 			a.href = resultUrl;
-			a.download = `vixely-export.${resultExt}`;
+			a.download = buildExportFilename(file?.name, resultExt);
 			a.click();
 			return;
 		}
@@ -684,9 +686,9 @@ function VideoStudio() {
 		}
 		const a = document.createElement('a');
 		a.href = resultUrl;
-		a.download = `vixely-export.${ext}`;
+		a.download = buildExportFilename(file?.name, ext);
 		a.click();
-	}, [resultUrl, resultExt, selectedPreset, advancedSettings]);
+	}, [resultUrl, resultExt, file, selectedPreset, advancedSettings]);
 
 	/* ── Frame helpers ── */
 	const timeToFrames = useCallback((t: number) => Math.round(t * videoFps), [videoFps]);

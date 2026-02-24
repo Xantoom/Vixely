@@ -1,6 +1,6 @@
 export const FULLSCREEN_VERTEX = /* glsl */ `#version 300 es
-layout(location = 0) in vec2 a_position;
-layout(location = 1) in vec2 a_texcoord;
+in vec2 a_position;
+in vec2 a_texcoord;
 out vec2 v_uv;
 void main() {
 	v_uv = a_texcoord;
@@ -149,15 +149,27 @@ void main() {
 		return;
 	}
 
-	// 9-tap Gaussian approximation
-	float weights[5] = float[](0.2270270270, 0.1945945946, 0.1216216216, 0.0540540541, 0.0162162162);
+	// 9-tap Gaussian approximation (unrolled for broader driver compatibility)
+	float w0 = 0.2270270270;
+	float w1 = 0.1945945946;
+	float w2 = 0.1216216216;
+	float w3 = 0.0540540541;
+	float w4 = 0.0162162162;
 
-	vec4 result = texture(u_texture, v_uv) * weights[0];
-	for (int i = 1; i < 5; i++) {
-		vec2 offset = u_direction * float(i) * u_radius;
-		result += texture(u_texture, v_uv + offset) * weights[i];
-		result += texture(u_texture, v_uv - offset) * weights[i];
-	}
+	vec2 d1 = u_direction * u_radius;
+	vec2 d2 = d1 * 2.0;
+	vec2 d3 = d1 * 3.0;
+	vec2 d4 = d1 * 4.0;
+
+	vec4 result = texture(u_texture, v_uv) * w0;
+	result += texture(u_texture, v_uv + d1) * w1;
+	result += texture(u_texture, v_uv - d1) * w1;
+	result += texture(u_texture, v_uv + d2) * w2;
+	result += texture(u_texture, v_uv - d2) * w2;
+	result += texture(u_texture, v_uv + d3) * w3;
+	result += texture(u_texture, v_uv - d3) * w3;
+	result += texture(u_texture, v_uv + d4) * w4;
+	result += texture(u_texture, v_uv - d4) * w4;
 	fragColor = result;
 }
 `;
