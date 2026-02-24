@@ -1,52 +1,54 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { Film, FilePlus2, Settings, Info, Lock, Unlock, Maximize2, Download } from 'lucide-react';
-import { useState, useRef, useCallback, useEffect, useId } from 'react';
+import { Film, FilePlus2, Settings, Info } from 'lucide-react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
 import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
 import { FileMetadataModal } from '@/components/FileMetadataModal.tsx';
+import { GifCropPanel } from '@/components/gif/GifCropPanel.tsx';
+import { GifExportPanel } from '@/components/gif/GifExportPanel.tsx';
+import { GifFiltersPanel } from '@/components/gif/GifFiltersPanel.tsx';
+import { GifModeTabs } from '@/components/gif/GifModeTabs.tsx';
+import { GifOptimizePanel } from '@/components/gif/GifOptimizePanel.tsx';
+import { GifResizePanel } from '@/components/gif/GifResizePanel.tsx';
+import { GifRotatePanel } from '@/components/gif/GifRotatePanel.tsx';
+import { GifSettingsPanel } from '@/components/gif/GifSettingsPanel.tsx';
 import { Seo } from '@/components/Seo.tsx';
 import { Drawer } from '@/components/ui/Drawer.tsx';
-import { Button, Slider, Timeline, Toggle } from '@/components/ui/index.ts';
+import { Button, Timeline } from '@/components/ui/index.ts';
 import { gifPresetEntries, GIF_ACCEPT } from '@/config/presets.ts';
 import { useObjectUrlState } from '@/hooks/useObjectUrlState.ts';
 import { usePendingActionConfirmation } from '@/hooks/usePendingActionConfirmation.ts';
 import { usePreventUnload } from '@/hooks/usePreventUnload.ts';
 import { useSingleFileDrop } from '@/hooks/useSingleFileDrop.ts';
 import { useVideoProcessor } from '@/hooks/useVideoProcessor.ts';
-import { useGifEditorStore, type GifMode } from '@/stores/gifEditor.ts';
-import { formatFileSize, formatNumber } from '@/utils/format.ts';
+import { useGifEditorStore } from '@/stores/gifEditor.ts';
+import { formatFileSize } from '@/utils/format.ts';
 
 export const Route = createFileRoute('/tools/gif')({ component: GifFoundry });
 
 const GIF_PRESETS = gifPresetEntries();
 
-/* ── Mode Tab Config ── */
-
-const MODE_TABS: { mode: GifMode; label: string; icon: typeof Settings }[] = [
-	{ mode: 'settings', label: 'Settings', icon: Settings },
-	{ mode: 'resize', label: 'Resize', icon: Maximize2 },
-	{ mode: 'export', label: 'Export', icon: Download },
-];
-
-/* ── Main Component ── */
-
 function GifFoundry() {
 	const { ready, processing, progress, error, createGif } = useVideoProcessor();
-	const { mode, speed, reverse, colorReduction, setMode, setSpeed, setReverse, setColorReduction, resetStore } =
-		useGifEditorStore(
-			useShallow((s) => ({
-				mode: s.mode,
-				speed: s.speed,
-				reverse: s.reverse,
-				colorReduction: s.colorReduction,
-				setMode: s.setMode,
-				setSpeed: s.setSpeed,
-				setReverse: s.setReverse,
-				setColorReduction: s.setColorReduction,
-				resetStore: s.resetAll,
-			})),
-		);
+	const store = useGifEditorStore(
+		useShallow((s) => ({
+			mode: s.mode,
+			speed: s.speed,
+			reverse: s.reverse,
+			colorReduction: s.colorReduction,
+			loopCount: s.loopCount,
+			crop: s.crop,
+			rotation: s.rotation,
+			flipH: s.flipH,
+			flipV: s.flipV,
+			filters: s.filters,
+			compressionSpeed: s.compressionSpeed,
+			frameSkip: s.frameSkip,
+			setMode: s.setMode,
+			resetAll: s.resetAll,
+		})),
+	);
 
 	const [file, setFile] = useState<File | null>(null);
 	const [videoUrl, setVideoUrl] = useObjectUrlState();
@@ -68,10 +70,6 @@ function GifFoundry() {
 
 	const [showInfo, setShowInfo] = useState(false);
 	const [drawerOpen, setDrawerOpen] = useState(false);
-	const trimStartInputId = useId();
-	const trimDurationInputId = useId();
-	const resizeWidthInputId = useId();
-	const resizeHeightInputId = useId();
 	const { isConfirmOpen, requestAction, confirmPendingAction, cancelPendingAction } = usePendingActionConfirmation(
 		file !== null,
 	);
@@ -101,9 +99,9 @@ function GifFoundry() {
 			setLoop(true);
 			setResultUrl(null);
 			setResultSize(0);
-			resetStore();
+			store.resetAll();
 		});
-	}, [requestAction, resetStore, setResultUrl, setVideoUrl]);
+	}, [requestAction, store, setResultUrl, setVideoUrl]);
 
 	/* ── File Handling ── */
 	const handleFile = useCallback(
@@ -196,7 +194,6 @@ function GifFoundry() {
 	useEffect(() => {
 		const onKeyDown = (e: KeyboardEvent) => {
 			if (e.target instanceof HTMLInputElement) return;
-
 			if (e.key === ' ' && videoRef.current && !isGifSource) {
 				e.preventDefault();
 				if (videoRef.current.paused) void videoRef.current.play().catch(() => {});
@@ -254,17 +251,31 @@ function GifFoundry() {
 		toast('Generating GIF...');
 		const clipDuration = Math.max(trimEnd - trimStart, 0.5);
 
+		// Compute effective dimensions considering crop
+		let effectiveWidth = width;
+		let effectiveHeight = height ?? undefined;
+		if (store.crop) {
+			effectiveWidth = Math.round(store.crop.width);
+			effectiveHeight = Math.round(store.crop.height);
+		}
+
+		// Apply frame skip to FPS
+		let effectiveFps = fps;
+		if (store.frameSkip === 'every2nd') effectiveFps = Math.max(1, Math.round(fps / 2));
+		else if (store.frameSkip === 'every3rd') effectiveFps = Math.max(1, Math.round(fps / 3));
+		else if (store.frameSkip === 'every4th') effectiveFps = Math.max(1, Math.round(fps / 4));
+
 		try {
 			const data = await createGif({
 				file,
-				fps,
-				width,
-				height: height ?? undefined,
+				fps: effectiveFps,
+				width: effectiveWidth,
+				height: effectiveHeight,
 				startTime: trimStart > 0 ? trimStart : undefined,
 				duration: clipDuration,
-				speed: speed !== 1 ? speed : undefined,
-				reverse: reverse || undefined,
-				maxColors: colorReduction < 256 ? colorReduction : undefined,
+				speed: store.speed !== 1 ? store.speed : undefined,
+				reverse: store.reverse || undefined,
+				maxColors: store.colorReduction < 256 ? store.colorReduction : undefined,
 			});
 
 			const blob = new Blob([new Uint8Array(data)], { type: 'image/gif' });
@@ -274,7 +285,7 @@ function GifFoundry() {
 		} catch {
 			toast.error('Generation failed');
 		}
-	}, [file, fps, width, height, trimStart, trimEnd, speed, reverse, colorReduction, createGif]);
+	}, [file, fps, width, height, trimStart, trimEnd, store, createGif, setResultUrl]);
 
 	const handleDownload = useCallback(() => {
 		if (!resultUrl) return;
@@ -289,31 +300,10 @@ function GifFoundry() {
 	const estimatedFrames = Math.ceil(clipDuration * fps);
 	const outputHeight = height ?? Math.round(width / sourceAspect);
 
-	/* ── Sidebar Content by Mode ── */
+	/* ── Sidebar Content ── */
 	const sidebarContent = (
 		<>
-			{/* Mode Tabs */}
-			<div className="flex border-b border-border bg-surface overflow-x-auto">
-				{MODE_TABS.map((tab) => {
-					const isActive = mode === tab.mode;
-					return (
-						<button
-							key={tab.mode}
-							onClick={() => {
-								setMode(tab.mode);
-							}}
-							className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[14px] font-semibold uppercase tracking-wider transition-all cursor-pointer ${
-								isActive
-									? 'text-accent border-b-2 border-accent'
-									: 'text-text-tertiary hover:text-text-secondary'
-							}`}
-						>
-							<tab.icon size={16} />
-							{tab.label}
-						</button>
-					);
-				})}
-			</div>
+			<GifModeTabs mode={store.mode} onModeChange={store.setMode} />
 
 			{/* File Picker */}
 			<div className="p-4 border-b border-border">
@@ -365,322 +355,96 @@ function GifFoundry() {
 
 			{/* Mode Content */}
 			<div className="p-4 flex flex-col gap-4 flex-1 overflow-y-auto">
-				{mode === 'settings' && (
-					<>
-						{/* Presets */}
-						<div>
-							<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">
-								Quick Presets
-							</h3>
-							<div className="grid grid-cols-2 gap-1.5">
-								{GIF_PRESETS.map(([key, preset]) => (
-									<button
-										key={key}
-										onClick={() => {
-											applyPreset(key);
-										}}
-										className="rounded-lg px-2.5 py-2 text-left cursor-pointer bg-surface-raised/50 border border-transparent text-text-secondary hover:bg-surface-raised hover:text-text transition-all"
-									>
-										<p className="text-[14px] font-medium truncate">{preset.name}</p>
-										<p className="text-[14px] text-text-tertiary truncate">{preset.description}</p>
-									</button>
-								))}
-							</div>
-						</div>
-
-						{/* FPS */}
-						<Slider
-							label="Smoothness"
-							displayValue={`${fps} fps`}
-							min={5}
-							max={30}
-							step={1}
-							value={fps}
-							onChange={(e) => {
-								setFps(Number(e.target.value));
-							}}
-						/>
-
-						{/* Loop */}
-						<div className="flex items-center justify-between">
-							<span className="text-[14px] font-medium text-text-secondary">Loop</span>
-							<Toggle
-								enabled={loop}
-								onToggle={() => {
-									setLoop(!loop);
-								}}
-								label="Toggle loop"
-							/>
-						</div>
-
-						{/* Speed */}
-						<Slider
-							label="Speed"
-							displayValue={`${speed}x`}
-							min={0.25}
-							max={4}
-							step={0.25}
-							value={speed}
-							onChange={(e) => {
-								setSpeed(Number(e.target.value));
-							}}
-						/>
-
-						{/* Reverse */}
-						<div className="flex items-center justify-between">
-							<span className="text-[14px] font-medium text-text-secondary">Reverse</span>
-							<Toggle
-								enabled={reverse}
-								onToggle={() => {
-									setReverse(!reverse);
-								}}
-								label="Toggle reverse"
-							/>
-						</div>
-
-						{/* GIF source trim inputs */}
-						{isGifSource && (
-							<div>
-								<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
-									Trim
-								</h3>
-								<div className="flex items-center gap-2">
-									<div className="flex-1">
-										<label
-											htmlFor={trimStartInputId}
-											className="text-[14px] text-text-tertiary mb-1 block"
-										>
-											Start (s)
-										</label>
-										<input
-											id={trimStartInputId}
-											type="number"
-											min={0}
-											step={0.1}
-											value={trimStart}
-											onChange={(e) => {
-												setTrimStart(Math.max(0, Number(e.target.value)));
-											}}
-											className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[14px] font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
-										/>
-									</div>
-									<div className="flex-1">
-										<label
-											htmlFor={trimDurationInputId}
-											className="text-[14px] text-text-tertiary mb-1 block"
-										>
-											Duration (s)
-										</label>
-										<input
-											id={trimDurationInputId}
-											type="number"
-											min={0.5}
-											step={0.5}
-											value={Number((trimEnd - trimStart).toFixed(1))}
-											onChange={(e) => {
-												setTrimEnd(trimStart + Math.max(0.5, Number(e.target.value)));
-											}}
-											className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[14px] font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
-										/>
-									</div>
-								</div>
-							</div>
-						)}
-					</>
+				{store.mode === 'settings' && (
+					<GifSettingsPanel
+						fps={fps}
+						onFpsChange={setFps}
+						loop={loop}
+						onLoopChange={setLoop}
+						isGifSource={isGifSource}
+						trimStart={trimStart}
+						trimEnd={trimEnd}
+						onTrimStartChange={setTrimStart}
+						onTrimEndChange={setTrimEnd}
+						duration={duration}
+						onApplyPreset={applyPreset}
+					/>
 				)}
 
-				{mode === 'resize' && (
-					<>
-						{/* Width / Height */}
-						<div>
-							<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">
-								Dimensions
-							</h3>
-							<div className="flex items-center gap-2">
-								<div className="flex-1">
-									<label
-										htmlFor={resizeWidthInputId}
-										className="text-[14px] text-text-tertiary mb-1 block"
-									>
-										Width
-									</label>
-									<input
-										id={resizeWidthInputId}
-										type="number"
-										min={16}
-										max={1920}
-										value={width}
-										onChange={(e) => {
-											handleWidthChange(Math.max(16, Number(e.target.value)));
-										}}
-										className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[14px] font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
-									/>
-								</div>
-								<button
-									onClick={() => {
-										setLockAspect(!lockAspect);
-									}}
-									type="button"
-									aria-label={lockAspect ? 'Unlock aspect ratio' : 'Lock aspect ratio'}
-									title={lockAspect ? 'Unlock aspect ratio' : 'Lock aspect ratio'}
-									className={`mt-4 h-8 w-8 flex items-center justify-center rounded-md transition-colors cursor-pointer ${
-										lockAspect ? 'text-accent bg-accent/10' : 'text-text-tertiary hover:text-text'
-									}`}
-								>
-									{lockAspect ? <Lock size={12} /> : <Unlock size={12} />}
-								</button>
-								<div className="flex-1">
-									<label
-										htmlFor={resizeHeightInputId}
-										className="text-[14px] text-text-tertiary mb-1 block"
-									>
-										Height
-									</label>
-									<input
-										id={resizeHeightInputId}
-										type="number"
-										min={16}
-										max={1920}
-										value={height ?? Math.round(width / sourceAspect)}
-										onChange={(e) => {
-											handleHeightChange(Math.max(16, Number(e.target.value)));
-										}}
-										className="w-full h-8 px-2 rounded-md bg-surface-raised/60 border border-border text-[14px] font-mono text-text tabular-nums focus:outline-none focus:border-accent/50"
-									/>
-								</div>
-							</div>
-						</div>
+				{store.mode === 'crop' && <GifCropPanel sourceWidth={sourceWidth} sourceHeight={sourceHeight} />}
 
-						{/* Quick Size Slider */}
-						<Slider
-							label="Quick Size"
-							displayValue={`${formatNumber(width)}px`}
-							min={128}
-							max={1280}
-							step={16}
-							value={width}
-							onChange={(e) => {
-								handleWidthChange(Number(e.target.value));
-							}}
-						/>
-
-						{/* Common size presets */}
-						<div>
-							<label className="text-[14px] text-text-tertiary mb-2 block">Common Sizes</label>
-							<div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
-								{[
-									{ label: '320', w: 320 },
-									{ label: '480', w: 480 },
-									{ label: '640', w: 640 },
-									{ label: '720', w: 720 },
-									{ label: '1080', w: 1080 },
-									{ label: '1280', w: 1280 },
-								].map((s) => (
-									<button
-										key={s.w}
-										onClick={() => {
-											handleWidthChange(s.w);
-										}}
-										className={`rounded-md py-1.5 text-[14px] font-medium transition-all cursor-pointer ${
-											width === s.w
-												? 'bg-accent/15 text-accent border border-accent/30'
-												: 'bg-surface-raised/60 text-text-tertiary border border-transparent hover:bg-surface-raised'
-										}`}
-									>
-										{s.label}px
-									</button>
-								))}
-							</div>
-						</div>
-					</>
+				{store.mode === 'resize' && (
+					<GifResizePanel
+						width={width}
+						height={height}
+						lockAspect={lockAspect}
+						sourceAspect={sourceAspect}
+						onWidthChange={handleWidthChange}
+						onHeightChange={handleHeightChange}
+						onLockAspectChange={setLockAspect}
+					/>
 				)}
 
-				{mode === 'export' && (
-					<>
-						{/* Color Reduction */}
-						<Slider
-							label="Colors"
-							displayValue={`${colorReduction}`}
-							min={16}
-							max={256}
-							step={16}
-							value={colorReduction}
-							onChange={(e) => {
-								setColorReduction(Number(e.target.value));
-							}}
-						/>
-						<div className="flex justify-between text-[14px] text-text-tertiary -mt-2">
-							<span>Smaller file</span>
-							<span>Better quality</span>
-						</div>
+				{store.mode === 'rotate' && <GifRotatePanel />}
 
-						{/* Estimates */}
-						<div className="rounded-lg bg-bg/50 p-3 flex flex-col gap-1.5">
-							<div className="flex justify-between text-[14px]">
-								<span className="text-text-tertiary">Frames</span>
-								<span className="font-mono text-text-secondary">{formatNumber(estimatedFrames)}</span>
-							</div>
-							<div className="flex justify-between text-[14px]">
-								<span className="text-text-tertiary">Duration</span>
-								<span className="font-mono text-text-secondary">{formatNumber(clipDuration, 1)}s</span>
-							</div>
-							<div className="flex justify-between text-[14px]">
-								<span className="text-text-tertiary">Resolution</span>
-								<span className="font-mono text-text-secondary">
-									{width} x {outputHeight}
-								</span>
-							</div>
-							<div className="flex justify-between text-[14px]">
-								<span className="text-text-tertiary">Speed</span>
-								<span className="font-mono text-text-secondary">
-									{speed}x{reverse ? ' (reversed)' : ''}
-								</span>
-							</div>
-							<div className="flex justify-between text-[14px]">
-								<span className="text-text-tertiary">Colors</span>
-								<span className="font-mono text-text-secondary">{colorReduction}</span>
-							</div>
-						</div>
+				{store.mode === 'filters' && <GifFiltersPanel />}
 
-						{/* Result info */}
-						{resultUrl && (
-							<div className="rounded-lg bg-success/5 border border-success/20 px-3 py-2">
-								<p className="text-[14px] text-success font-medium">GIF ready</p>
-								<p className="text-[14px] text-text-tertiary mt-0.5">{formatFileSize(resultSize)}</p>
-							</div>
-						)}
-					</>
+				{store.mode === 'optimize' && <GifOptimizePanel />}
+
+				{store.mode === 'export' && (
+					<GifExportPanel
+						file={file}
+						ready={ready}
+						processing={processing}
+						progress={progress}
+						error={error}
+						estimatedFrames={estimatedFrames}
+						clipDuration={clipDuration}
+						width={width}
+						outputHeight={outputHeight}
+						resultUrl={resultUrl}
+						resultSize={resultSize}
+						onGenerate={() => {
+							void handleGenerate();
+						}}
+						onDownload={handleDownload}
+						onCloseDrawer={() => {
+							setDrawerOpen(false);
+						}}
+					/>
 				)}
 			</div>
 
-			{/* Actions (always visible at bottom) */}
-			<div className="p-4 border-t border-border flex flex-col gap-2">
-				<Button
-					className="w-full"
-					disabled={!file || !ready || processing}
-					onClick={() => {
-						void handleGenerate();
-						setDrawerOpen(false);
-					}}
-				>
-					{processing ? `Generating ${Math.round(progress * 100)}%` : 'Generate GIF'}
-				</Button>
-
-				{resultUrl && (
+			{/* Generate action (visible on all tabs except export which has its own) */}
+			{store.mode !== 'export' && (
+				<div className="p-4 border-t border-border flex flex-col gap-2">
 					<Button
-						variant="secondary"
 						className="w-full"
+						disabled={!file || !ready || processing}
 						onClick={() => {
-							handleDownload();
+							void handleGenerate();
 							setDrawerOpen(false);
 						}}
 					>
-						Download ({formatFileSize(resultSize)})
+						{processing ? `Generating ${Math.round(progress * 100)}%` : 'Generate GIF'}
 					</Button>
-				)}
 
-				{error && <p className="text-[14px] text-danger bg-danger/10 rounded-md px-2.5 py-1.5">{error}</p>}
-			</div>
+					{resultUrl && (
+						<Button
+							variant="secondary"
+							className="w-full"
+							onClick={() => {
+								handleDownload();
+								setDrawerOpen(false);
+							}}
+						>
+							Download ({formatFileSize(resultSize)})
+						</Button>
+					)}
+
+					{error && <p className="text-[14px] text-danger bg-danger/10 rounded-md px-2.5 py-1.5">{error}</p>}
+				</div>
+			)}
 		</>
 	);
 
@@ -688,7 +452,7 @@ function GifFoundry() {
 		<div data-editor="gif" className="h-full flex flex-col">
 			<Seo
 				title="GIF Editor — Vixely"
-				description="Convert videos to optimized GIFs with trim, resize, and palette controls entirely in your browser."
+				description="Create, edit, crop, resize, rotate, optimize and convert GIFs with filters and effects — entirely in your browser."
 				path="/tools/gif"
 			/>
 			<h1 className="sr-only">GIF Editor</h1>
@@ -727,6 +491,32 @@ function GifFoundry() {
 											controls
 											className="max-w-full max-h-full rounded-lg bg-black"
 										/>
+									)}
+
+									{/* Transform indicator */}
+									{(store.rotation !== 0 || store.flipH || store.flipV || store.crop) && (
+										<div className="mt-2 flex gap-1.5 flex-wrap">
+											{store.rotation !== 0 && (
+												<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent">
+													Rotate {store.rotation}°
+												</span>
+											)}
+											{store.flipH && (
+												<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent">
+													Flip H
+												</span>
+											)}
+											{store.flipV && (
+												<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent">
+													Flip V
+												</span>
+											)}
+											{store.crop && (
+												<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent">
+													Crop {Math.round(store.crop.width)}×{Math.round(store.crop.height)}
+												</span>
+											)}
+										</div>
 									)}
 								</div>
 
@@ -840,10 +630,34 @@ function GifFoundry() {
 					file={file}
 					fields={[
 						{ label: 'Source type', value: isGifSource ? 'GIF' : 'Video' },
+						{
+							label: 'Source dimensions',
+							value: sourceWidth && sourceHeight ? `${sourceWidth}×${sourceHeight}` : null,
+						},
 						{ label: 'Duration', value: duration > 0 ? `${duration.toFixed(1)}s` : null },
-						{ label: 'GIF settings', value: `${width}px @ ${fps}fps` },
-						{ label: 'Speed', value: speed !== 1 ? `${speed}x${reverse ? ' (reversed)' : ''}` : null },
+						{ label: 'Output size', value: `${width}×${outputHeight}px @ ${fps}fps` },
+						{
+							label: 'Speed',
+							value: store.speed !== 1 ? `${store.speed}x${store.reverse ? ' (reversed)' : ''}` : null,
+						},
+						{ label: 'Rotation', value: store.rotation !== 0 ? `${store.rotation}°` : null },
+						{
+							label: 'Flip',
+							value:
+								store.flipH || store.flipV
+									? [store.flipH && 'Horizontal', store.flipV && 'Vertical']
+											.filter(Boolean)
+											.join(', ')
+									: null,
+						},
+						{
+							label: 'Crop',
+							value: store.crop
+								? `${Math.round(store.crop.width)}×${Math.round(store.crop.height)} at (${Math.round(store.crop.x)},${Math.round(store.crop.y)})`
+								: null,
+						},
 						{ label: 'Est. frames', value: String(estimatedFrames) },
+						{ label: 'Loop', value: store.loopCount === 0 ? 'Infinite' : `${store.loopCount}×` },
 					]}
 					onClose={() => {
 						setShowInfo(false);
@@ -875,13 +689,28 @@ function EmptyState({ isDragging, onChooseFile }: { isDragging: boolean; onChoos
 				{isDragging ? 'Drop your file here' : 'No file loaded'}
 			</p>
 			<p className="mt-1 text-[14px] text-text-tertiary">
-				{isDragging ? 'Release to load' : 'Drop a file or click to get started'}
+				{isDragging ? 'Release to load' : 'Drop a video or GIF, or click to get started'}
 			</p>
 			{!isDragging && (
 				<Button variant="secondary" size="sm" className="mt-4" onClick={onChooseFile}>
 					Choose File
 				</Button>
 			)}
+			<div className="mt-6 grid grid-cols-2 gap-3 text-left max-w-md">
+				<FeatureCard title="Crop & Resize" description="Visual crop tool with aspect ratio presets" />
+				<FeatureCard title="Rotate & Flip" description="90°, 180°, 270° rotation and mirroring" />
+				<FeatureCard title="Color Filters" description="13 adjustments: exposure, contrast, hue..." />
+				<FeatureCard title="Optimize" description="Compression, frame skip, color reduction" />
+			</div>
+		</div>
+	);
+}
+
+function FeatureCard({ title, description }: { title: string; description: string }) {
+	return (
+		<div className="rounded-lg bg-surface/50 border border-border/50 px-3 py-2">
+			<p className="text-[14px] font-medium text-text-secondary">{title}</p>
+			<p className="text-[12px] text-text-tertiary mt-0.5">{description}</p>
 		</div>
 	);
 }
