@@ -5,10 +5,16 @@ import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
 import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
 import { FileMetadataModal } from '@/components/FileMetadataModal.tsx';
+import { GifAnalyzerPanel } from '@/components/gif/GifAnalyzerPanel.tsx';
+import { GifAspectRatioPanel } from '@/components/gif/GifAspectRatioPanel.tsx';
 import { GifCropPanel } from '@/components/gif/GifCropPanel.tsx';
 import { GifExportPanel } from '@/components/gif/GifExportPanel.tsx';
+import { GifFadePanel } from '@/components/gif/GifFadePanel.tsx';
 import { GifFiltersPanel } from '@/components/gif/GifFiltersPanel.tsx';
+import { GifFormatConvertPanel } from '@/components/gif/GifFormatConvertPanel.tsx';
 import { GifFramesPanel } from '@/components/gif/GifFramesPanel.tsx';
+import { GifImageOverlayPanel } from '@/components/gif/GifImageOverlayPanel.tsx';
+import { GifMakerPanel } from '@/components/gif/GifMakerPanel.tsx';
 import { GifModeTabs } from '@/components/gif/GifModeTabs.tsx';
 import { GifOptimizePanel } from '@/components/gif/GifOptimizePanel.tsx';
 import { GifResizePanel } from '@/components/gif/GifResizePanel.tsx';
@@ -443,6 +449,22 @@ function GifFoundry() {
 
 				{store.mode === 'text' && <GifTextOverlayPanel />}
 
+				{store.mode === 'maker' && <GifMakerPanel />}
+
+				{store.mode === 'overlay' && <GifImageOverlayPanel />}
+
+				{store.mode === 'fade' && <GifFadePanel />}
+
+				{store.mode === 'analyze' && <GifAnalyzerPanel file={file} />}
+
+				{store.mode === 'convert' && (
+					<GifFormatConvertPanel file={file} sourceWidth={sourceWidth} sourceHeight={sourceHeight} />
+				)}
+
+				{store.mode === 'aspect' && (
+					<GifAspectRatioPanel sourceWidth={sourceWidth} sourceHeight={sourceHeight} />
+				)}
+
 				{store.mode === 'export' && (
 					<GifExportPanel
 						file={file}
@@ -753,6 +775,10 @@ function EmptyState({ isDragging, onChooseFile }: { isDragging: boolean; onChoos
 				<FeatureCard title="Rotate & Flip" description="90°, 180°, 270° rotation and mirroring" />
 				<FeatureCard title="Color Filters" description="13 adjustments: exposure, contrast, hue..." />
 				<FeatureCard title="Optimize" description="Compression, frame skip, color reduction" />
+				<FeatureCard title="GIF Maker" description="Create GIFs from multiple images" />
+				<FeatureCard title="Text & Overlays" description="Add text, watermarks, and image overlays" />
+				<FeatureCard title="Fade Effects" description="Fade in/out with customizable colors" />
+				<FeatureCard title="Analyze & Convert" description="Inspect GIF internals, convert formats" />
 			</div>
 		</div>
 	);

@@ -2,7 +2,22 @@ import { create } from 'zustand';
 import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
 import { DEFAULT_FILTER_PARAMS, filtersAreDefault } from '@/modules/shared-core/types/filters.ts';
 
-export type GifMode = 'settings' | 'crop' | 'resize' | 'rotate' | 'filters' | 'optimize' | 'frames' | 'text' | 'export';
+export type GifMode =
+	| 'settings'
+	| 'crop'
+	| 'resize'
+	| 'rotate'
+	| 'filters'
+	| 'optimize'
+	| 'frames'
+	| 'text'
+	| 'maker'
+	| 'overlay'
+	| 'fade'
+	| 'analyze'
+	| 'convert'
+	| 'aspect'
+	| 'export';
 
 export interface CropRect {
 	x: number;
@@ -40,6 +55,22 @@ export interface TextOverlay {
 	opacity: number;
 }
 
+export interface ImageOverlay {
+	file: File | null;
+	url: string | null;
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+	opacity: number;
+}
+
+export type FadeColor = 'black' | 'white' | 'transparent';
+
+export type ConvertFormat = 'mp4' | 'webp' | 'apng' | 'png-sequence';
+
+export type AspectPreset = 'free' | '1:1' | '4:3' | '16:9' | '3:2' | '9:16' | '21:9';
+
 export interface GifEditorState {
 	mode: GifMode;
 	speed: number;
@@ -71,6 +102,21 @@ export interface GifEditorState {
 	// Text overlays
 	textOverlays: TextOverlay[];
 	activeOverlayId: string | null;
+
+	// Image overlay
+	imageOverlay: ImageOverlay;
+
+	// Fade
+	fadeInDuration: number;
+	fadeOutDuration: number;
+	fadeColor: FadeColor;
+
+	// Convert
+	convertFormat: ConvertFormat;
+
+	// Aspect ratio
+	aspectPreset: AspectPreset;
+	aspectPaddingColor: string;
 
 	// Actions
 	setMode: (mode: GifMode) => void;
@@ -105,6 +151,22 @@ export interface GifEditorState {
 	updateTextOverlay: (id: string, updates: Partial<TextOverlay>) => void;
 	removeTextOverlay: (id: string) => void;
 	setActiveOverlayId: (id: string | null) => void;
+
+	// Image overlay actions
+	setImageOverlay: (overlay: Partial<ImageOverlay>) => void;
+	clearImageOverlay: () => void;
+
+	// Fade actions
+	setFadeInDuration: (duration: number) => void;
+	setFadeOutDuration: (duration: number) => void;
+	setFadeColor: (color: FadeColor) => void;
+
+	// Convert actions
+	setConvertFormat: (format: ConvertFormat) => void;
+
+	// Aspect ratio actions
+	setAspectPreset: (preset: AspectPreset) => void;
+	setAspectPaddingColor: (color: string) => void;
 
 	resetAll: () => void;
 	hasFilterChanges: () => boolean;
@@ -144,6 +206,17 @@ export const useGifEditorStore = create<GifEditorState>((set, get) => ({
 
 	textOverlays: [],
 	activeOverlayId: null,
+
+	imageOverlay: { file: null, url: null, x: 0, y: 0, width: 100, height: 100, opacity: 1 },
+
+	fadeInDuration: 0,
+	fadeOutDuration: 0,
+	fadeColor: 'black',
+
+	convertFormat: 'mp4',
+
+	aspectPreset: 'free',
+	aspectPaddingColor: '#000000',
 
 	setMode: (mode) => {
 		set({ mode });
@@ -259,11 +332,46 @@ export const useGifEditorStore = create<GifEditorState>((set, get) => ({
 		set({ activeOverlayId });
 	},
 
+	// Image overlay actions
+	setImageOverlay: (updates) => {
+		set((s) => ({ imageOverlay: { ...s.imageOverlay, ...updates } }));
+	},
+	clearImageOverlay: () => {
+		const { imageOverlay } = get();
+		if (imageOverlay.url) URL.revokeObjectURL(imageOverlay.url);
+		set({ imageOverlay: { file: null, url: null, x: 0, y: 0, width: 100, height: 100, opacity: 1 } });
+	},
+
+	// Fade actions
+	setFadeInDuration: (fadeInDuration) => {
+		set({ fadeInDuration });
+	},
+	setFadeOutDuration: (fadeOutDuration) => {
+		set({ fadeOutDuration });
+	},
+	setFadeColor: (fadeColor) => {
+		set({ fadeColor });
+	},
+
+	// Convert actions
+	setConvertFormat: (convertFormat) => {
+		set({ convertFormat });
+	},
+
+	// Aspect ratio actions
+	setAspectPreset: (aspectPreset) => {
+		set({ aspectPreset });
+	},
+	setAspectPaddingColor: (aspectPaddingColor) => {
+		set({ aspectPaddingColor });
+	},
+
 	resetAll: () => {
-		const { extractedFrames } = get();
+		const { extractedFrames, imageOverlay } = get();
 		for (const frame of extractedFrames) {
 			URL.revokeObjectURL(frame.url);
 		}
+		if (imageOverlay.url) URL.revokeObjectURL(imageOverlay.url);
 		set({
 			mode: 'settings',
 			speed: 1,
@@ -283,6 +391,13 @@ export const useGifEditorStore = create<GifEditorState>((set, get) => ({
 			selectedFrameIndex: null,
 			textOverlays: [],
 			activeOverlayId: null,
+			imageOverlay: { file: null, url: null, x: 0, y: 0, width: 100, height: 100, opacity: 1 },
+			fadeInDuration: 0,
+			fadeOutDuration: 0,
+			fadeColor: 'black',
+			convertFormat: 'mp4',
+			aspectPreset: 'free',
+			aspectPaddingColor: '#000000',
 		});
 	},
 
