@@ -360,6 +360,13 @@ function post(payload: WorkerResponse, transfer?: Transferable[]): void {
 	self.postMessage(payload);
 }
 
+function postPerfLog(event: string, payload: Record<string, unknown>): void {
+	post({
+		type: 'LOG',
+		message: `[perf] ${JSON.stringify({ scope: 'ffmpeg-worker', event, timestampMs: Date.now(), ...payload })}`,
+	});
+}
+
 function sendBytesDone(type: 'DONE', data: Uint8Array, outputName?: string): void {
 	const copy = new Uint8Array(data);
 	post({ type: 'DONE', data: copy, outputName: outputName ?? 'output.bin' }, [copy.buffer]);
@@ -1048,6 +1055,7 @@ async function handleExtractFonts(msg: ExtractFontsMessage): Promise<void> {
 
 async function handleScreenshot(msg: ScreenshotMessage): Promise<void> {
 	post({ type: 'STARTED', job: 'screenshot' });
+	const startedAtMs = performance.now();
 	const input = new Input({ source: new BlobSource(msg.file), formats: ALL_FORMATS });
 	try {
 		const videoTrack = await input.getPrimaryVideoTrack();
@@ -1060,6 +1068,22 @@ async function handleScreenshot(msg: ScreenshotMessage): Promise<void> {
 
 		const bytes = await canvasToPngBytes(wrapped.canvas);
 		sendBytesDone('DONE', bytes, 'screenshot.png');
+		postPerfLog('screenshot_done', {
+			inputFileName: msg.file.name,
+			inputFileBytes: msg.file.size,
+			outputBytes: bytes.byteLength,
+			timestampSec: msg.timestamp,
+			totalDurationMs: Math.round(performance.now() - startedAtMs),
+		});
+	} catch (error) {
+		postPerfLog('screenshot_error', {
+			inputFileName: msg.file.name,
+			inputFileBytes: msg.file.size,
+			timestampSec: msg.timestamp,
+			totalDurationMs: Math.round(performance.now() - startedAtMs),
+			error: error instanceof Error ? error.message : String(error),
+		});
+		throw error;
 	} finally {
 		input.dispose();
 	}
@@ -1067,6 +1091,7 @@ async function handleScreenshot(msg: ScreenshotMessage): Promise<void> {
 
 async function handleExtractGifFrames(msg: ExtractGifFramesMessage): Promise<void> {
 	post({ type: 'STARTED', job: 'gif' });
+	const startedAtMs = performance.now();
 
 	const input = new Input({ source: new BlobSource(msg.file), formats: ALL_FORMATS });
 	try {
@@ -1128,6 +1153,23 @@ async function handleExtractGifFrames(msg: ExtractGifFramesMessage): Promise<voi
 		);
 
 		post({ type: 'FRAMES_EXTRACTED', frames: extractedFrames, totalFrames: extractedFrames.length });
+		postPerfLog('extract_gif_frames_done', {
+			inputFileName: msg.file.name,
+			inputFileBytes: msg.file.size,
+			outputFrameCount: extractedFrames.length,
+			thumbnailWidth: thumbW,
+			thumbnailHeight: thumbH,
+			estimatedOutputRgbaBytes: extractedFrames.length * thumbW * thumbH * 4,
+			totalDurationMs: Math.round(performance.now() - startedAtMs),
+		});
+	} catch (error) {
+		postPerfLog('extract_gif_frames_error', {
+			inputFileName: msg.file.name,
+			inputFileBytes: msg.file.size,
+			totalDurationMs: Math.round(performance.now() - startedAtMs),
+			error: error instanceof Error ? error.message : String(error),
+		});
+		throw error;
 	} finally {
 		input.dispose();
 	}
@@ -1135,6 +1177,12 @@ async function handleExtractGifFrames(msg: ExtractGifFramesMessage): Promise<voi
 
 async function handleGif(msg: GifMessage): Promise<void> {
 	post({ type: 'STARTED', job: 'gif' });
+	const startedAtMs = performance.now();
+	let decodeDurationMs = 0;
+	let renderDurationMs = 0;
+	let encodeDurationMs = 0;
+	let frameCount = 0;
+	let estimatedFrameBytes = 0;
 
 	const input = new Input({ source: new BlobSource(msg.file), formats: ALL_FORMATS });
 	try {
@@ -1226,6 +1274,7 @@ async function handleGif(msg: GifMessage): Promise<void> {
 		if (!finalCtx) throw new Error('Failed to create final frame context');
 
 		const frameIndices = Array.from({ length: outputFrameCount }, (_, index) => index);
+		const decodeStartedAtMs = performance.now();
 		const wrappedFrames = await mapInBatches(
 			frameIndices,
 			async (i) => {
@@ -1236,8 +1285,10 @@ async function handleGif(msg: GifMessage): Promise<void> {
 			},
 			1,
 		);
+		decodeDurationMs = performance.now() - decodeStartedAtMs;
 
 		const frames: Uint8Array[] = [];
+		const renderStartedAtMs = performance.now();
 		for (const { i, wrapped } of wrappedFrames) {
 			if (!wrapped) continue;
 			frameCtx.clearRect(0, 0, frameCanvas.width, frameCanvas.height);
@@ -1307,11 +1358,15 @@ async function handleGif(msg: GifMessage): Promise<void> {
 			const progress = Math.min(0.85, ((i + 1) / outputFrameCount) * 0.85);
 			post({ type: 'PROGRESS', progress, time: i / fps, fps, frame: i + 1, speed });
 		}
+		renderDurationMs = performance.now() - renderStartedAtMs;
 
 		overlayBitmap?.close();
 
 		if (frames.length === 0) throw new Error('No frames extracted for GIF');
+		frameCount = frames.length;
+		estimatedFrameBytes = frames.length * finalCanvas.width * finalCanvas.height * 4;
 
+		const encodeStartedAtMs = performance.now();
 		const blob = await encodeGif({
 			frames,
 			width: finalCanvas.width,
@@ -1332,9 +1387,36 @@ async function handleGif(msg: GifMessage): Promise<void> {
 				});
 			},
 		});
+		encodeDurationMs = performance.now() - encodeStartedAtMs;
 
 		const bytes = new Uint8Array(await blob.arrayBuffer());
 		sendBytesDone('DONE', bytes, 'output.gif');
+		postPerfLog('gif_encode_done', {
+			inputFileName: msg.file.name,
+			inputFileBytes: msg.file.size,
+			outputFileBytes: bytes.byteLength,
+			outputFrameCount: frameCount,
+			outputWidth: finalCanvas.width,
+			outputHeight: finalCanvas.height,
+			estimatedFrameBytes,
+			decodeDurationMs: Math.round(decodeDurationMs),
+			renderDurationMs: Math.round(renderDurationMs),
+			encodeDurationMs: Math.round(encodeDurationMs),
+			totalDurationMs: Math.round(performance.now() - startedAtMs),
+		});
+	} catch (error) {
+		postPerfLog('gif_encode_error', {
+			inputFileName: msg.file.name,
+			inputFileBytes: msg.file.size,
+			outputFrameCount: frameCount,
+			estimatedFrameBytes,
+			decodeDurationMs: Math.round(decodeDurationMs),
+			renderDurationMs: Math.round(renderDurationMs),
+			encodeDurationMs: Math.round(encodeDurationMs),
+			totalDurationMs: Math.round(performance.now() - startedAtMs),
+			error: error instanceof Error ? error.message : String(error),
+		});
+		throw error;
 	} finally {
 		input.dispose();
 	}
@@ -1533,6 +1615,7 @@ function getFadeAlpha(frameIndex: number, totalFrames: number, fadeInFrames: num
 
 async function handleTranscode(msg: TranscodeMessage): Promise<void> {
 	post({ type: 'STARTED', job: 'transcode' });
+	const startedAtMs = performance.now();
 	const parsed = parseTranscodeSettings(msg);
 
 	const input = new Input({ source: new BlobSource(msg.file), formats: ALL_FORMATS });
@@ -1618,6 +1701,24 @@ async function handleTranscode(msg: TranscodeMessage): Promise<void> {
 		const buffer = output.target.buffer;
 		if (!buffer) throw new Error('Conversion produced no output buffer');
 		sendBytesDone('DONE', new Uint8Array(buffer), msg.outputName);
+		postPerfLog('transcode_done', {
+			inputFileName: msg.file.name,
+			inputFileBytes: msg.file.size,
+			outputName: msg.outputName,
+			outputBytes: buffer.byteLength,
+			expectedDurationSec: msg.expectedDurationSec ?? 0,
+			totalDurationMs: Math.round(performance.now() - startedAtMs),
+		});
+	} catch (error) {
+		postPerfLog('transcode_error', {
+			inputFileName: msg.file.name,
+			inputFileBytes: msg.file.size,
+			outputName: msg.outputName,
+			expectedDurationSec: msg.expectedDurationSec ?? 0,
+			totalDurationMs: Math.round(performance.now() - startedAtMs),
+			error: error instanceof Error ? error.message : String(error),
+		});
+		throw error;
 	} finally {
 		input.dispose();
 	}

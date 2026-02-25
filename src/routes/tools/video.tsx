@@ -39,6 +39,7 @@ import {
 } from '@/config/codecs.ts';
 import { videoPresetEntries, buildVideoArgs, VIDEO_ACCEPT } from '@/config/presets.ts';
 import { useFrameStepController } from '@/hooks/useFrameStepController.ts';
+import { useLongTaskObserver } from '@/hooks/useLongTaskObserver.ts';
 import { useObjectUrlState } from '@/hooks/useObjectUrlState.ts';
 import { usePreventUnload } from '@/hooks/usePreventUnload.ts';
 import { useSingleFileDrop } from '@/hooks/useSingleFileDrop.ts';
@@ -148,6 +149,7 @@ function applyAdvancedUpdate(
 
 function VideoStudio() {
 	const navigate = useNavigate();
+	useLongTaskObserver('video-route');
 	const {
 		ready,
 		processing,

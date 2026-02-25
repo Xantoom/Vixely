@@ -11,6 +11,7 @@ import { Seo } from '@/components/Seo.tsx';
 import { Drawer } from '@/components/ui/Drawer.tsx';
 import { Button } from '@/components/ui/index.ts';
 import { IMAGE_ACCEPT } from '@/config/presets.ts';
+import { useLongTaskObserver } from '@/hooks/useLongTaskObserver.ts';
 import { usePendingActionConfirmation } from '@/hooks/usePendingActionConfirmation.ts';
 import { usePreventUnload } from '@/hooks/usePreventUnload.ts';
 import { useSingleFileDrop } from '@/hooks/useSingleFileDrop.ts';
@@ -29,6 +30,7 @@ const ACCEPTED_TYPES = new Set(
 export const Route = createFileRoute('/tools/image')({ component: ImageLab });
 
 function ImageLab() {
+	useLongTaskObserver('image-route');
 	const { originalData, loadImage, undo, redo, clearAll, hasUnsavedChanges } = useImageEditorStore(
 		useShallow((s) => ({
 			originalData: s.originalData,

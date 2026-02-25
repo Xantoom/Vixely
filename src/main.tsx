@@ -3,12 +3,15 @@ import { RouterProvider, createRouter } from '@tanstack/react-router';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { HelmetProvider } from 'react-helmet-async';
+import { installObjectUrlMetricsPatch } from '@/utils/objectUrlMetrics.ts';
 import { routeTree } from './routeTree.gen.ts';
 import './styles.css';
 
 const queryClient = new QueryClient();
 
 const router = createRouter({ routeTree, defaultPreload: 'intent' });
+
+installObjectUrlMetricsPatch();
 
 declare module '@tanstack/react-router' {
 	interface Register {

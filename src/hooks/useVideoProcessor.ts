@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { ProbeResultData, FontAttachmentInfo, DetailedProbeResultData } from '@/workers/ffmpeg-worker.ts';
 import { cacheKeyForFile, useVideoMetadataStore } from '@/stores/videoMetadata.ts';
+import { emitTelemetry } from '@/utils/telemetry.ts';
 
 // ── Worker Message Types ──
 
@@ -313,6 +314,49 @@ const INITIAL_STATS: ExportStats = { fps: 0, frame: 0, speed: 0, elapsedMs: 0 };
 const DEBUG_WORKER_LOGS =
 	typeof window !== 'undefined' && window.localStorage.getItem('vixely:debug-worker-logs') === '1';
 
+interface ActiveForegroundJobTelemetry {
+	id: number;
+	requestType: WorkerRequest['type'];
+	queuedAtMs: number;
+	startedAtMs: number | null;
+	firstProgressAtMs: number | null;
+	fileName: string;
+	fileSizeBytes: number;
+	outputName: string | null;
+	expectedDurationSec: number;
+}
+
+function toExpectedDurationSec(message: WorkerRequest): number {
+	switch (message.type) {
+		case 'TRANSCODE':
+			return Math.max(0, message.expectedDurationSec ?? 0);
+		case 'GIF':
+		case 'EXTRACT_GIF_FRAMES':
+			return Math.max(0, message.duration ?? 0);
+		case 'SCREENSHOT':
+		case 'PROBE':
+		case 'PROBE_DETAILS':
+		case 'SUBTITLE_PREVIEW':
+		case 'EXTRACT_FONTS':
+			return 0;
+	}
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function parseWorkerPerfLog(message: string): Record<string, unknown> | null {
+	const prefix = '[perf] ';
+	if (!message.startsWith(prefix)) return null;
+	try {
+		const parsed: unknown = JSON.parse(message.slice(prefix.length));
+		return isRecord(parsed) ? parsed : null;
+	} catch {
+		return null;
+	}
+}
+
 function normalizeProgressFromTime(time: number, expectedDurationSec: number, progressHint?: number): number | null {
 	if (!Number.isFinite(time) || time <= 0 || !Number.isFinite(expectedDurationSec) || expectedDurationSec <= 0) {
 		return null;
@@ -383,11 +427,100 @@ export function useVideoProcessor() {
 	const exportExpectedDurationRef = useRef(0);
 	const exportStartRef = useRef<number>(0);
 	const lastProgressEmitRef = useRef(0);
+	const activeForegroundJobRef = useRef<ActiveForegroundJobTelemetry | null>(null);
+	const nextForegroundJobIdRef = useRef(1);
+
+	const beginForegroundJobTelemetry = useCallback((message: WorkerRequest) => {
+		if (
+			message.type !== 'TRANSCODE' &&
+			message.type !== 'GIF' &&
+			message.type !== 'SCREENSHOT' &&
+			message.type !== 'EXTRACT_GIF_FRAMES'
+		) {
+			return;
+		}
+		const outputName = 'outputName' in message ? message.outputName : null;
+		const entry: ActiveForegroundJobTelemetry = {
+			id: nextForegroundJobIdRef.current++,
+			requestType: message.type,
+			queuedAtMs: Date.now(),
+			startedAtMs: null,
+			firstProgressAtMs: null,
+			fileName: message.file.name,
+			fileSizeBytes: message.file.size,
+			outputName,
+			expectedDurationSec: toExpectedDurationSec(message),
+		};
+		activeForegroundJobRef.current = entry;
+		emitTelemetry('worker_job_queued', {
+			jobId: entry.id,
+			requestType: entry.requestType,
+			fileName: entry.fileName,
+			fileSizeBytes: entry.fileSizeBytes,
+			outputName: entry.outputName,
+			expectedDurationSec: entry.expectedDurationSec,
+		});
+	}, []);
+
+	const markForegroundJobStarted = useCallback((workerJob: StartedResponse['job']) => {
+		const job = activeForegroundJobRef.current;
+		if (!job || job.startedAtMs !== null) return;
+		job.startedAtMs = Date.now();
+		emitTelemetry('worker_job_started', {
+			jobId: job.id,
+			requestType: job.requestType,
+			workerJob,
+			queueDelayMs: job.startedAtMs - job.queuedAtMs,
+		});
+	}, []);
+
+	const markForegroundJobFirstProgress = useCallback((progress: number) => {
+		const job = activeForegroundJobRef.current;
+		if (!job || job.firstProgressAtMs !== null) return;
+		job.firstProgressAtMs = Date.now();
+		emitTelemetry('worker_job_first_progress', {
+			jobId: job.id,
+			requestType: job.requestType,
+			progress,
+			startToFirstProgressMs: job.startedAtMs ? job.firstProgressAtMs - job.startedAtMs : null,
+			queueToFirstProgressMs: job.firstProgressAtMs - job.queuedAtMs,
+		});
+	}, []);
+
+	const finishForegroundJobTelemetry = useCallback(
+		(
+			status: 'success' | 'error' | 'cancelled',
+			extra: { outputBytes?: number; frameCount?: number; error?: string } = {},
+		) => {
+			const job = activeForegroundJobRef.current;
+			if (!job) return;
+			const finishedAtMs = Date.now();
+			emitTelemetry(`worker_job_${status}`, {
+				jobId: job.id,
+				requestType: job.requestType,
+				status,
+				fileName: job.fileName,
+				fileSizeBytes: job.fileSizeBytes,
+				outputName: job.outputName,
+				expectedDurationSec: job.expectedDurationSec,
+				queueDelayMs: job.startedAtMs ? job.startedAtMs - job.queuedAtMs : null,
+				runDurationMs: job.startedAtMs ? finishedAtMs - job.startedAtMs : null,
+				totalDurationMs: finishedAtMs - job.queuedAtMs,
+				firstProgressDelayMs: job.firstProgressAtMs ? job.firstProgressAtMs - job.queuedAtMs : null,
+				outputBytes: extra.outputBytes ?? null,
+				frameCount: extra.frameCount ?? null,
+				error: extra.error ?? null,
+			});
+			activeForegroundJobRef.current = null;
+		},
+		[],
+	);
 
 	const clearForegroundRequest = useCallback(() => {
 		resolveRef.current = null;
 		rejectRef.current = null;
 		exportExpectedDurationRef.current = 0;
+		activeForegroundJobRef.current = null;
 	}, []);
 
 	const rejectForegroundRequest = useCallback(
@@ -439,9 +572,13 @@ export function useVideoProcessor() {
 						break;
 					case 'STARTED':
 						setState((s) => ({ ...s, started: true }));
+						markForegroundJobStarted(msg.job);
 						break;
 
 					case 'PROGRESS':
+						if (msg.progress > 0) {
+							markForegroundJobFirstProgress(msg.progress);
+						}
 						// Keep UI smooth under heavy worker log/progress throughput.
 						if (msg.progress < 1) {
 							const now = performance.now();
@@ -477,6 +614,7 @@ export function useVideoProcessor() {
 
 					case 'DONE':
 						setState((s) => ({ ...s, processing: false, started: false, progress: 1 }));
+						finishForegroundJobTelemetry('success', { outputBytes: msg.data.byteLength });
 						resolveRef.current?.(msg.data);
 						clearForegroundRequest();
 						break;
@@ -524,6 +662,7 @@ export function useVideoProcessor() {
 
 					case 'FRAMES_EXTRACTED':
 						setState((s) => ({ ...s, processing: false, progress: 1 }));
+						finishForegroundJobTelemetry('success', { frameCount: msg.totalFrames });
 						framesResolveRef.current?.(msg.frames);
 						framesResolveRef.current = null;
 						framesRejectRef.current = null;
@@ -532,6 +671,7 @@ export function useVideoProcessor() {
 					case 'ERROR':
 						console.error('[hook] worker ERROR:', msg.error);
 						setState((s) => ({ ...s, processing: false, started: false, error: msg.error }));
+						finishForegroundJobTelemetry('error', { error: msg.error });
 						const err = new Error(msg.error);
 						rejectForegroundRequest(err);
 						rejectBackgroundRequests(err);
@@ -541,6 +681,12 @@ export function useVideoProcessor() {
 						break;
 
 					case 'LOG':
+						{
+							const perfPayload = parseWorkerPerfLog(msg.message);
+							if (perfPayload) {
+								emitTelemetry('worker_perf', perfPayload);
+							}
+						}
 						if (DEBUG_WORKER_LOGS) console.debug('[hook] worker LOG:', msg.message);
 						break;
 				}
@@ -552,6 +698,7 @@ export function useVideoProcessor() {
 				crashHandled = true;
 				console.error('[hook] worker onerror:', e.message, e);
 				const err = new Error(e.message ?? 'Worker crashed');
+				finishForegroundJobTelemetry('error', { error: err.message });
 				setState((s) => ({ ...s, ready: false, processing: false, started: false, error: err.message }));
 				rejectForegroundRequest(err);
 				rejectBackgroundRequests(err);
@@ -563,7 +710,14 @@ export function useVideoProcessor() {
 
 			workerRef.current = worker;
 		},
-		[clearForegroundRequest, rejectBackgroundRequests, rejectForegroundRequest],
+		[
+			clearForegroundRequest,
+			finishForegroundJobTelemetry,
+			markForegroundJobFirstProgress,
+			markForegroundJobStarted,
+			rejectBackgroundRequests,
+			rejectForegroundRequest,
+		],
 	);
 
 	useEffect(() => {
@@ -604,6 +758,7 @@ export function useVideoProcessor() {
 
 		// Reject pending promises
 		const err = new Error('Cancelled');
+		finishForegroundJobTelemetry('cancelled');
 		rejectForegroundRequest(err);
 		rejectBackgroundRequests(err);
 
@@ -617,7 +772,7 @@ export function useVideoProcessor() {
 			exportStats: INITIAL_STATS,
 			error: null,
 		}));
-	}, [rejectBackgroundRequests, rejectForegroundRequest, restartWorker]);
+	}, [finishForegroundJobTelemetry, rejectBackgroundRequests, rejectForegroundRequest, restartWorker]);
 
 	const sendCommand = useCallback(
 		async (message: WorkerRequest): Promise<Uint8Array> => {
@@ -663,10 +818,11 @@ export function useVideoProcessor() {
 				}));
 				resolveRef.current = resolve;
 				rejectRef.current = reject;
+				beginForegroundJobTelemetry(message);
 				worker.postMessage(message);
 			});
 		},
-		[getWorkerOrReject, rejectBackgroundRequests, restartWorker],
+		[beginForegroundJobTelemetry, getWorkerOrReject, rejectBackgroundRequests, restartWorker],
 	);
 
 	const transcode = useCallback(
@@ -742,10 +898,7 @@ export function useVideoProcessor() {
 			return new Promise((resolve, reject) => {
 				const worker = getWorkerOrReject(reject);
 				if (!worker) return;
-				framesResolveRef.current = resolve;
-				framesRejectRef.current = reject;
-				setState((s) => ({ ...s, processing: true, progress: 0, error: null }));
-				worker.postMessage({
+				const request: ExtractGifFramesRequest = {
 					type: 'EXTRACT_GIF_FRAMES',
 					file: opts.file,
 					fps: opts.fps ?? 15,
@@ -756,10 +909,15 @@ export function useVideoProcessor() {
 					speed: opts.speed,
 					reverse: opts.reverse,
 					thumbWidth: opts.thumbWidth,
-				});
+				};
+				framesResolveRef.current = resolve;
+				framesRejectRef.current = reject;
+				setState((s) => ({ ...s, processing: true, progress: 0, error: null }));
+				beginForegroundJobTelemetry(request);
+				worker.postMessage(request);
 			});
 		},
-		[getWorkerOrReject],
+		[beginForegroundJobTelemetry, getWorkerOrReject],
 	);
 
 	const captureFrame = useCallback(

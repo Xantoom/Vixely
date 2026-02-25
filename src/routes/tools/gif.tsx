@@ -37,6 +37,7 @@ import { Drawer } from '@/components/ui/Drawer.tsx';
 import { Button, Timeline, formatCompactTime } from '@/components/ui/index.ts';
 import { gifPresetEntries, GIF_ACCEPT } from '@/config/presets.ts';
 import { useFrameStepController } from '@/hooks/useFrameStepController.ts';
+import { useLongTaskObserver } from '@/hooks/useLongTaskObserver.ts';
 import { useObjectUrlState } from '@/hooks/useObjectUrlState.ts';
 import { usePendingActionConfirmation } from '@/hooks/usePendingActionConfirmation.ts';
 import { usePreventUnload } from '@/hooks/usePreventUnload.ts';
@@ -158,6 +159,7 @@ const MODE_TO_SECTION: Record<GifMode, SidebarSectionId> = {
 };
 
 function GifFoundry() {
+	useLongTaskObserver('gif-route');
 	const { ready, processing, progress, error, createGif, extractGifFrames } = useVideoProcessor();
 	const store = useGifEditorStore(
 		useShallow((s) => ({
