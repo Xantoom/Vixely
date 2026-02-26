@@ -19,6 +19,14 @@ import { toast } from 'sonner';
 import type { SubtitlePreviewData } from '@/hooks/useVideoProcessor.ts';
 import type { AdvancedVideoSettings } from '@/stores/videoEditor.ts';
 import type { DetailedProbeResultData } from '@/workers/ffmpeg-worker.ts';
+import {
+	EditorEmptyState,
+	EditorFileSummary,
+	EditorQuickActions,
+	EditorShell,
+	EditorShellHeader,
+	EditorUxModeSwitch,
+} from '@/components/editor/index.ts';
 import { Seo } from '@/components/Seo.tsx';
 import { Drawer } from '@/components/ui/Drawer.tsx';
 import {
@@ -58,6 +66,7 @@ import { useTimelineScrubController } from '@/hooks/useTimelineScrubController.t
 import { useVideoMetadataLoader, type MetadataLoadStage } from '@/hooks/useVideoMetadataLoader.ts';
 import { useVideoProcessor } from '@/hooks/useVideoProcessor.ts';
 import { buildFfmpegExportPlan } from '@/modules/video-editor/export/ffmpeg-export-plan.ts';
+import { useEditorUxStore } from '@/stores/editorUx.ts';
 import { useVideoEditorStore, type VideoMode } from '@/stores/videoEditor.ts';
 import { setPendingImageTransfer } from '@/utils/crossEditorTransfer.ts';
 import { buildExportFilename } from '@/utils/exportFilename.ts';
@@ -224,6 +233,9 @@ function VideoStudio() {
 	const setAdvancedSettings = useVideoEditorStore((s) => s.setAdvancedSettings);
 	const ffmpegFilterArgs = useVideoEditorStore((s) => s.ffmpegFilterArgs);
 	const resizeFilterArgs = useVideoEditorStore((s) => s.resizeFilterArgs);
+	const editorUxMode = useEditorUxStore((s) => s.mode);
+	const setEditorUxMode = useEditorUxStore((s) => s.setMode);
+	const isExpertMode = editorUxMode === 'expert';
 
 	const updateAdvanced = useCallback(
 		<K extends keyof AdvancedVideoSettings>(key: K, value: AdvancedVideoSettings[K]) => {
@@ -287,6 +299,13 @@ function VideoStudio() {
 	const minTrimDuration = frameDuration;
 	const metadataExportLocked = streamInfoPending;
 	const metadataVideoLoading = streamInfoPending || detailedProbePending;
+
+	useEffect(() => {
+		if (editorUxMode !== 'simple') return;
+		if (selectedPreset != null) return;
+		const fallbackPreset = groupedPresets[0]?.presets[0]?.[0] ?? null;
+		if (fallbackPreset) setSelectedPreset(fallbackPreset);
+	}, [editorUxMode, groupedPresets, selectedPreset, setSelectedPreset]);
 
 	useEffect(() => {
 		const modeStage = VIDEO_MODE_STAGE[videoMode];
@@ -834,11 +853,65 @@ function VideoStudio() {
 		videoFilters.saturation !== 1 ||
 		videoFilters.hue !== 0;
 	const usingPreBurnedAssSource = usePreBurnedAssSource && preBurnedAssSourceFile != null;
+	const sidebarFileMeta = useMemo(() => {
+		if (!file) return null;
+		const segments = [formatFileSize(file.size)];
+		if (videoStreamInfo?.width && videoStreamInfo.height) {
+			segments.push(`${videoStreamInfo.width}×${videoStreamInfo.height}`);
+		}
+		if (duration > 0) segments.push(formatCompactTime(duration));
+		return segments.join(' · ');
+	}, [duration, file, videoStreamInfo?.height, videoStreamInfo?.width]);
 	const sidebarContent = (
 		<>
-			<div className="px-4 pt-4 pb-3 border-b border-border">
-				<EditorStageTabs stage={stage} onChange={handleStageChange} />
-			</div>
+			<EditorShellHeader
+				title="Video Studio"
+				description={
+					isExpertMode
+						? 'Full control over tracks, codecs, and export pipeline.'
+						: 'Guided workflow for fast edits and reliable exports.'
+				}
+				modeSwitch={<EditorUxModeSwitch mode={editorUxMode} onChange={setEditorUxMode} />}
+				stageTabs={<EditorStageTabs stage={stage} onChange={handleStageChange} />}
+				actions={
+					<>
+						<Button
+							variant="secondary"
+							className="flex-1 min-w-0"
+							onClick={() => {
+								fileInputRef.current?.click();
+							}}
+						>
+							{file ? <span className="truncate">{file.name}</span> : 'Choose File'}
+						</Button>
+						{file && (
+							<Button
+								variant="ghost"
+								size="icon"
+								onClick={() => {
+									setShowInfo(true);
+								}}
+								title="File info"
+								aria-label="Open video file info"
+							>
+								<Info size={16} />
+							</Button>
+						)}
+					</>
+				}
+				fileSummary={
+					file ? (
+						<EditorFileSummary
+							fileName={file.name}
+							meta={sidebarFileMeta}
+							onInfo={() => {
+								setShowInfo(true);
+							}}
+							infoLabel="Open video file info"
+						/>
+					) : undefined
+				}
+			/>
 
 			{/* Mode Tabs */}
 			<VideoModeTabs
@@ -1163,17 +1236,29 @@ function VideoStudio() {
 								</button>
 								<button
 									onClick={() => {
-										setSelectedPreset(null);
+										if (isExpertMode) setSelectedPreset(null);
 									}}
+									disabled={!isExpertMode}
 									className={`rounded-md px-3 py-2 text-sm font-semibold transition-colors cursor-pointer ${
 										isCustomExportMode
 											? 'bg-accent/15 text-accent'
-											: 'text-text-tertiary hover:text-text-secondary'
+											: 'text-text-tertiary hover:text-text-secondary disabled:opacity-40 disabled:cursor-not-allowed'
 									}`}
+									title={
+										isExpertMode
+											? 'Switch to custom export controls'
+											: 'Custom export is available in Expert mode'
+									}
 								>
 									Custom
 								</button>
 							</div>
+							{!isExpertMode && (
+								<p className="mt-2 text-[12px] text-text-tertiary">
+									Simple mode uses presets to keep exports reliable. Switch to Expert for custom codec
+									controls.
+								</p>
+							)}
 						</div>
 
 						<div className="flex flex-col gap-2.5">
@@ -1248,7 +1333,7 @@ function VideoStudio() {
 												Video settings managed by the active preset
 											</p>
 										</div>
-									) : (
+									) : isExpertMode ? (
 										<div className="flex flex-col gap-3">
 											<div>
 												<p className="text-xs font-medium text-text-tertiary mb-2 uppercase tracking-wide">
@@ -1457,6 +1542,15 @@ function VideoStudio() {
 												</div>
 											)}
 										</div>
+									) : (
+										<div className="rounded-lg border border-border/50 bg-bg/30 px-3.5 py-2.5">
+											<p className="text-sm font-medium text-text">
+												Custom video settings are hidden in Simple mode.
+											</p>
+											<p className="mt-0.5 text-xs text-text-tertiary">
+												Switch to Expert to tune codec, container, and quality controls.
+											</p>
+										</div>
 									)}
 								</div>
 							</div>
@@ -1605,7 +1699,7 @@ function VideoStudio() {
 												</button>
 											</div>
 
-											{isCustomExportMode && !audioNoReencode && (
+											{isExpertMode && isCustomExportMode && !audioNoReencode && (
 												<>
 													<div className="h-px bg-border/40" />
 													<div className="flex flex-col gap-3">
@@ -1685,77 +1779,79 @@ function VideoStudio() {
 							)}
 
 							{/* ASS Fidelity */}
-							<div className="rounded-xl border border-border/60 overflow-hidden">
-								<div className="flex items-center justify-between px-4 py-3 bg-surface-raised/10 border-b border-border/40">
-									<div>
-										<span className="text-sm font-semibold text-text-secondary block">
-											ASS Fidelity
-										</span>
-										<span className="text-xs text-text-tertiary">
-											Pre-burned source for full styling
-										</span>
+							{isExpertMode && (
+								<div className="rounded-xl border border-border/60 overflow-hidden">
+									<div className="flex items-center justify-between px-4 py-3 bg-surface-raised/10 border-b border-border/40">
+										<div>
+											<span className="text-sm font-semibold text-text-secondary block">
+												ASS Fidelity
+											</span>
+											<span className="text-xs text-text-tertiary">
+												Pre-burned source for full styling
+											</span>
+										</div>
+										<Toggle
+											enabled={usePreBurnedAssSource}
+											onToggle={() => {
+												setUsePreBurnedAssSource((prev) => !prev);
+											}}
+											label={
+												usePreBurnedAssSource
+													? 'Disable ASS fidelity mode'
+													: 'Enable ASS fidelity mode'
+											}
+										/>
 									</div>
-									<Toggle
-										enabled={usePreBurnedAssSource}
-										onToggle={() => {
-											setUsePreBurnedAssSource((prev) => !prev);
-										}}
-										label={
-											usePreBurnedAssSource
-												? 'Disable ASS fidelity mode'
-												: 'Enable ASS fidelity mode'
-										}
-									/>
+									{usePreBurnedAssSource ? (
+										<div className="p-4 flex flex-col gap-2.5">
+											<div className="rounded-lg border border-border/50 bg-bg/30 px-3.5 py-2.5 flex items-center justify-between gap-2 text-sm">
+												{preBurnedAssSourceFile ? (
+													<>
+														<span className="truncate text-text">
+															{preBurnedAssSourceFile.name}
+														</span>
+														<span className="shrink-0 text-xs font-mono text-text-tertiary">
+															{formatFileSize(preBurnedAssSourceFile.size)}
+														</span>
+													</>
+												) : (
+													<span className="text-text-tertiary">No source file selected</span>
+												)}
+											</div>
+											<div className="grid grid-cols-2 gap-1.5">
+												<button
+													onClick={() => {
+														preBurnedAssInputRef.current?.click();
+													}}
+													className="rounded-lg border border-border/60 bg-surface-raised/30 px-3 py-2 text-sm font-medium text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
+												>
+													Choose file
+												</button>
+												<button
+													onClick={() => {
+														setPreBurnedAssSourceFile(null);
+														setUsePreBurnedAssSource(false);
+														if (preBurnedAssInputRef.current)
+															preBurnedAssInputRef.current.value = '';
+													}}
+													disabled={!preBurnedAssSourceFile}
+													className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+														preBurnedAssSourceFile
+															? 'border-border/60 bg-surface-raised/30 text-text-tertiary hover:text-text-secondary cursor-pointer'
+															: 'border-border/40 bg-surface-raised/20 text-text-tertiary/40 cursor-not-allowed'
+													}`}
+												>
+													Clear
+												</button>
+											</div>
+										</div>
+									) : (
+										<div className="px-4 py-3 text-sm italic text-text-tertiary">
+											Normal subtitle track export from source.
+										</div>
+									)}
 								</div>
-								{usePreBurnedAssSource ? (
-									<div className="p-4 flex flex-col gap-2.5">
-										<div className="rounded-lg border border-border/50 bg-bg/30 px-3.5 py-2.5 flex items-center justify-between gap-2 text-sm">
-											{preBurnedAssSourceFile ? (
-												<>
-													<span className="truncate text-text">
-														{preBurnedAssSourceFile.name}
-													</span>
-													<span className="shrink-0 text-xs font-mono text-text-tertiary">
-														{formatFileSize(preBurnedAssSourceFile.size)}
-													</span>
-												</>
-											) : (
-												<span className="text-text-tertiary">No source file selected</span>
-											)}
-										</div>
-										<div className="grid grid-cols-2 gap-1.5">
-											<button
-												onClick={() => {
-													preBurnedAssInputRef.current?.click();
-												}}
-												className="rounded-lg border border-border/60 bg-surface-raised/30 px-3 py-2 text-sm font-medium text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
-											>
-												Choose file
-											</button>
-											<button
-												onClick={() => {
-													setPreBurnedAssSourceFile(null);
-													setUsePreBurnedAssSource(false);
-													if (preBurnedAssInputRef.current)
-														preBurnedAssInputRef.current.value = '';
-												}}
-												disabled={!preBurnedAssSourceFile}
-												className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-													preBurnedAssSourceFile
-														? 'border-border/60 bg-surface-raised/30 text-text-tertiary hover:text-text-secondary cursor-pointer'
-														: 'border-border/40 bg-surface-raised/20 text-text-tertiary/40 cursor-not-allowed'
-												}`}
-											>
-												Clear
-											</button>
-										</div>
-									</div>
-								) : (
-									<div className="px-4 py-3 text-sm italic text-text-tertiary">
-										Normal subtitle track export from source.
-									</div>
-								)}
-							</div>
+							)}
 
 							{/* Subtitles */}
 							{subtitleStreams.length > 0 && (
@@ -2022,79 +2118,79 @@ function VideoStudio() {
 			</div>
 
 			{/* Actions */}
-			<div className="p-4 border-t border-border flex flex-col gap-2">
-				{processing && (
-					<div className="rounded-xl border border-border/60 bg-bg/40 p-3 flex flex-col gap-2">
-						<div className="flex items-center justify-between text-sm">
-							<span className="text-text-secondary font-medium">Exporting...</span>
-							<span className="font-mono font-semibold tabular-nums text-accent">
-								{(Math.max(0, progress) * 100).toFixed(1)}%
-							</span>
-						</div>
-						<div className="h-1 rounded-full bg-border/60 overflow-hidden">
-							<div
-								className="h-full rounded-full bg-accent transition-[width] duration-300"
-								style={{ width: `${Math.max(0, progress) * 100}%` }}
-							/>
-						</div>
-						{exportStats.fps > 0 && (
-							<div className="flex gap-3 text-xs text-text-tertiary font-mono tabular-nums">
-								<span>{exportStats.fps.toFixed(1)} fps</span>
-								<span>{exportStats.speed.toFixed(1)}×</span>
-								<span>frame {exportStats.frame}</span>
+			<EditorQuickActions
+				status={
+					processing ? (
+						<div className="rounded-xl border border-border/60 bg-bg/40 p-3 flex flex-col gap-2">
+							<div className="flex items-center justify-between text-sm">
+								<span className="text-text-secondary font-medium">Exporting...</span>
+								<span className="font-mono font-semibold tabular-nums text-accent">
+									{(Math.max(0, progress) * 100).toFixed(1)}%
+								</span>
 							</div>
-						)}
-					</div>
-				)}
-
-				{exportError && (
-					<div className="animate-slide-up-fade rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-						{exportError}
-					</div>
-				)}
-
-				<div className="flex gap-2">
-					<Button
-						className="flex-1"
-						disabled={!file || !ready || processing || metadataExportLocked}
-						onClick={() => {
-							setExportError(null);
-							void handleExport();
-							setDrawerOpen(false);
-						}}
-					>
-						Export
-					</Button>
-					{processing && (
+							<div className="h-1 rounded-full bg-border/60 overflow-hidden">
+								<div
+									className="h-full rounded-full bg-accent transition-[width] duration-300"
+									style={{ width: `${Math.max(0, progress) * 100}%` }}
+								/>
+							</div>
+							{exportStats.fps > 0 && (
+								<div className="flex gap-3 text-xs text-text-tertiary font-mono tabular-nums">
+									<span>{exportStats.fps.toFixed(1)} fps</span>
+									<span>{exportStats.speed.toFixed(1)}×</span>
+									<span>frame {exportStats.frame}</span>
+								</div>
+							)}
+						</div>
+					) : undefined
+				}
+				error={exportError}
+				primaryAction={
+					<div className="flex gap-2">
 						<Button
-							variant="danger"
+							className="flex-1"
+							disabled={!file || !ready || processing || metadataExportLocked}
 							onClick={() => {
-								cancel();
-								toast('Export cancelled');
+								setExportError(null);
+								void handleExport();
+								setDrawerOpen(false);
 							}}
 						>
-							Cancel
+							Export
 						</Button>
-					)}
-				</div>
-				{resultUrl && (
-					<Button
-						variant="secondary"
-						className="w-full"
-						onClick={() => {
-							handleDownload();
-							setDrawerOpen(false);
-						}}
-					>
-						Download
-					</Button>
-				)}
-			</div>
+						{processing && (
+							<Button
+								variant="danger"
+								onClick={() => {
+									cancel();
+									toast('Export cancelled');
+								}}
+							>
+								Cancel
+							</Button>
+						)}
+					</div>
+				}
+				secondaryAction={
+					resultUrl ? (
+						<Button
+							variant="secondary"
+							className="w-full"
+							onClick={() => {
+								handleDownload();
+								setDrawerOpen(false);
+							}}
+						>
+							Download
+						</Button>
+					) : undefined
+				}
+			/>
 		</>
 	);
 
 	return (
-		<div data-editor="video" className="h-full flex flex-col">
+		<>
 			<Seo
 				title="Video Editor — Vixely"
 				description="Trim, crop, resize, adjust colors, and export videos locally in your browser."
@@ -2123,211 +2219,216 @@ function VideoStudio() {
 				}}
 			/>
 
-			<div className="h-0.5 gradient-accent shrink-0" />
-			<div className="flex flex-1 min-h-0 animate-fade-in">
-				{/* ── Main Area ── */}
-				<div className="flex-1 flex flex-col min-w-0">
-					{/* Player */}
-					<div
-						className="flex-1 flex items-center justify-center workspace-bg p-3 sm:p-6 overflow-hidden relative"
-						{...dropHandlers}
-					>
-						{videoUrl ? (
-							<VideoPlayer
-								src={videoUrl}
-								previewFile={file}
-								videoRef={videoRef}
-								assSubtitleContent={assSubtitleContent}
-								embeddedFonts={embeddedFonts}
-								onLoadedMetadata={handleVideoLoaded}
-								onTimeUpdate={handleTimeUpdate}
-								onSeek={handleSeek}
-								timelineScrubbing={timelineScrubbing}
-								scrubPreviewTime={timelineScrubbing ? currentTime : null}
-								metadataLoading={metadataVideoLoading}
-								processing={processing}
-								progress={progress}
-							/>
-						) : (
-							<div className="flex flex-col items-center gap-6">
-								<EmptyState
-									isDragging={isDragging}
-									onChooseFile={() => fileInputRef.current?.click()}
+			<EditorShell
+				editor="video"
+				main={
+					<>
+						{/* Player */}
+						<div
+							className="flex-1 flex items-center justify-center workspace-bg p-3 sm:p-6 overflow-hidden relative"
+							{...dropHandlers}
+						>
+							{videoUrl ? (
+								<VideoPlayer
+									src={videoUrl}
+									previewFile={file}
+									videoRef={videoRef}
+									assSubtitleContent={assSubtitleContent}
+									embeddedFonts={embeddedFonts}
+									onLoadedMetadata={handleVideoLoaded}
+									onTimeUpdate={handleTimeUpdate}
+									onSeek={handleSeek}
+									timelineScrubbing={timelineScrubbing}
+									scrubPreviewTime={timelineScrubbing ? currentTime : null}
+									metadataLoading={metadataVideoLoading}
+									processing={processing}
+									progress={progress}
 								/>
-							</div>
-						)}
-
-						{isDragging && videoUrl && (
-							<div className="absolute inset-0 flex items-center justify-center bg-accent-surface/50 backdrop-blur-sm z-20 pointer-events-none">
-								<div className="rounded-xl border-2 border-dashed border-accent px-6 py-4 text-sm font-medium text-accent">
-									Drop to replace video
-								</div>
-							</div>
-						)}
-					</div>
-
-					{/* Timeline */}
-					{duration > 0 && (
-						<div className="border-t border-border bg-surface px-3 sm:px-6 py-3 sm:py-4">
-							<div className="mb-2 flex items-center justify-between gap-2">
-								<p className="text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">
-									Timeline
-								</p>
-								<TimelineModeTabs mode={timelineMode} onChange={setTimelineMode} />
-							</div>
-
-							{timelineMode === 'hidden' ? (
-								<div className="rounded-lg border border-border/60 bg-bg/35 px-3 py-2 text-[13px] text-text-tertiary">
-									Timeline hidden to maximize preview area.
-								</div>
 							) : (
-								<>
-									<Timeline
-										duration={duration}
-										trimStart={trimStart}
-										trimEnd={trimEnd}
-										currentTime={currentTime}
-										density={timelineMode === 'compact' ? 'compact' : 'full'}
-										minGap={minTrimDuration}
-										onTrimStartChange={(v) => {
-											setTrimStart(clampTrimStart(v));
-										}}
-										onTrimEndChange={(v) => {
-											setTrimEnd(clampTrimEnd(v));
-										}}
-										onSeek={handleSeek}
-										onScrubStart={handleTimelineScrubStart}
-										onScrubEnd={handleTimelineScrubEnd}
-										headerStart={
-											<span className="hidden sm:inline-flex items-center text-[13px] font-mono text-text-tertiary tabular-nums">
-												Frame {formatNumber(timeToFrames(currentTime))} /{' '}
-												{formatNumber(totalFrames)}
-											</span>
-										}
-										centerStart={
-											<Button
-												variant="ghost"
-												size="icon"
-												onPointerDown={(e) => {
-													e.preventDefault();
-													startFrameHold(-1);
-												}}
-												onPointerUp={stopFrameHold}
-												onPointerLeave={stopFrameHold}
-												onPointerCancel={stopFrameHold}
-												onKeyDown={(e) => {
-													if (e.key === 'Enter' || e.key === ' ') {
-														e.preventDefault();
-														stepCurrentFrame(-1);
-													}
-												}}
-												disabled={!file || processing}
-												title="Previous frame"
-												aria-label="Previous frame"
-											>
-												<StepBack size={16} />
-											</Button>
-										}
-										centerEnd={
-											<Button
-												variant="ghost"
-												size="icon"
-												onPointerDown={(e) => {
-													e.preventDefault();
-													startFrameHold(1);
-												}}
-												onPointerUp={stopFrameHold}
-												onPointerLeave={stopFrameHold}
-												onPointerCancel={stopFrameHold}
-												onKeyDown={(e) => {
-													if (e.key === 'Enter' || e.key === ' ') {
-														e.preventDefault();
-														stepCurrentFrame(1);
-													}
-												}}
-												disabled={!file || processing}
-												title="Next frame"
-												aria-label="Next frame"
-											>
-												<StepForward size={16} />
-											</Button>
-										}
-										headerEnd={
-											<div className="relative">
+								<div className="flex flex-col items-center gap-6">
+									<EditorEmptyState
+										icon={Video}
+										variant="hero"
+										isDragging={isDragging}
+										title="No video loaded"
+										description="Drop a file or click to get started"
+										dragTitle="Drop your video here"
+										dragDescription="Release to load"
+										onChooseFile={() => fileInputRef.current?.click()}
+									/>
+								</div>
+							)}
+
+							{isDragging && videoUrl && (
+								<div className="absolute inset-0 flex items-center justify-center bg-accent-surface/50 backdrop-blur-sm z-20 pointer-events-none">
+									<div className="rounded-xl border-2 border-dashed border-accent px-6 py-4 text-sm font-medium text-accent">
+										Drop to replace video
+									</div>
+								</div>
+							)}
+						</div>
+
+						{/* Timeline */}
+						{duration > 0 && (
+							<div className="border-t border-border bg-surface px-3 sm:px-6 py-3 sm:py-4">
+								<div className="mb-2 flex items-center justify-between gap-2">
+									<p className="text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">
+										Timeline
+									</p>
+									<TimelineModeTabs mode={timelineMode} onChange={setTimelineMode} />
+								</div>
+
+								{timelineMode === 'hidden' ? (
+									<div className="rounded-lg border border-border/60 bg-bg/35 px-3 py-2 text-[13px] text-text-tertiary">
+										Timeline hidden to maximize preview area.
+									</div>
+								) : (
+									<>
+										<Timeline
+											duration={duration}
+											trimStart={trimStart}
+											trimEnd={trimEnd}
+											currentTime={currentTime}
+											density={timelineMode === 'compact' ? 'compact' : 'full'}
+											minGap={minTrimDuration}
+											onTrimStartChange={(v) => {
+												setTrimStart(clampTrimStart(v));
+											}}
+											onTrimEndChange={(v) => {
+												setTrimEnd(clampTrimEnd(v));
+											}}
+											onSeek={handleSeek}
+											onScrubStart={handleTimelineScrubStart}
+											onScrubEnd={handleTimelineScrubEnd}
+											headerStart={
+												<span className="hidden sm:inline-flex items-center text-[13px] font-mono text-text-tertiary tabular-nums">
+													Frame {formatNumber(timeToFrames(currentTime))} /{' '}
+													{formatNumber(totalFrames)}
+												</span>
+											}
+											centerStart={
 												<Button
 													variant="ghost"
 													size="icon"
-													onClick={() => {
-														setCaptureMenuOpen(!captureMenuOpen);
+													onPointerDown={(e) => {
+														e.preventDefault();
+														startFrameHold(-1);
+													}}
+													onPointerUp={stopFrameHold}
+													onPointerLeave={stopFrameHold}
+													onPointerCancel={stopFrameHold}
+													onKeyDown={(e) => {
+														if (e.key === 'Enter' || e.key === ' ') {
+															e.preventDefault();
+															stepCurrentFrame(-1);
+														}
 													}}
 													disabled={!file || processing}
-													title="Capture current frame"
-													aria-label="Capture current frame"
-													aria-haspopup="menu"
-													aria-expanded={captureMenuOpen}
+													title="Previous frame"
+													aria-label="Previous frame"
 												>
-													<Camera size={16} />
+													<StepBack size={16} />
 												</Button>
-												{captureMenuOpen && (
-													<CaptureMenu
-														format={captureFormat}
-														onFormatChange={setCaptureFormat}
-														onAction={(action) => {
-															void handleCaptureAction(captureFormat, action);
+											}
+											centerEnd={
+												<Button
+													variant="ghost"
+													size="icon"
+													onPointerDown={(e) => {
+														e.preventDefault();
+														startFrameHold(1);
+													}}
+													onPointerUp={stopFrameHold}
+													onPointerLeave={stopFrameHold}
+													onPointerCancel={stopFrameHold}
+													onKeyDown={(e) => {
+														if (e.key === 'Enter' || e.key === ' ') {
+															e.preventDefault();
+															stepCurrentFrame(1);
+														}
+													}}
+													disabled={!file || processing}
+													title="Next frame"
+													aria-label="Next frame"
+												>
+													<StepForward size={16} />
+												</Button>
+											}
+											headerEnd={
+												<div className="relative">
+													<Button
+														variant="ghost"
+														size="icon"
+														onClick={() => {
+															setCaptureMenuOpen(!captureMenuOpen);
 														}}
-														onClose={() => {
-															setCaptureMenuOpen(false);
+														disabled={!file || processing}
+														title="Capture current frame"
+														aria-label="Capture current frame"
+														aria-haspopup="menu"
+														aria-expanded={captureMenuOpen}
+													>
+														<Camera size={16} />
+													</Button>
+													{captureMenuOpen && (
+														<CaptureMenu
+															format={captureFormat}
+															onFormatChange={setCaptureFormat}
+															onAction={(action) => {
+																void handleCaptureAction(captureFormat, action);
+															}}
+															onClose={() => {
+																setCaptureMenuOpen(false);
+															}}
+														/>
+													)}
+												</div>
+											}
+										/>
+										{file && timelineMode === 'full' && (
+											<div className="mt-3 rounded-lg border border-border/70 bg-bg/40 px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-text-tertiary">
+												<span className="font-medium text-text-secondary truncate max-w-full">
+													{file.name}
+												</span>
+												<span>{formatFileSize(file.size)}</span>
+												{videoStreamInfo?.width && videoStreamInfo?.height && (
+													<span>
+														{videoStreamInfo.width}&times;{videoStreamInfo.height}
+													</span>
+												)}
+												<span>{videoFps.toFixed(2)} fps</span>
+												<span>{formatCompactTime(duration)}</span>
+												<div className="flex-1" />
+												{detailedProbePending ? (
+													<span
+														className="inline-flex items-center text-text-tertiary"
+														title="Loading full metadata"
+													>
+														<LoaderCircle size={13} className="animate-spin" />
+													</span>
+												) : (
+													<button
+														onClick={() => {
+															setShowInfo(true);
 														}}
-													/>
+														type="button"
+														aria-label="Open video file info"
+														className="inline-flex items-center gap-1 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
+														title="File info"
+													>
+														<Info size={13} />
+													</button>
 												)}
 											</div>
-										}
-									/>
-									{file && timelineMode === 'full' && (
-										<div className="mt-3 rounded-lg border border-border/70 bg-bg/40 px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-text-tertiary">
-											<span className="font-medium text-text-secondary truncate max-w-full">
-												{file.name}
-											</span>
-											<span>{formatFileSize(file.size)}</span>
-											{videoStreamInfo?.width && videoStreamInfo?.height && (
-												<span>
-													{videoStreamInfo.width}&times;{videoStreamInfo.height}
-												</span>
-											)}
-											<span>{videoFps.toFixed(2)} fps</span>
-											<span>{formatCompactTime(duration)}</span>
-											<div className="flex-1" />
-											{detailedProbePending ? (
-												<span
-													className="inline-flex items-center text-text-tertiary"
-													title="Loading full metadata"
-												>
-													<LoaderCircle size={13} className="animate-spin" />
-												</span>
-											) : (
-												<button
-													onClick={() => {
-														setShowInfo(true);
-													}}
-													type="button"
-													aria-label="Open video file info"
-													className="inline-flex items-center gap-1 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
-													title="File info"
-												>
-													<Info size={13} />
-												</button>
-											)}
-										</div>
-									)}
-								</>
-							)}
-						</div>
-					)}
-				</div>
-
-				{file && (
-					<>
-						{/* ── Mobile Sidebar Toggle ── */}
+										)}
+									</>
+								)}
+							</div>
+						)}
+					</>
+				}
+				mobileToggle={
+					file ? (
 						<button
 							className="md:hidden fixed bottom-20 right-4 z-30 h-12 w-12 rounded-full gradient-accent flex items-center justify-center shadow-lg cursor-pointer"
 							onClick={() => {
@@ -2339,7 +2440,10 @@ function VideoStudio() {
 						>
 							<Settings size={20} className="text-white" />
 						</button>
-
+					) : undefined
+				}
+				inspector={
+					file ? (
 						<InspectorPane
 							width={inspectorWidth}
 							collapsed={inspectorCollapsed}
@@ -2349,8 +2453,10 @@ function VideoStudio() {
 						>
 							{sidebarContent}
 						</InspectorPane>
-
-						{/* ── Mobile Sidebar Drawer ── */}
+					) : undefined
+				}
+				mobileDrawer={
+					file ? (
 						<Drawer
 							open={drawerOpen}
 							onClose={() => {
@@ -2359,54 +2465,27 @@ function VideoStudio() {
 						>
 							<div className="h-full flex flex-col bg-surface">{sidebarContent}</div>
 						</Drawer>
-					</>
-				)}
-			</div>
-
-			{/* File info modal */}
-			{showInfo && file && (
-				<VideoInfoModal
-					file={file}
-					probeResult={probeResult}
-					duration={duration}
-					streamInfoPending={streamInfoPending}
-					metadataLoadStage={metadataLoadStage}
-					detailedProbe={detailedProbe}
-					detailedProbePending={detailedProbePending}
-					detailedProbeError={detailedProbeError}
-					onClose={() => {
-						setShowInfo(false);
-					}}
-				/>
-			)}
-		</div>
-	);
-}
-
-function EmptyState({ isDragging, onChooseFile }: { isDragging: boolean; onChooseFile: () => void }) {
-	return (
-		<div className="flex flex-col items-center text-center max-w-lg px-4">
-			<div
-				className={`rounded-3xl bg-surface border border-border px-14 py-12 mb-6 transition-all ${isDragging ? 'border-accent scale-105 shadow-[0_0_40px_var(--color-accent-glow)]' : ''}`}
-			>
-				<Video
-					size={72}
-					strokeWidth={1.2}
-					className={`transition-colors ${isDragging ? 'text-accent' : 'text-accent/25'}`}
-				/>
-			</div>
-			<p className="text-lg font-semibold text-text-secondary">
-				{isDragging ? 'Drop your video here' : 'No video loaded'}
-			</p>
-			<p className="mt-2 text-sm text-text-tertiary">
-				{isDragging ? 'Release to load' : 'Drop a file or click to get started'}
-			</p>
-			{!isDragging && (
-				<Button variant="secondary" className="mt-5 h-10 px-5 text-sm" onClick={onChooseFile}>
-					Choose File
-				</Button>
-			)}
-		</div>
+					) : undefined
+				}
+				overlays={
+					showInfo && file ? (
+						<VideoInfoModal
+							file={file}
+							probeResult={probeResult}
+							duration={duration}
+							streamInfoPending={streamInfoPending}
+							metadataLoadStage={metadataLoadStage}
+							detailedProbe={detailedProbe}
+							detailedProbePending={detailedProbePending}
+							detailedProbeError={detailedProbeError}
+							onClose={() => {
+								setShowInfo(false);
+							}}
+						/>
+					) : undefined
+				}
+			/>
+		</>
 	);
 }
 

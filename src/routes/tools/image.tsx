@@ -4,12 +4,13 @@ import { useRef, useEffect, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
 import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
+import { EditorEmptyState, EditorShell } from '@/components/editor/index.ts';
 import { ImageCanvas } from '@/components/image/ImageCanvas.tsx';
 import { ImageSidebar } from '@/components/image/ImageSidebar.tsx';
 import { ImageToolbar } from '@/components/image/ImageToolbar.tsx';
 import { Seo } from '@/components/Seo.tsx';
 import { Drawer } from '@/components/ui/Drawer.tsx';
-import { Button, InspectorPane } from '@/components/ui/index.ts';
+import { InspectorPane } from '@/components/ui/index.ts';
 import { IMAGE_ACCEPT } from '@/config/presets.ts';
 import { useEditorLayoutPrefs } from '@/hooks/useEditorLayoutPrefs.ts';
 import { useLongTaskObserver } from '@/hooks/useLongTaskObserver.ts';
@@ -123,7 +124,7 @@ function ImageLab() {
 	}, [undo, redo]);
 
 	return (
-		<div data-editor="image" className="h-full flex flex-col">
+		<>
 			<Seo
 				title="Image Editor — Vixely"
 				description="Apply real-time image filters, resize, crop, and export directly in your browser."
@@ -142,102 +143,92 @@ function ImageLab() {
 				}}
 			/>
 
-			<div className="h-0.5 gradient-accent shrink-0" />
-			<div className="flex flex-1 min-h-0 animate-fade-in">
-				<div className="flex-1 flex flex-col min-w-0">
-					<ImageToolbar containerRef={canvasContainerRef} />
-					<div
-						ref={canvasContainerRef}
-						className={`flex-1 relative overflow-hidden checkerboard ${isDragging ? 'drop-zone-active' : ''}`}
-						{...dropHandlers}
-					>
-						{originalData ? (
-							<ImageCanvas containerRef={canvasContainerRef} />
-						) : (
-							<div className="flex-1 flex flex-col items-center justify-center h-full gap-6">
-								<EmptyState isDragging={isDragging} onOpenFile={handleOpenFile} />
-							</div>
-						)}
-
-						{isDragging && originalData && (
-							<div className="absolute inset-0 flex items-center justify-center bg-accent-surface/50 backdrop-blur-sm z-20 pointer-events-none">
-								<div className="rounded-xl border-2 border-dashed border-accent px-6 py-4 text-sm font-medium text-accent">
-									Drop to replace image
+			<EditorShell
+				editor="image"
+				main={
+					<>
+						<ImageToolbar containerRef={canvasContainerRef} />
+						<div
+							ref={canvasContainerRef}
+							className={`flex-1 relative overflow-hidden checkerboard ${isDragging ? 'drop-zone-active' : ''}`}
+							{...dropHandlers}
+						>
+							{originalData ? (
+								<ImageCanvas containerRef={canvasContainerRef} />
+							) : (
+								<div className="flex-1 flex flex-col items-center justify-center h-full gap-6">
+									<EditorEmptyState
+										icon={ImageIcon}
+										isDragging={isDragging}
+										title="No image loaded"
+										description="Drop a file or click to get started"
+										dragTitle="Drop your image here"
+										dragDescription="Release to load"
+										onChooseFile={handleOpenFile}
+									/>
 								</div>
-							</div>
-						)}
-					</div>
-				</div>
+							)}
 
-				<button
-					className="md:hidden fixed bottom-20 right-4 z-30 h-12 w-12 rounded-full gradient-accent flex items-center justify-center shadow-lg cursor-pointer"
-					onClick={() => {
-						setDrawerOpen(true);
-					}}
-					type="button"
-					aria-label="Open image settings"
-					title="Open image settings"
-				>
-					<Settings size={20} className="text-white" />
-				</button>
-
-				<InspectorPane
-					width={inspectorWidth}
-					collapsed={inspectorCollapsed}
-					onCollapsedChange={setInspectorCollapsed}
-					onWidthChange={setInspectorWidth}
-					ariaLabel="image inspector"
-				>
-					<ImageSidebar
-						onOpenFile={handleOpenFile}
-						onNew={handleNew}
-						stage={stage}
-						onStageChange={setStage}
-					/>
-				</InspectorPane>
-
-				<Drawer
-					open={drawerOpen}
-					onClose={() => {
-						setDrawerOpen(false);
-					}}
-				>
-					<ImageSidebar
-						onOpenFile={handleOpenFile}
-						onNew={handleNew}
-						stage={stage}
-						onStageChange={setStage}
-					/>
-				</Drawer>
-			</div>
-			{isConfirmOpen && <ConfirmResetModal onConfirm={confirmPendingAction} onCancel={cancelPendingAction} />}
-		</div>
-	);
-}
-
-function EmptyState({ isDragging, onOpenFile }: { isDragging: boolean; onOpenFile: () => void }) {
-	return (
-		<div className="flex flex-col items-center text-center">
-			<div
-				className={`rounded-2xl bg-surface border border-border p-8 mb-5 transition-all ${isDragging ? 'border-accent scale-105 shadow-[0_0_40px_var(--color-accent-glow)]' : ''}`}
-			>
-				<ImageIcon
-					size={48}
-					strokeWidth={1.2}
-					className={`transition-colors ${isDragging ? 'text-accent' : 'text-accent/25'}`}
-				/>
-			</div>
-			<p className="text-sm font-medium text-text-secondary">
-				{isDragging ? 'Drop your image here' : 'No image loaded'}
-			</p>
-			<p className="mt-1 text-[14px] text-text-tertiary">
-				{isDragging ? 'Release to load' : 'Drop a file or click to get started'}
-			</p>
-			{!isDragging && (
-				<Button variant="secondary" size="sm" className="mt-4" onClick={onOpenFile}>
-					Choose File
-				</Button>
-			)}
-		</div>
+							{isDragging && originalData && (
+								<div className="absolute inset-0 flex items-center justify-center bg-accent-surface/50 backdrop-blur-sm z-20 pointer-events-none">
+									<div className="rounded-xl border-2 border-dashed border-accent px-6 py-4 text-sm font-medium text-accent">
+										Drop to replace image
+									</div>
+								</div>
+							)}
+						</div>
+					</>
+				}
+				mobileToggle={
+					<button
+						className="md:hidden fixed bottom-20 right-4 z-30 h-12 w-12 rounded-full gradient-accent flex items-center justify-center shadow-lg cursor-pointer"
+						onClick={() => {
+							setDrawerOpen(true);
+						}}
+						type="button"
+						aria-label="Open image settings"
+						title="Open image settings"
+					>
+						<Settings size={20} className="text-white" />
+					</button>
+				}
+				inspector={
+					<InspectorPane
+						width={inspectorWidth}
+						collapsed={inspectorCollapsed}
+						onCollapsedChange={setInspectorCollapsed}
+						onWidthChange={setInspectorWidth}
+						ariaLabel="image inspector"
+					>
+						<ImageSidebar
+							onOpenFile={handleOpenFile}
+							onNew={handleNew}
+							stage={stage}
+							onStageChange={setStage}
+						/>
+					</InspectorPane>
+				}
+				mobileDrawer={
+					<Drawer
+						open={drawerOpen}
+						onClose={() => {
+							setDrawerOpen(false);
+						}}
+					>
+						<ImageSidebar
+							onOpenFile={handleOpenFile}
+							onNew={handleNew}
+							stage={stage}
+							onStageChange={setStage}
+						/>
+					</Drawer>
+				}
+				overlays={
+					isConfirmOpen ? (
+						<ConfirmResetModal onConfirm={confirmPendingAction} onCancel={cancelPendingAction} />
+					) : undefined
+				}
+			/>
+		</>
 	);
 }

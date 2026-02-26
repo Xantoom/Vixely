@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import { Toaster } from 'sonner';
 import { CookieBanner } from '@/components/CookieBanner.tsx';
 import { PrivacyModal } from '@/components/PrivacyModal.tsx';
+import { useEditorUxStore } from '@/stores/editorUx.ts';
 
 export const Route = createRootRoute({ component: RootLayout });
 
@@ -58,6 +59,11 @@ const navItems = [
 function RootLayout() {
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
 	const isHome = pathname === '/';
+	const hydrateEditorUx = useEditorUxStore((s) => s.hydrateFromStorage);
+
+	useEffect(() => {
+		hydrateEditorUx();
+	}, [hydrateEditorUx]);
 
 	return (
 		<div className="flex flex-col md:flex-row h-full bg-bg text-text">

@@ -1,13 +1,15 @@
-import { Lock, Unlock, Info, FilePlus2, Palette, SlidersHorizontal, Maximize2, Download } from 'lucide-react';
+import { Lock, Unlock, FilePlus2, Palette, SlidersHorizontal, Maximize2, Download } from 'lucide-react';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
 import type { EditorStage } from '@/hooks/useEditorLayoutPrefs.ts';
+import { EditorFileSummary, EditorShellHeader, EditorUxModeSwitch } from '@/components/editor/index.ts';
 import { Button, EditorModeTabs, EditorStageTabs, type EditorModeTabItem, Slider } from '@/components/ui/index.ts';
 import { filterPresetEntries, imagePresetEntries } from '@/config/presets.ts';
 import { buildFallbackFilterString } from '@/modules/photo-editor/render/fallback-filters.ts';
 import { PhotoWebGLRenderer } from '@/modules/photo-editor/render/webgl-renderer.ts';
 import { filtersAreDefault } from '@/modules/shared-core/types/filters.ts';
+import { useEditorUxStore } from '@/stores/editorUx.ts';
 import { useImageEditorStore, type Filters, type ExportFormat } from '@/stores/imageEditor.ts';
 import { buildExportFilename } from '@/utils/exportFilename.ts';
 import { formatFileSize, estimateImageSize } from '@/utils/format.ts';
@@ -170,6 +172,9 @@ export function ImageSidebar({ onOpenFile, onNew, stage, onStageChange }: ImageS
 	const exportRendererRef = useRef<PhotoWebGLRenderer | null>(null);
 	const resizeWidthInputId = useId();
 	const resizeHeightInputId = useId();
+	const editorUxMode = useEditorUxStore((s) => s.mode);
+	const setEditorUxMode = useEditorUxStore((s) => s.setMode);
+	const isExpertMode = editorUxMode === 'expert';
 
 	useEffect(() => {
 		setMode((currentMode) => {
@@ -289,6 +294,7 @@ export function ImageSidebar({ onOpenFile, onNew, stage, onStageChange }: ImageS
 		resizeHeight != null &&
 		(resizeWidth !== originalData.width || resizeHeight !== originalData.height);
 	const hasAdjustChanges = !filtersAreDefault(filters);
+	const fileMeta = file ? formatFileSize(file.size) : null;
 	const modeActivity: Record<ImageMode, boolean> = {
 		resize: hasResizeChanges,
 		adjust: hasAdjustChanges,
@@ -305,13 +311,46 @@ export function ImageSidebar({ onOpenFile, onNew, stage, onStageChange }: ImageS
 			className="w-full h-full min-h-0 overflow-hidden bg-surface flex flex-col"
 			style={{ overscrollBehavior: 'contain' }}
 		>
-			<div className="px-4 pt-4 pb-3 border-b border-border/70 bg-surface-raised/20">
-				<div className="mb-3">
-					<p className="text-[11px] font-bold uppercase tracking-[0.16em] text-text-tertiary">Image Lab</p>
-					<p className="text-[13px] text-text-secondary">Resize, tune, and export your stills.</p>
-				</div>
-				<EditorStageTabs stage={stage} onChange={onStageChange} />
-			</div>
+			<EditorShellHeader
+				title="Image Lab"
+				description={
+					isExpertMode
+						? 'Full precision controls for still-image editing.'
+						: 'Guided adjustments for fast image editing.'
+				}
+				modeSwitch={<EditorUxModeSwitch mode={editorUxMode} onChange={setEditorUxMode} />}
+				stageTabs={<EditorStageTabs stage={stage} onChange={onStageChange} />}
+				actions={
+					<>
+						<Button variant="secondary" className="flex-1 min-w-0" onClick={onOpenFile}>
+							{file ? <span className="truncate">{file.name}</span> : 'Choose Image'}
+						</Button>
+						{file && onNew && (
+							<Button
+								variant="ghost"
+								size="icon"
+								onClick={onNew}
+								title="New (discard current)"
+								aria-label="New file (discard current image)"
+							>
+								<FilePlus2 size={16} />
+							</Button>
+						)}
+					</>
+				}
+				fileSummary={
+					file ? (
+						<EditorFileSummary
+							fileName={file.name}
+							meta={fileMeta}
+							onInfo={() => {
+								setShowInfo(true);
+							}}
+							infoLabel="Open image file info"
+						/>
+					) : undefined
+				}
+			/>
 
 			{/* Mode Tabs */}
 			<div className="shrink-0 border-b border-border/70 bg-surface-raised/15">
@@ -322,42 +361,6 @@ export function ImageSidebar({ onOpenFile, onNew, stage, onStageChange }: ImageS
 					ariaLabel="Image editor mode tabs"
 					className="-mx-0"
 				/>
-			</div>
-
-			{/* File */}
-			<div className="p-4 border-b border-border shrink-0">
-				<div className="flex gap-2">
-					<Button variant="secondary" className="flex-1 min-w-0" onClick={onOpenFile}>
-						{file ? <span className="truncate">{file.name}</span> : 'Choose Image'}
-					</Button>
-					{file && onNew && (
-						<Button
-							variant="ghost"
-							size="icon"
-							onClick={onNew}
-							title="New (discard current)"
-							aria-label="New file (discard current image)"
-						>
-							<FilePlus2 size={16} />
-						</Button>
-					)}
-				</div>
-				{file && (
-					<div className="flex items-center gap-1.5 mt-1.5">
-						<p className="text-[14px] text-text-tertiary flex-1">{formatFileSize(file.size)}</p>
-						<button
-							onClick={() => {
-								setShowInfo(true);
-							}}
-							type="button"
-							aria-label="Open image file info"
-							className="h-5 w-5 flex items-center justify-center rounded text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
-							title="File info"
-						>
-							<Info size={12} />
-						</button>
-					</div>
-				)}
 			</div>
 
 			{/* Tab Content */}
@@ -474,11 +477,18 @@ export function ImageSidebar({ onOpenFile, onNew, stage, onStageChange }: ImageS
 							Color
 						</h3>
 						{renderSliders(COLOR_SLIDERS)}
-
-						<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mt-2">
-							Effects
-						</h3>
-						{renderSliders(EFFECTS_SLIDERS)}
+						{isExpertMode ? (
+							<>
+								<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mt-2">
+									Effects
+								</h3>
+								{renderSliders(EFFECTS_SLIDERS)}
+							</>
+						) : (
+							<p className="text-[13px] text-text-tertiary">
+								Switch to Expert mode for grain, vignette, blur, and advanced effects.
+							</p>
+						)}
 					</>
 				)}
 
@@ -525,7 +535,7 @@ export function ImageSidebar({ onOpenFile, onNew, stage, onStageChange }: ImageS
 								</button>
 							))}
 						</div>
-						{exportFormat !== 'png' && (
+						{isExpertMode && exportFormat !== 'png' && (
 							<Slider
 								label="Quality"
 								displayValue={`${exportQuality}`}
@@ -537,6 +547,11 @@ export function ImageSidebar({ onOpenFile, onNew, stage, onStageChange }: ImageS
 									setExportQuality(Number((e.target as HTMLInputElement).value));
 								}}
 							/>
+						)}
+						{!isExpertMode && exportFormat !== 'png' && (
+							<p className="text-[13px] text-text-tertiary">
+								Simple mode uses balanced quality defaults. Switch to Expert to tune quality.
+							</p>
 						)}
 						{estSize != null && (
 							<p className="text-[14px] text-text-tertiary">Est. {formatFileSize(estSize)}</p>
