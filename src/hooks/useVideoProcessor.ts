@@ -7,6 +7,7 @@ import { emitTelemetry } from '@/utils/telemetry.ts';
 
 interface TranscodeRequest {
 	type: 'TRANSCODE';
+	jobId?: number;
 	file: File;
 	args: string[];
 	outputName: string;
@@ -15,6 +16,7 @@ interface TranscodeRequest {
 
 interface GifRequest {
 	type: 'GIF';
+	jobId?: number;
 	file: File;
 	fps: number;
 	width: number;
@@ -73,6 +75,7 @@ interface GifRequest {
 
 interface ExtractGifFramesRequest {
 	type: 'EXTRACT_GIF_FRAMES';
+	jobId?: number;
 	file: File;
 	fps: number;
 	width: number;
@@ -86,22 +89,26 @@ interface ExtractGifFramesRequest {
 
 interface ScreenshotRequest {
 	type: 'SCREENSHOT';
+	jobId?: number;
 	file: File;
 	timestamp: number;
 }
 
 interface ProbeRequest {
 	type: 'PROBE';
+	jobId?: number;
 	file: File;
 }
 
 interface ProbeDetailsRequest {
 	type: 'PROBE_DETAILS';
+	jobId?: number;
 	file: File;
 }
 
 interface SubtitlePreviewRequest {
 	type: 'SUBTITLE_PREVIEW';
+	jobId?: number;
 	requestId: number;
 	file: File;
 	streamIndex: number;
@@ -110,8 +117,15 @@ interface SubtitlePreviewRequest {
 
 interface ExtractFontsRequest {
 	type: 'EXTRACT_FONTS';
+	jobId?: number;
 	file: File;
 	attachments: FontAttachmentInfo[];
+}
+
+interface AbortRequest {
+	type: 'ABORT';
+	jobId: number;
+	reason?: string;
 }
 
 type WorkerRequest =
@@ -126,6 +140,7 @@ type WorkerRequest =
 
 interface ProgressResponse {
 	type: 'PROGRESS';
+	jobId?: number;
 	progress: number;
 	time: number;
 	fps: number;
@@ -135,47 +150,56 @@ interface ProgressResponse {
 
 interface DoneResponse {
 	type: 'DONE';
+	jobId?: number;
 	data: Uint8Array;
 	outputName: string;
 }
 
 interface ErrorResponse {
 	type: 'ERROR';
+	jobId?: number;
 	error: string;
 }
 
 interface ReadyResponse {
 	type: 'READY';
+	jobId?: number;
 }
 
 interface StartedResponse {
 	type: 'STARTED';
+	jobId?: number;
 	job: 'transcode' | 'gif' | 'screenshot';
 }
 
 interface LogResponse {
 	type: 'LOG';
+	jobId?: number;
 	message: string;
 }
 
 interface ProbeResultResponse {
 	type: 'PROBE_RESULT';
+	jobId?: number;
 	result: ProbeResultData;
 	fonts: Array<{ name: string; data: Uint8Array }>;
 }
 
 interface ProbeStatusResponse {
 	type: 'PROBE_STATUS';
+	jobId?: number;
 	status: string;
 }
 
 interface ProbeDetailsResultResponse {
 	type: 'PROBE_DETAILS_RESULT';
+	jobId?: number;
 	result: DetailedProbeResultData;
 }
 
 interface SubtitlePreviewResultResponse {
 	type: 'SUBTITLE_PREVIEW_RESULT';
+	jobId?: number;
 	requestId: number;
 	format: 'ass' | 'webvtt';
 	content: string;
@@ -183,11 +207,13 @@ interface SubtitlePreviewResultResponse {
 
 interface FontsResultResponse {
 	type: 'FONTS_RESULT';
+	jobId?: number;
 	fonts: Array<{ name: string; data: Uint8Array }>;
 }
 
 interface FramesExtractedResponse {
 	type: 'FRAMES_EXTRACTED';
+	jobId?: number;
 	frames: Array<{ index: number; blob: Blob; width: number; height: number; timeMs: number }>;
 	totalFrames: number;
 }
@@ -386,6 +412,31 @@ function normalizeProgressFromTime(time: number, expectedDurationSec: number, pr
 	return Math.min(0.999, Math.max(0, best));
 }
 
+interface CancellationToken {
+	cancelled: boolean;
+	reason: string | null;
+}
+
+interface ScheduledCommand {
+	jobId: number;
+	sequence: number;
+	message: WorkerRequest;
+	priority: number;
+	kind: 'foreground' | 'background';
+	token: CancellationToken;
+	dispatch: (worker: Worker, jobId: number) => void;
+	reject: (err: Error) => void;
+}
+
+function isForegroundRequest(message: WorkerRequest): boolean {
+	return (
+		message.type === 'TRANSCODE' ||
+		message.type === 'GIF' ||
+		message.type === 'SCREENSHOT' ||
+		message.type === 'EXTRACT_GIF_FRAMES'
+	);
+}
+
 function createWorker() {
 	return new Worker(new URL('../workers/ffmpeg-worker.ts', import.meta.url), { type: 'module' });
 }
@@ -429,6 +480,10 @@ export function useVideoProcessor() {
 	const lastProgressEmitRef = useRef(0);
 	const activeForegroundJobRef = useRef<ActiveForegroundJobTelemetry | null>(null);
 	const nextForegroundJobIdRef = useRef(1);
+	const queueRef = useRef<ScheduledCommand[]>([]);
+	const activeCommandRef = useRef<ScheduledCommand | null>(null);
+	const nextQueueSequenceRef = useRef(1);
+	const nextWorkerJobIdRef = useRef(1);
 
 	const beginForegroundJobTelemetry = useCallback((message: WorkerRequest) => {
 		if (
@@ -561,21 +616,109 @@ export function useVideoProcessor() {
 		fontsPendingRef.current = null;
 	}, []);
 
+	const finalizeActiveCommand = useCallback(() => {
+		activeCommandRef.current = null;
+	}, []);
+
+	const dispatchNextQueuedCommand = useCallback(() => {
+		const worker = workerRef.current;
+		if (!worker || activeCommandRef.current) return;
+
+		queueRef.current.sort((a, b) => {
+			if (a.priority !== b.priority) return b.priority - a.priority;
+			return a.sequence - b.sequence;
+		});
+
+		while (queueRef.current.length > 0) {
+			const next = queueRef.current.shift();
+			if (!next) return;
+			if (next.token.cancelled) {
+				next.reject(new Error(next.token.reason ?? 'Cancelled'));
+				continue;
+			}
+			activeCommandRef.current = next;
+			next.dispatch(worker, next.jobId);
+			return;
+		}
+	}, []);
+
+	const cancelQueuedCommands = useCallback((predicate: (cmd: ScheduledCommand) => boolean, reason: string) => {
+		const kept: ScheduledCommand[] = [];
+		for (const command of queueRef.current) {
+			if (!predicate(command)) {
+				kept.push(command);
+				continue;
+			}
+			command.token.cancelled = true;
+			command.token.reason = reason;
+			command.reject(new Error(reason));
+		}
+		queueRef.current = kept;
+	}, []);
+
+	const abortActiveCommandIf = useCallback((predicate: (cmd: ScheduledCommand) => boolean, reason: string) => {
+		const active = activeCommandRef.current;
+		if (!active || !predicate(active) || active.token.cancelled) return;
+		active.token.cancelled = true;
+		active.token.reason = reason;
+		workerRef.current?.postMessage({ type: 'ABORT', jobId: active.jobId, reason } satisfies AbortRequest);
+	}, []);
+
+	const enqueueCommand = useCallback(
+		(
+			message: WorkerRequest,
+			options: {
+				priority: number;
+				kind: 'foreground' | 'background';
+				dispatch: (worker: Worker, jobId: number) => void;
+				reject: (err: Error) => void;
+			},
+		): { jobId: number; token: CancellationToken } => {
+			const token: CancellationToken = { cancelled: false, reason: null };
+			const command: ScheduledCommand = {
+				jobId: nextWorkerJobIdRef.current++,
+				sequence: nextQueueSequenceRef.current++,
+				message,
+				priority: options.priority,
+				kind: options.kind,
+				token,
+				dispatch: options.dispatch,
+				reject: options.reject,
+			};
+			queueRef.current.push(command);
+
+			const active = activeCommandRef.current;
+			if (active && command.priority > active.priority && active.kind === 'background') {
+				abortActiveCommandIf((candidate) => candidate.jobId === active.jobId, 'Superseded by export operation');
+			}
+
+			dispatchNextQueuedCommand();
+			return { jobId: command.jobId, token };
+		},
+		[abortActiveCommandIf, dispatchNextQueuedCommand],
+	);
+
 	const attachWorker = useCallback(
 		(worker: Worker) => {
+			workerRef.current = worker;
 			worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
 				const msg = e.data;
+				const active = activeCommandRef.current;
+				const isActiveMessage = Boolean(active && (msg.jobId == null || msg.jobId === active.jobId));
 
 				switch (msg.type) {
 					case 'READY':
 						setState((s) => ({ ...s, ready: true }));
+						dispatchNextQueuedCommand();
 						break;
 					case 'STARTED':
+						if (!isActiveMessage) break;
 						setState((s) => ({ ...s, started: true }));
 						markForegroundJobStarted(msg.job);
 						break;
 
 					case 'PROGRESS':
+						if (!isActiveMessage) break;
 						if (msg.progress > 0) {
 							markForegroundJobFirstProgress(msg.progress);
 						}
@@ -613,13 +756,17 @@ export function useVideoProcessor() {
 						break;
 
 					case 'DONE':
+						if (!isActiveMessage) break;
 						setState((s) => ({ ...s, processing: false, started: false, progress: 1 }));
 						finishForegroundJobTelemetry('success', { outputBytes: msg.data.byteLength });
 						resolveRef.current?.(msg.data);
 						clearForegroundRequest();
+						finalizeActiveCommand();
+						dispatchNextQueuedCommand();
 						break;
 
 					case 'PROBE_RESULT':
+						if (!isActiveMessage) break;
 						if (probeCacheKeyRef.current) {
 							useVideoMetadataStore
 								.getState()
@@ -634,11 +781,15 @@ export function useVideoProcessor() {
 						probeResolveRef.current?.(msg.result);
 						probeResolveRef.current = null;
 						probeRejectRef.current = null;
+						finalizeActiveCommand();
+						dispatchNextQueuedCommand();
 						break;
 					case 'PROBE_STATUS':
+						if (!isActiveMessage) break;
 						setProbeStatus(msg.status);
 						break;
 					case 'PROBE_DETAILS_RESULT':
+						if (!isActiveMessage) break;
 						if (probeDetailsCacheKeyRef.current) {
 							useVideoMetadataStore
 								.getState()
@@ -648,36 +799,58 @@ export function useVideoProcessor() {
 						probeDetailsResolveRef.current?.(msg.result);
 						probeDetailsResolveRef.current = null;
 						probeDetailsRejectRef.current = null;
+						finalizeActiveCommand();
+						dispatchNextQueuedCommand();
 						break;
 
 					case 'SUBTITLE_PREVIEW_RESULT':
+						if (!isActiveMessage) break;
 						if (subtitlePendingRef.current?.requestId !== msg.requestId) break;
 						subtitlePendingRef.current.resolve({ format: msg.format, content: msg.content });
 						subtitlePendingRef.current = null;
+						finalizeActiveCommand();
+						dispatchNextQueuedCommand();
 						break;
 					case 'FONTS_RESULT':
+						if (!isActiveMessage) break;
 						fontsPendingRef.current?.resolve(msg.fonts);
 						fontsPendingRef.current = null;
+						finalizeActiveCommand();
+						dispatchNextQueuedCommand();
 						break;
 
 					case 'FRAMES_EXTRACTED':
+						if (!isActiveMessage) break;
 						setState((s) => ({ ...s, processing: false, progress: 1 }));
 						finishForegroundJobTelemetry('success', { frameCount: msg.totalFrames });
 						framesResolveRef.current?.(msg.frames);
 						framesResolveRef.current = null;
 						framesRejectRef.current = null;
+						finalizeActiveCommand();
+						dispatchNextQueuedCommand();
 						break;
 
 					case 'ERROR':
+						if (!isActiveMessage) break;
 						console.error('[hook] worker ERROR:', msg.error);
-						setState((s) => ({ ...s, processing: false, started: false, error: msg.error }));
-						finishForegroundJobTelemetry('error', { error: msg.error });
+						const wasCancelled = active?.token.cancelled ?? false;
+						setState((s) => ({
+							...s,
+							processing: false,
+							started: false,
+							error: wasCancelled ? null : msg.error,
+						}));
+						finishForegroundJobTelemetry(wasCancelled ? 'cancelled' : 'error', {
+							error: wasCancelled ? undefined : msg.error,
+						});
 						const err = new Error(msg.error);
 						rejectForegroundRequest(err);
 						rejectBackgroundRequests(err);
 						framesRejectRef.current?.(err);
 						framesRejectRef.current = null;
 						framesResolveRef.current = null;
+						finalizeActiveCommand();
+						dispatchNextQueuedCommand();
 						break;
 
 					case 'LOG':
@@ -698,20 +871,35 @@ export function useVideoProcessor() {
 				crashHandled = true;
 				console.error('[hook] worker onerror:', e.message, e);
 				const err = new Error(e.message ?? 'Worker crashed');
-				finishForegroundJobTelemetry('error', { error: err.message });
+				if (activeCommandRef.current?.kind === 'foreground') {
+					finishForegroundJobTelemetry('error', { error: err.message });
+				}
 				setState((s) => ({ ...s, ready: false, processing: false, started: false, error: err.message }));
 				rejectForegroundRequest(err);
 				rejectBackgroundRequests(err);
+				framesRejectRef.current?.(err);
+				framesRejectRef.current = null;
+				framesResolveRef.current = null;
+
+				const active = activeCommandRef.current;
+				if (active) {
+					active.reject(err);
+					activeCommandRef.current = null;
+				}
+				for (const queued of queueRef.current) {
+					queued.reject(err);
+				}
+				queueRef.current = [];
 
 				worker.terminate();
 				const next = createWorker();
 				attachWorker(next);
 			};
-
-			workerRef.current = worker;
 		},
 		[
 			clearForegroundRequest,
+			dispatchNextQueuedCommand,
+			finalizeActiveCommand,
 			finishForegroundJobTelemetry,
 			markForegroundJobFirstProgress,
 			markForegroundJobStarted,
@@ -725,6 +913,16 @@ export function useVideoProcessor() {
 		attachWorker(worker);
 
 		return () => {
+			const disposeErr = new Error('Video processor disposed');
+			const active = activeCommandRef.current;
+			if (active) {
+				active.reject(disposeErr);
+				activeCommandRef.current = null;
+			}
+			for (const queued of queueRef.current) {
+				queued.reject(disposeErr);
+			}
+			queueRef.current = [];
 			clearForegroundRequest();
 			clearBackgroundRequests();
 			worker.terminate();
@@ -732,97 +930,67 @@ export function useVideoProcessor() {
 		};
 	}, [attachWorker, clearBackgroundRequests, clearForegroundRequest]);
 
-	const restartWorker = useCallback(
-		(stateUpdater?: (s: VideoProcessorState) => VideoProcessorState) => {
-			const old = workerRef.current;
-			if (!old) return;
-			old.terminate();
-			if (stateUpdater) setState(stateUpdater);
-			const next = createWorker();
-			attachWorker(next);
-		},
-		[attachWorker],
-	);
-
-	const getWorkerOrReject = useCallback((reject: (err: Error) => void): Worker | null => {
-		const worker = workerRef.current;
-		if (!worker) {
-			reject(new Error('Worker not initialized'));
-			return null;
-		}
-		return worker;
-	}, []);
-
 	const cancel = useCallback(() => {
-		if (!workerRef.current) return;
-
-		// Reject pending promises
 		const err = new Error('Cancelled');
-		finishForegroundJobTelemetry('cancelled');
+		cancelQueuedCommands((command) => isForegroundRequest(command.message), err.message);
+		abortActiveCommandIf((command) => isForegroundRequest(command.message), err.message);
 		rejectForegroundRequest(err);
-		rejectBackgroundRequests(err);
-
-		// Kill the stuck worker and spin up a fresh one
-		restartWorker((s) => ({
+		framesRejectRef.current?.(err);
+		framesRejectRef.current = null;
+		framesResolveRef.current = null;
+		setState((s) => ({
 			...s,
-			ready: false,
 			processing: false,
 			started: false,
 			progress: 0,
 			exportStats: INITIAL_STATS,
 			error: null,
 		}));
-	}, [finishForegroundJobTelemetry, rejectBackgroundRequests, rejectForegroundRequest, restartWorker]);
+	}, [abortActiveCommandIf, cancelQueuedCommands, rejectForegroundRequest]);
 
 	const sendCommand = useCallback(
 		async (message: WorkerRequest): Promise<Uint8Array> => {
 			return new Promise<Uint8Array>((resolve, reject) => {
-				const worker = getWorkerOrReject(reject);
-				if (!worker) return;
+				const supersedeReason = 'Superseded by export operation';
+				cancelQueuedCommands((command) => command.kind === 'background', supersedeReason);
+				abortActiveCommandIf((command) => command.kind === 'background', supersedeReason);
+				rejectBackgroundRequests(new Error(supersedeReason));
 
-				const isPriorityCommand =
-					message.type === 'TRANSCODE' || message.type === 'GIF' || message.type === 'SCREENSHOT';
-				const hasBackgroundQueue =
-					probeRejectRef.current !== null ||
-					probeDetailsRejectRef.current !== null ||
-					subtitlePendingRef.current !== null ||
-					fontsPendingRef.current !== null;
-
-				// Drop queued metadata/subtitle jobs before user-triggered processing.
-				if (isPriorityCommand && hasBackgroundQueue) {
-					rejectBackgroundRequests(new Error('Superseded by export operation'));
-					restartWorker((s) => ({
-						...s,
-						ready: false,
-						processing: false,
-						started: false,
-						progress: 0,
-						exportStats: INITIAL_STATS,
-						error: null,
-					}));
-				}
-
-				exportStartRef.current = Date.now();
-				lastProgressEmitRef.current = 0;
-				exportExpectedDurationRef.current =
-					message.type === 'TRANSCODE' && typeof message.expectedDurationSec === 'number'
-						? Math.max(0, message.expectedDurationSec)
-						: 0;
-				setState((s) => ({
-					...s,
-					processing: true,
-					started: false,
-					progress: 0,
-					exportStats: INITIAL_STATS,
-					error: null,
-				}));
-				resolveRef.current = resolve;
-				rejectRef.current = reject;
-				beginForegroundJobTelemetry(message);
-				worker.postMessage(message);
+				enqueueCommand(message, {
+					priority: 100,
+					kind: 'foreground',
+					reject,
+					dispatch: (worker, jobId) => {
+						const request = { ...message, jobId };
+						exportStartRef.current = Date.now();
+						lastProgressEmitRef.current = 0;
+						exportExpectedDurationRef.current =
+							request.type === 'TRANSCODE' && typeof request.expectedDurationSec === 'number'
+								? Math.max(0, request.expectedDurationSec)
+								: 0;
+						setState((s) => ({
+							...s,
+							processing: true,
+							started: false,
+							progress: 0,
+							exportStats: INITIAL_STATS,
+							error: null,
+						}));
+						resolveRef.current = resolve;
+						rejectRef.current = reject;
+						beginForegroundJobTelemetry(request);
+						worker.postMessage(request);
+					},
+				});
 			});
 		},
-		[beginForegroundJobTelemetry, getWorkerOrReject, rejectBackgroundRequests, restartWorker],
+		[
+			abortActiveCommandIf,
+			beginForegroundJobTelemetry,
+			cancelQueuedCommands,
+			enqueueCommand,
+			rejectBackgroundRequests,
+		],
 	);
 
 	const transcode = useCallback(
@@ -896,8 +1064,6 @@ export function useVideoProcessor() {
 			opts: ExtractFramesOptions,
 		): Promise<Array<{ index: number; blob: Blob; width: number; height: number; timeMs: number }>> => {
 			return new Promise((resolve, reject) => {
-				const worker = getWorkerOrReject(reject);
-				if (!worker) return;
 				const request: ExtractGifFramesRequest = {
 					type: 'EXTRACT_GIF_FRAMES',
 					file: opts.file,
@@ -910,14 +1076,32 @@ export function useVideoProcessor() {
 					reverse: opts.reverse,
 					thumbWidth: opts.thumbWidth,
 				};
-				framesResolveRef.current = resolve;
-				framesRejectRef.current = reject;
-				setState((s) => ({ ...s, processing: true, progress: 0, error: null }));
-				beginForegroundJobTelemetry(request);
-				worker.postMessage(request);
+				const supersedeReason = 'Superseded by export operation';
+				cancelQueuedCommands((command) => command.kind === 'background', supersedeReason);
+				abortActiveCommandIf((command) => command.kind === 'background', supersedeReason);
+				rejectBackgroundRequests(new Error(supersedeReason));
+				enqueueCommand(request, {
+					priority: 95,
+					kind: 'foreground',
+					reject,
+					dispatch: (worker, jobId) => {
+						const withJobId: ExtractGifFramesRequest = { ...request, jobId };
+						framesResolveRef.current = resolve;
+						framesRejectRef.current = reject;
+						setState((s) => ({ ...s, processing: true, progress: 0, error: null }));
+						beginForegroundJobTelemetry(withJobId);
+						worker.postMessage(withJobId);
+					},
+				});
 			});
 		},
-		[beginForegroundJobTelemetry, getWorkerOrReject],
+		[
+			abortActiveCommandIf,
+			beginForegroundJobTelemetry,
+			cancelQueuedCommands,
+			enqueueCommand,
+			rejectBackgroundRequests,
+		],
 	);
 
 	const captureFrame = useCallback(
@@ -933,8 +1117,6 @@ export function useVideoProcessor() {
 			onFonts?: (fonts: Array<{ name: string; data: Uint8Array }>) => void,
 		): Promise<ProbeResultData> => {
 			return new Promise<ProbeResultData>((resolve, reject) => {
-				const worker = getWorkerOrReject(reject);
-				if (!worker) return;
 				const key = cacheKeyForFile(file);
 				const cached = useVideoMetadataStore.getState().getMetadata(key);
 				if (cached?.probe) {
@@ -943,63 +1125,121 @@ export function useVideoProcessor() {
 					return;
 				}
 				setProbeStatus('Reading container header...');
-				probeRejectRef.current?.(new Error('Superseded by newer probe request'));
-				probeResolveRef.current = resolve;
-				probeRejectRef.current = reject;
-				probeCacheKeyRef.current = key;
-				probeFontsResolveRef.current = onFonts ?? null;
-				worker.postMessage({ type: 'PROBE', file });
+				const supersedeReason = 'Superseded by newer probe request';
+				probeRejectRef.current?.(new Error(supersedeReason));
+				cancelQueuedCommands((command) => command.message.type === 'PROBE', supersedeReason);
+				abortActiveCommandIf((command) => command.message.type === 'PROBE', supersedeReason);
+				enqueueCommand(
+					{ type: 'PROBE', file },
+					{
+						priority: 20,
+						kind: 'background',
+						reject,
+						dispatch: (worker, jobId) => {
+							probeResolveRef.current = resolve;
+							probeRejectRef.current = reject;
+							probeCacheKeyRef.current = key;
+							probeFontsResolveRef.current = onFonts ?? null;
+							worker.postMessage({ type: 'PROBE', file, jobId } satisfies ProbeRequest);
+						},
+					},
+				);
 			});
 		},
-		[getWorkerOrReject],
+		[abortActiveCommandIf, cancelQueuedCommands, enqueueCommand],
 	);
 
 	const probeDetails = useCallback(
 		async (file: File): Promise<DetailedProbeResultData> => {
 			return new Promise<DetailedProbeResultData>((resolve, reject) => {
-				const worker = getWorkerOrReject(reject);
-				if (!worker) return;
 				const key = cacheKeyForFile(file);
 				const cached = useVideoMetadataStore.getState().getMetadata(key);
 				if (cached?.probeDetails) {
 					resolve(cached.probeDetails);
 					return;
 				}
-				probeDetailsRejectRef.current?.(new Error('Superseded by newer detailed probe request'));
-				probeDetailsResolveRef.current = resolve;
-				probeDetailsRejectRef.current = reject;
-				probeDetailsCacheKeyRef.current = key;
-				worker.postMessage({ type: 'PROBE_DETAILS', file });
+				const supersedeReason = 'Superseded by newer detailed probe request';
+				probeDetailsRejectRef.current?.(new Error(supersedeReason));
+				cancelQueuedCommands((command) => command.message.type === 'PROBE_DETAILS', supersedeReason);
+				abortActiveCommandIf((command) => command.message.type === 'PROBE_DETAILS', supersedeReason);
+				enqueueCommand(
+					{ type: 'PROBE_DETAILS', file },
+					{
+						priority: 18,
+						kind: 'background',
+						reject,
+						dispatch: (worker, jobId) => {
+							probeDetailsResolveRef.current = resolve;
+							probeDetailsRejectRef.current = reject;
+							probeDetailsCacheKeyRef.current = key;
+							worker.postMessage({ type: 'PROBE_DETAILS', file, jobId } satisfies ProbeDetailsRequest);
+						},
+					},
+				);
 			});
 		},
-		[getWorkerOrReject],
+		[abortActiveCommandIf, cancelQueuedCommands, enqueueCommand],
 	);
 
 	const extractSubtitlePreview = useCallback(
 		async (file: File, streamIndex: number, subtitleCodec?: string): Promise<SubtitlePreviewData> => {
 			return new Promise<SubtitlePreviewData>((resolve, reject) => {
-				const worker = getWorkerOrReject(reject);
-				if (!worker) return;
 				const requestId = ++subtitleRequestIdRef.current;
-				subtitlePendingRef.current?.reject(new Error('Superseded by newer subtitle preview request'));
-				subtitlePendingRef.current = { requestId, resolve, reject };
-				worker.postMessage({ type: 'SUBTITLE_PREVIEW', requestId, file, streamIndex, subtitleCodec });
+				const supersedeReason = 'Superseded by newer subtitle preview request';
+				subtitlePendingRef.current?.reject(new Error(supersedeReason));
+				cancelQueuedCommands((command) => command.message.type === 'SUBTITLE_PREVIEW', supersedeReason);
+				abortActiveCommandIf((command) => command.message.type === 'SUBTITLE_PREVIEW', supersedeReason);
+				enqueueCommand(
+					{ type: 'SUBTITLE_PREVIEW', requestId, file, streamIndex, subtitleCodec },
+					{
+						priority: 16,
+						kind: 'background',
+						reject,
+						dispatch: (worker, jobId) => {
+							subtitlePendingRef.current = { requestId, resolve, reject };
+							worker.postMessage({
+								type: 'SUBTITLE_PREVIEW',
+								requestId,
+								file,
+								streamIndex,
+								subtitleCodec,
+								jobId,
+							} satisfies SubtitlePreviewRequest);
+						},
+					},
+				);
 			});
 		},
-		[getWorkerOrReject],
+		[abortActiveCommandIf, cancelQueuedCommands, enqueueCommand],
 	);
 
 	const extractFonts = useCallback(
 		async (file: File, attachments: FontAttachmentInfo[]): Promise<Array<{ name: string; data: Uint8Array }>> => {
 			return new Promise((resolve, reject) => {
-				const worker = getWorkerOrReject(reject);
-				if (!worker) return;
-				fontsPendingRef.current?.reject(new Error('Superseded by newer font extraction request'));
-				fontsPendingRef.current = { resolve, reject };
-				worker.postMessage({ type: 'EXTRACT_FONTS', file, attachments });
+				const supersedeReason = 'Superseded by newer font extraction request';
+				fontsPendingRef.current?.reject(new Error(supersedeReason));
+				cancelQueuedCommands((command) => command.message.type === 'EXTRACT_FONTS', supersedeReason);
+				abortActiveCommandIf((command) => command.message.type === 'EXTRACT_FONTS', supersedeReason);
+				enqueueCommand(
+					{ type: 'EXTRACT_FONTS', file, attachments },
+					{
+						priority: 14,
+						kind: 'background',
+						reject,
+						dispatch: (worker, jobId) => {
+							fontsPendingRef.current = { resolve, reject };
+							worker.postMessage({
+								type: 'EXTRACT_FONTS',
+								file,
+								attachments,
+								jobId,
+							} satisfies ExtractFontsRequest);
+						},
+					},
+				);
 			});
 		},
-		[getWorkerOrReject],
+		[abortActiveCommandIf, cancelQueuedCommands, enqueueCommand],
 	);
 
 	return {

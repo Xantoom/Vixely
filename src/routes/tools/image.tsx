@@ -9,8 +9,9 @@ import { ImageSidebar } from '@/components/image/ImageSidebar.tsx';
 import { ImageToolbar } from '@/components/image/ImageToolbar.tsx';
 import { Seo } from '@/components/Seo.tsx';
 import { Drawer } from '@/components/ui/Drawer.tsx';
-import { Button } from '@/components/ui/index.ts';
+import { Button, InspectorPane } from '@/components/ui/index.ts';
 import { IMAGE_ACCEPT } from '@/config/presets.ts';
+import { useEditorLayoutPrefs } from '@/hooks/useEditorLayoutPrefs.ts';
 import { useLongTaskObserver } from '@/hooks/useLongTaskObserver.ts';
 import { usePendingActionConfirmation } from '@/hooks/usePendingActionConfirmation.ts';
 import { usePreventUnload } from '@/hooks/usePreventUnload.ts';
@@ -30,6 +31,8 @@ const ACCEPTED_TYPES = new Set(
 export const Route = createFileRoute('/tools/image')({ component: ImageLab });
 
 function ImageLab() {
+	const { inspectorWidth, inspectorCollapsed, stage, setInspectorWidth, setInspectorCollapsed, setStage } =
+		useEditorLayoutPrefs({ editor: 'image', defaultInspectorWidth: 360, defaultStage: 'source' });
 	useLongTaskObserver('image-route');
 	const { originalData, loadImage, undo, redo, clearAll, hasUnsavedChanges } = useImageEditorStore(
 		useShallow((s) => ({
@@ -178,9 +181,20 @@ function ImageLab() {
 					<Settings size={20} className="text-white" />
 				</button>
 
-				<div className="hidden md:flex">
-					<ImageSidebar onOpenFile={handleOpenFile} onNew={handleNew} />
-				</div>
+				<InspectorPane
+					width={inspectorWidth}
+					collapsed={inspectorCollapsed}
+					onCollapsedChange={setInspectorCollapsed}
+					onWidthChange={setInspectorWidth}
+					ariaLabel="image inspector"
+				>
+					<ImageSidebar
+						onOpenFile={handleOpenFile}
+						onNew={handleNew}
+						stage={stage}
+						onStageChange={setStage}
+					/>
+				</InspectorPane>
 
 				<Drawer
 					open={drawerOpen}
@@ -188,7 +202,12 @@ function ImageLab() {
 						setDrawerOpen(false);
 					}}
 				>
-					<ImageSidebar onOpenFile={handleOpenFile} onNew={handleNew} />
+					<ImageSidebar
+						onOpenFile={handleOpenFile}
+						onNew={handleNew}
+						stage={stage}
+						onStageChange={setStage}
+					/>
 				</Drawer>
 			</div>
 			{isConfirmOpen && <ConfirmResetModal onConfirm={confirmPendingAction} onCancel={cancelPendingAction} />}

@@ -26,6 +26,7 @@ registerAc3Encoder();
 
 interface TranscodeMessage {
 	type: 'TRANSCODE';
+	jobId: number;
 	file: File;
 	args: string[];
 	outputName: string;
@@ -34,6 +35,7 @@ interface TranscodeMessage {
 
 interface GifMessage {
 	type: 'GIF';
+	jobId: number;
 	file: File;
 	fps: number;
 	width: number;
@@ -99,6 +101,7 @@ interface GifMessage {
 
 interface ExtractGifFramesMessage {
 	type: 'EXTRACT_GIF_FRAMES';
+	jobId: number;
 	file: File;
 	fps: number;
 	width: number;
@@ -112,22 +115,26 @@ interface ExtractGifFramesMessage {
 
 interface ScreenshotMessage {
 	type: 'SCREENSHOT';
+	jobId: number;
 	file: File;
 	timestamp: number;
 }
 
 interface ProbeMessage {
 	type: 'PROBE';
+	jobId: number;
 	file: File;
 }
 
 interface ProbeDetailsMessage {
 	type: 'PROBE_DETAILS';
+	jobId: number;
 	file: File;
 }
 
 interface SubtitlePreviewMessage {
 	type: 'SUBTITLE_PREVIEW';
+	jobId: number;
 	requestId: number;
 	file: File;
 	streamIndex: number;
@@ -136,11 +143,18 @@ interface SubtitlePreviewMessage {
 
 interface ExtractFontsMessage {
 	type: 'EXTRACT_FONTS';
+	jobId: number;
 	file: File;
 	attachments: FontAttachmentInfo[];
 }
 
-type WorkerMessage =
+interface AbortMessage {
+	type: 'ABORT';
+	jobId: number;
+	reason?: string;
+}
+
+type WorkerCommandMessage =
 	| TranscodeMessage
 	| GifMessage
 	| ExtractGifFramesMessage
@@ -150,8 +164,11 @@ type WorkerMessage =
 	| SubtitlePreviewMessage
 	| ExtractFontsMessage;
 
+type WorkerMessage = WorkerCommandMessage | AbortMessage;
+
 interface ProgressPayload {
 	type: 'PROGRESS';
+	jobId?: number;
 	progress: number;
 	time: number;
 	fps: number;
@@ -161,47 +178,56 @@ interface ProgressPayload {
 
 interface DonePayload {
 	type: 'DONE';
+	jobId?: number;
 	data: Uint8Array;
 	outputName: string;
 }
 
 interface ErrorPayload {
 	type: 'ERROR';
+	jobId?: number;
 	error: string;
 }
 
 interface ReadyPayload {
 	type: 'READY';
+	jobId?: number;
 }
 
 interface StartedPayload {
 	type: 'STARTED';
+	jobId?: number;
 	job: 'transcode' | 'gif' | 'screenshot';
 }
 
 interface LogPayload {
 	type: 'LOG';
+	jobId?: number;
 	message: string;
 }
 
 interface ProbeStatusPayload {
 	type: 'PROBE_STATUS';
+	jobId?: number;
 	status: string;
 }
 
 interface ProbeResultPayload {
 	type: 'PROBE_RESULT';
+	jobId?: number;
 	result: ProbeResultData;
 	fonts: Array<{ name: string; data: Uint8Array }>;
 }
 
 interface ProbeDetailsResultPayload {
 	type: 'PROBE_DETAILS_RESULT';
+	jobId?: number;
 	result: DetailedProbeResultData;
 }
 
 interface SubtitlePreviewResultPayload {
 	type: 'SUBTITLE_PREVIEW_RESULT';
+	jobId?: number;
 	requestId: number;
 	format: 'ass' | 'webvtt';
 	content: string;
@@ -209,11 +235,13 @@ interface SubtitlePreviewResultPayload {
 
 interface FontsResultPayload {
 	type: 'FONTS_RESULT';
+	jobId?: number;
 	fonts: Array<{ name: string; data: Uint8Array }>;
 }
 
 interface FramesExtractedPayload {
 	type: 'FRAMES_EXTRACTED';
+	jobId?: number;
 	frames: Array<{ index: number; blob: Blob; width: number; height: number; timeMs: number }>;
 	totalFrames: number;
 }
@@ -352,12 +380,46 @@ const TRANSCODE_AUDIO_CODEC_MAP: Readonly<Record<string, NonNullable<ParsedTrans
 
 // ── Helpers ──
 
+let activeJobId: number | null = null;
+let activeJobCanceller: ((reason: string) => Promise<void> | void) | null = null;
+const cancelledJobReasons = new Map<number, string>();
+
 function post(payload: WorkerResponse, transfer?: Transferable[]): void {
+	const message =
+		payload.type !== 'READY' && payload.jobId == null && activeJobId != null
+			? ({ ...payload, jobId: activeJobId } as WorkerResponse)
+			: payload;
 	if (transfer && transfer.length > 0) {
-		self.postMessage(payload, { transfer });
+		self.postMessage(message, { transfer });
 		return;
 	}
-	self.postMessage(payload);
+	self.postMessage(message);
+}
+
+function setActiveJobCanceller(jobId: number, canceller: ((reason: string) => Promise<void> | void) | null): void {
+	if (activeJobId !== jobId) return;
+	activeJobCanceller = canceller;
+}
+
+function clearCancelledJob(jobId: number): void {
+	cancelledJobReasons.delete(jobId);
+}
+
+function getCancelReason(jobId: number): string | undefined {
+	return cancelledJobReasons.get(jobId);
+}
+
+function ensureJobNotCancelled(jobId: number): void {
+	const reason = getCancelReason(jobId);
+	if (reason) throw new Error(reason);
+}
+
+async function maybeYieldAndCheckCancellation(jobId: number, index: number, every = 6): Promise<void> {
+	if (index % every !== 0) return;
+	await new Promise<void>((resolve) => {
+		setTimeout(resolve, 0);
+	});
+	ensureJobNotCancelled(jobId);
 }
 
 function postPerfLog(event: string, payload: Record<string, unknown>): void {
@@ -368,8 +430,7 @@ function postPerfLog(event: string, payload: Record<string, unknown>): void {
 }
 
 function sendBytesDone(type: 'DONE', data: Uint8Array, outputName?: string): void {
-	const copy = new Uint8Array(data);
-	post({ type: 'DONE', data: copy, outputName: outputName ?? 'output.bin' }, [copy.buffer]);
+	post({ type: 'DONE', data, outputName: outputName ?? 'output.bin' }, [data.buffer]);
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -821,16 +882,22 @@ function splitSelectedTrackIdsByType(
 }
 
 async function handleProbe(msg: ProbeMessage): Promise<void> {
+	ensureJobNotCancelled(msg.jobId);
 	post({ type: 'PROBE_STATUS', status: 'Reading stream metadata...' });
 
 	const input = new Input({ source: new BlobSource(msg.file), formats: ALL_FORMATS });
+	setActiveJobCanceller(msg.jobId, () => {
+		input.dispose();
+	});
 	try {
+		ensureJobNotCancelled(msg.jobId);
 		const [format, duration, tracks, tags] = await Promise.all([
 			input.getFormat(),
 			input.computeDuration(),
 			input.getTracks(),
 			input.getMetadataTags(),
 		]);
+		ensureJobNotCancelled(msg.jobId);
 
 		const mediaTracks = toMediaTracks(tracks);
 		const streamEntries = await mapInBatches(
@@ -878,16 +945,23 @@ async function handleProbe(msg: ProbeMessage): Promise<void> {
 			fontAttachments,
 		};
 
+		ensureJobNotCancelled(msg.jobId);
 		post({ type: 'PROBE_STATUS', status: '' });
 		post({ type: 'PROBE_RESULT', result, fonts });
 	} finally {
+		setActiveJobCanceller(msg.jobId, null);
 		input.dispose();
 	}
 }
 
 async function handleProbeDetails(msg: ProbeDetailsMessage): Promise<void> {
+	ensureJobNotCancelled(msg.jobId);
 	const input = new Input({ source: new BlobSource(msg.file), formats: ALL_FORMATS });
+	setActiveJobCanceller(msg.jobId, () => {
+		input.dispose();
+	});
 	try {
+		ensureJobNotCancelled(msg.jobId);
 		const [format, duration, tracks, tags, mimeType] = await Promise.all([
 			input.getFormat(),
 			input.computeDuration(),
@@ -895,6 +969,7 @@ async function handleProbeDetails(msg: ProbeDetailsMessage): Promise<void> {
 			input.getMetadataTags(),
 			input.getMimeType(),
 		]);
+		ensureJobNotCancelled(msg.jobId);
 
 		const mediaTracks = toMediaTracks(tracks);
 		const streams = await mapInBatches(
@@ -1027,15 +1102,22 @@ async function handleProbeDetails(msg: ProbeDetailsMessage): Promise<void> {
 			chapters: [],
 		};
 
+		ensureJobNotCancelled(msg.jobId);
 		post({ type: 'PROBE_DETAILS_RESULT', result });
 	} finally {
+		setActiveJobCanceller(msg.jobId, null);
 		input.dispose();
 	}
 }
 
 async function handleExtractFonts(msg: ExtractFontsMessage): Promise<void> {
+	ensureJobNotCancelled(msg.jobId);
 	const input = new Input({ source: new BlobSource(msg.file), formats: ALL_FORMATS });
+	setActiveJobCanceller(msg.jobId, () => {
+		input.dispose();
+	});
 	try {
+		ensureJobNotCancelled(msg.jobId);
 		const tags = await input.getMetadataTags();
 		const selectedNames = parseAttachmentSelection(msg.attachments);
 		const fonts: Array<{ name: string; data: Uint8Array }> = [];
@@ -1047,17 +1129,24 @@ async function handleExtractFonts(msg: ExtractFontsMessage): Promise<void> {
 			fonts.push({ name, data: new Uint8Array(attachment.file.data) });
 		}
 
+		ensureJobNotCancelled(msg.jobId);
 		post({ type: 'FONTS_RESULT', fonts });
 	} finally {
+		setActiveJobCanceller(msg.jobId, null);
 		input.dispose();
 	}
 }
 
 async function handleScreenshot(msg: ScreenshotMessage): Promise<void> {
+	ensureJobNotCancelled(msg.jobId);
 	post({ type: 'STARTED', job: 'screenshot' });
 	const startedAtMs = performance.now();
 	const input = new Input({ source: new BlobSource(msg.file), formats: ALL_FORMATS });
+	setActiveJobCanceller(msg.jobId, () => {
+		input.dispose();
+	});
 	try {
+		ensureJobNotCancelled(msg.jobId);
 		const videoTrack = await input.getPrimaryVideoTrack();
 		if (!videoTrack) throw new Error('No video track found');
 
@@ -1066,7 +1155,9 @@ async function handleScreenshot(msg: ScreenshotMessage): Promise<void> {
 		const wrapped = (await sink.getCanvas(msg.timestamp)) ?? (await sink.getCanvas(firstTimestamp));
 		if (!wrapped) throw new Error('No frame available at requested timestamp');
 
+		ensureJobNotCancelled(msg.jobId);
 		const bytes = await canvasToPngBytes(wrapped.canvas);
+		ensureJobNotCancelled(msg.jobId);
 		sendBytesDone('DONE', bytes, 'screenshot.png');
 		postPerfLog('screenshot_done', {
 			inputFileName: msg.file.name,
@@ -1085,16 +1176,22 @@ async function handleScreenshot(msg: ScreenshotMessage): Promise<void> {
 		});
 		throw error;
 	} finally {
+		setActiveJobCanceller(msg.jobId, null);
 		input.dispose();
 	}
 }
 
 async function handleExtractGifFrames(msg: ExtractGifFramesMessage): Promise<void> {
+	ensureJobNotCancelled(msg.jobId);
 	post({ type: 'STARTED', job: 'gif' });
 	const startedAtMs = performance.now();
 
 	const input = new Input({ source: new BlobSource(msg.file), formats: ALL_FORMATS });
+	setActiveJobCanceller(msg.jobId, () => {
+		input.dispose();
+	});
 	try {
+		ensureJobNotCancelled(msg.jobId);
 		const videoTrack = await input.getPrimaryVideoTrack();
 		if (!videoTrack) throw new Error('No video track found');
 
@@ -1129,6 +1226,7 @@ async function handleExtractGifFrames(msg: ExtractGifFramesMessage): Promise<voi
 		await mapInBatches(
 			frameIndices,
 			async (i) => {
+				await maybeYieldAndCheckCancellation(msg.jobId, i);
 				const offset = i * sourceStep;
 				const sourceTime = msg.reverse ? clipStart + Math.max(clipDuration - offset, 0) : clipStart + offset;
 				const wrapped = await sink.getCanvas(sourceTime);
@@ -1152,6 +1250,7 @@ async function handleExtractGifFrames(msg: ExtractGifFramesMessage): Promise<voi
 			1,
 		);
 
+		ensureJobNotCancelled(msg.jobId);
 		post({ type: 'FRAMES_EXTRACTED', frames: extractedFrames, totalFrames: extractedFrames.length });
 		postPerfLog('extract_gif_frames_done', {
 			inputFileName: msg.file.name,
@@ -1171,11 +1270,13 @@ async function handleExtractGifFrames(msg: ExtractGifFramesMessage): Promise<voi
 		});
 		throw error;
 	} finally {
+		setActiveJobCanceller(msg.jobId, null);
 		input.dispose();
 	}
 }
 
 async function handleGif(msg: GifMessage): Promise<void> {
+	ensureJobNotCancelled(msg.jobId);
 	post({ type: 'STARTED', job: 'gif' });
 	const startedAtMs = performance.now();
 	let decodeDurationMs = 0;
@@ -1185,7 +1286,11 @@ async function handleGif(msg: GifMessage): Promise<void> {
 	let estimatedFrameBytes = 0;
 
 	const input = new Input({ source: new BlobSource(msg.file), formats: ALL_FORMATS });
+	setActiveJobCanceller(msg.jobId, () => {
+		input.dispose();
+	});
 	try {
+		ensureJobNotCancelled(msg.jobId);
 		const videoTrack = await input.getPrimaryVideoTrack();
 		if (!videoTrack) throw new Error('No video track found');
 
@@ -1278,87 +1383,98 @@ async function handleGif(msg: GifMessage): Promise<void> {
 		const wrappedFrames = await mapInBatches(
 			frameIndices,
 			async (i) => {
+				await maybeYieldAndCheckCancellation(msg.jobId, i);
 				const offset = i * sourceStep;
 				const sourceTime = msg.reverse ? clipStart + Math.max(clipDuration - offset, 0) : clipStart + offset;
 				const wrapped = await sink.getCanvas(sourceTime);
+				ensureJobNotCancelled(msg.jobId);
 				return { i, wrapped };
 			},
 			1,
 		);
 		decodeDurationMs = performance.now() - decodeStartedAtMs;
 
-		const frames: Uint8Array[] = [];
+		const renderedFrames: Array<Uint8Array | null> = Array.from({ length: wrappedFrames.length }, () => null);
 		const renderStartedAtMs = performance.now();
-		for (const { i, wrapped } of wrappedFrames) {
-			if (!wrapped) continue;
-			frameCtx.clearRect(0, 0, frameCanvas.width, frameCanvas.height);
+		await mapInBatches(
+			wrappedFrames,
+			async ({ i, wrapped }, frameIndex) => {
+				await maybeYieldAndCheckCancellation(msg.jobId, i);
+				if (!wrapped) return null;
+				frameCtx.clearRect(0, 0, frameCanvas.width, frameCanvas.height);
 
-			// Apply CSS filter
-			if (cssFilter) frameCtx.filter = cssFilter;
+				// Apply CSS filter
+				if (cssFilter) frameCtx.filter = cssFilter;
 
-			// Apply rotation/flip (canvas transform handles visual rotation; drawImage always uses source dims)
-			if (hasRotation) {
-				frameCtx.save();
-				applyCanvasTransform(frameCtx, outputW, outputH, rotation, flipH, flipV);
-			}
+				// Apply rotation/flip (canvas transform handles visual rotation; drawImage always uses source dims)
+				if (hasRotation) {
+					frameCtx.save();
+					applyCanvasTransform(frameCtx, outputW, outputH, rotation, flipH, flipV);
+				}
 
-			// Draw frame — destination always sourceW × sourceH (transform handles rotation)
-			if (hasCrop) {
-				frameCtx.drawImage(
-					wrapped.canvas,
-					msg.cropX!,
-					msg.cropY!,
-					msg.cropW!,
-					msg.cropH!,
-					0,
-					0,
-					sourceW,
-					sourceH,
+				// Draw frame — destination always sourceW × sourceH (transform handles rotation)
+				if (hasCrop) {
+					frameCtx.drawImage(
+						wrapped.canvas,
+						msg.cropX!,
+						msg.cropY!,
+						msg.cropW!,
+						msg.cropH!,
+						0,
+						0,
+						sourceW,
+						sourceH,
+					);
+				} else {
+					frameCtx.drawImage(wrapped.canvas, 0, 0, sourceW, sourceH);
+				}
+
+				if (hasRotation) frameCtx.restore();
+
+				// Reset filter for overlays
+				if (cssFilter) frameCtx.filter = 'none';
+
+				// Apply advanced pixel effects (vignette, grain, highlights/shadows, temperature/tint)
+				applyPixelEffects(frameCtx, outputW, outputH, msg);
+
+				// Draw image overlay
+				if (overlayBitmap) {
+					applyImageOverlay(frameCtx, overlayBitmap, outputW, outputH, msg);
+				}
+
+				// Draw text overlays
+				if (msg.textOverlays && msg.textOverlays.length > 0) {
+					applyTextOverlays(frameCtx, outputW, outputH, msg.textOverlays);
+				}
+
+				// Apply fade overlay
+				const fadeAlpha = getFadeAlpha(i, outputFrameCount, msg.fadeInFrames ?? 0, msg.fadeOutFrames ?? 0);
+				if (fadeAlpha > 0 && msg.fadeColor !== 'transparent') {
+					frameCtx.globalAlpha = fadeAlpha;
+					frameCtx.fillStyle = msg.fadeColor === 'white' ? '#ffffff' : '#000000';
+					frameCtx.fillRect(0, 0, outputW, outputH);
+					frameCtx.globalAlpha = 1;
+				}
+
+				// Composite onto final canvas with aspect-ratio padding (if needed)
+				if (hasAspectPad) {
+					finalCtx.clearRect(0, 0, finalW, finalH);
+					finalCtx.fillStyle = msg.aspectPaddingColor ?? '#000000';
+					finalCtx.fillRect(0, 0, finalW, finalH);
+					finalCtx.drawImage(frameCanvas, padX, padY);
+				}
+
+				renderedFrames[frameIndex] = new Uint8Array(
+					finalCtx.getImageData(0, 0, finalCanvas.width, finalCanvas.height).data,
 				);
-			} else {
-				frameCtx.drawImage(wrapped.canvas, 0, 0, sourceW, sourceH);
-			}
-
-			if (hasRotation) frameCtx.restore();
-
-			// Reset filter for overlays
-			if (cssFilter) frameCtx.filter = 'none';
-
-			// Apply advanced pixel effects (vignette, grain, highlights/shadows, temperature/tint)
-			applyPixelEffects(frameCtx, outputW, outputH, msg);
-
-			// Draw image overlay
-			if (overlayBitmap) {
-				applyImageOverlay(frameCtx, overlayBitmap, outputW, outputH, msg);
-			}
-
-			// Draw text overlays
-			if (msg.textOverlays && msg.textOverlays.length > 0) {
-				applyTextOverlays(frameCtx, outputW, outputH, msg.textOverlays);
-			}
-
-			// Apply fade overlay
-			const fadeAlpha = getFadeAlpha(i, outputFrameCount, msg.fadeInFrames ?? 0, msg.fadeOutFrames ?? 0);
-			if (fadeAlpha > 0 && msg.fadeColor !== 'transparent') {
-				frameCtx.globalAlpha = fadeAlpha;
-				frameCtx.fillStyle = msg.fadeColor === 'white' ? '#ffffff' : '#000000';
-				frameCtx.fillRect(0, 0, outputW, outputH);
-				frameCtx.globalAlpha = 1;
-			}
-
-			// Composite onto final canvas with aspect-ratio padding (if needed)
-			if (hasAspectPad) {
-				finalCtx.clearRect(0, 0, finalW, finalH);
-				finalCtx.fillStyle = msg.aspectPaddingColor ?? '#000000';
-				finalCtx.fillRect(0, 0, finalW, finalH);
-				finalCtx.drawImage(frameCanvas, padX, padY);
-			}
-
-			frames.push(new Uint8Array(finalCtx.getImageData(0, 0, finalCanvas.width, finalCanvas.height).data));
-			const progress = Math.min(0.85, ((i + 1) / outputFrameCount) * 0.85);
-			post({ type: 'PROGRESS', progress, time: i / fps, fps, frame: i + 1, speed });
-		}
+				const progress = Math.min(0.85, ((i + 1) / outputFrameCount) * 0.85);
+				post({ type: 'PROGRESS', progress, time: i / fps, fps, frame: i + 1, speed });
+				return null;
+			},
+			1,
+		);
 		renderDurationMs = performance.now() - renderStartedAtMs;
+		const frames = renderedFrames.filter((frame): frame is Uint8Array => frame != null);
 
 		overlayBitmap?.close();
 
@@ -1366,6 +1482,7 @@ async function handleGif(msg: GifMessage): Promise<void> {
 		frameCount = frames.length;
 		estimatedFrameBytes = frames.length * finalCanvas.width * finalCanvas.height * 4;
 
+		ensureJobNotCancelled(msg.jobId);
 		const encodeStartedAtMs = performance.now();
 		const blob = await encodeGif({
 			frames,
@@ -1389,6 +1506,7 @@ async function handleGif(msg: GifMessage): Promise<void> {
 		});
 		encodeDurationMs = performance.now() - encodeStartedAtMs;
 
+		ensureJobNotCancelled(msg.jobId);
 		const bytes = new Uint8Array(await blob.arrayBuffer());
 		sendBytesDone('DONE', bytes, 'output.gif');
 		postPerfLog('gif_encode_done', {
@@ -1418,6 +1536,7 @@ async function handleGif(msg: GifMessage): Promise<void> {
 		});
 		throw error;
 	} finally {
+		setActiveJobCanceller(msg.jobId, null);
 		input.dispose();
 	}
 }
@@ -1614,12 +1733,23 @@ function getFadeAlpha(frameIndex: number, totalFrames: number, fadeInFrames: num
 }
 
 async function handleTranscode(msg: TranscodeMessage): Promise<void> {
+	ensureJobNotCancelled(msg.jobId);
 	post({ type: 'STARTED', job: 'transcode' });
 	const startedAtMs = performance.now();
 	const parsed = parseTranscodeSettings(msg);
 
 	const input = new Input({ source: new BlobSource(msg.file), formats: ALL_FORMATS });
+	let conversion: Conversion | null = null;
+	setActiveJobCanceller(msg.jobId, async () => {
+		try {
+			await conversion?.cancel();
+		} catch {
+			// best effort
+		}
+		input.dispose();
+	});
 	try {
+		ensureJobNotCancelled(msg.jobId);
 		const output = new Output({ format: outputFormatForContainer(parsed.container), target: new BufferTarget() });
 
 		const tracks = await input.getTracks();
@@ -1645,7 +1775,7 @@ async function handleTranscode(msg: TranscodeMessage): Promise<void> {
 				? (parsed.trimStart ?? 0) + parsed.trimDuration
 				: undefined;
 
-		const conversion = await Conversion.init({
+		conversion = await Conversion.init({
 			input,
 			output,
 			trim: trimStart != null || trimEnd != null ? { start: trimStart, end: trimEnd } : undefined,
@@ -1697,7 +1827,9 @@ async function handleTranscode(msg: TranscodeMessage): Promise<void> {
 			);
 		}
 
+		ensureJobNotCancelled(msg.jobId);
 		await conversion.execute();
+		ensureJobNotCancelled(msg.jobId);
 		const buffer = output.target.buffer;
 		if (!buffer) throw new Error('Conversion produced no output buffer');
 		sendBytesDone('DONE', new Uint8Array(buffer), msg.outputName);
@@ -1720,6 +1852,7 @@ async function handleTranscode(msg: TranscodeMessage): Promise<void> {
 		});
 		throw error;
 	} finally {
+		setActiveJobCanceller(msg.jobId, null);
 		input.dispose();
 	}
 }
@@ -1821,6 +1954,7 @@ function buildWebVtt(cues: SubtitleCueData[]): string {
 }
 
 async function handleSubtitlePreview(msg: SubtitlePreviewMessage): Promise<void> {
+	ensureJobNotCancelled(msg.jobId);
 	const mkvResult = await parseMkvSubtitles(msg.file, { tracksOnly: true });
 	if (mkvResult.tracks.length === 0) throw new Error('No subtitle tracks found in file');
 
@@ -1833,6 +1967,7 @@ async function handleSubtitlePreview(msg: SubtitlePreviewMessage): Promise<void>
 	const isAss = isAssCodec(targetTrack.codecId) || msg.subtitleCodec === 'ass' || msg.subtitleCodec === 'ssa';
 
 	const fullResult = await parseMkvSubtitles(msg.file, { targetTrackNumber: targetTrack.trackNumber });
+	ensureJobNotCancelled(msg.jobId);
 	const rawCues = fullResult.cues.filter((c) => c.trackNumber === targetTrack.trackNumber);
 
 	if (isAss) {
@@ -1886,36 +2021,66 @@ async function handleSubtitlePreview(msg: SubtitlePreviewMessage): Promise<void>
 
 post({ type: 'READY' });
 
+async function handleAbort(msg: AbortMessage): Promise<void> {
+	const reason = msg.reason?.trim() || 'Cancelled';
+	cancelledJobReasons.set(msg.jobId, reason);
+	if (activeJobId === msg.jobId && activeJobCanceller) {
+		try {
+			await activeJobCanceller(reason);
+		} catch {
+			// best effort cancellation
+		}
+	}
+}
+
 self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
+	const data = e.data;
+	if (data.type === 'ABORT') {
+		await handleAbort(data);
+		return;
+	}
+
+	if (activeJobId != null) {
+		post({ type: 'ERROR', jobId: data.jobId, error: 'Worker is busy processing another job' });
+		return;
+	}
+
+	activeJobId = data.jobId;
+	activeJobCanceller = null;
 	try {
-		switch (e.data.type) {
+		switch (data.type) {
 			case 'TRANSCODE':
-				await handleTranscode(e.data);
+				await handleTranscode(data);
 				break;
 			case 'GIF':
-				await handleGif(e.data);
+				await handleGif(data);
 				break;
 			case 'EXTRACT_GIF_FRAMES':
-				await handleExtractGifFrames(e.data);
+				await handleExtractGifFrames(data);
 				break;
 			case 'SCREENSHOT':
-				await handleScreenshot(e.data);
+				await handleScreenshot(data);
 				break;
 			case 'PROBE':
-				await handleProbe(e.data);
+				await handleProbe(data);
 				break;
 			case 'PROBE_DETAILS':
-				await handleProbeDetails(e.data);
+				await handleProbeDetails(data);
 				break;
 			case 'SUBTITLE_PREVIEW':
-				await handleSubtitlePreview(e.data);
+				await handleSubtitlePreview(data);
 				break;
 			case 'EXTRACT_FONTS':
-				await handleExtractFonts(e.data);
+				await handleExtractFonts(data);
 				break;
 		}
 	} catch (err) {
-		const error = err instanceof Error ? err.message : String(err);
-		post({ type: 'ERROR', error });
+		const cancelledReason = getCancelReason(data.jobId);
+		const error = cancelledReason ?? (err instanceof Error ? err.message : String(err));
+		post({ type: 'ERROR', jobId: data.jobId, error });
+	} finally {
+		clearCancelledJob(data.jobId);
+		activeJobCanceller = null;
+		activeJobId = null;
 	}
 };

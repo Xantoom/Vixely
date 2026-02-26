@@ -1,11 +1,13 @@
 import { Lock, Unlock, Info, FilePlus2, Palette, SlidersHorizontal, Maximize2, Download } from 'lucide-react';
-import { useCallback, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
-import { Button, Slider } from '@/components/ui/index.ts';
+import type { EditorStage } from '@/hooks/useEditorLayoutPrefs.ts';
+import { Button, EditorModeTabs, EditorStageTabs, type EditorModeTabItem, Slider } from '@/components/ui/index.ts';
 import { filterPresetEntries, imagePresetEntries } from '@/config/presets.ts';
 import { buildFallbackFilterString } from '@/modules/photo-editor/render/fallback-filters.ts';
 import { PhotoWebGLRenderer } from '@/modules/photo-editor/render/webgl-renderer.ts';
+import { filtersAreDefault } from '@/modules/shared-core/types/filters.ts';
 import { useImageEditorStore, type Filters, type ExportFormat } from '@/stores/imageEditor.ts';
 import { buildExportFilename } from '@/utils/exportFilename.ts';
 import { formatFileSize, estimateImageSize } from '@/utils/format.ts';
@@ -17,6 +19,8 @@ const IMAGE_PRESETS = imagePresetEntries();
 interface ImageSidebarProps {
 	onOpenFile: () => void;
 	onNew?: () => void;
+	stage: EditorStage;
+	onStageChange: (stage: EditorStage) => void;
 }
 
 interface SliderDef {
@@ -100,14 +104,23 @@ const FORMAT_OPTIONS: { value: ExportFormat; label: string }[] = [
 
 type ImageMode = 'resize' | 'adjust' | 'presets' | 'export';
 
-const IMAGE_MODE_TABS: { mode: ImageMode; label: string; icon: typeof Palette }[] = [
-	{ mode: 'resize', label: 'Resize', icon: Maximize2 },
-	{ mode: 'adjust', label: 'Adjust', icon: SlidersHorizontal },
-	{ mode: 'presets', label: 'Presets', icon: Palette },
-	{ mode: 'export', label: 'Export', icon: Download },
+const IMAGE_MODE_TABS: EditorModeTabItem<ImageMode>[] = [
+	{ id: 'resize', label: 'Resize', icon: Maximize2, description: 'Resize and aspect controls.' },
+	{ id: 'adjust', label: 'Adjust', icon: SlidersHorizontal, description: 'Fine tune light and color.' },
+	{ id: 'presets', label: 'Presets', icon: Palette, description: 'Apply saved style presets.' },
+	{ id: 'export', label: 'Export', icon: Download, description: 'Choose output format and quality.' },
 ];
 
-export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
+const IMAGE_MODE_STAGE: Record<ImageMode, EditorStage> = {
+	resize: 'source',
+	presets: 'source',
+	adjust: 'edit',
+	export: 'output',
+};
+
+const STAGE_DEFAULT_MODE: Record<EditorStage, ImageMode> = { source: 'resize', edit: 'adjust', output: 'export' };
+
+export function ImageSidebar({ onOpenFile, onNew, stage, onStageChange }: ImageSidebarProps) {
 	const {
 		file,
 		originalData,
@@ -157,6 +170,13 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 	const exportRendererRef = useRef<PhotoWebGLRenderer | null>(null);
 	const resizeWidthInputId = useId();
 	const resizeHeightInputId = useId();
+
+	useEffect(() => {
+		setMode((currentMode) => {
+			if (IMAGE_MODE_STAGE[currentMode] === stage) return currentMode;
+			return STAGE_DEFAULT_MODE[stage];
+		});
+	}, [stage]);
 
 	const handleSliderCommit = useCallback(() => {
 		commitFilters();
@@ -263,33 +283,45 @@ export function ImageSidebar({ onOpenFile, onNew }: ImageSidebarProps) {
 				exportQuality,
 			)
 		: null;
+	const hasResizeChanges =
+		originalData != null &&
+		resizeWidth != null &&
+		resizeHeight != null &&
+		(resizeWidth !== originalData.width || resizeHeight !== originalData.height);
+	const hasAdjustChanges = !filtersAreDefault(filters);
+	const modeActivity: Record<ImageMode, boolean> = {
+		resize: hasResizeChanges,
+		adjust: hasAdjustChanges,
+		presets: hasAdjustChanges || hasResizeChanges,
+		export: false,
+	};
+	const stageModeTabs = IMAGE_MODE_TABS.filter((tab) => IMAGE_MODE_STAGE[tab.id] === stage).map((tab) => ({
+		...tab,
+		hasActivity: modeActivity[tab.id],
+	}));
 
 	return (
 		<aside
-			className="w-72 xl:w-80 shrink-0 min-h-0 overflow-hidden border-l border-border bg-surface flex flex-col"
+			className="w-full h-full min-h-0 overflow-hidden bg-surface flex flex-col"
 			style={{ overscrollBehavior: 'contain' }}
 		>
+			<div className="px-4 pt-4 pb-3 border-b border-border/70 bg-surface-raised/20">
+				<div className="mb-3">
+					<p className="text-[11px] font-bold uppercase tracking-[0.16em] text-text-tertiary">Image Lab</p>
+					<p className="text-[13px] text-text-secondary">Resize, tune, and export your stills.</p>
+				</div>
+				<EditorStageTabs stage={stage} onChange={onStageChange} />
+			</div>
+
 			{/* Mode Tabs */}
-			<div className="flex border-b border-border bg-surface overflow-x-auto shrink-0">
-				{IMAGE_MODE_TABS.map((tab) => {
-					const isActive = mode === tab.mode;
-					return (
-						<button
-							key={tab.mode}
-							onClick={() => {
-								setMode(tab.mode);
-							}}
-							className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[14px] font-semibold uppercase tracking-wider transition-all cursor-pointer ${
-								isActive
-									? 'text-accent border-b-2 border-accent'
-									: 'text-text-tertiary hover:text-text-secondary'
-							}`}
-						>
-							<tab.icon size={16} />
-							{tab.label}
-						</button>
-					);
-				})}
+			<div className="shrink-0 border-b border-border/70 bg-surface-raised/15">
+				<EditorModeTabs
+					value={mode}
+					items={stageModeTabs}
+					onChange={setMode}
+					ariaLabel="Image editor mode tabs"
+					className="-mx-0"
+				/>
 			</div>
 
 			{/* File */}

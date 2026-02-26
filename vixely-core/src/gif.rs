@@ -19,13 +19,24 @@ pub fn encode_gif_frames(
     _max_colors: u16,
     speed: i32,
 ) -> Vec<u8> {
-    encode_gif_frames_ex(rgba_data, width, height, frame_count, delay_cs, _max_colors, speed, 0, &[])
+    encode_gif_frames_ex(
+        rgba_data,
+        width,
+        height,
+        frame_count,
+        delay_cs,
+        _max_colors,
+        speed,
+        0,
+        &[],
+    )
 }
 
 /// Extended GIF encoder with loop count and per-frame delays.
 ///
 /// `loop_count`: 0 = infinite, N = play N times, 0xFFFF = no loop extension
 /// `frame_delays_cs`: optional per-frame delays (centiseconds). If empty, uses `delay_cs` for all.
+#[allow(clippy::too_many_arguments)] // wasm-bindgen exports a flat ABI, so this intentionally stays explicit.
 #[wasm_bindgen]
 pub fn encode_gif_frames_ex(
     rgba_data: &[u8],

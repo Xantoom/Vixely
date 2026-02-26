@@ -34,8 +34,17 @@ import { GifSettingsPanel } from '@/components/gif/GifSettingsPanel.tsx';
 import { GifTextOverlayPanel } from '@/components/gif/GifTextOverlayPanel.tsx';
 import { Seo } from '@/components/Seo.tsx';
 import { Drawer } from '@/components/ui/Drawer.tsx';
-import { Button, Timeline, formatCompactTime } from '@/components/ui/index.ts';
+import {
+	Button,
+	EditorModeTabs,
+	EditorStageTabs,
+	InspectorPane,
+	Timeline,
+	TimelineModeTabs,
+	formatCompactTime,
+} from '@/components/ui/index.ts';
 import { gifPresetEntries, GIF_ACCEPT } from '@/config/presets.ts';
+import { useEditorLayoutPrefs, type EditorStage } from '@/hooks/useEditorLayoutPrefs.ts';
 import { useFrameStepController } from '@/hooks/useFrameStepController.ts';
 import { useLongTaskObserver } from '@/hooks/useLongTaskObserver.ts';
 import { useObjectUrlState } from '@/hooks/useObjectUrlState.ts';
@@ -44,6 +53,7 @@ import { usePreventUnload } from '@/hooks/usePreventUnload.ts';
 import { useSingleFileDrop } from '@/hooks/useSingleFileDrop.ts';
 import { useTimelineScrubController } from '@/hooks/useTimelineScrubController.ts';
 import { useVideoProcessor } from '@/hooks/useVideoProcessor.ts';
+import { filtersAreDefault } from '@/modules/shared-core/types/filters.ts';
 import { useGifEditorStore, type GifMode } from '@/stores/gifEditor.ts';
 import { buildExportFilename } from '@/utils/exportFilename.ts';
 import { formatFileSize, formatNumber } from '@/utils/format.ts';
@@ -158,8 +168,50 @@ const MODE_TO_SECTION: Record<GifMode, SidebarSectionId> = {
 	export: 'output',
 };
 
+const SECTION_STAGE: Record<SidebarSectionId, EditorStage> = {
+	setup: 'source',
+	style: 'edit',
+	timing: 'edit',
+	output: 'output',
+};
+
+const GIF_MODE_STAGE: Record<GifMode, EditorStage> = {
+	settings: 'source',
+	crop: 'source',
+	resize: 'source',
+	rotate: 'source',
+	aspect: 'source',
+	filters: 'edit',
+	text: 'edit',
+	overlay: 'edit',
+	fade: 'edit',
+	frames: 'edit',
+	optimize: 'edit',
+	maker: 'edit',
+	convert: 'output',
+	analyze: 'output',
+	export: 'output',
+};
+
+const STAGE_TO_GIF_MODE: Record<EditorStage, GifMode> = { source: 'settings', edit: 'filters', output: 'export' };
+
 function GifFoundry() {
 	useLongTaskObserver('gif-route');
+	const {
+		inspectorWidth,
+		inspectorCollapsed,
+		timelineMode,
+		stage,
+		setInspectorWidth,
+		setInspectorCollapsed,
+		setTimelineMode,
+		setStage,
+	} = useEditorLayoutPrefs({
+		editor: 'gif',
+		defaultInspectorWidth: 360,
+		defaultTimelineMode: 'full',
+		defaultStage: 'source',
+	});
 	const { ready, processing, progress, error, createGif, extractGifFrames } = useVideoProcessor();
 	const store = useGifEditorStore(
 		useShallow((s) => ({
@@ -175,12 +227,14 @@ function GifFoundry() {
 			filters: s.filters,
 			compressionSpeed: s.compressionSpeed,
 			frameSkip: s.frameSkip,
+			dithering: s.dithering,
 			extractedFrames: s.extractedFrames,
 			textOverlays: s.textOverlays,
 			imageOverlay: s.imageOverlay,
 			fadeInDuration: s.fadeInDuration,
 			fadeOutDuration: s.fadeOutDuration,
 			fadeColor: s.fadeColor,
+			convertFormat: s.convertFormat,
 			aspectPreset: s.aspectPreset,
 			aspectPaddingColor: s.aspectPaddingColor,
 			setMode: s.setMode,
@@ -626,13 +680,82 @@ function GifFoundry() {
 	}, [activePreview, canShowResultPreview]);
 
 	useEffect(() => {
+		const modeStage = GIF_MODE_STAGE[store.mode];
+		if (modeStage !== stage) {
+			setStage(modeStage);
+		}
+	}, [stage, store.mode, setStage]);
+
+	const handleStageChange = useCallback(
+		(nextStage: EditorStage) => {
+			setStage(nextStage);
+			if (GIF_MODE_STAGE[store.mode] !== nextStage) {
+				store.setMode(STAGE_TO_GIF_MODE[nextStage]);
+			}
+		},
+		[setStage, store.mode, store.setMode],
+	);
+
+	useEffect(() => {
 		setSidebarSection(MODE_TO_SECTION[store.mode]);
 	}, [store.mode]);
 
-	const activeSidebarSection = useMemo(
-		() => SIDEBAR_SECTIONS.find((section) => section.id === sidebarSection) ?? SIDEBAR_SECTIONS[0]!,
-		[sidebarSection],
+	const stageSections = useMemo(
+		() => SIDEBAR_SECTIONS.filter((section) => SECTION_STAGE[section.id] === stage),
+		[stage],
 	);
+
+	useEffect(() => {
+		setSidebarSection((current) => {
+			if (stageSections.some((section) => section.id === current)) return current;
+			return stageSections[0]?.id ?? 'setup';
+		});
+	}, [stageSections]);
+
+	const activeSidebarSection = useMemo(
+		() =>
+			stageSections.find((section) => section.id === sidebarSection) ?? stageSections[0] ?? SIDEBAR_SECTIONS[0]!,
+		[sidebarSection, stageSections],
+	);
+	const hasResizeChanges =
+		sourceWidth != null && sourceHeight != null && (width !== sourceWidth || outputHeight !== sourceHeight);
+	const toolActivity: Record<GifMode, boolean> = {
+		settings:
+			store.speed !== 1 ||
+			store.reverse ||
+			store.colorReduction !== 256 ||
+			store.loopCount !== 0 ||
+			fps !== 15 ||
+			!loop ||
+			trimStart > 0 ||
+			trimEnd < duration,
+		crop: store.crop != null,
+		resize: hasResizeChanges || !lockAspect,
+		rotate: store.rotation !== 0 || store.flipH || store.flipV,
+		aspect: store.aspectPreset !== 'free',
+		filters: !filtersAreDefault(store.filters),
+		text: store.textOverlays.length > 0,
+		overlay: store.imageOverlay.file != null,
+		fade: store.fadeInDuration > 0 || store.fadeOutDuration > 0,
+		frames: store.extractedFrames.length > 0,
+		optimize: store.compressionSpeed !== 10 || store.frameSkip !== 'none' || !store.dithering,
+		maker: store.extractedFrames.length > 0,
+		convert: store.convertFormat !== 'webm',
+		analyze: false,
+		export: false,
+	};
+	const sectionTabs = stageSections.map((section) => ({
+		id: section.id,
+		label: section.label,
+		icon: section.icon,
+		description: section.description,
+	}));
+	const modeTabs = activeSidebarSection.tools.map((tool) => ({
+		id: tool.mode,
+		label: tool.label,
+		description: tool.description,
+		hasActivity: toolActivity[tool.mode],
+	}));
 
 	const modePanel = useMemo(() => {
 		switch (store.mode) {
@@ -772,6 +895,9 @@ function GifFoundry() {
 						</span>
 					)}
 				</div>
+				<div className="mb-3">
+					<EditorStageTabs stage={stage} onChange={handleStageChange} />
+				</div>
 				<div className="flex gap-2">
 					<Button
 						variant="secondary"
@@ -816,68 +942,34 @@ function GifFoundry() {
 				)}
 			</div>
 
-			<div className="p-4 border-b border-border/70 bg-surface/70">
-				<p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-text-tertiary">Workflow</p>
-				<div className="grid grid-cols-2 gap-2">
-					{SIDEBAR_SECTIONS.map((section) => {
-						const isActive = sidebarSection === section.id;
-						return (
-							<button
-								key={section.id}
-								onClick={() => {
-									setSidebarSection(section.id);
-									if (MODE_TO_SECTION[store.mode] !== section.id) {
-										store.setMode(section.tools[0]!.mode);
-									}
-								}}
-								className={`rounded-lg border px-2.5 py-2 text-left transition-colors cursor-pointer ${
-									isActive
-										? 'border-accent/35 bg-accent/10'
-										: 'border-border/60 bg-bg/35 hover:border-border hover:bg-bg/50'
-								}`}
-							>
-								<div className="flex items-center gap-1.5">
-									<section.icon
-										size={14}
-										className={isActive ? 'text-accent' : 'text-text-tertiary'}
-									/>
-									<span
-										className={`text-[12px] font-semibold ${isActive ? 'text-accent' : 'text-text-secondary'}`}
-									>
-										{section.label}
-									</span>
-								</div>
-								<p className="mt-1 text-[11px] leading-relaxed text-text-tertiary">
-									{section.description}
-								</p>
-							</button>
-						);
-					})}
+			{stageSections.length > 1 && (
+				<div className="border-b border-border/70 bg-surface/70">
+					<p className="px-4 pt-3 mb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-text-tertiary">
+						Workflow
+					</p>
+					<EditorModeTabs
+						value={sidebarSection}
+						items={sectionTabs}
+						onChange={(nextSection) => {
+							setSidebarSection(nextSection);
+							if (MODE_TO_SECTION[store.mode] !== nextSection) {
+								const targetSection = stageSections.find((section) => section.id === nextSection);
+								const nextMode = targetSection?.tools[0]?.mode;
+								if (nextMode) store.setMode(nextMode);
+							}
+						}}
+						ariaLabel="GIF workflow sections"
+					/>
 				</div>
-			</div>
+			)}
 
-			<div className="px-4 py-3 border-b border-border/70">
-				<div className="flex flex-wrap gap-1.5">
-					{activeSidebarSection.tools.map((tool) => {
-						const isActive = tool.mode === store.mode;
-						return (
-							<button
-								key={tool.mode}
-								onClick={() => {
-									store.setMode(tool.mode);
-								}}
-								title={tool.description}
-								className={`rounded-md border px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide transition-colors cursor-pointer ${
-									isActive
-										? 'border-accent/35 bg-accent/10 text-accent'
-										: 'border-border/60 bg-surface-raised/35 text-text-tertiary hover:text-text-secondary'
-								}`}
-							>
-								{tool.label}
-							</button>
-						);
-					})}
-				</div>
+			<div className="border-b border-border/70 bg-surface-raised/10">
+				<EditorModeTabs
+					value={store.mode}
+					items={modeTabs}
+					onChange={store.setMode}
+					ariaLabel={`${activeSidebarSection.label} tools`}
+				/>
 			</div>
 
 			<div className="p-4 flex flex-col gap-4 flex-1 overflow-y-auto">{modePanel}</div>
@@ -1081,101 +1173,117 @@ function GifFoundry() {
 					{/* Timeline (only for video sources) */}
 					{!isGifSource && duration > 0 && (
 						<div className="border-t border-border bg-surface px-3 sm:px-6 py-3 sm:py-4">
-							<Timeline
-								duration={duration}
-								trimStart={trimStart}
-								trimEnd={trimEnd}
-								currentTime={currentTime}
-								minGap={minTrimDuration}
-								onTrimStartChange={(v) => {
-									setTrimStart(clampTrimStart(v));
-								}}
-								onTrimEndChange={(v) => {
-									setTrimEnd(clampTrimEnd(v));
-								}}
-								onSeek={handleSeek}
-								onScrubStart={handleTimelineScrubStart}
-								onScrubEnd={handleTimelineScrubEnd}
-								headerStart={
-									<span className="hidden sm:inline-flex items-center text-[13px] font-mono text-text-tertiary tabular-nums">
-										Frame {formatNumber(timeToFrames(currentTime))} / {formatNumber(totalFrames)}
-									</span>
-								}
-								centerStart={
-									<Button
-										variant="ghost"
-										size="icon"
-										onPointerDown={(e) => {
-											e.preventDefault();
-											startFrameHold(-1);
-										}}
-										onPointerUp={stopFrameHold}
-										onPointerLeave={stopFrameHold}
-										onPointerCancel={stopFrameHold}
-										onKeyDown={(e) => {
-											if (e.key === 'Enter' || e.key === ' ') {
-												e.preventDefault();
-												stepCurrentFrame(-1);
-											}
-										}}
-										disabled={!file || processing}
-										title="Previous frame"
-										aria-label="Previous frame"
-									>
-										<StepBack size={16} />
-									</Button>
-								}
-								centerEnd={
-									<Button
-										variant="ghost"
-										size="icon"
-										onPointerDown={(e) => {
-											e.preventDefault();
-											startFrameHold(1);
-										}}
-										onPointerUp={stopFrameHold}
-										onPointerLeave={stopFrameHold}
-										onPointerCancel={stopFrameHold}
-										onKeyDown={(e) => {
-											if (e.key === 'Enter' || e.key === ' ') {
-												e.preventDefault();
-												stepCurrentFrame(1);
-											}
-										}}
-										disabled={!file || processing}
-										title="Next frame"
-										aria-label="Next frame"
-									>
-										<StepForward size={16} />
-									</Button>
-								}
-							/>
-							{file && (
-								<div className="mt-3 rounded-lg border border-border/70 bg-bg/40 px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-text-tertiary">
-									<span className="font-medium text-text-secondary truncate max-w-full">
-										{file.name}
-									</span>
-									<span>{formatFileSize(file.size)}</span>
-									{sourceWidth && sourceHeight && (
-										<span>
-											{sourceWidth}&times;{sourceHeight}
-										</span>
-									)}
-									<span>{videoFps.toFixed(2)} fps</span>
-									<span>{formatCompactTime(duration)}</span>
-									<div className="flex-1" />
-									<button
-										onClick={() => {
-											setShowInfo(true);
-										}}
-										type="button"
-										aria-label="Open GIF file info"
-										className="inline-flex items-center gap-1 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
-										title="File info"
-									>
-										<Info size={13} />
-									</button>
+							<div className="mb-2 flex items-center justify-between gap-2">
+								<p className="text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">
+									Timeline
+								</p>
+								<TimelineModeTabs mode={timelineMode} onChange={setTimelineMode} />
+							</div>
+							{timelineMode === 'hidden' ? (
+								<div className="rounded-lg border border-border/60 bg-bg/35 px-3 py-2 text-[13px] text-text-tertiary">
+									Timeline hidden to maximize preview area.
 								</div>
+							) : (
+								<>
+									<Timeline
+										duration={duration}
+										trimStart={trimStart}
+										trimEnd={trimEnd}
+										currentTime={currentTime}
+										density={timelineMode === 'compact' ? 'compact' : 'full'}
+										minGap={minTrimDuration}
+										onTrimStartChange={(v) => {
+											setTrimStart(clampTrimStart(v));
+										}}
+										onTrimEndChange={(v) => {
+											setTrimEnd(clampTrimEnd(v));
+										}}
+										onSeek={handleSeek}
+										onScrubStart={handleTimelineScrubStart}
+										onScrubEnd={handleTimelineScrubEnd}
+										headerStart={
+											<span className="hidden sm:inline-flex items-center text-[13px] font-mono text-text-tertiary tabular-nums">
+												Frame {formatNumber(timeToFrames(currentTime))} /{' '}
+												{formatNumber(totalFrames)}
+											</span>
+										}
+										centerStart={
+											<Button
+												variant="ghost"
+												size="icon"
+												onPointerDown={(e) => {
+													e.preventDefault();
+													startFrameHold(-1);
+												}}
+												onPointerUp={stopFrameHold}
+												onPointerLeave={stopFrameHold}
+												onPointerCancel={stopFrameHold}
+												onKeyDown={(e) => {
+													if (e.key === 'Enter' || e.key === ' ') {
+														e.preventDefault();
+														stepCurrentFrame(-1);
+													}
+												}}
+												disabled={!file || processing}
+												title="Previous frame"
+												aria-label="Previous frame"
+											>
+												<StepBack size={16} />
+											</Button>
+										}
+										centerEnd={
+											<Button
+												variant="ghost"
+												size="icon"
+												onPointerDown={(e) => {
+													e.preventDefault();
+													startFrameHold(1);
+												}}
+												onPointerUp={stopFrameHold}
+												onPointerLeave={stopFrameHold}
+												onPointerCancel={stopFrameHold}
+												onKeyDown={(e) => {
+													if (e.key === 'Enter' || e.key === ' ') {
+														e.preventDefault();
+														stepCurrentFrame(1);
+													}
+												}}
+												disabled={!file || processing}
+												title="Next frame"
+												aria-label="Next frame"
+											>
+												<StepForward size={16} />
+											</Button>
+										}
+									/>
+									{file && timelineMode === 'full' && (
+										<div className="mt-3 rounded-lg border border-border/70 bg-bg/40 px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-text-tertiary">
+											<span className="font-medium text-text-secondary truncate max-w-full">
+												{file.name}
+											</span>
+											<span>{formatFileSize(file.size)}</span>
+											{sourceWidth && sourceHeight && (
+												<span>
+													{sourceWidth}&times;{sourceHeight}
+												</span>
+											)}
+											<span>{videoFps.toFixed(2)} fps</span>
+											<span>{formatCompactTime(duration)}</span>
+											<div className="flex-1" />
+											<button
+												onClick={() => {
+													setShowInfo(true);
+												}}
+												type="button"
+												aria-label="Open GIF file info"
+												className="inline-flex items-center gap-1 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
+												title="File info"
+											>
+												<Info size={13} />
+											</button>
+										</div>
+									)}
+								</>
 							)}
 						</div>
 					)}
@@ -1196,10 +1304,15 @@ function GifFoundry() {
 							<Settings size={20} className="text-white" />
 						</button>
 
-						{/* ── Desktop Sidebar ── */}
-						<aside className="hidden md:flex w-80 xl:w-88 shrink-0 overflow-hidden border-l border-border bg-surface flex-col">
+						<InspectorPane
+							width={inspectorWidth}
+							collapsed={inspectorCollapsed}
+							onCollapsedChange={setInspectorCollapsed}
+							onWidthChange={setInspectorWidth}
+							ariaLabel="gif inspector"
+						>
 							{sidebarContent}
-						</aside>
+						</InspectorPane>
 
 						{/* ── Mobile Sidebar Drawer ── */}
 						<Drawer
