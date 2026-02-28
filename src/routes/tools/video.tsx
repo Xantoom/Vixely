@@ -66,6 +66,7 @@ import { useTimelineScrubController } from '@/hooks/useTimelineScrubController.t
 import { useVideoMetadataLoader, type MetadataLoadStage } from '@/hooks/useVideoMetadataLoader.ts';
 import { useVideoProcessor } from '@/hooks/useVideoProcessor.ts';
 import { buildFfmpegExportPlan } from '@/modules/video-editor/export/ffmpeg-export-plan.ts';
+import { useEditorSessionStore } from '@/stores/editorSession.ts';
 import { useEditorUxStore } from '@/stores/editorUx.ts';
 import { useVideoEditorStore, type VideoMode } from '@/stores/videoEditor.ts';
 import { setPendingImageTransfer } from '@/utils/crossEditorTransfer.ts';
@@ -284,6 +285,14 @@ function VideoStudio() {
 
 	const isDirty = file !== null;
 	usePreventUnload(isDirty || processing);
+	const setEditorUnsaved = useEditorSessionStore((s) => s.setUnsaved);
+
+	useEffect(() => {
+		setEditorUnsaved('video', isDirty);
+		return () => {
+			setEditorUnsaved('video', false);
+		};
+	}, [isDirty, setEditorUnsaved]);
 
 	const videoStreamInfo = useMemo(() => probeResult?.streams.find((s) => s.type === 'video') ?? null, [probeResult]);
 	const videoFps = videoStreamInfo?.fps ?? 30;

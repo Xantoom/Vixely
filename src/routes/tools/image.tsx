@@ -17,6 +17,7 @@ import { useLongTaskObserver } from '@/hooks/useLongTaskObserver.ts';
 import { usePendingActionConfirmation } from '@/hooks/usePendingActionConfirmation.ts';
 import { usePreventUnload } from '@/hooks/usePreventUnload.ts';
 import { useSingleFileDrop } from '@/hooks/useSingleFileDrop.ts';
+import { useEditorSessionStore } from '@/stores/editorSession.ts';
 import { useImageEditorStore } from '@/stores/imageEditor.ts';
 import { consumePendingImageTransfer } from '@/utils/crossEditorTransfer.ts';
 
@@ -45,6 +46,7 @@ function ImageLab() {
 			hasUnsavedChanges: s.isDirty(),
 		})),
 	);
+	const setEditorUnsaved = useEditorSessionStore((s) => s.setUnsaved);
 
 	const canvasContainerRef = useRef<HTMLDivElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -54,6 +56,13 @@ function ImageLab() {
 		usePendingActionConfirmation(hasUnsavedChanges);
 	usePreventUnload(hasUnsavedChanges);
 
+	useEffect(() => {
+		setEditorUnsaved('image', hasUnsavedChanges);
+		return () => {
+			setEditorUnsaved('image', false);
+		};
+	}, [hasUnsavedChanges, setEditorUnsaved]);
+
 	const handleNew = useCallback(() => {
 		requestAction(() => {
 			clearAll();
@@ -61,30 +70,38 @@ function ImageLab() {
 	}, [clearAll, requestAction]);
 
 	const handleLoadFile = useCallback(
-		(f: File) => {
-			const img = new Image();
-			img.onload = () => {
+		async (f: File) => {
+			let bitmap: ImageBitmap | null = null;
+			try {
+				try {
+					bitmap = await createImageBitmap(f, { imageOrientation: 'from-image' });
+				} catch {
+					bitmap = await createImageBitmap(f);
+				}
+
 				const tmp = document.createElement('canvas');
-				tmp.width = img.width;
-				tmp.height = img.height;
-				const ctx = tmp.getContext('2d', { willReadFrequently: true })!;
-				ctx.drawImage(img, 0, 0);
-				const imageData = ctx.getImageData(0, 0, img.width, img.height);
+				tmp.width = bitmap.width;
+				tmp.height = bitmap.height;
+				const ctx = tmp.getContext('2d', { willReadFrequently: true });
+				if (!ctx) throw new Error('Canvas context unavailable');
+
+				ctx.drawImage(bitmap, 0, 0);
+				const imageData = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
 				loadImage(f, imageData);
-				URL.revokeObjectURL(img.src);
-				toast.success('Image loaded', { description: `${img.width} × ${img.height}` });
-			};
-			img.onerror = () => {
-				URL.revokeObjectURL(img.src);
+				toast.success('Image loaded', { description: `${bitmap.width} × ${bitmap.height}` });
+			} catch {
 				toast.error('Failed to load image');
-			};
-			img.src = URL.createObjectURL(f);
+			} finally {
+				bitmap?.close();
+			}
 		},
 		[loadImage],
 	);
 
 	const { isDragging, dropHandlers } = useSingleFileDrop<HTMLDivElement>({
-		onFile: handleLoadFile,
+		onFile: (file) => {
+			void handleLoadFile(file);
+		},
 		acceptFile: (file) => file.type.startsWith('image/') || ACCEPTED_TYPES.has(file.type),
 		onRejectedFile: () => {
 			toast.error('Invalid file type', { description: 'Drop an image file (PNG, JPG, WebP, etc.)' });
@@ -98,7 +115,7 @@ function ImageLab() {
 	useEffect(() => {
 		const transferredFile = consumePendingImageTransfer();
 		if (!transferredFile) return;
-		handleLoadFile(transferredFile);
+		void handleLoadFile(transferredFile);
 	}, [handleLoadFile]);
 
 	useEffect(() => {
@@ -146,7 +163,7 @@ function ImageLab() {
 				className="hidden"
 				onChange={(e) => {
 					const f = e.target.files?.[0];
-					if (f) handleLoadFile(f);
+					if (f) void handleLoadFile(f);
 				}}
 			/>
 

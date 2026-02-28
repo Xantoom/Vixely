@@ -8,7 +8,6 @@ import { PipelineRendererBase } from '@/modules/shared-core/render/pipelineRende
  * No CPU readback during editing — the canvas IS the output.
  */
 export class PhotoWebGLRenderer extends PipelineRendererBase {
-	private sourceBitmap: ImageBitmap | null = null;
 	private _width = 0;
 	private _height = 0;
 
@@ -30,21 +29,21 @@ export class PhotoWebGLRenderer extends PipelineRendererBase {
 
 	async loadFile(file: File): Promise<{ width: number; height: number }> {
 		const bitmap = await createImageBitmap(file);
-		this.loadBitmap(bitmap);
-		return { width: bitmap.width, height: bitmap.height };
+		try {
+			this.loadBitmap(bitmap);
+			return { width: bitmap.width, height: bitmap.height };
+		} finally {
+			bitmap.close();
+		}
 	}
 
 	loadBitmap(bitmap: ImageBitmap): void {
-		this.sourceBitmap?.close();
-		this.sourceBitmap = bitmap;
 		this._width = bitmap.width;
 		this._height = bitmap.height;
 		this.uploadImageBitmap(bitmap);
 	}
 
 	loadImageData(data: ImageData): void {
-		this.sourceBitmap?.close();
-		this.sourceBitmap = null;
 		this._width = data.width;
 		this._height = data.height;
 		this.uploadImageData(data);
@@ -52,11 +51,5 @@ export class PhotoWebGLRenderer extends PipelineRendererBase {
 
 	render(params: FilterParams): void {
 		this.renderFilters(params);
-	}
-
-	override destroy(): void {
-		this.sourceBitmap?.close();
-		this.sourceBitmap = null;
-		super.destroy();
 	}
 }

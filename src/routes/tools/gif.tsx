@@ -61,6 +61,7 @@ import { useSingleFileDrop } from '@/hooks/useSingleFileDrop.ts';
 import { useTimelineScrubController } from '@/hooks/useTimelineScrubController.ts';
 import { useVideoProcessor } from '@/hooks/useVideoProcessor.ts';
 import { filtersAreDefault } from '@/modules/shared-core/types/filters.ts';
+import { useEditorSessionStore } from '@/stores/editorSession.ts';
 import { useEditorUxStore } from '@/stores/editorUx.ts';
 import { useGifEditorStore, type GifMode } from '@/stores/gifEditor.ts';
 import { buildExportFilename } from '@/utils/exportFilename.ts';
@@ -282,6 +283,7 @@ function GifFoundry() {
 	const { isConfirmOpen, requestAction, confirmPendingAction, cancelPendingAction } = usePendingActionConfirmation(
 		file !== null,
 	);
+	const setEditorUnsaved = useEditorSessionStore((s) => s.setUnsaved);
 
 	const videoRef = useRef<HTMLVideoElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -312,6 +314,13 @@ function GifFoundry() {
 
 	const isDirty = file !== null;
 	usePreventUnload(isDirty || processing);
+
+	useEffect(() => {
+		setEditorUnsaved('gif', isDirty);
+		return () => {
+			setEditorUnsaved('gif', false);
+		};
+	}, [isDirty, setEditorUnsaved]);
 	const videoFps = Math.max(1, fps);
 	const frameDuration = useMemo(() => 1 / videoFps, [videoFps]);
 	const minTrimDuration = frameDuration;

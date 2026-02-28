@@ -13,6 +13,15 @@ export function createTexture(gl: WebGL2RenderingContext): WebGLTexture {
 	return texture;
 }
 
+function withFlippedSourceUpload(gl: WebGL2RenderingContext, upload: () => void): void {
+	gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+	try {
+		upload();
+	} finally {
+		gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+	}
+}
+
 export function uploadImageBitmap(
 	gl: WebGL2RenderingContext,
 	bitmap: ImageBitmap,
@@ -20,7 +29,9 @@ export function uploadImageBitmap(
 ): TextureHandle {
 	const texture = existing ?? createTexture(gl);
 	gl.bindTexture(gl.TEXTURE_2D, texture);
-	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bitmap);
+	withFlippedSourceUpload(gl, () => {
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bitmap);
+	});
 	return { texture, width: bitmap.width, height: bitmap.height };
 }
 
@@ -34,14 +45,18 @@ export function uploadVideoFrame(
 	const height = frame.displayHeight;
 	gl.bindTexture(gl.TEXTURE_2D, texture);
 	// VideoFrame is accepted by texImage2D in Chromium (zero-copy path)
-	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, frame);
+	withFlippedSourceUpload(gl, () => {
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, frame);
+	});
 	return { texture, width, height };
 }
 
 export function uploadImageData(gl: WebGL2RenderingContext, data: ImageData, existing?: WebGLTexture): TextureHandle {
 	const texture = existing ?? createTexture(gl);
 	gl.bindTexture(gl.TEXTURE_2D, texture);
-	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, data.width, data.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, data.data);
+	withFlippedSourceUpload(gl, () => {
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, data);
+	});
 	return { texture, width: data.width, height: data.height };
 }
 

@@ -1,11 +1,16 @@
-import { createRootRoute, Outlet, Link, useRouterState } from '@tanstack/react-router';
+import { createRootRoute, Outlet, Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools';
 import { Video, ImageIcon, Film, Home } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useRef, useState, useCallback, type MouseEvent as ReactMouseEvent } from 'react';
 import { Toaster } from 'sonner';
+import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
 import { CookieBanner } from '@/components/CookieBanner.tsx';
 import { PrivacyModal } from '@/components/PrivacyModal.tsx';
+import { useEditorSessionStore, type EditorKey } from '@/stores/editorSession.ts';
 import { useEditorUxStore } from '@/stores/editorUx.ts';
+import { useGifEditorStore } from '@/stores/gifEditor.ts';
+import { useImageEditorStore } from '@/stores/imageEditor.ts';
+import { useVideoEditorStore } from '@/stores/videoEditor.ts';
 
 export const Route = createRootRoute({ component: RootLayout });
 
@@ -56,14 +61,81 @@ const navItems = [
 	},
 ];
 
+type EditorTabRoute = (typeof navItems)[number]['to'];
+
+function editorFromPath(pathname: string): EditorKey | null {
+	if (pathname.startsWith('/tools/video')) return 'video';
+	if (pathname.startsWith('/tools/image')) return 'image';
+	if (pathname.startsWith('/tools/gif')) return 'gif';
+	return null;
+}
+
+function resetEditorByKey(editor: EditorKey): void {
+	if (editor === 'video') {
+		useVideoEditorStore.getState().resetAll();
+		return;
+	}
+	if (editor === 'image') {
+		useImageEditorStore.getState().clearAll();
+		return;
+	}
+	useGifEditorStore.getState().resetAll();
+}
+
 function RootLayout() {
+	const navigate = useNavigate();
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
 	const isHome = pathname === '/';
 	const hydrateEditorUx = useEditorUxStore((s) => s.hydrateFromStorage);
+	const unsavedByEditor = useEditorSessionStore((s) => s.unsavedByEditor);
+	const setEditorUnsaved = useEditorSessionStore((s) => s.setUnsaved);
+	const [pendingEditorRoute, setPendingEditorRoute] = useState<EditorTabRoute | null>(null);
+	const [isEditorSwitchConfirmOpen, setIsEditorSwitchConfirmOpen] = useState(false);
+	const previousEditorRef = useRef<EditorKey | null>(null);
 
 	useEffect(() => {
 		hydrateEditorUx();
 	}, [hydrateEditorUx]);
+
+	useEffect(() => {
+		const previousEditor = previousEditorRef.current;
+		const currentEditor = editorFromPath(pathname);
+		if (previousEditor && previousEditor !== currentEditor) {
+			resetEditorByKey(previousEditor);
+			setEditorUnsaved(previousEditor, false);
+		}
+		previousEditorRef.current = currentEditor;
+	}, [pathname, setEditorUnsaved]);
+
+	const handleEditorTabClick = useCallback(
+		(event: ReactMouseEvent, destination: EditorTabRoute) => {
+			if (destination === pathname) return;
+			const currentEditor = editorFromPath(pathname);
+			const nextEditor = editorFromPath(destination);
+			if (!currentEditor || !nextEditor || currentEditor === nextEditor) return;
+			if (!unsavedByEditor[currentEditor]) return;
+			event.preventDefault();
+			setPendingEditorRoute(destination);
+			setIsEditorSwitchConfirmOpen(true);
+		},
+		[pathname, unsavedByEditor],
+	);
+
+	const handleConfirmEditorSwitch = useCallback(() => {
+		if (!pendingEditorRoute) {
+			setIsEditorSwitchConfirmOpen(false);
+			return;
+		}
+		const destination = pendingEditorRoute;
+		setPendingEditorRoute(null);
+		setIsEditorSwitchConfirmOpen(false);
+		void navigate({ to: destination });
+	}, [navigate, pendingEditorRoute]);
+
+	const handleCancelEditorSwitch = useCallback(() => {
+		setPendingEditorRoute(null);
+		setIsEditorSwitchConfirmOpen(false);
+	}, []);
 
 	return (
 		<div className="flex flex-col md:flex-row h-full bg-bg text-text">
@@ -92,6 +164,9 @@ function RootLayout() {
 							<Link
 								key={item.to}
 								to={item.to}
+								onClick={(event) => {
+									handleEditorTabClick(event, item.to);
+								}}
 								className={`group relative flex flex-col items-center gap-0.5 rounded-lg py-2.5 transition-all ${
 									isActive
 										? `${item.activeBg} ${item.activeText}`
@@ -143,6 +218,9 @@ function RootLayout() {
 						<Link
 							key={item.to}
 							to={item.to}
+							onClick={(event) => {
+								handleEditorTabClick(event, item.to);
+							}}
 							className={`flex flex-col items-center gap-0.5 py-3 px-4 min-w-12 transition-all ${
 								isActive ? item.activeText : 'text-text-tertiary'
 							}`}
@@ -157,6 +235,9 @@ function RootLayout() {
 			{/* ── Overlays ── */}
 			<PrivacyModal />
 			<CookieBanner />
+			{isEditorSwitchConfirmOpen && (
+				<ConfirmResetModal onConfirm={handleConfirmEditorSwitch} onCancel={handleCancelEditorSwitch} />
+			)}
 
 			<AppToaster />
 
