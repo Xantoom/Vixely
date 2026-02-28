@@ -95,14 +95,14 @@ function RootLayout() {
 								className={`group relative flex flex-col items-center gap-0.5 rounded-lg py-2.5 transition-all ${
 									isActive
 										? `${item.activeBg} ${item.activeText}`
-										: 'text-text-tertiary hover:text-text-secondary hover:bg-white/[0.03]'
+										: 'text-text-tertiary hover:text-text-secondary hover:bg-white/3'
 								}`}
 							>
 								<item.icon className="h-5 w-5" />
 								<span className="text-[14px] font-semibold tracking-wide uppercase">{item.label}</span>
 								{isActive && (
 									<div
-										className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full ${item.indicator}`}
+										className={`absolute left-0 top-1/2 -translate-y-1/2 w-0.75 h-5 rounded-r-full ${item.indicator}`}
 									/>
 								)}
 							</Link>
@@ -130,7 +130,7 @@ function RootLayout() {
 			<nav className="md:hidden shrink-0 flex items-center justify-around border-t border-border-subtle bg-bg safe-area-bottom">
 				<Link
 					to="/"
-					className={`flex flex-col items-center gap-0.5 py-3 px-4 min-w-[3rem] transition-all ${
+					className={`flex flex-col items-center gap-0.5 py-3 px-4 min-w-12 transition-all ${
 						isHome ? 'text-accent' : 'text-text-tertiary'
 					}`}
 				>
@@ -143,7 +143,7 @@ function RootLayout() {
 						<Link
 							key={item.to}
 							to={item.to}
-							className={`flex flex-col items-center gap-0.5 py-3 px-4 min-w-[3rem] transition-all ${
+							className={`flex flex-col items-center gap-0.5 py-3 px-4 min-w-12 transition-all ${
 								isActive ? item.activeText : 'text-text-tertiary'
 							}`}
 						>
