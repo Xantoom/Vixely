@@ -1208,6 +1208,7 @@ function GifFoundry() {
 								<div className="flex flex-col items-center gap-6">
 									<EditorEmptyState
 										icon={Film}
+										variant="hero"
 										isDragging={isDragging}
 										title="No file loaded"
 										description="Drop a video or GIF, or click to get started"

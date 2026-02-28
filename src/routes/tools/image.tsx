@@ -49,6 +49,7 @@ function ImageLab() {
 	const canvasContainerRef = useRef<HTMLDivElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [drawerOpen, setDrawerOpen] = useState(false);
+	const hasImageLoaded = originalData !== null;
 	const { isConfirmOpen, requestAction, confirmPendingAction, cancelPendingAction } =
 		usePendingActionConfirmation(hasUnsavedChanges);
 	usePreventUnload(hasUnsavedChanges);
@@ -123,6 +124,12 @@ function ImageLab() {
 		};
 	}, [undo, redo]);
 
+	useEffect(() => {
+		if (!hasImageLoaded) {
+			setDrawerOpen(false);
+		}
+	}, [hasImageLoaded]);
+
 	return (
 		<>
 			<Seo
@@ -147,18 +154,23 @@ function ImageLab() {
 				editor="image"
 				main={
 					<>
-						<ImageToolbar containerRef={canvasContainerRef} />
+						{hasImageLoaded && <ImageToolbar containerRef={canvasContainerRef} />}
 						<div
 							ref={canvasContainerRef}
-							className={`flex-1 relative overflow-hidden checkerboard ${isDragging ? 'drop-zone-active' : ''}`}
+							className={`flex-1 relative overflow-hidden ${
+								hasImageLoaded
+									? 'checkerboard'
+									: 'workspace-bg flex items-center justify-center p-3 sm:p-6'
+							} ${isDragging ? 'drop-zone-active' : ''}`}
 							{...dropHandlers}
 						>
-							{originalData ? (
+							{hasImageLoaded ? (
 								<ImageCanvas containerRef={canvasContainerRef} />
 							) : (
-								<div className="flex-1 flex flex-col items-center justify-center h-full gap-6">
+								<div className="flex flex-col items-center gap-6">
 									<EditorEmptyState
 										icon={ImageIcon}
+										variant="hero"
 										isDragging={isDragging}
 										title="No image loaded"
 										description="Drop a file or click to get started"
@@ -169,7 +181,7 @@ function ImageLab() {
 								</div>
 							)}
 
-							{isDragging && originalData && (
+							{isDragging && hasImageLoaded && (
 								<div className="absolute inset-0 flex items-center justify-center bg-accent-surface/50 backdrop-blur-sm z-20 pointer-events-none">
 									<div className="rounded-xl border-2 border-dashed border-accent px-6 py-4 text-sm font-medium text-accent">
 										Drop to replace image
@@ -180,48 +192,54 @@ function ImageLab() {
 					</>
 				}
 				mobileToggle={
-					<button
-						className="md:hidden fixed bottom-20 right-4 z-30 h-12 w-12 rounded-full gradient-accent flex items-center justify-center shadow-lg cursor-pointer"
-						onClick={() => {
-							setDrawerOpen(true);
-						}}
-						type="button"
-						aria-label="Open image settings"
-						title="Open image settings"
-					>
-						<Settings size={20} className="text-white" />
-					</button>
+					hasImageLoaded ? (
+						<button
+							className="md:hidden fixed bottom-20 right-4 z-30 h-12 w-12 rounded-full gradient-accent flex items-center justify-center shadow-lg cursor-pointer"
+							onClick={() => {
+								setDrawerOpen(true);
+							}}
+							type="button"
+							aria-label="Open image settings"
+							title="Open image settings"
+						>
+							<Settings size={20} className="text-white" />
+						</button>
+					) : undefined
 				}
 				inspector={
-					<InspectorPane
-						width={inspectorWidth}
-						collapsed={inspectorCollapsed}
-						onCollapsedChange={setInspectorCollapsed}
-						onWidthChange={setInspectorWidth}
-						ariaLabel="image inspector"
-					>
-						<ImageSidebar
-							onOpenFile={handleOpenFile}
-							onNew={handleNew}
-							stage={stage}
-							onStageChange={setStage}
-						/>
-					</InspectorPane>
+					hasImageLoaded ? (
+						<InspectorPane
+							width={inspectorWidth}
+							collapsed={inspectorCollapsed}
+							onCollapsedChange={setInspectorCollapsed}
+							onWidthChange={setInspectorWidth}
+							ariaLabel="image inspector"
+						>
+							<ImageSidebar
+								onOpenFile={handleOpenFile}
+								onNew={handleNew}
+								stage={stage}
+								onStageChange={setStage}
+							/>
+						</InspectorPane>
+					) : undefined
 				}
 				mobileDrawer={
-					<Drawer
-						open={drawerOpen}
-						onClose={() => {
-							setDrawerOpen(false);
-						}}
-					>
-						<ImageSidebar
-							onOpenFile={handleOpenFile}
-							onNew={handleNew}
-							stage={stage}
-							onStageChange={setStage}
-						/>
-					</Drawer>
+					hasImageLoaded ? (
+						<Drawer
+							open={drawerOpen}
+							onClose={() => {
+								setDrawerOpen(false);
+							}}
+						>
+							<ImageSidebar
+								onOpenFile={handleOpenFile}
+								onNew={handleNew}
+								stage={stage}
+								onStageChange={setStage}
+							/>
+						</Drawer>
+					) : undefined
 				}
 				overlays={
 					isConfirmOpen ? (
