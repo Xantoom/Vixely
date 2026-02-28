@@ -2,7 +2,7 @@
  * Locale-aware formatting utilities for file sizes, dimensions, and numbers.
  */
 
-const locale = typeof navigator !== 'undefined' ? navigator.language : 'en-US';
+export const USER_LOCALE = typeof navigator !== 'undefined' && navigator.language ? navigator.language : 'en-US';
 
 /** Format bytes as human-readable file size (base-1024). */
 export function formatFileSize(bytes: number): string {
@@ -14,12 +14,18 @@ export function formatFileSize(bytes: number): string {
 
 /** Format image dimensions as "W x H" with locale number separators. */
 export function formatDimensions(w: number, h: number): string {
-	return `${w.toLocaleString(locale)} × ${h.toLocaleString(locale)}`;
+	return `${w.toLocaleString(USER_LOCALE)} × ${h.toLocaleString(USER_LOCALE)}`;
 }
 
 /** Generic locale number formatter. */
 export function formatNumber(n: number, decimals?: number): string {
-	return n.toLocaleString(locale, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+	return n.toLocaleString(USER_LOCALE, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+/** Format date/time with the user's locale. */
+export function formatDateTime(value: Date | number, options?: Intl.DateTimeFormatOptions): string {
+	const date = value instanceof Date ? value : new Date(value);
+	return date.toLocaleString(USER_LOCALE, options);
 }
 
 /**

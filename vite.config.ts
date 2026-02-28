@@ -31,6 +31,9 @@ export default defineConfig({
 		target: "esnext",
 		cssMinify: "lightningcss",
 		reportCompressedSize: false,
+		// @mediabunny/ac3 ships a large precompiled codec bundle (~1.15 MB minified).
+		// Keep the warning threshold above that known, intentional chunk size.
+		chunkSizeWarningLimit: 1300,
 		rollupOptions: {
 			output: {
 				manualChunks(id: string) {

@@ -26,6 +26,7 @@ registerAc3Encoder();
 
 interface TranscodeMessage {
 	type: 'TRANSCODE';
+	jobId: number;
 	file: File;
 	args: string[];
 	outputName: string;
@@ -34,6 +35,7 @@ interface TranscodeMessage {
 
 interface GifMessage {
 	type: 'GIF';
+	jobId: number;
 	file: File;
 	fps: number;
 	width: number;
@@ -43,26 +45,96 @@ interface GifMessage {
 	speed?: number;
 	reverse?: boolean;
 	maxColors?: number;
+	// Encoding
+	loopCount?: number;
+	compressionSpeed?: number;
+	frameDelaysCs?: number[];
+	// Transforms
+	cropX?: number;
+	cropY?: number;
+	cropW?: number;
+	cropH?: number;
+	rotation?: 0 | 90 | 180 | 270;
+	flipH?: boolean;
+	flipV?: boolean;
+	// Filters (CSS-mapped)
+	filterExposure?: number;
+	filterBrightness?: number;
+	filterContrast?: number;
+	filterSaturation?: number;
+	filterHue?: number;
+	filterSepia?: number;
+	filterBlur?: number;
+	filterHighlights?: number;
+	filterShadows?: number;
+	filterTemperature?: number;
+	filterTint?: number;
+	filterVignette?: number;
+	filterGrain?: number;
+	// Text overlays
+	textOverlays?: Array<{
+		text: string;
+		x: number;
+		y: number;
+		fontSize: number;
+		fontFamily: string;
+		color: string;
+		outlineColor: string;
+		outlineWidth: number;
+		opacity: number;
+	}>;
+	// Image overlay
+	imageOverlayBlob?: Blob;
+	imageOverlayX?: number;
+	imageOverlayY?: number;
+	imageOverlayWidth?: number;
+	imageOverlayHeight?: number;
+	imageOverlayOpacity?: number;
+	// Fade
+	fadeInFrames?: number;
+	fadeOutFrames?: number;
+	fadeColor?: string;
+	// Aspect ratio padding
+	aspectRatio?: number; // target ratio (width/height), e.g. 16/9
+	aspectPaddingColor?: string; // CSS color for padding fill
+}
+
+interface ExtractGifFramesMessage {
+	type: 'EXTRACT_GIF_FRAMES';
+	jobId: number;
+	file: File;
+	fps: number;
+	width: number;
+	height?: number;
+	startTime?: number;
+	duration?: number;
+	speed?: number;
+	reverse?: boolean;
+	thumbWidth?: number;
 }
 
 interface ScreenshotMessage {
 	type: 'SCREENSHOT';
+	jobId: number;
 	file: File;
 	timestamp: number;
 }
 
 interface ProbeMessage {
 	type: 'PROBE';
+	jobId: number;
 	file: File;
 }
 
 interface ProbeDetailsMessage {
 	type: 'PROBE_DETAILS';
+	jobId: number;
 	file: File;
 }
 
 interface SubtitlePreviewMessage {
 	type: 'SUBTITLE_PREVIEW';
+	jobId: number;
 	requestId: number;
 	file: File;
 	streamIndex: number;
@@ -71,21 +143,32 @@ interface SubtitlePreviewMessage {
 
 interface ExtractFontsMessage {
 	type: 'EXTRACT_FONTS';
+	jobId: number;
 	file: File;
 	attachments: FontAttachmentInfo[];
 }
 
-type WorkerMessage =
+interface AbortMessage {
+	type: 'ABORT';
+	jobId: number;
+	reason?: string;
+}
+
+type WorkerCommandMessage =
 	| TranscodeMessage
 	| GifMessage
+	| ExtractGifFramesMessage
 	| ScreenshotMessage
 	| ProbeMessage
 	| ProbeDetailsMessage
 	| SubtitlePreviewMessage
 	| ExtractFontsMessage;
 
+type WorkerMessage = WorkerCommandMessage | AbortMessage;
+
 interface ProgressPayload {
 	type: 'PROGRESS';
+	jobId?: number;
 	progress: number;
 	time: number;
 	fps: number;
@@ -95,47 +178,56 @@ interface ProgressPayload {
 
 interface DonePayload {
 	type: 'DONE';
+	jobId?: number;
 	data: Uint8Array;
 	outputName: string;
 }
 
 interface ErrorPayload {
 	type: 'ERROR';
+	jobId?: number;
 	error: string;
 }
 
 interface ReadyPayload {
 	type: 'READY';
+	jobId?: number;
 }
 
 interface StartedPayload {
 	type: 'STARTED';
+	jobId?: number;
 	job: 'transcode' | 'gif' | 'screenshot';
 }
 
 interface LogPayload {
 	type: 'LOG';
+	jobId?: number;
 	message: string;
 }
 
 interface ProbeStatusPayload {
 	type: 'PROBE_STATUS';
+	jobId?: number;
 	status: string;
 }
 
 interface ProbeResultPayload {
 	type: 'PROBE_RESULT';
+	jobId?: number;
 	result: ProbeResultData;
 	fonts: Array<{ name: string; data: Uint8Array }>;
 }
 
 interface ProbeDetailsResultPayload {
 	type: 'PROBE_DETAILS_RESULT';
+	jobId?: number;
 	result: DetailedProbeResultData;
 }
 
 interface SubtitlePreviewResultPayload {
 	type: 'SUBTITLE_PREVIEW_RESULT';
+	jobId?: number;
 	requestId: number;
 	format: 'ass' | 'webvtt';
 	content: string;
@@ -143,7 +235,15 @@ interface SubtitlePreviewResultPayload {
 
 interface FontsResultPayload {
 	type: 'FONTS_RESULT';
+	jobId?: number;
 	fonts: Array<{ name: string; data: Uint8Array }>;
+}
+
+interface FramesExtractedPayload {
+	type: 'FRAMES_EXTRACTED';
+	jobId?: number;
+	frames: Array<{ index: number; blob: Blob; width: number; height: number; timeMs: number }>;
+	totalFrames: number;
 }
 
 export interface ProbeStreamInfo {
@@ -236,7 +336,8 @@ type WorkerResponse =
 	| ProbeResultPayload
 	| ProbeDetailsResultPayload
 	| SubtitlePreviewResultPayload
-	| FontsResultPayload;
+	| FontsResultPayload
+	| FramesExtractedPayload;
 
 type OutputContainer = 'mp4' | 'mkv' | 'webm';
 
@@ -279,17 +380,57 @@ const TRANSCODE_AUDIO_CODEC_MAP: Readonly<Record<string, NonNullable<ParsedTrans
 
 // ── Helpers ──
 
+let activeJobId: number | null = null;
+let activeJobCanceller: ((reason: string) => Promise<void> | void) | null = null;
+const cancelledJobReasons = new Map<number, string>();
+
 function post(payload: WorkerResponse, transfer?: Transferable[]): void {
+	const message =
+		payload.type !== 'READY' && payload.jobId == null && activeJobId != null
+			? ({ ...payload, jobId: activeJobId } as WorkerResponse)
+			: payload;
 	if (transfer && transfer.length > 0) {
-		self.postMessage(payload, { transfer });
+		self.postMessage(message, { transfer });
 		return;
 	}
-	self.postMessage(payload);
+	self.postMessage(message);
+}
+
+function setActiveJobCanceller(jobId: number, canceller: ((reason: string) => Promise<void> | void) | null): void {
+	if (activeJobId !== jobId) return;
+	activeJobCanceller = canceller;
+}
+
+function clearCancelledJob(jobId: number): void {
+	cancelledJobReasons.delete(jobId);
+}
+
+function getCancelReason(jobId: number): string | undefined {
+	return cancelledJobReasons.get(jobId);
+}
+
+function ensureJobNotCancelled(jobId: number): void {
+	const reason = getCancelReason(jobId);
+	if (reason) throw new Error(reason);
+}
+
+async function maybeYieldAndCheckCancellation(jobId: number, index: number, every = 6): Promise<void> {
+	if (index % every !== 0) return;
+	await new Promise<void>((resolve) => {
+		setTimeout(resolve, 0);
+	});
+	ensureJobNotCancelled(jobId);
+}
+
+function postPerfLog(event: string, payload: Record<string, unknown>): void {
+	post({
+		type: 'LOG',
+		message: `[perf] ${JSON.stringify({ scope: 'ffmpeg-worker', event, timestampMs: Date.now(), ...payload })}`,
+	});
 }
 
 function sendBytesDone(type: 'DONE', data: Uint8Array, outputName?: string): void {
-	const copy = new Uint8Array(data);
-	post({ type: 'DONE', data: copy, outputName: outputName ?? 'output.bin' }, [copy.buffer]);
+	post({ type: 'DONE', data, outputName: outputName ?? 'output.bin' }, [data.buffer]);
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -741,16 +882,22 @@ function splitSelectedTrackIdsByType(
 }
 
 async function handleProbe(msg: ProbeMessage): Promise<void> {
+	ensureJobNotCancelled(msg.jobId);
 	post({ type: 'PROBE_STATUS', status: 'Reading stream metadata...' });
 
 	const input = new Input({ source: new BlobSource(msg.file), formats: ALL_FORMATS });
+	setActiveJobCanceller(msg.jobId, () => {
+		input.dispose();
+	});
 	try {
+		ensureJobNotCancelled(msg.jobId);
 		const [format, duration, tracks, tags] = await Promise.all([
 			input.getFormat(),
 			input.computeDuration(),
 			input.getTracks(),
 			input.getMetadataTags(),
 		]);
+		ensureJobNotCancelled(msg.jobId);
 
 		const mediaTracks = toMediaTracks(tracks);
 		const streamEntries = await mapInBatches(
@@ -798,16 +945,23 @@ async function handleProbe(msg: ProbeMessage): Promise<void> {
 			fontAttachments,
 		};
 
+		ensureJobNotCancelled(msg.jobId);
 		post({ type: 'PROBE_STATUS', status: '' });
 		post({ type: 'PROBE_RESULT', result, fonts });
 	} finally {
+		setActiveJobCanceller(msg.jobId, null);
 		input.dispose();
 	}
 }
 
 async function handleProbeDetails(msg: ProbeDetailsMessage): Promise<void> {
+	ensureJobNotCancelled(msg.jobId);
 	const input = new Input({ source: new BlobSource(msg.file), formats: ALL_FORMATS });
+	setActiveJobCanceller(msg.jobId, () => {
+		input.dispose();
+	});
 	try {
+		ensureJobNotCancelled(msg.jobId);
 		const [format, duration, tracks, tags, mimeType] = await Promise.all([
 			input.getFormat(),
 			input.computeDuration(),
@@ -815,6 +969,7 @@ async function handleProbeDetails(msg: ProbeDetailsMessage): Promise<void> {
 			input.getMetadataTags(),
 			input.getMimeType(),
 		]);
+		ensureJobNotCancelled(msg.jobId);
 
 		const mediaTracks = toMediaTracks(tracks);
 		const streams = await mapInBatches(
@@ -947,15 +1102,22 @@ async function handleProbeDetails(msg: ProbeDetailsMessage): Promise<void> {
 			chapters: [],
 		};
 
+		ensureJobNotCancelled(msg.jobId);
 		post({ type: 'PROBE_DETAILS_RESULT', result });
 	} finally {
+		setActiveJobCanceller(msg.jobId, null);
 		input.dispose();
 	}
 }
 
 async function handleExtractFonts(msg: ExtractFontsMessage): Promise<void> {
+	ensureJobNotCancelled(msg.jobId);
 	const input = new Input({ source: new BlobSource(msg.file), formats: ALL_FORMATS });
+	setActiveJobCanceller(msg.jobId, () => {
+		input.dispose();
+	});
 	try {
+		ensureJobNotCancelled(msg.jobId);
 		const tags = await input.getMetadataTags();
 		const selectedNames = parseAttachmentSelection(msg.attachments);
 		const fonts: Array<{ name: string; data: Uint8Array }> = [];
@@ -967,16 +1129,24 @@ async function handleExtractFonts(msg: ExtractFontsMessage): Promise<void> {
 			fonts.push({ name, data: new Uint8Array(attachment.file.data) });
 		}
 
+		ensureJobNotCancelled(msg.jobId);
 		post({ type: 'FONTS_RESULT', fonts });
 	} finally {
+		setActiveJobCanceller(msg.jobId, null);
 		input.dispose();
 	}
 }
 
 async function handleScreenshot(msg: ScreenshotMessage): Promise<void> {
+	ensureJobNotCancelled(msg.jobId);
 	post({ type: 'STARTED', job: 'screenshot' });
+	const startedAtMs = performance.now();
 	const input = new Input({ source: new BlobSource(msg.file), formats: ALL_FORMATS });
+	setActiveJobCanceller(msg.jobId, () => {
+		input.dispose();
+	});
 	try {
+		ensureJobNotCancelled(msg.jobId);
 		const videoTrack = await input.getPrimaryVideoTrack();
 		if (!videoTrack) throw new Error('No video track found');
 
@@ -985,18 +1155,142 @@ async function handleScreenshot(msg: ScreenshotMessage): Promise<void> {
 		const wrapped = (await sink.getCanvas(msg.timestamp)) ?? (await sink.getCanvas(firstTimestamp));
 		if (!wrapped) throw new Error('No frame available at requested timestamp');
 
+		ensureJobNotCancelled(msg.jobId);
 		const bytes = await canvasToPngBytes(wrapped.canvas);
+		ensureJobNotCancelled(msg.jobId);
 		sendBytesDone('DONE', bytes, 'screenshot.png');
+		postPerfLog('screenshot_done', {
+			inputFileName: msg.file.name,
+			inputFileBytes: msg.file.size,
+			outputBytes: bytes.byteLength,
+			timestampSec: msg.timestamp,
+			totalDurationMs: Math.round(performance.now() - startedAtMs),
+		});
+	} catch (error) {
+		postPerfLog('screenshot_error', {
+			inputFileName: msg.file.name,
+			inputFileBytes: msg.file.size,
+			timestampSec: msg.timestamp,
+			totalDurationMs: Math.round(performance.now() - startedAtMs),
+			error: error instanceof Error ? error.message : String(error),
+		});
+		throw error;
 	} finally {
+		setActiveJobCanceller(msg.jobId, null);
+		input.dispose();
+	}
+}
+
+async function handleExtractGifFrames(msg: ExtractGifFramesMessage): Promise<void> {
+	ensureJobNotCancelled(msg.jobId);
+	post({ type: 'STARTED', job: 'gif' });
+	const startedAtMs = performance.now();
+
+	const input = new Input({ source: new BlobSource(msg.file), formats: ALL_FORMATS });
+	setActiveJobCanceller(msg.jobId, () => {
+		input.dispose();
+	});
+	try {
+		ensureJobNotCancelled(msg.jobId);
+		const videoTrack = await input.getPrimaryVideoTrack();
+		if (!videoTrack) throw new Error('No video track found');
+
+		const trackStart = await videoTrack.getFirstTimestamp();
+		const trackDuration = await videoTrack.computeDuration();
+		const clipStart = clamp(msg.startTime ?? trackStart, trackStart, Math.max(trackStart, trackDuration));
+		const clipDuration = Math.max(0.1, msg.duration ?? Math.max(0.1, trackDuration - clipStart));
+		const speed = clamp(msg.speed ?? 1, 0.1, 8);
+		const fps = clamp(Math.round(msg.fps), 1, 60);
+		const outputFrameCount = Math.max(1, Math.min(600, Math.round((clipDuration / speed) * fps)));
+		const sourceStep = speed / fps;
+		const thumbW = msg.thumbWidth ?? 120;
+
+		const height =
+			msg.height ?? Math.max(1, Math.round((msg.width / videoTrack.displayWidth) * videoTrack.displayHeight));
+		const thumbH = Math.round(thumbW * (height / msg.width));
+
+		const sink = new CanvasSink(videoTrack, {
+			width: Math.max(1, thumbW),
+			height: Math.max(1, thumbH),
+			fit: 'contain',
+			poolSize: 1,
+		});
+
+		const thumbCanvas = new OffscreenCanvas(thumbW, thumbH);
+		const thumbCtx = thumbCanvas.getContext('2d', { alpha: true });
+		if (!thumbCtx) throw new Error('Failed to create thumbnail context');
+
+		const extractedFrames: Array<{ index: number; blob: Blob; width: number; height: number; timeMs: number }> = [];
+
+		const frameIndices = Array.from({ length: outputFrameCount }, (_, index) => index);
+		await mapInBatches(
+			frameIndices,
+			async (i) => {
+				await maybeYieldAndCheckCancellation(msg.jobId, i);
+				const offset = i * sourceStep;
+				const sourceTime = msg.reverse ? clipStart + Math.max(clipDuration - offset, 0) : clipStart + offset;
+				const wrapped = await sink.getCanvas(sourceTime);
+				if (!wrapped) return;
+
+				thumbCtx.clearRect(0, 0, thumbCanvas.width, thumbCanvas.height);
+				thumbCtx.drawImage(wrapped.canvas, 0, 0, thumbCanvas.width, thumbCanvas.height);
+
+				const blob = await thumbCanvas.convertToBlob({ type: 'image/png' });
+				extractedFrames.push({
+					index: i,
+					blob,
+					width: thumbW,
+					height: thumbH,
+					timeMs: Math.round(sourceTime * 1000),
+				});
+
+				const progress = (i + 1) / outputFrameCount;
+				post({ type: 'PROGRESS', progress, time: sourceTime, fps, frame: i + 1, speed });
+			},
+			1,
+		);
+
+		ensureJobNotCancelled(msg.jobId);
+		post({ type: 'FRAMES_EXTRACTED', frames: extractedFrames, totalFrames: extractedFrames.length });
+		postPerfLog('extract_gif_frames_done', {
+			inputFileName: msg.file.name,
+			inputFileBytes: msg.file.size,
+			outputFrameCount: extractedFrames.length,
+			thumbnailWidth: thumbW,
+			thumbnailHeight: thumbH,
+			estimatedOutputRgbaBytes: extractedFrames.length * thumbW * thumbH * 4,
+			totalDurationMs: Math.round(performance.now() - startedAtMs),
+		});
+	} catch (error) {
+		postPerfLog('extract_gif_frames_error', {
+			inputFileName: msg.file.name,
+			inputFileBytes: msg.file.size,
+			totalDurationMs: Math.round(performance.now() - startedAtMs),
+			error: error instanceof Error ? error.message : String(error),
+		});
+		throw error;
+	} finally {
+		setActiveJobCanceller(msg.jobId, null);
 		input.dispose();
 	}
 }
 
 async function handleGif(msg: GifMessage): Promise<void> {
+	ensureJobNotCancelled(msg.jobId);
 	post({ type: 'STARTED', job: 'gif' });
+	const startedAtMs = performance.now();
+	let decodeDurationMs = 0;
+	let renderDurationMs = 0;
+	let encodeDurationMs = 0;
+	let frameCount = 0;
+	let estimatedFrameBytes = 0;
 
 	const input = new Input({ source: new BlobSource(msg.file), formats: ALL_FORMATS });
+	setActiveJobCanceller(msg.jobId, () => {
+		input.dispose();
+	});
 	try {
+		ensureJobNotCancelled(msg.jobId);
 		const videoTrack = await input.getPrimaryVideoTrack();
 		if (!videoTrack) throw new Error('No video track found');
 
@@ -1009,50 +1303,196 @@ async function handleGif(msg: GifMessage): Promise<void> {
 		const outputFrameCount = Math.max(1, Math.min(600, Math.round((clipDuration / speed) * fps)));
 		const sourceStep = speed / fps;
 
-		const height =
-			msg.height ?? Math.max(1, Math.round((msg.width / videoTrack.displayWidth) * videoTrack.displayHeight));
-		const sink = new CanvasSink(videoTrack, {
-			width: Math.max(1, msg.width),
-			height: Math.max(1, height),
-			fit: 'contain',
-			poolSize: 1,
-		});
+		// ── Determine canvas size with crop/rotation ──
+		const hasCrop =
+			msg.cropX != null &&
+			msg.cropY != null &&
+			msg.cropW != null &&
+			msg.cropH != null &&
+			msg.cropW > 0 &&
+			msg.cropH > 0;
+		const rotation = msg.rotation ?? 0;
+		const flipH = msg.flipH ?? false;
+		const flipV = msg.flipV ?? false;
+		const hasRotation = rotation !== 0 || flipH || flipV;
 
-		const frameCanvas = new OffscreenCanvas(Math.max(1, msg.width), Math.max(1, height));
+		// Source canvas dimensions (after crop, before rotation)
+		const sourceW = hasCrop ? Math.max(1, Math.round(msg.cropW!)) : Math.max(1, msg.width);
+		const sourceH = hasCrop
+			? Math.max(1, Math.round(msg.cropH!))
+			: Math.max(
+					1,
+					msg.height ??
+						Math.max(1, Math.round((msg.width / videoTrack.displayWidth) * videoTrack.displayHeight)),
+				);
+
+		// Sink reads at original resolution (before crop), crop applied during frame compositing
+		const sinkW = Math.max(1, msg.width);
+		const sinkH = Math.max(
+			1,
+			msg.height ?? Math.max(1, Math.round((msg.width / videoTrack.displayWidth) * videoTrack.displayHeight)),
+		);
+
+		// Output dimensions (swap W/H for 90/270 rotation)
+		const outputW = rotation === 90 || rotation === 270 ? sourceH : sourceW;
+		const outputH = rotation === 90 || rotation === 270 ? sourceW : sourceH;
+
+		// Aspect ratio padding: compute final canvas dims with letterbox/pillarbox
+		const targetRatio = msg.aspectRatio ?? null;
+		let finalW = outputW;
+		let finalH = outputH;
+		if (targetRatio) {
+			const actualRatio = outputW / outputH;
+			if (actualRatio > targetRatio) {
+				finalH = Math.round(outputW / targetRatio);
+			} else {
+				finalW = Math.round(outputH * targetRatio);
+			}
+		}
+		const padX = Math.round((finalW - outputW) / 2);
+		const padY = Math.round((finalH - outputH) / 2);
+		const hasAspectPad = finalW !== outputW || finalH !== outputH;
+
+		const sink = new CanvasSink(videoTrack, { width: sinkW, height: sinkH, fit: 'contain', poolSize: 1 });
+
+		// ── Pre-load image overlay bitmap ──
+		let overlayBitmap: ImageBitmap | null = null;
+		if (msg.imageOverlayBlob) {
+			try {
+				overlayBitmap = await createImageBitmap(msg.imageOverlayBlob);
+			} catch {
+				// ignore — overlay won't be applied
+			}
+		}
+
+		// ── Build CSS filter string ──
+		const cssFilter = buildCssFilter(msg);
+
+		// Intermediate canvas for per-frame transforms (outputW × outputH)
+		const frameCanvas = new OffscreenCanvas(outputW, outputH);
 		const frameCtx = frameCanvas.getContext('2d', { alpha: true });
 		if (!frameCtx) throw new Error('Failed to create frame context');
 
+		// Final canvas for encoder (finalW × finalH — includes aspect padding if any)
+		const finalCanvas = hasAspectPad ? new OffscreenCanvas(finalW, finalH) : frameCanvas;
+		const finalCtx = hasAspectPad ? finalCanvas.getContext('2d', { alpha: true }) : frameCtx;
+		if (!finalCtx) throw new Error('Failed to create final frame context');
+
 		const frameIndices = Array.from({ length: outputFrameCount }, (_, index) => index);
+		const decodeStartedAtMs = performance.now();
 		const wrappedFrames = await mapInBatches(
 			frameIndices,
 			async (i) => {
+				await maybeYieldAndCheckCancellation(msg.jobId, i);
 				const offset = i * sourceStep;
 				const sourceTime = msg.reverse ? clipStart + Math.max(clipDuration - offset, 0) : clipStart + offset;
 				const wrapped = await sink.getCanvas(sourceTime);
+				ensureJobNotCancelled(msg.jobId);
 				return { i, wrapped };
 			},
 			1,
 		);
+		decodeDurationMs = performance.now() - decodeStartedAtMs;
 
-		const frames: Uint8Array[] = [];
-		for (const { i, wrapped } of wrappedFrames) {
-			if (!wrapped) continue;
-			frameCtx.clearRect(0, 0, frameCanvas.width, frameCanvas.height);
-			frameCtx.drawImage(wrapped.canvas, 0, 0, frameCanvas.width, frameCanvas.height);
-			frames.push(new Uint8Array(frameCtx.getImageData(0, 0, frameCanvas.width, frameCanvas.height).data));
-			const progress = Math.min(0.85, ((i + 1) / outputFrameCount) * 0.85);
-			post({ type: 'PROGRESS', progress, time: i / fps, fps, frame: i + 1, speed });
-		}
+		const renderedFrames: Array<Uint8Array | null> = Array.from({ length: wrappedFrames.length }, () => null);
+		const renderStartedAtMs = performance.now();
+		await mapInBatches(
+			wrappedFrames,
+			async ({ i, wrapped }, frameIndex) => {
+				await maybeYieldAndCheckCancellation(msg.jobId, i);
+				if (!wrapped) return null;
+				frameCtx.clearRect(0, 0, frameCanvas.width, frameCanvas.height);
+
+				// Apply CSS filter
+				if (cssFilter) frameCtx.filter = cssFilter;
+
+				// Apply rotation/flip (canvas transform handles visual rotation; drawImage always uses source dims)
+				if (hasRotation) {
+					frameCtx.save();
+					applyCanvasTransform(frameCtx, outputW, outputH, rotation, flipH, flipV);
+				}
+
+				// Draw frame — destination always sourceW × sourceH (transform handles rotation)
+				if (hasCrop) {
+					frameCtx.drawImage(
+						wrapped.canvas,
+						msg.cropX!,
+						msg.cropY!,
+						msg.cropW!,
+						msg.cropH!,
+						0,
+						0,
+						sourceW,
+						sourceH,
+					);
+				} else {
+					frameCtx.drawImage(wrapped.canvas, 0, 0, sourceW, sourceH);
+				}
+
+				if (hasRotation) frameCtx.restore();
+
+				// Reset filter for overlays
+				if (cssFilter) frameCtx.filter = 'none';
+
+				// Apply advanced pixel effects (vignette, grain, highlights/shadows, temperature/tint)
+				applyPixelEffects(frameCtx, outputW, outputH, msg);
+
+				// Draw image overlay
+				if (overlayBitmap) {
+					applyImageOverlay(frameCtx, overlayBitmap, outputW, outputH, msg);
+				}
+
+				// Draw text overlays
+				if (msg.textOverlays && msg.textOverlays.length > 0) {
+					applyTextOverlays(frameCtx, outputW, outputH, msg.textOverlays);
+				}
+
+				// Apply fade overlay
+				const fadeAlpha = getFadeAlpha(i, outputFrameCount, msg.fadeInFrames ?? 0, msg.fadeOutFrames ?? 0);
+				if (fadeAlpha > 0 && msg.fadeColor !== 'transparent') {
+					frameCtx.globalAlpha = fadeAlpha;
+					frameCtx.fillStyle = msg.fadeColor === 'white' ? '#ffffff' : '#000000';
+					frameCtx.fillRect(0, 0, outputW, outputH);
+					frameCtx.globalAlpha = 1;
+				}
+
+				// Composite onto final canvas with aspect-ratio padding (if needed)
+				if (hasAspectPad) {
+					finalCtx.clearRect(0, 0, finalW, finalH);
+					finalCtx.fillStyle = msg.aspectPaddingColor ?? '#000000';
+					finalCtx.fillRect(0, 0, finalW, finalH);
+					finalCtx.drawImage(frameCanvas, padX, padY);
+				}
+
+				renderedFrames[frameIndex] = new Uint8Array(
+					finalCtx.getImageData(0, 0, finalCanvas.width, finalCanvas.height).data,
+				);
+				const progress = Math.min(0.85, ((i + 1) / outputFrameCount) * 0.85);
+				post({ type: 'PROGRESS', progress, time: i / fps, fps, frame: i + 1, speed });
+				return null;
+			},
+			1,
+		);
+		renderDurationMs = performance.now() - renderStartedAtMs;
+		const frames = renderedFrames.filter((frame): frame is Uint8Array => frame != null);
+
+		overlayBitmap?.close();
 
 		if (frames.length === 0) throw new Error('No frames extracted for GIF');
+		frameCount = frames.length;
+		estimatedFrameBytes = frames.length * finalCanvas.width * finalCanvas.height * 4;
 
+		ensureJobNotCancelled(msg.jobId);
+		const encodeStartedAtMs = performance.now();
 		const blob = await encodeGif({
 			frames,
-			width: frameCanvas.width,
-			height: frameCanvas.height,
+			width: finalCanvas.width,
+			height: finalCanvas.height,
 			fps,
 			maxColors: clamp(msg.maxColors ?? 256, 2, 256),
-			speed: 10,
+			speed: msg.compressionSpeed ?? 10,
+			loopCount: msg.loopCount ?? 0,
+			frameDelaysCs: msg.frameDelaysCs,
 			onProgress: (progress) => {
 				post({
 					type: 'PROGRESS',
@@ -1064,20 +1504,252 @@ async function handleGif(msg: GifMessage): Promise<void> {
 				});
 			},
 		});
+		encodeDurationMs = performance.now() - encodeStartedAtMs;
 
+		ensureJobNotCancelled(msg.jobId);
 		const bytes = new Uint8Array(await blob.arrayBuffer());
 		sendBytesDone('DONE', bytes, 'output.gif');
+		postPerfLog('gif_encode_done', {
+			inputFileName: msg.file.name,
+			inputFileBytes: msg.file.size,
+			outputFileBytes: bytes.byteLength,
+			outputFrameCount: frameCount,
+			outputWidth: finalCanvas.width,
+			outputHeight: finalCanvas.height,
+			estimatedFrameBytes,
+			decodeDurationMs: Math.round(decodeDurationMs),
+			renderDurationMs: Math.round(renderDurationMs),
+			encodeDurationMs: Math.round(encodeDurationMs),
+			totalDurationMs: Math.round(performance.now() - startedAtMs),
+		});
+	} catch (error) {
+		postPerfLog('gif_encode_error', {
+			inputFileName: msg.file.name,
+			inputFileBytes: msg.file.size,
+			outputFrameCount: frameCount,
+			estimatedFrameBytes,
+			decodeDurationMs: Math.round(decodeDurationMs),
+			renderDurationMs: Math.round(renderDurationMs),
+			encodeDurationMs: Math.round(encodeDurationMs),
+			totalDurationMs: Math.round(performance.now() - startedAtMs),
+			error: error instanceof Error ? error.message : String(error),
+		});
+		throw error;
 	} finally {
+		setActiveJobCanceller(msg.jobId, null);
 		input.dispose();
 	}
 }
 
+// ── Transform Helpers ──
+
+function buildCssFilter(msg: GifMessage): string {
+	const parts: string[] = [];
+	const exposure = msg.filterExposure ?? 1;
+	const brightness = msg.filterBrightness ?? 0;
+	const contrast = msg.filterContrast ?? 1;
+	const saturation = msg.filterSaturation ?? 1;
+	const hue = msg.filterHue ?? 0;
+	const sepia = msg.filterSepia ?? 0;
+	const blur = msg.filterBlur ?? 0;
+
+	// Combined brightness-style: exposure * (1 + brightness offset mapped to multiplier)
+	const brightnessVal = exposure * (1 + brightness);
+	if (Math.abs(brightnessVal - 1) > 0.01) parts.push(`brightness(${brightnessVal.toFixed(3)})`);
+	if (Math.abs(contrast - 1) > 0.01) parts.push(`contrast(${contrast.toFixed(3)})`);
+	if (Math.abs(saturation - 1) > 0.01) parts.push(`saturate(${saturation.toFixed(3)})`);
+	if (Math.abs(hue) > 0.5) parts.push(`hue-rotate(${hue.toFixed(1)}deg)`);
+	if (sepia > 0.01) parts.push(`sepia(${sepia.toFixed(3)})`);
+	if (blur > 0.1) parts.push(`blur(${blur.toFixed(2)}px)`);
+
+	return parts.join(' ');
+}
+
+function applyCanvasTransform(
+	ctx: OffscreenCanvasRenderingContext2D,
+	outputW: number,
+	outputH: number,
+	rotation: number,
+	flipH: boolean,
+	flipV: boolean,
+): void {
+	// Source dims (pre-rotation) - 90°/270° swaps W and H
+	const srcW = rotation === 90 || rotation === 270 ? outputH : outputW;
+	const srcH = rotation === 90 || rotation === 270 ? outputW : outputH;
+
+	ctx.translate(outputW / 2, outputH / 2);
+	if (rotation === 90) ctx.rotate(Math.PI / 2);
+	else if (rotation === 180) ctx.rotate(Math.PI);
+	else if (rotation === 270) ctx.rotate(-Math.PI / 2);
+	if (flipH) ctx.scale(-1, 1);
+	if (flipV) ctx.scale(1, -1);
+	ctx.translate(-srcW / 2, -srcH / 2);
+}
+
+function applyImageOverlay(
+	ctx: OffscreenCanvasRenderingContext2D,
+	bitmap: ImageBitmap,
+	canvasW: number,
+	canvasH: number,
+	msg: GifMessage,
+): void {
+	const w = msg.imageOverlayWidth ?? bitmap.width;
+	const h = msg.imageOverlayHeight ?? bitmap.height;
+	const opacity = msg.imageOverlayOpacity ?? 1;
+
+	// Special positioning: -1 = align to right/bottom, -2 = center
+	let x = msg.imageOverlayX ?? 0;
+	let y = msg.imageOverlayY ?? 0;
+	if (x === -1) x = canvasW - w;
+	else if (x === -2) x = (canvasW - w) / 2;
+	if (y === -1) y = canvasH - h;
+	else if (y === -2) y = (canvasH - h) / 2;
+
+	ctx.globalAlpha = clamp(opacity, 0, 1);
+	ctx.drawImage(bitmap, x, y, w, h);
+	ctx.globalAlpha = 1;
+}
+
+function applyTextOverlays(
+	ctx: OffscreenCanvasRenderingContext2D,
+	canvasW: number,
+	canvasH: number,
+	overlays: NonNullable<GifMessage['textOverlays']>,
+): void {
+	for (const o of overlays) {
+		ctx.save();
+		ctx.globalAlpha = o.opacity;
+		ctx.font = `${o.fontSize}px ${o.fontFamily}`;
+		ctx.textBaseline = 'top';
+
+		// Resolve percentage positions (0-100) to pixel positions
+		const x = (o.x / 100) * canvasW;
+		const y = (o.y / 100) * canvasH;
+
+		if (o.outlineWidth > 0) {
+			ctx.lineWidth = o.outlineWidth;
+			ctx.strokeStyle = o.outlineColor;
+			ctx.strokeText(o.text, x, y);
+		}
+		ctx.fillStyle = o.color;
+		ctx.fillText(o.text, x, y);
+		ctx.restore();
+	}
+}
+
+function applyPixelEffects(ctx: OffscreenCanvasRenderingContext2D, w: number, h: number, msg: GifMessage): void {
+	const vignette = msg.filterVignette ?? 0;
+	const grain = msg.filterGrain ?? 0;
+	const highlights = msg.filterHighlights ?? 0;
+	const shadows = msg.filterShadows ?? 0;
+	const temperature = msg.filterTemperature ?? 0;
+	const tint = msg.filterTint ?? 0;
+
+	const hasPixelEffects =
+		Math.abs(vignette) > 0.01 ||
+		Math.abs(grain) > 0.01 ||
+		Math.abs(highlights) > 0.01 ||
+		Math.abs(shadows) > 0.01 ||
+		Math.abs(temperature) > 0.01 ||
+		Math.abs(tint) > 0.01;
+
+	if (!hasPixelEffects) return;
+
+	// Pixel-level manipulation
+	const imageData = ctx.getImageData(0, 0, w, h);
+	const data = imageData.data;
+	const cx = w / 2;
+	const cy = h / 2;
+	const maxDist = Math.sqrt(cx * cx + cy * cy);
+
+	for (let i = 0; i < data.length; i += 4) {
+		const pixel = i >> 2;
+		const px = pixel % w;
+		const py = Math.floor(pixel / w);
+		let r = data[i] ?? 0;
+		let g = data[i + 1] ?? 0;
+		let b = data[i + 2] ?? 0;
+
+		// Temperature: shift R and B channels
+		if (Math.abs(temperature) > 0.01) {
+			r = clamp(r + temperature * 30, 0, 255);
+			b = clamp(b - temperature * 30, 0, 255);
+		}
+		// Tint: shift G channel
+		if (Math.abs(tint) > 0.01) {
+			g = clamp(g + tint * 20, 0, 255);
+		}
+		// Highlights: brighten bright pixels
+		if (Math.abs(highlights) > 0.01) {
+			const lum = (r + g + b) / 3 / 255;
+			const weight = Math.max(0, lum - 0.5) * 2;
+			const adj = highlights * 40 * weight;
+			r = clamp(r + adj, 0, 255);
+			g = clamp(g + adj, 0, 255);
+			b = clamp(b + adj, 0, 255);
+		}
+		// Shadows: darken dark pixels
+		if (Math.abs(shadows) > 0.01) {
+			const lum = (r + g + b) / 3 / 255;
+			const weight = Math.max(0, 0.5 - lum) * 2;
+			const adj = shadows * 40 * weight;
+			r = clamp(r + adj, 0, 255);
+			g = clamp(g + adj, 0, 255);
+			b = clamp(b + adj, 0, 255);
+		}
+		// Vignette: darken edges
+		if (vignette > 0.01) {
+			const dx = px - cx;
+			const dy = py - cy;
+			const dist = Math.sqrt(dx * dx + dy * dy) / maxDist;
+			const factor = 1 - vignette * Math.pow(dist, 2);
+			r = clamp(r * factor, 0, 255);
+			g = clamp(g * factor, 0, 255);
+			b = clamp(b * factor, 0, 255);
+		}
+		// Grain: add noise
+		if (grain > 0.01) {
+			const noise = (Math.random() - 0.5) * grain * 80;
+			r = clamp(r + noise, 0, 255);
+			g = clamp(g + noise, 0, 255);
+			b = clamp(b + noise, 0, 255);
+		}
+
+		data[i] = r;
+		data[i + 1] = g;
+		data[i + 2] = b;
+	}
+	ctx.putImageData(imageData, 0, 0);
+}
+
+function getFadeAlpha(frameIndex: number, totalFrames: number, fadeInFrames: number, fadeOutFrames: number): number {
+	if (fadeInFrames > 0 && frameIndex < fadeInFrames) {
+		return 1 - frameIndex / fadeInFrames;
+	}
+	if (fadeOutFrames > 0 && frameIndex >= totalFrames - fadeOutFrames) {
+		return (frameIndex - (totalFrames - fadeOutFrames)) / fadeOutFrames;
+	}
+	return 0;
+}
+
 async function handleTranscode(msg: TranscodeMessage): Promise<void> {
+	ensureJobNotCancelled(msg.jobId);
 	post({ type: 'STARTED', job: 'transcode' });
+	const startedAtMs = performance.now();
 	const parsed = parseTranscodeSettings(msg);
 
 	const input = new Input({ source: new BlobSource(msg.file), formats: ALL_FORMATS });
+	let conversion: Conversion | null = null;
+	setActiveJobCanceller(msg.jobId, async () => {
+		try {
+			await conversion?.cancel();
+		} catch {
+			// best effort
+		}
+		input.dispose();
+	});
 	try {
+		ensureJobNotCancelled(msg.jobId);
 		const output = new Output({ format: outputFormatForContainer(parsed.container), target: new BufferTarget() });
 
 		const tracks = await input.getTracks();
@@ -1103,7 +1775,7 @@ async function handleTranscode(msg: TranscodeMessage): Promise<void> {
 				? (parsed.trimStart ?? 0) + parsed.trimDuration
 				: undefined;
 
-		const conversion = await Conversion.init({
+		conversion = await Conversion.init({
 			input,
 			output,
 			trim: trimStart != null || trimEnd != null ? { start: trimStart, end: trimEnd } : undefined,
@@ -1155,11 +1827,32 @@ async function handleTranscode(msg: TranscodeMessage): Promise<void> {
 			);
 		}
 
+		ensureJobNotCancelled(msg.jobId);
 		await conversion.execute();
+		ensureJobNotCancelled(msg.jobId);
 		const buffer = output.target.buffer;
 		if (!buffer) throw new Error('Conversion produced no output buffer');
 		sendBytesDone('DONE', new Uint8Array(buffer), msg.outputName);
+		postPerfLog('transcode_done', {
+			inputFileName: msg.file.name,
+			inputFileBytes: msg.file.size,
+			outputName: msg.outputName,
+			outputBytes: buffer.byteLength,
+			expectedDurationSec: msg.expectedDurationSec ?? 0,
+			totalDurationMs: Math.round(performance.now() - startedAtMs),
+		});
+	} catch (error) {
+		postPerfLog('transcode_error', {
+			inputFileName: msg.file.name,
+			inputFileBytes: msg.file.size,
+			outputName: msg.outputName,
+			expectedDurationSec: msg.expectedDurationSec ?? 0,
+			totalDurationMs: Math.round(performance.now() - startedAtMs),
+			error: error instanceof Error ? error.message : String(error),
+		});
+		throw error;
 	} finally {
+		setActiveJobCanceller(msg.jobId, null);
 		input.dispose();
 	}
 }
@@ -1261,6 +1954,7 @@ function buildWebVtt(cues: SubtitleCueData[]): string {
 }
 
 async function handleSubtitlePreview(msg: SubtitlePreviewMessage): Promise<void> {
+	ensureJobNotCancelled(msg.jobId);
 	const mkvResult = await parseMkvSubtitles(msg.file, { tracksOnly: true });
 	if (mkvResult.tracks.length === 0) throw new Error('No subtitle tracks found in file');
 
@@ -1273,6 +1967,7 @@ async function handleSubtitlePreview(msg: SubtitlePreviewMessage): Promise<void>
 	const isAss = isAssCodec(targetTrack.codecId) || msg.subtitleCodec === 'ass' || msg.subtitleCodec === 'ssa';
 
 	const fullResult = await parseMkvSubtitles(msg.file, { targetTrackNumber: targetTrack.trackNumber });
+	ensureJobNotCancelled(msg.jobId);
 	const rawCues = fullResult.cues.filter((c) => c.trackNumber === targetTrack.trackNumber);
 
 	if (isAss) {
@@ -1326,33 +2021,66 @@ async function handleSubtitlePreview(msg: SubtitlePreviewMessage): Promise<void>
 
 post({ type: 'READY' });
 
+async function handleAbort(msg: AbortMessage): Promise<void> {
+	const reason = msg.reason?.trim() || 'Cancelled';
+	cancelledJobReasons.set(msg.jobId, reason);
+	if (activeJobId === msg.jobId && activeJobCanceller) {
+		try {
+			await activeJobCanceller(reason);
+		} catch {
+			// best effort cancellation
+		}
+	}
+}
+
 self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
+	const data = e.data;
+	if (data.type === 'ABORT') {
+		await handleAbort(data);
+		return;
+	}
+
+	if (activeJobId != null) {
+		post({ type: 'ERROR', jobId: data.jobId, error: 'Worker is busy processing another job' });
+		return;
+	}
+
+	activeJobId = data.jobId;
+	activeJobCanceller = null;
 	try {
-		switch (e.data.type) {
+		switch (data.type) {
 			case 'TRANSCODE':
-				await handleTranscode(e.data);
+				await handleTranscode(data);
 				break;
 			case 'GIF':
-				await handleGif(e.data);
+				await handleGif(data);
+				break;
+			case 'EXTRACT_GIF_FRAMES':
+				await handleExtractGifFrames(data);
 				break;
 			case 'SCREENSHOT':
-				await handleScreenshot(e.data);
+				await handleScreenshot(data);
 				break;
 			case 'PROBE':
-				await handleProbe(e.data);
+				await handleProbe(data);
 				break;
 			case 'PROBE_DETAILS':
-				await handleProbeDetails(e.data);
+				await handleProbeDetails(data);
 				break;
 			case 'SUBTITLE_PREVIEW':
-				await handleSubtitlePreview(e.data);
+				await handleSubtitlePreview(data);
 				break;
 			case 'EXTRACT_FONTS':
-				await handleExtractFonts(e.data);
+				await handleExtractFonts(data);
 				break;
 		}
 	} catch (err) {
-		const error = err instanceof Error ? err.message : String(err);
-		post({ type: 'ERROR', error });
+		const cancelledReason = getCancelReason(data.jobId);
+		const error = cancelledReason ?? (err instanceof Error ? err.message : String(err));
+		post({ type: 'ERROR', jobId: data.jobId, error });
+	} finally {
+		clearCancelledJob(data.jobId);
+		activeJobCanceller = null;
+		activeJobId = null;
 	}
 };

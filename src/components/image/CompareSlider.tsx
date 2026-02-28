@@ -32,11 +32,12 @@ export function CompareSlider({ containerRef }: CompareSliderProps) {
 		(clientX: number) => {
 			const el = containerRef.current;
 			if (!el) return comparePosition;
+			if (imgScreenW <= 0) return comparePosition;
 			const rect = el.getBoundingClientRect();
 			const x = clientX - rect.left;
 			// Compute ratio relative to image bounds
 			const ratio = (x - imgLeft) / imgScreenW;
-			return Math.min(0.98, Math.max(0.02, ratio));
+			return Math.min(1, Math.max(0, ratio));
 		},
 		[containerRef, comparePosition, imgLeft, imgScreenW],
 	);

@@ -1,6 +1,6 @@
 /**
  * Rust WASM GIF encoder wrapper.
- * Passes concatenated RGBA frames to Rust's encode_gif_frames().
+ * Passes concatenated RGBA frames to Rust's encode_gif_frames() / encode_gif_frames_ex().
  */
 
 export interface GifEncodeOptions {
@@ -10,6 +10,8 @@ export interface GifEncodeOptions {
 	fps: number;
 	maxColors?: number;
 	speed?: number;
+	loopCount?: number;
+	frameDelaysCs?: number[];
 	onProgress?: (progress: number) => void;
 }
 
@@ -17,9 +19,8 @@ export interface GifEncodeOptions {
  * Encode RGBA frames into a GIF using the Rust WASM encoder.
  */
 export async function encodeGif(options: GifEncodeOptions): Promise<Blob> {
-	const { frames, width, height, fps, maxColors = 256, speed = 10 } = options;
+	const { frames, width, height, fps, maxColors = 256, speed = 10, loopCount = 0, frameDelaysCs } = options;
 
-	// Dynamically import the WASM module
 	const wasm =
 		(await import('../../../../wasm/vixely_core.js')) as typeof import('../../../../wasm/vixely_core.js') & {
 			encode_gif_frames: (
@@ -30,6 +31,17 @@ export async function encodeGif(options: GifEncodeOptions): Promise<Blob> {
 				delay_cs: number,
 				max_colors: number,
 				speed: number,
+			) => Uint8Array;
+			encode_gif_frames_ex: (
+				rgba_data: Uint8Array,
+				width: number,
+				height: number,
+				frame_count: number,
+				delay_cs: number,
+				max_colors: number,
+				speed: number,
+				loop_count: number,
+				frame_delays_cs: Uint16Array,
 			) => Uint8Array;
 		};
 
@@ -47,15 +59,35 @@ export async function encodeGif(options: GifEncodeOptions): Promise<Blob> {
 
 	options.onProgress?.(0.5);
 
-	const gifBytes = wasm.encode_gif_frames(
-		concatenated,
-		width,
-		height,
-		frames.length,
-		delayCentiseconds,
-		maxColors,
-		speed,
-	);
+	const hasPerFrameDelays = frameDelaysCs && frameDelaysCs.length > 0;
+	const needsExtended = loopCount !== 0 || hasPerFrameDelays;
+
+	let gifBytes: Uint8Array;
+
+	if (needsExtended) {
+		const delays = hasPerFrameDelays ? new Uint16Array(frameDelaysCs) : new Uint16Array(0);
+		gifBytes = wasm.encode_gif_frames_ex(
+			concatenated,
+			width,
+			height,
+			frames.length,
+			delayCentiseconds,
+			maxColors,
+			speed,
+			loopCount,
+			delays,
+		);
+	} else {
+		gifBytes = wasm.encode_gif_frames(
+			concatenated,
+			width,
+			height,
+			frames.length,
+			delayCentiseconds,
+			maxColors,
+			speed,
+		);
+	}
 
 	options.onProgress?.(1);
 

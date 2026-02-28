@@ -5,6 +5,7 @@ interface TimelineProps {
 	trimStart: number;
 	trimEnd: number;
 	currentTime: number;
+	density?: 'full' | 'compact';
 	minGap?: number;
 	onTrimStartChange: (v: number) => void;
 	onTrimEndChange: (v: number) => void;
@@ -38,6 +39,7 @@ export function Timeline({
 	trimStart,
 	trimEnd,
 	currentTime,
+	density = 'full',
 	minGap = 0.1,
 	onTrimStartChange,
 	onTrimEndChange,
@@ -153,11 +155,20 @@ export function Timeline({
 	const playheadPct = `${toFraction(currentTime) * 100}%`;
 	const clipDuration = trimEnd - trimStart;
 	const trimEndRightPct = `${100 - toFraction(trimEnd) * 100}%`;
+	const isCompact = density === 'compact';
 
 	return (
 		<div className={`select-none ${className}`}>
-			<div className="rounded-2xl border border-border/70 bg-surface-raised/40 px-2.5 py-2.5 sm:px-3.5 sm:py-3">
-				<div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 text-[14px] text-text-tertiary">
+			<div
+				className={`rounded-2xl border border-border/70 bg-surface-raised/40 ${
+					isCompact ? 'px-2 py-2 sm:px-3 sm:py-2.5' : 'px-2.5 py-2.5 sm:px-3.5 sm:py-3'
+				}`}
+			>
+				<div
+					className={`grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 text-text-tertiary ${
+						isCompact ? 'text-[11px]' : 'text-[13px]'
+					}`}
+				>
 					<div className="flex min-w-0 items-center gap-2">
 						<span className="inline-flex rounded-md border border-border/70 bg-bg/50 px-2 py-0.5 font-mono tabular-nums text-text-secondary">
 							{formatTimecode(trimStart)}
@@ -183,7 +194,9 @@ export function Timeline({
 
 				<div
 					ref={trackRef}
-					className="relative mt-3 h-14 overflow-hidden rounded-xl border border-border/70 bg-bg/55 cursor-pointer touch-none"
+					className={`relative overflow-hidden rounded-xl border border-border/70 bg-bg/55 cursor-pointer touch-none ${
+						isCompact ? 'mt-2.5 h-12' : 'mt-3 h-14'
+					}`}
 					onClick={handleTrackClick}
 					onPointerMove={handlePointerMove}
 					onPointerUp={handlePointerUp}
@@ -240,13 +253,15 @@ export function Timeline({
 					</div>
 				</div>
 
-				<div className="mt-2.5 grid grid-cols-1 items-center gap-1 text-[14px] text-text-tertiary sm:grid-cols-3 ">
-					<span className="font-mono tabular-nums">Selection: {formatTimecode(clipDuration)}</span>
-					<span className="text-left sm:text-center">
-						Trim {formatTimecode(trimStart)} → {formatTimecode(trimEnd)}
-					</span>
-					<span className="font-mono tabular-nums sm:text-right">Total: {formatTimecode(duration)}</span>
-				</div>
+				{!isCompact && (
+					<div className="mt-2.5 grid grid-cols-1 items-center gap-1 text-[13px] text-text-tertiary sm:grid-cols-3 ">
+						<span className="font-mono tabular-nums">Selection: {formatTimecode(clipDuration)}</span>
+						<span className="text-left sm:text-center">
+							Trim {formatTimecode(trimStart)} → {formatTimecode(trimEnd)}
+						</span>
+						<span className="font-mono tabular-nums sm:text-right">Total: {formatTimecode(duration)}</span>
+					</div>
+				)}
 			</div>
 		</div>
 	);

@@ -107,9 +107,14 @@ type ResizeZoneDragContext = {
 	startClientY: number;
 	startWidth: number;
 	startHeight: number;
+	startOffsetX: number;
+	startOffsetY: number;
 	sourceWidth: number;
 	sourceHeight: number;
 	lockAspect: boolean;
+	signX: number;
+	signY: number;
+	dragType: 'resize' | 'move';
 };
 type TrackMenuStream = { label: string; details: string; isDefault?: boolean; isForced?: boolean };
 type TrackMenuProps = {
@@ -131,6 +136,92 @@ type TrackSelectorButtonProps = {
 	onToggle: () => void;
 	children?: ReactNode;
 };
+
+const RESIZE_CORNER_HANDLES = [
+	{
+		id: 'nw',
+		signX: -1,
+		signY: -1,
+		btnPos: '-top-3 -left-3',
+		innerPos: 'top-3 left-3',
+		border: 'border-t-2 border-l-2',
+		label: 'top-left',
+		mainDiag: true,
+	},
+	{
+		id: 'ne',
+		signX: 1,
+		signY: -1,
+		btnPos: '-top-3 -right-3',
+		innerPos: 'top-3 right-3',
+		border: 'border-t-2 border-r-2',
+		label: 'top-right',
+		mainDiag: false,
+	},
+	{
+		id: 'sw',
+		signX: -1,
+		signY: 1,
+		btnPos: '-bottom-3 -left-3',
+		innerPos: 'bottom-3 left-3',
+		border: 'border-b-2 border-l-2',
+		label: 'bottom-left',
+		mainDiag: false,
+	},
+	{
+		id: 'se',
+		signX: 1,
+		signY: 1,
+		btnPos: '-bottom-3 -right-3',
+		innerPos: 'bottom-3 right-3',
+		border: 'border-b-2 border-r-2',
+		label: 'bottom-right',
+		mainDiag: true,
+	},
+];
+
+const RESIZE_EDGE_HANDLES = [
+	{
+		id: 'n',
+		signX: 0,
+		signY: -1,
+		btnPos: '-top-2 left-1/2 -translate-x-1/2',
+		btnSize: 'h-4 w-6',
+		innerClass: 'absolute top-1/2 -translate-y-1/2 left-1 right-1 h-0.5 rounded-full',
+		label: 'top',
+		ns: true,
+	},
+	{
+		id: 'e',
+		signX: 1,
+		signY: 0,
+		btnPos: 'top-1/2 -translate-y-1/2 -right-2',
+		btnSize: 'h-6 w-4',
+		innerClass: 'absolute left-1/2 -translate-x-1/2 top-1 bottom-1 w-0.5 rounded-full',
+		label: 'right',
+		ns: false,
+	},
+	{
+		id: 's',
+		signX: 0,
+		signY: 1,
+		btnPos: '-bottom-2 left-1/2 -translate-x-1/2',
+		btnSize: 'h-4 w-6',
+		innerClass: 'absolute top-1/2 -translate-y-1/2 left-1 right-1 h-0.5 rounded-full',
+		label: 'bottom',
+		ns: true,
+	},
+	{
+		id: 'w',
+		signX: -1,
+		signY: 0,
+		btnPos: 'top-1/2 -translate-y-1/2 -left-2',
+		btnSize: 'h-6 w-4',
+		innerClass: 'absolute left-1/2 -translate-x-1/2 top-1 bottom-1 w-0.5 rounded-full',
+		label: 'left',
+		ns: false,
+	},
+];
 
 export function VideoPlayer({
 	src,
@@ -208,6 +299,8 @@ export function VideoPlayer({
 		resizeOriginalWidth,
 		resizeOriginalHeight,
 		resizeLockAspect,
+		resizeCropOffsetX,
+		resizeCropOffsetY,
 	} = useVideoEditorStore(
 		useShallow((s) => ({
 			videoMode: s.mode,
@@ -227,6 +320,8 @@ export function VideoPlayer({
 			resizeOriginalWidth: s.resize.originalWidth,
 			resizeOriginalHeight: s.resize.originalHeight,
 			resizeLockAspect: s.resize.lockAspect,
+			resizeCropOffsetX: s.resize.cropOffsetX,
+			resizeCropOffsetY: s.resize.cropOffsetY,
 		})),
 	);
 	const audioEnabledRef = useRef(audioEnabled);
@@ -1148,16 +1243,22 @@ export function VideoPlayer({
 		const heightRatio = Math.min(1, Math.max(0.04, targetResizeDimensions.height / sourceDimensions.height));
 		const zoneWidth = Math.max(26, Math.min(displayFrameSize.width, displayFrameSize.width * widthRatio));
 		const zoneHeight = Math.max(26, Math.min(displayFrameSize.height, displayFrameSize.height * heightRatio));
+		const centerLeft = (displayFrameSize.width - zoneWidth) / 2;
+		const centerTop = (displayFrameSize.height - zoneHeight) / 2;
+		const displayOffsetX = (resizeCropOffsetX / sourceDimensions.width) * displayFrameSize.width;
+		const displayOffsetY = (resizeCropOffsetY / sourceDimensions.height) * displayFrameSize.height;
 		return {
 			width: zoneWidth,
 			height: zoneHeight,
-			left: Math.max(0, (displayFrameSize.width - zoneWidth) / 2),
-			top: Math.max(0, (displayFrameSize.height - zoneHeight) / 2),
+			left: Math.max(0, Math.min(displayFrameSize.width - zoneWidth, centerLeft + displayOffsetX)),
+			top: Math.max(0, Math.min(displayFrameSize.height - zoneHeight, centerTop + displayOffsetY)),
 		};
 	}, [
 		displayFrameSize.height,
 		displayFrameSize.width,
 		hasResizeSelectionZone,
+		resizeCropOffsetX,
+		resizeCropOffsetY,
 		sourceDimensions.height,
 		sourceDimensions.width,
 		targetResizeDimensions.height,
@@ -1170,18 +1271,59 @@ export function VideoPlayer({
 		);
 	}, [sourceDimensions.height, sourceDimensions.width, targetResizeDimensions.height, targetResizeDimensions.width]);
 
+	const resizeAtMax = useMemo(
+		() =>
+			targetResizeDimensions.width >= sourceDimensions.width ||
+			targetResizeDimensions.height >= sourceDimensions.height,
+		[sourceDimensions.height, sourceDimensions.width, targetResizeDimensions.height, targetResizeDimensions.width],
+	);
+	const canMoveSelection = useMemo(
+		() =>
+			targetResizeDimensions.width < sourceDimensions.width ||
+			targetResizeDimensions.height < sourceDimensions.height,
+		[sourceDimensions.height, sourceDimensions.width, targetResizeDimensions.height, targetResizeDimensions.width],
+	);
+
 	const updateResizeFromZonePointer = useCallback(
 		(clientX: number, clientY: number, context: ResizeZoneDragContext) => {
 			if (displayFrameSize.width <= 0 || displayFrameSize.height <= 0) return;
-			const deltaX = clientX - context.startClientX;
-			const deltaY = clientY - context.startClientY;
 			const pxToSourceWidth = context.sourceWidth / displayFrameSize.width;
 			const pxToSourceHeight = context.sourceHeight / displayFrameSize.height;
-			let nextWidth = context.startWidth + deltaX * pxToSourceWidth;
-			let nextHeight = context.startHeight + deltaY * pxToSourceHeight;
-			nextWidth = Math.max(16, Math.min(7680, nextWidth));
-			nextHeight = Math.max(16, Math.min(7680, nextHeight));
+			const deltaX = clientX - context.startClientX;
+			const deltaY = clientY - context.startClientY;
 
+			if (context.dragType === 'move') {
+				const maxOffsetX = (context.sourceWidth - context.startWidth) / 2;
+				const maxOffsetY = (context.sourceHeight - context.startHeight) / 2;
+				const nextOffsetX = context.startOffsetX + deltaX * pxToSourceWidth;
+				const nextOffsetY = context.startOffsetY + deltaY * pxToSourceHeight;
+				setResize({
+					cropOffsetX: Math.max(-maxOffsetX, Math.min(maxOffsetX, nextOffsetX)),
+					cropOffsetY: Math.max(-maxOffsetY, Math.min(maxOffsetY, nextOffsetY)),
+				});
+				return;
+			}
+
+			// Multiply by 2: selection is centered, so each side expands equally —
+			// moving a corner/edge by Δpx changes width/height by 2Δpx, keeping the
+			// handle exactly under the pointer.
+			let nextWidth = context.startWidth + deltaX * context.signX * pxToSourceWidth * 2;
+			let nextHeight = context.startHeight + deltaY * context.signY * pxToSourceHeight * 2;
+			nextWidth = Math.max(16, Math.min(context.sourceWidth, nextWidth));
+			nextHeight = Math.max(16, Math.min(context.sourceHeight, nextHeight));
+
+			// Edge handles: only pass their axis so the store does not misread the
+			// unchanged dimension as an intentional change under aspect lock.
+			if (context.signX === 0) {
+				setResize({ height: Math.round(nextHeight) });
+				return;
+			}
+			if (context.signY === 0) {
+				setResize({ width: Math.round(nextWidth) });
+				return;
+			}
+
+			// Corner handles
 			if (context.lockAspect) {
 				const widthDelta = Math.abs(deltaX * pxToSourceWidth);
 				const heightDelta = Math.abs(deltaY * pxToSourceHeight);
@@ -1206,20 +1348,29 @@ export function VideoPlayer({
 			if (!sourceWidth || !sourceHeight) return;
 			e.preventDefault();
 			(e.currentTarget as HTMLButtonElement).setPointerCapture(e.pointerId);
+			const signX = Number(e.currentTarget.dataset.signX ?? 1);
+			const signY = Number(e.currentTarget.dataset.signY ?? 1);
 			resizeZoneDragRef.current = {
 				pointerId: e.pointerId,
 				startClientX: e.clientX,
 				startClientY: e.clientY,
 				startWidth: targetResizeDimensions.width,
 				startHeight: targetResizeDimensions.height,
+				startOffsetX: resizeCropOffsetX,
+				startOffsetY: resizeCropOffsetY,
 				sourceWidth,
 				sourceHeight,
 				lockAspect: resizeLockAspect,
+				signX,
+				signY,
+				dragType: 'resize',
 			};
 			setSelectionHandleActive(true);
 		},
 		[
 			hasResizeSelectionZone,
+			resizeCropOffsetX,
+			resizeCropOffsetY,
 			resizeLockAspect,
 			sourceDimensions.height,
 			sourceDimensions.width,
@@ -1242,6 +1393,79 @@ export function VideoPlayer({
 		resizeZoneDragRef.current = null;
 		setSelectionHandleActive(false);
 	}, []);
+
+	const handleResizeZoneMovePointerDown = useCallback(
+		(e: React.PointerEvent<HTMLDivElement>) => {
+			if (!hasResizeSelectionZone || !canMoveSelection) return;
+			const sourceWidth = sourceDimensions.width;
+			const sourceHeight = sourceDimensions.height;
+			if (!sourceWidth || !sourceHeight) return;
+			e.preventDefault();
+			e.stopPropagation();
+			(e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+			resizeZoneDragRef.current = {
+				pointerId: e.pointerId,
+				startClientX: e.clientX,
+				startClientY: e.clientY,
+				startWidth: targetResizeDimensions.width,
+				startHeight: targetResizeDimensions.height,
+				startOffsetX: resizeCropOffsetX,
+				startOffsetY: resizeCropOffsetY,
+				sourceWidth,
+				sourceHeight,
+				lockAspect: resizeLockAspect,
+				signX: 0,
+				signY: 0,
+				dragType: 'move',
+			};
+			setSelectionHandleActive(true);
+		},
+		[
+			canMoveSelection,
+			hasResizeSelectionZone,
+			resizeCropOffsetX,
+			resizeCropOffsetY,
+			resizeLockAspect,
+			sourceDimensions.height,
+			sourceDimensions.width,
+			targetResizeDimensions.height,
+			targetResizeDimensions.width,
+		],
+	);
+
+	const handleResizeZoneMovePointerMove = useCallback(
+		(e: React.PointerEvent<HTMLDivElement>) => {
+			const context = resizeZoneDragRef.current;
+			if (!context || context.pointerId !== e.pointerId || context.dragType !== 'move') return;
+			e.preventDefault();
+			updateResizeFromZonePointer(e.clientX, e.clientY, context);
+		},
+		[updateResizeFromZonePointer],
+	);
+
+	const handleResizeZoneMovePointerUp = useCallback(
+		(e: React.PointerEvent<HTMLDivElement>) => {
+			const context = resizeZoneDragRef.current;
+			if (!context || context.pointerId !== e.pointerId) return;
+			(e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId);
+			endResizeZoneDrag();
+		},
+		[endResizeZoneDrag],
+	);
+
+	const handleResizeZoneMovePointerCancel = useCallback(
+		(e: React.PointerEvent<HTMLDivElement>) => {
+			const context = resizeZoneDragRef.current;
+			if (!context || context.pointerId !== e.pointerId) return;
+			(e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId);
+			endResizeZoneDrag();
+		},
+		[endResizeZoneDrag],
+	);
+
+	const handleResizeZoneDoubleClick = useCallback(() => {
+		setResize({ cropOffsetX: 0, cropOffsetY: 0 });
+	}, [setResize]);
 
 	const handleResizeZoneHandlePointerUp = useCallback(
 		(e: React.PointerEvent<HTMLButtonElement>) => {
@@ -1356,30 +1580,146 @@ export function VideoPlayer({
 				/>
 				{hasResizeSelectionZone && resizeZoneRect && (
 					<div className="pointer-events-none absolute inset-0 z-15">
+						{/* Scrim — top */}
 						<div
-							className="absolute border-2 border-accent/70 bg-accent/10 shadow-[0_0_0_1px_rgba(0,0,0,0.35)]"
+							className="absolute inset-x-0 top-0 bg-black/45"
+							style={{ height: `${resizeZoneRect.top}px` }}
+						/>
+						{/* Scrim — bottom */}
+						<div
+							className="absolute inset-x-0 bottom-0 bg-black/45"
+							style={{ top: `${resizeZoneRect.top + resizeZoneRect.height}px` }}
+						/>
+						{/* Scrim — left */}
+						<div
+							className="absolute bg-black/45"
+							style={{
+								left: 0,
+								top: `${resizeZoneRect.top}px`,
+								width: `${resizeZoneRect.left}px`,
+								height: `${resizeZoneRect.height}px`,
+							}}
+						/>
+						{/* Scrim — right */}
+						<div
+							className="absolute bg-black/45"
+							style={{
+								left: `${resizeZoneRect.left + resizeZoneRect.width}px`,
+								top: `${resizeZoneRect.top}px`,
+								right: 0,
+								height: `${resizeZoneRect.height}px`,
+							}}
+						/>
+						{/* Selection */}
+						<div
+							className={`absolute pointer-events-auto ${
+								!canMoveSelection
+									? 'cursor-default'
+									: selectionHandleActive && resizeZoneDragRef.current?.dragType === 'move'
+										? 'cursor-grabbing'
+										: 'cursor-grab'
+							}`}
 							style={{
 								left: `${resizeZoneRect.left}px`,
 								top: `${resizeZoneRect.top}px`,
 								width: `${resizeZoneRect.width}px`,
 								height: `${resizeZoneRect.height}px`,
 							}}
+							onPointerDown={handleResizeZoneMovePointerDown}
+							onPointerMove={handleResizeZoneMovePointerMove}
+							onPointerUp={handleResizeZoneMovePointerUp}
+							onPointerCancel={handleResizeZoneMovePointerCancel}
+							onDoubleClick={handleResizeZoneDoubleClick}
+							aria-label="Drag to reposition crop area, double-click to center"
 						>
-							<div className="absolute -top-6 left-0 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-mono text-white">
+							{/* Marching ants border */}
+							<svg
+								className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
+								aria-hidden="true"
+							>
+								<rect
+									x="0"
+									y="0"
+									width="100%"
+									height="100%"
+									fill="none"
+									stroke={resizeAtMax ? 'rgba(251,191,36,0.85)' : 'rgba(255,255,255,0.75)'}
+									strokeWidth="1"
+									strokeDasharray="5 5"
+									style={{ animation: 'marchingAnts 1s linear infinite' }}
+								/>
+							</svg>
+							{/* Dimension badge — flips below the zone if near the top */}
+							<div
+								className={`pointer-events-none absolute left-0 flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-mono leading-none transition-colors duration-150 ${
+									resizeZoneRect.top < 28 ? 'top-1' : '-top-7'
+								} ${resizeAtMax ? 'bg-amber-500/15 text-amber-300/90' : 'bg-black/70 text-white/85'}`}
+							>
 								{targetResizeDimensions.width}×{targetResizeDimensions.height}
-								{resizeIsUpscaled ? ' • upscale' : ''}
+								{resizeAtMax ? (
+									<span className="ml-1 text-amber-400/70">max</span>
+								) : resizeIsUpscaled ? (
+									<span className="ml-1 text-orange-400/70">upscale</span>
+								) : null}
 							</div>
-							<button
-								type="button"
-								className={`pointer-events-auto absolute -bottom-2 -right-2 h-4 w-4 rounded-sm border border-white/70 bg-accent shadow-sm ${
-									selectionHandleActive ? 'cursor-grabbing' : 'cursor-nwse-resize'
-								}`}
-								onPointerDown={handleResizeZoneHandlePointerDown}
-								onPointerMove={handleResizeZoneHandlePointerMove}
-								onPointerUp={handleResizeZoneHandlePointerUp}
-								onPointerCancel={handleResizeZoneHandlePointerCancel}
-								aria-label="Resize output selection zone"
-							/>
+							{/* Corner handles — L-shaped, 4× */}
+							{RESIZE_CORNER_HANDLES.map(
+								({ id, signX, signY, btnPos, innerPos, border, label, mainDiag }) => (
+									<button
+										key={id}
+										type="button"
+										data-sign-x={signX}
+										data-sign-y={signY}
+										className={`group pointer-events-auto absolute ${btnPos} h-8 w-8 ${
+											selectionHandleActive
+												? 'cursor-grabbing'
+												: mainDiag
+													? 'cursor-nwse-resize'
+													: 'cursor-nesw-resize'
+										}`}
+										onPointerDown={handleResizeZoneHandlePointerDown}
+										onPointerMove={handleResizeZoneHandlePointerMove}
+										onPointerUp={handleResizeZoneHandlePointerUp}
+										onPointerCancel={handleResizeZoneHandlePointerCancel}
+										aria-label={`Resize selection from ${label} corner`}
+									>
+										<div
+											className={`pointer-events-none absolute ${innerPos} h-3 w-3 ${border} transition-colors duration-100 ${
+												resizeAtMax
+													? 'border-amber-400/80'
+													: 'border-white/80 group-hover:border-white'
+											}`}
+										/>
+									</button>
+								),
+							)}
+							{/* Edge handles — pill bars, 4× */}
+							{RESIZE_EDGE_HANDLES.map(({ id, signX, signY, btnPos, btnSize, innerClass, label, ns }) => (
+								<button
+									key={id}
+									type="button"
+									data-sign-x={signX}
+									data-sign-y={signY}
+									className={`group pointer-events-auto absolute ${btnPos} ${btnSize} ${
+										selectionHandleActive
+											? 'cursor-grabbing'
+											: ns
+												? 'cursor-ns-resize'
+												: 'cursor-ew-resize'
+									}`}
+									onPointerDown={handleResizeZoneHandlePointerDown}
+									onPointerMove={handleResizeZoneHandlePointerMove}
+									onPointerUp={handleResizeZoneHandlePointerUp}
+									onPointerCancel={handleResizeZoneHandlePointerCancel}
+									aria-label={`Resize selection from ${label} edge`}
+								>
+									<div
+										className={`pointer-events-none ${innerClass} transition-colors duration-100 ${
+											resizeAtMax ? 'bg-amber-400/60' : 'bg-white/60 group-hover:bg-white/90'
+										}`}
+									/>
+								</button>
+							))}
 						</div>
 					</div>
 				)}

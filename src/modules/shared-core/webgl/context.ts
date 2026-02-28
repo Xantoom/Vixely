@@ -76,7 +76,9 @@ export function destroyGLContext(ctx: GLContext): void {
 	const { gl, vao, quadBuffer } = ctx;
 	gl.deleteVertexArray(vao);
 	gl.deleteBuffer(quadBuffer);
-	gl.getExtension('WEBGL_lose_context')?.loseContext();
+	// Avoid forcing context loss here.
+	// In React StrictMode (dev), effects mount/unmount/remount rapidly; explicit
+	// context loss can make the immediate remount fail with "context lost".
 }
 
 export function drawQuad(ctx: GLContext): void {

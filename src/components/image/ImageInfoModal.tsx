@@ -1,6 +1,6 @@
 import { X, FileImage } from 'lucide-react';
 import { Button } from '@/components/ui/index.ts';
-import { formatFileSize, formatDimensions } from '@/utils/format.ts';
+import { formatDateTime, formatDimensions, formatFileSize } from '@/utils/format.ts';
 
 interface ImageInfoModalProps {
 	file: File;
@@ -15,7 +15,7 @@ export function ImageInfoModal({ file, width, height, onClose }: ImageInfoModalP
 		['Size', formatFileSize(file.size)],
 		['Dimensions', formatDimensions(width, height)],
 		['MIME Type', file.type || 'unknown'],
-		['Last Modified', new Date(file.lastModified).toLocaleString()],
+		['Last Modified', formatDateTime(file.lastModified)],
 	];
 
 	return (

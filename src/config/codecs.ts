@@ -34,16 +34,6 @@ export const AUDIO_CODECS: AudioCodecDef[] = [
 	{ name: 'No Audio', ffmpegLib: 'none', containers: ['mp4', 'mkv', 'webm'] },
 ];
 
-export const ENCODING_PRESETS = [
-	{ name: 'Ultrafast', value: 'ultrafast' },
-	{ name: 'Superfast', value: 'superfast' },
-	{ name: 'Veryfast', value: 'veryfast' },
-	{ name: 'Fast', value: 'fast' },
-	{ name: 'Medium', value: 'medium' },
-	{ name: 'Slow', value: 'slow' },
-	{ name: 'Veryslow', value: 'veryslow' },
-];
-
 export const AUDIO_BITRATES = [
 	{ label: '64k', value: '64k' },
 	{ label: '96k', value: '96k' },

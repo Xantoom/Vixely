@@ -1,8 +1,21 @@
 import { create } from 'zustand';
-import type { AdvancedVideoSettings } from '@/components/video/AdvancedSettings.tsx';
 import { withUpdatedKey } from '@/stores/storeHelpers.ts';
 
 export type VideoMode = 'presets' | 'trim' | 'resize' | 'adjust' | 'export';
+
+export type VideoRateControlMode = 'crf' | 'bitrate' | 'qp';
+
+export interface AdvancedVideoSettings {
+	codec: string;
+	container: string;
+	rateControl: VideoRateControlMode;
+	crf: number;
+	targetBitrateKbps: number;
+	qp: number;
+	preset: string;
+	audioCodec: string;
+	audioBitrate: string;
+}
 
 export type TrimInputMode = 'time' | 'frames';
 
@@ -54,6 +67,8 @@ export interface ResizeSettings {
 	originalHeight: number;
 	scalePercent: number;
 	lockAspect: boolean;
+	cropOffsetX: number;
+	cropOffsetY: number;
 }
 
 export const DEFAULT_RESIZE: ResizeSettings = {
@@ -62,7 +77,9 @@ export const DEFAULT_RESIZE: ResizeSettings = {
 	originalWidth: 0,
 	originalHeight: 0,
 	scalePercent: 100,
-	lockAspect: true,
+	lockAspect: false,
+	cropOffsetX: 0,
+	cropOffsetY: 0,
 };
 
 export const DEFAULT_TRACK_SELECTION: TrackSelection = {
@@ -172,7 +189,13 @@ export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
 				}
 			}
 			if (next.originalWidth > 0 && next.originalHeight > 0) {
+				next.width = Math.min(next.originalWidth, Math.max(1, next.width));
+				next.height = Math.min(next.originalHeight, Math.max(1, next.height));
 				next.scalePercent = Math.round((next.width / next.originalWidth) * 100);
+				const maxOffsetX = (next.originalWidth - next.width) / 2;
+				const maxOffsetY = (next.originalHeight - next.height) / 2;
+				next.cropOffsetX = Math.max(-maxOffsetX, Math.min(maxOffsetX, next.cropOffsetX ?? 0));
+				next.cropOffsetY = Math.max(-maxOffsetY, Math.min(maxOffsetY, next.cropOffsetY ?? 0));
 			}
 			return { resize: next };
 		});
@@ -208,14 +231,15 @@ export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
 
 	resizeFilterArgs: () => {
 		const { resize } = get();
-		if (
-			resize.width <= 0 ||
-			resize.height <= 0 ||
-			(resize.width === resize.originalWidth && resize.height === resize.originalHeight)
-		) {
+		if (resize.width <= 0 || resize.height <= 0 || resize.originalWidth <= 0 || resize.originalHeight <= 0) {
 			return [];
 		}
-		return [`scale=${resize.width}:${resize.height}:flags=lanczos`];
+		const sameSize = resize.width === resize.originalWidth && resize.height === resize.originalHeight;
+		const noOffset = (resize.cropOffsetX ?? 0) === 0 && (resize.cropOffsetY ?? 0) === 0;
+		if (sameSize && noOffset) return [];
+		const cx = Math.round((resize.originalWidth - resize.width) / 2 + (resize.cropOffsetX ?? 0));
+		const cy = Math.round((resize.originalHeight - resize.height) / 2 + (resize.cropOffsetY ?? 0));
+		return [`crop=${resize.width}:${resize.height}:${cx}:${cy}`];
 	},
 
 	trackArgs: () => {

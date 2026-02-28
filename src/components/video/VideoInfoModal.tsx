@@ -1,7 +1,7 @@
 import { AlertCircle, AudioLines, FileText, Film, LoaderCircle, Subtitles, X } from 'lucide-react';
 import type { ProbeResult, StreamInfo } from '@/stores/videoEditor.ts';
 import type { DetailedProbeResultData, DetailedProbeStreamInfo } from '@/workers/ffmpeg-worker.ts';
-import { formatDimensions, formatFileSize } from '@/utils/format.ts';
+import { formatDateTime, formatDimensions, formatFileSize, formatNumber } from '@/utils/format.ts';
 import { LANG_NAMES } from '@/utils/languageUtils.ts';
 
 interface VideoInfoModalProps {
@@ -54,9 +54,9 @@ function formatFps(value: number | null): string {
 function formatBitrate(rawBps?: string, kbps?: number): string {
 	if (rawBps) {
 		const value = Number(rawBps);
-		if (Number.isFinite(value) && value > 0) return `${Math.round(value / 1000).toLocaleString()} kb/s`;
+		if (Number.isFinite(value) && value > 0) return `${formatNumber(Math.round(value / 1000))} kb/s`;
 	}
-	if (kbps && kbps > 0) return `${Math.round(kbps).toLocaleString()} kb/s`;
+	if (kbps && kbps > 0) return `${formatNumber(Math.round(kbps))} kb/s`;
 	return '-';
 }
 
@@ -314,7 +314,7 @@ export function VideoInfoModal({
 				? 'Reading stream map'
 				: 'Loading metadata';
 
-	const lastModified = new Date(file.lastModified).toLocaleString(undefined, {
+	const lastModified = formatDateTime(file.lastModified, {
 		year: 'numeric',
 		month: 'short',
 		day: 'numeric',
