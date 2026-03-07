@@ -9,7 +9,7 @@ This project is a Media converting, editing, exporting app fully web-client base
 - **Advanced:** You can use Rust and WebAssembly if needed.
 - **Production:** Github CI/CD Pipelines with a develop branch and main branch (main = production), Deployed on Railway.com (auto deploy when Merge on main and CI passed), DNS records on Cloudflare, Domain name on Hostinger (vixely.app).
 - **Environment:** On Railway, NODE_ENV=PRODUCTION, PORT=80.
-- **Librairies:** Mediabunny (full docs, 3 files, in folder ./docs/mediabunny), Mediabunny extension for AC3/EAC3, JASSUB pour ASS subs, Zustand for stores, Oxlint/tsgolint for linter, Oxfmt for formatter.
+- **Librairies:** Mediabunny, Mediabunny extension for AC3/EAC3, JASSUB pour ASS subs, Zustand for stores, Oxlint/tsgolint for linter, Oxfmt for formatter.
 
 ## PROJECT DESCRIPTION
 
@@ -32,10 +32,10 @@ For now, the app is free to use. Later I'll add some ads with Google Adsense I t
 
 ## DIRECTIVES
 
-- **Use skills** when it's needed.
+- **ALWAYS USE SKILLS**.
 - Frontend should be **modern, but clean**. Nothing fancy neons and stuffs. Dark mode only and by default.
 - User experience is **vital**, the user should experience smooth, simple and fast UI (60fps minimum).
-- The app should be **responsive** and should be adapted to mobile, tablet (tablet mode should be more close to mobile version), and PC (16/9 monitors, or 3/2, 21/9 or even 32/9). Every size must use the areas smartly.
+- The app should be **responsive** and should be adapted to mobile, tablet (tablet mode should be more close to mobile version), and PC (16/9 monitors, or 3/2, 2/3, 21/9 or even 32/9). Every size must use the areas smartly.
 - Be careful about **SEO**, **Accessibility**, **UE/NON-UE LAWS (GPDR etc.)**.
 - When you finish a task, run lint then formatter, and if there is errors, fix them.
 - Code should be the cleanest possible, respect best pratices and folder structure should be clear.
