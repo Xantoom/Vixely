@@ -1,12 +1,9 @@
-import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useCallback, useEffect, useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 
 interface InspectorPaneProps {
 	width: number;
 	minWidth?: number;
 	maxWidth?: number;
-	collapsed: boolean;
-	onCollapsedChange: (next: boolean) => void;
 	onWidthChange: (nextWidth: number) => void;
 	children: ReactNode;
 	ariaLabel: string;
@@ -20,8 +17,6 @@ export function InspectorPane({
 	width,
 	minWidth = 280,
 	maxWidth = 520,
-	collapsed,
-	onCollapsedChange,
 	onWidthChange,
 	children,
 	ariaLabel,
@@ -60,29 +55,11 @@ export function InspectorPane({
 
 	const startResizing = useCallback(
 		(event: ReactPointerEvent<HTMLDivElement>) => {
-			if (collapsed) return;
 			resizingRef.current = { pointerId: event.pointerId, startX: event.clientX, startWidth: width };
 			event.currentTarget.setPointerCapture(event.pointerId);
 		},
-		[collapsed, width],
+		[width],
 	);
-
-	if (collapsed) {
-		return (
-			<aside className="hidden md:flex w-12 shrink-0 border-l border-border bg-surface items-start justify-center pt-3">
-				<button
-					onClick={() => {
-						onCollapsedChange(false);
-					}}
-					aria-label={`Expand ${ariaLabel}`}
-					title={`Expand ${ariaLabel}`}
-					className="h-8 w-8 flex items-center justify-center rounded-md text-text-tertiary hover:text-text hover:bg-surface-raised/60 transition-colors cursor-pointer"
-				>
-					<ChevronLeft size={16} />
-				</button>
-			</aside>
-		);
-	}
 
 	return (
 		<aside
@@ -96,16 +73,6 @@ export function InspectorPane({
 				aria-orientation="vertical"
 				aria-label={`${ariaLabel} resize handle`}
 			/>
-			<button
-				onClick={() => {
-					onCollapsedChange(true);
-				}}
-				aria-label={`Collapse ${ariaLabel}`}
-				title={`Collapse ${ariaLabel}`}
-				className="absolute top-2 left-2 z-10 h-7 w-7 flex items-center justify-center rounded-md border border-border/70 bg-bg/40 text-text-tertiary hover:text-text hover:bg-surface-raised/60 transition-colors cursor-pointer"
-			>
-				<ChevronRight size={14} />
-			</button>
 			<div className="h-full min-w-0 overflow-hidden flex flex-col">{children}</div>
 		</aside>
 	);

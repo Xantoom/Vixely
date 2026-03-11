@@ -7,7 +7,7 @@ export const Route = createFileRoute('/')({ component: HomePage });
 const editors = [
 	{
 		title: 'Video',
-		subtitle: 'Cut, trim & export',
+		subtitle: 'Trim, resize & export',
 		href: '/tools/video' as const,
 		icon: Video,
 		iconBg: 'bg-blue-500/10',
@@ -18,7 +18,7 @@ const editors = [
 	},
 	{
 		title: 'Image',
-		subtitle: 'Resize, adjust & export',
+		subtitle: 'Crop, adjust & export',
 		href: '/tools/image' as const,
 		icon: ImageIcon,
 		iconBg: 'bg-amber-500/10',
@@ -29,7 +29,7 @@ const editors = [
 	},
 	{
 		title: 'GIF',
-		subtitle: 'Convert video to GIF',
+		subtitle: 'Edit, optimize & export',
 		href: '/tools/gif' as const,
 		icon: Film,
 		iconBg: 'bg-emerald-500/10',
@@ -88,6 +88,20 @@ function HomePage() {
 						</Link>
 					))}
 				</nav>
+
+				<div
+					className="mt-5 inline-flex flex-wrap items-center justify-center gap-2 rounded-full border border-border bg-surface/60 px-4 py-2 text-[13px] text-text-tertiary backdrop-blur-sm animate-slide-up"
+					style={{ animationDelay: '380ms' }}
+				>
+					<span>Local-first editing</span>
+					<span aria-hidden="true" className="h-1 w-1 rounded-full bg-text-tertiary/70" />
+					<Link
+						to="/privacy"
+						className="font-medium text-text-secondary underline decoration-accent/50 underline-offset-4 transition-colors hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-sm"
+					>
+						Privacy Policy
+					</Link>
+				</div>
 			</div>
 		</>
 	);

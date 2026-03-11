@@ -21,7 +21,8 @@ import { useEditorSessionStore } from '@/stores/editorSession.ts';
 import { useImageEditorStore } from '@/stores/imageEditor.ts';
 import { consumePendingImageTransfer } from '@/utils/crossEditorTransfer.ts';
 
-const ACCEPTED_TYPES = new Set(
+const ACCEPTED_IMAGE_EXTENSIONS = IMAGE_ACCEPT.split(',').map((ext) => ext.trim().toLowerCase());
+const ACCEPTED_IMAGE_TYPES = new Set(
 	IMAGE_ACCEPT.split(',').map((ext) => {
 		const e = ext.replace('.', '');
 		if (e === 'jpg' || e === 'jpeg') return 'image/jpeg';
@@ -30,11 +31,20 @@ const ACCEPTED_TYPES = new Set(
 	}),
 );
 
+function isAcceptedImageFileLike(file: File): boolean {
+	if (ACCEPTED_IMAGE_TYPES.has(file.type)) return true;
+	const fileName = file.name.toLowerCase();
+	return ACCEPTED_IMAGE_EXTENSIONS.some((ext) => fileName.endsWith(ext));
+}
+
 export const Route = createFileRoute('/tools/image')({ component: ImageLab });
 
 function ImageLab() {
-	const { inspectorWidth, inspectorCollapsed, stage, setInspectorWidth, setInspectorCollapsed, setStage } =
-		useEditorLayoutPrefs({ editor: 'image', defaultInspectorWidth: 360, defaultStage: 'source' });
+	const { inspectorWidth, stage, setInspectorWidth, setStage } = useEditorLayoutPrefs({
+		editor: 'image',
+		defaultInspectorWidth: 360,
+		defaultStage: 'source',
+	});
 	useLongTaskObserver('image-route');
 	const { originalData, loadImage, undo, redo, clearAll, hasUnsavedChanges } = useImageEditorStore(
 		useShallow((s) => ({
@@ -71,6 +81,11 @@ function ImageLab() {
 
 	const handleLoadFile = useCallback(
 		async (f: File) => {
+			if (!isAcceptedImageFileLike(f)) {
+				toast.error('Invalid file type', { description: 'Choose an image file (PNG, JPG, WebP, etc.)' });
+				return;
+			}
+
 			let bitmap: ImageBitmap | null = null;
 			try {
 				try {
@@ -102,7 +117,7 @@ function ImageLab() {
 		onFile: (file) => {
 			void handleLoadFile(file);
 		},
-		acceptFile: (file) => file.type.startsWith('image/') || ACCEPTED_TYPES.has(file.type),
+		acceptFile: isAcceptedImageFileLike,
 		onRejectedFile: () => {
 			toast.error('Invalid file type', { description: 'Drop an image file (PNG, JPG, WebP, etc.)' });
 		},
@@ -164,6 +179,7 @@ function ImageLab() {
 				onChange={(e) => {
 					const f = e.target.files?.[0];
 					if (f) void handleLoadFile(f);
+					e.currentTarget.value = '';
 				}}
 			/>
 
@@ -177,7 +193,7 @@ function ImageLab() {
 							className={`flex-1 relative overflow-hidden ${
 								hasImageLoaded
 									? 'checkerboard'
-									: 'workspace-bg flex items-center justify-center p-3 sm:p-6'
+									: 'workspace-bg flex items-center justify-center p-4 sm:p-6 lg:p-8'
 							} ${isDragging ? 'drop-zone-active' : ''}`}
 							{...dropHandlers}
 						>
@@ -190,7 +206,7 @@ function ImageLab() {
 										variant="hero"
 										isDragging={isDragging}
 										title="No image loaded"
-										description="Drop a file or click to get started"
+										description="Drop an image or click to get started"
 										dragTitle="Drop your image here"
 										dragDescription="Release to load"
 										onChooseFile={handleOpenFile}
@@ -227,8 +243,6 @@ function ImageLab() {
 					hasImageLoaded ? (
 						<InspectorPane
 							width={inspectorWidth}
-							collapsed={inspectorCollapsed}
-							onCollapsedChange={setInspectorCollapsed}
 							onWidthChange={setInspectorWidth}
 							ariaLabel="image inspector"
 						>

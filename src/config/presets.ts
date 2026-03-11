@@ -427,5 +427,5 @@ export function buildVideoArgs(
 
 export const VIDEO_ACCEPT = '.mp4,.webm,.mov,.mkv,.avi,.m4v,.ts,.flv';
 export const IMAGE_ACCEPT = '.png,.jpg,.jpeg,.webp,.bmp,.tiff,.avif';
-export const GIF_ACCEPT = `${VIDEO_ACCEPT},.gif`;
+export const GIF_ACCEPT = '.gif';
 export const ALL_MEDIA_ACCEPT = `${VIDEO_ACCEPT},${IMAGE_ACCEPT},.gif`;

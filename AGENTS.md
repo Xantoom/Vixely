@@ -33,6 +33,10 @@ For now, the app is free to use. Later I'll add some ads with Google Adsense I t
 ## DIRECTIVES
 
 - **ALWAYS USE SKILLS**.
+- **UI ALWAYS IN ENGLISH ONLY.**
+- **ALWAYS USE FRONTEND-DESIGN SKILL WHEN DOING UI/UX OR FRONT. ALWAYS USE VERCEL REACT BEST PRATICES.**.
+- In UI, there is no need for a lot of text.
+- Think about SEO, Google Ads, for better reaching and revenues.
 - Frontend should be **modern, but clean**. Nothing fancy neons and stuffs. Dark mode only and by default.
 - User experience is **vital**, the user should experience smooth, simple and fast UI (60fps minimum).
 - The app should be **responsive** and should be adapted to mobile, tablet (tablet mode should be more close to mobile version), and PC (16/9 monitors, or 3/2, 2/3, 21/9 or even 32/9). Every size must use the areas smartly.

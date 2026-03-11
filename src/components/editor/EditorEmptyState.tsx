@@ -26,41 +26,62 @@ export function EditorEmptyState({
 	onChooseFile,
 	variant = 'default',
 }: EditorEmptyStateProps) {
-	const iconContainerClass =
-		variant === 'hero'
-			? 'rounded-3xl px-14 py-12 mb-6 border border-border bg-surface'
-			: 'rounded-2xl p-8 mb-5 border border-border bg-surface';
-	const iconSize = variant === 'hero' ? 72 : 48;
-	const titleClass =
-		variant === 'hero' ? 'text-lg font-semibold text-text-secondary' : 'text-sm font-medium text-text-secondary';
-	const descriptionClass =
-		variant === 'hero' ? 'mt-2 text-sm text-text-tertiary' : 'mt-1 text-[14px] text-text-tertiary';
+	const isHero = variant === 'hero';
+	const activeTitle = isDragging ? dragTitle : title;
+	const activeDescription = isDragging ? dragDescription : description;
 
 	return (
-		<div className="flex flex-col items-center text-center max-w-lg px-4">
+		<div className={`w-full ${isHero ? 'max-w-2xl' : 'max-w-xl'} px-1 sm:px-2`}>
 			<div
-				className={`${iconContainerClass} transition-all ${
-					isDragging ? 'border-accent scale-105 shadow-[0_0_40px_var(--color-accent-glow)]' : ''
+				className={`relative overflow-hidden rounded-[28px] border p-7 text-center transition-all duration-300 sm:p-8 ${
+					isDragging
+						? 'border-accent/40 bg-[linear-gradient(180deg,color-mix(in_oklab,var(--color-accent)_8%,rgba(24,24,27,0.9))_0%,rgba(9,9,11,0.98)_100%)] shadow-[0_0_0_1px_var(--color-accent-surface),0_24px_60px_rgba(0,0,0,0.36)]'
+						: 'border-[color:color-mix(in_oklab,var(--color-accent)_12%,var(--color-border))] bg-[linear-gradient(180deg,rgba(24,24,27,0.78)_0%,rgba(10,10,13,0.96)_100%)] shadow-[0_20px_48px_rgba(0,0,0,0.28)]'
 				}`}
 			>
-				<Icon
-					size={iconSize}
-					strokeWidth={1.2}
-					className={`transition-colors ${isDragging ? 'text-accent' : 'text-accent/25'}`}
-				/>
+				<div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.012)_0%,transparent_26%)]" />
+				<div className="relative">
+					<div
+						className={`mx-auto flex items-center justify-center rounded-[22px] border transition-all duration-300 ${
+							isHero ? 'h-16 w-16' : 'h-14 w-14'
+						} ${
+							isDragging
+								? 'border-accent/30 bg-accent/14 text-accent'
+								: 'border-accent/18 bg-accent/10 text-accent'
+						}`}
+					>
+						<Icon size={isHero ? 28 : 24} strokeWidth={1.5} />
+					</div>
+
+					<h2
+						className={`mt-6 text-balance font-semibold tracking-tight text-text ${
+							isHero ? 'text-[1.75rem] leading-[1.08] sm:text-[2rem]' : 'text-xl'
+						}`}
+					>
+						{activeTitle}
+					</h2>
+					<p
+						className={`mx-auto max-w-lg text-pretty text-text-secondary ${
+							isHero ? 'mt-3 text-[15px] leading-6 sm:text-base' : 'mt-2 text-sm leading-6'
+						}`}
+					>
+						{activeDescription}
+					</p>
+
+					{!isDragging && onChooseFile && (
+						<div className="mt-6 flex justify-center">
+							<Button
+								variant="primary"
+								size={isHero ? 'md' : 'sm'}
+								className="shadow-[0_12px_30px_var(--color-accent-glow)]"
+								onClick={onChooseFile}
+							>
+								{chooseLabel}
+							</Button>
+						</div>
+					)}
+				</div>
 			</div>
-			<p className={titleClass}>{isDragging ? dragTitle : title}</p>
-			<p className={descriptionClass}>{isDragging ? dragDescription : description}</p>
-			{!isDragging && onChooseFile && (
-				<Button
-					variant="secondary"
-					size={variant === 'hero' ? 'md' : 'sm'}
-					className={variant === 'hero' ? 'mt-5 h-10 px-5 text-sm' : 'mt-4'}
-					onClick={onChooseFile}
-				>
-					{chooseLabel}
-				</Button>
-			)}
 		</div>
 	);
 }

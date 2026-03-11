@@ -175,9 +175,34 @@
 /* ── Workspace Background ── */
 
 .workspace-bg {
-	background:
-		radial-gradient(ellipse 80% 60% at 50% 50%, var(--color-accent-surface) 0%, transparent 70%),
-		linear-gradient(180deg, var(--color-bg) 0%, rgba(24, 24, 27, 0.5) 100%);
+	background-color: color-mix(in oklab, var(--color-bg) 95%, var(--color-accent-dim) 5%);
+	background-image:
+		linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.22) 100%),
+		radial-gradient(
+			circle at 18% 16%,
+			color-mix(in oklab, var(--color-accent) 14%, transparent) 0%,
+			transparent 36%
+		),
+		radial-gradient(
+			circle at 84% 6%,
+			color-mix(in oklab, var(--color-accent-dim) 12%, transparent) 0%,
+			transparent 28%
+		),
+		radial-gradient(
+			circle at 50% 100%,
+			color-mix(in oklab, var(--color-accent) 8%, transparent) 0%,
+			transparent 40%
+		);
+	background-position:
+		center,
+		left top,
+		right top,
+		center;
+	background-size:
+		100% 100%,
+		100% 100%,
+		100% 100%,
+		100% 100%;
 }
 
 /* ── Base ── */

@@ -47,7 +47,6 @@ import {
 	EditorStageTabs,
 	InspectorPane,
 	Timeline,
-	TimelineModeTabs,
 	formatCompactTime,
 } from '@/components/ui/index.ts';
 import { gifPresetEntries, GIF_ACCEPT } from '@/config/presets.ts';
@@ -70,7 +69,6 @@ import { formatFileSize, formatNumber } from '@/utils/format.ts';
 export const Route = createFileRoute('/tools/gif')({ component: GifFoundry });
 
 const GIF_PRESETS = gifPresetEntries();
-const VIDEO_FILENAME_RE = /\.(mp4|mkv|webm|mov|m4v|avi|mts|m2ts|ts)$/i;
 
 const ASPECT_RATIO_MAP: Record<string, number> = {
 	'1:1': 1,
@@ -84,13 +82,8 @@ function parseAspectPreset(preset: string): number | undefined {
 	return ASPECT_RATIO_MAP[preset];
 }
 
-function isGifEditorFileLike(file: File): boolean {
-	return (
-		file.type.startsWith('video/') ||
-		file.type === 'image/gif' ||
-		file.name.toLowerCase().endsWith('.gif') ||
-		VIDEO_FILENAME_RE.test(file.name)
-	);
+function isGifFileLike(file: File): boolean {
+	return file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif');
 }
 
 type SidebarSectionId = 'setup' | 'style' | 'timing' | 'output';
@@ -207,19 +200,9 @@ const SIMPLE_GIF_MODES = new Set<GifMode>(['settings', 'crop', 'resize', 'filter
 
 function GifFoundry() {
 	useLongTaskObserver('gif-route');
-	const {
-		inspectorWidth,
-		inspectorCollapsed,
-		timelineMode,
-		stage,
-		setInspectorWidth,
-		setInspectorCollapsed,
-		setTimelineMode,
-		setStage,
-	} = useEditorLayoutPrefs({
+	const { inspectorWidth, stage, setInspectorWidth, setStage } = useEditorLayoutPrefs({
 		editor: 'gif',
 		defaultInspectorWidth: 360,
-		defaultTimelineMode: 'full',
 		defaultStage: 'source',
 	});
 	const { ready, processing, progress, error, createGif, extractGifFrames } = useVideoProcessor();
@@ -378,6 +361,11 @@ function GifFoundry() {
 	/* ── File Handling ── */
 	const handleFile = useCallback(
 		(f: File) => {
+			if (!isGifFileLike(f)) {
+				toast.error('Invalid file type', { description: 'Choose a GIF file (.gif)' });
+				return;
+			}
+
 			setFile(f);
 			setResultUrl(null);
 			setResultSize(0);
@@ -413,7 +401,7 @@ function GifFoundry() {
 				setTrimEnd(5);
 			}
 
-			toast.success('File loaded', { description: f.name });
+			toast.success('GIF loaded', { description: f.name });
 		},
 		[setResultUrl, setVideoUrl],
 	);
@@ -445,9 +433,9 @@ function GifFoundry() {
 
 	const { isDragging, dropHandlers } = useSingleFileDrop<HTMLDivElement>({
 		onFile: handleFile,
-		acceptFile: isGifEditorFileLike,
+		acceptFile: isGifFileLike,
 		onRejectedFile: () => {
-			toast.error('Invalid file type', { description: 'Drop a video or GIF file' });
+			toast.error('Invalid file type', { description: 'Drop a GIF file (.gif)' });
 		},
 	});
 
@@ -1084,6 +1072,7 @@ function GifFoundry() {
 				onChange={(e) => {
 					const f = e.target.files?.[0];
 					if (f) handleFile(f);
+					e.currentTarget.value = '';
 				}}
 			/>
 
@@ -1093,7 +1082,7 @@ function GifFoundry() {
 					<>
 						{/* Workspace */}
 						<div
-							className="flex-1 flex items-center justify-center workspace-bg p-3 sm:p-6 overflow-hidden relative"
+							className="flex-1 flex items-center justify-center workspace-bg p-4 sm:p-6 lg:p-8 overflow-hidden relative"
 							{...dropHandlers}
 						>
 							{videoUrl ? (
@@ -1219,9 +1208,9 @@ function GifFoundry() {
 										icon={Film}
 										variant="hero"
 										isDragging={isDragging}
-										title="No file loaded"
-										description="Drop a video or GIF, or click to get started"
-										dragTitle="Drop your file here"
+										title="No GIF loaded"
+										description="Drop a GIF or click to get started"
+										dragTitle="Drop your GIF here"
 										dragDescription="Release to load"
 										onChooseFile={() => fileInputRef.current?.click()}
 									/>
@@ -1232,7 +1221,7 @@ function GifFoundry() {
 							{isDragging && videoUrl && (
 								<div className="absolute inset-0 flex items-center justify-center bg-accent-surface/50 backdrop-blur-sm z-20 pointer-events-none">
 									<div className="rounded-xl border-2 border-dashed border-accent px-6 py-4 text-sm font-medium text-accent">
-										Drop to replace file
+										Drop to replace GIF
 									</div>
 								</div>
 							)}
@@ -1240,118 +1229,113 @@ function GifFoundry() {
 
 						{/* Timeline (only for video sources) */}
 						{!isGifSource && duration > 0 && (
-							<div className="border-t border-border bg-surface px-3 sm:px-6 py-3 sm:py-4">
-								<div className="mb-2 flex items-center justify-between gap-2">
-									<p className="text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">
-										Timeline
-									</p>
-									<TimelineModeTabs mode={timelineMode} onChange={setTimelineMode} />
-								</div>
-								{timelineMode === 'hidden' ? (
-									<div className="rounded-lg border border-border/60 bg-bg/35 px-3 py-2 text-[13px] text-text-tertiary">
-										Timeline hidden to maximize preview area.
+							<div className="border-t border-border bg-[linear-gradient(180deg,rgba(24,24,27,0.96)_0%,rgba(9,9,11,0.98)_100%)] px-3 py-3 sm:px-6 sm:py-4">
+								<div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+									<div>
+										<p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary">
+											Timeline
+										</p>
+										<p className="mt-1 text-[13px] text-text-secondary">
+											Scrub the source clip, trim timing, and step frame by frame.
+										</p>
 									</div>
-								) : (
-									<>
-										<Timeline
-											duration={duration}
-											trimStart={trimStart}
-											trimEnd={trimEnd}
-											currentTime={currentTime}
-											density={timelineMode === 'compact' ? 'compact' : 'full'}
-											minGap={minTrimDuration}
-											onTrimStartChange={(v) => {
-												setTrimStart(clampTrimStart(v));
+									<div className="hidden sm:inline-flex items-center rounded-full border border-border/70 bg-bg/35 px-3 py-1.5 text-[12px] font-mono text-text-tertiary tabular-nums">
+										Frame {formatNumber(timeToFrames(currentTime))} / {formatNumber(totalFrames)}
+									</div>
+								</div>
+
+								<Timeline
+									duration={duration}
+									trimStart={trimStart}
+									trimEnd={trimEnd}
+									currentTime={currentTime}
+									density="full"
+									minGap={minTrimDuration}
+									onTrimStartChange={(v) => {
+										setTrimStart(clampTrimStart(v));
+									}}
+									onTrimEndChange={(v) => {
+										setTrimEnd(clampTrimEnd(v));
+									}}
+									onSeek={handleSeek}
+									onScrubStart={handleTimelineScrubStart}
+									onScrubEnd={handleTimelineScrubEnd}
+									centerStart={
+										<Button
+											variant="ghost"
+											size="icon"
+											onPointerDown={(e) => {
+												e.preventDefault();
+												startFrameHold(-1);
 											}}
-											onTrimEndChange={(v) => {
-												setTrimEnd(clampTrimEnd(v));
+											onPointerUp={stopFrameHold}
+											onPointerLeave={stopFrameHold}
+											onPointerCancel={stopFrameHold}
+											onKeyDown={(e) => {
+												if (e.key === 'Enter' || e.key === ' ') {
+													e.preventDefault();
+													stepCurrentFrame(-1);
+												}
 											}}
-											onSeek={handleSeek}
-											onScrubStart={handleTimelineScrubStart}
-											onScrubEnd={handleTimelineScrubEnd}
-											headerStart={
-												<span className="hidden sm:inline-flex items-center text-[13px] font-mono text-text-tertiary tabular-nums">
-													Frame {formatNumber(timeToFrames(currentTime))} /{' '}
-													{formatNumber(totalFrames)}
-												</span>
-											}
-											centerStart={
-												<Button
-													variant="ghost"
-													size="icon"
-													onPointerDown={(e) => {
-														e.preventDefault();
-														startFrameHold(-1);
-													}}
-													onPointerUp={stopFrameHold}
-													onPointerLeave={stopFrameHold}
-													onPointerCancel={stopFrameHold}
-													onKeyDown={(e) => {
-														if (e.key === 'Enter' || e.key === ' ') {
-															e.preventDefault();
-															stepCurrentFrame(-1);
-														}
-													}}
-													disabled={!file || processing}
-													title="Previous frame"
-													aria-label="Previous frame"
-												>
-													<StepBack size={16} />
-												</Button>
-											}
-											centerEnd={
-												<Button
-													variant="ghost"
-													size="icon"
-													onPointerDown={(e) => {
-														e.preventDefault();
-														startFrameHold(1);
-													}}
-													onPointerUp={stopFrameHold}
-													onPointerLeave={stopFrameHold}
-													onPointerCancel={stopFrameHold}
-													onKeyDown={(e) => {
-														if (e.key === 'Enter' || e.key === ' ') {
-															e.preventDefault();
-															stepCurrentFrame(1);
-														}
-													}}
-													disabled={!file || processing}
-													title="Next frame"
-													aria-label="Next frame"
-												>
-													<StepForward size={16} />
-												</Button>
-											}
-										/>
-										{file && timelineMode === 'full' && (
-											<div className="mt-3 rounded-lg border border-border/70 bg-bg/40 px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-text-tertiary">
-												<span className="font-medium text-text-secondary truncate max-w-full">
-													{file.name}
-												</span>
-												<span>{formatFileSize(file.size)}</span>
-												{sourceWidth && sourceHeight && (
-													<span>
-														{sourceWidth}&times;{sourceHeight}
-													</span>
-												)}
-												<span>{videoFps.toFixed(2)} fps</span>
-												<span>{formatCompactTime(duration)}</span>
-												<div className="flex-1" />
-												<button
-													onClick={() => {
-														setShowInfo(true);
-													}}
-													type="button"
-													aria-label="Open GIF file info"
-													className="inline-flex items-center gap-1 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
-													title="File info"
-												>
-													<Info size={13} />
-												</button>
-											</div>
+											disabled={!file || processing}
+											title="Previous frame"
+											aria-label="Previous frame"
+										>
+											<StepBack size={16} />
+										</Button>
+									}
+									centerEnd={
+										<Button
+											variant="ghost"
+											size="icon"
+											onPointerDown={(e) => {
+												e.preventDefault();
+												startFrameHold(1);
+											}}
+											onPointerUp={stopFrameHold}
+											onPointerLeave={stopFrameHold}
+											onPointerCancel={stopFrameHold}
+											onKeyDown={(e) => {
+												if (e.key === 'Enter' || e.key === ' ') {
+													e.preventDefault();
+													stepCurrentFrame(1);
+												}
+											}}
+											disabled={!file || processing}
+											title="Next frame"
+											aria-label="Next frame"
+										>
+											<StepForward size={16} />
+										</Button>
+									}
+								/>
+
+								{file && (
+									<div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-border/70 bg-bg/35 px-3 py-2 text-[13px] text-text-tertiary">
+										<span className="font-medium text-text-secondary truncate max-w-full">
+											{file.name}
+										</span>
+										<span>{formatFileSize(file.size)}</span>
+										{sourceWidth && sourceHeight && (
+											<span>
+												{sourceWidth}&times;{sourceHeight}
+											</span>
 										)}
-									</>
+										<span>{videoFps.toFixed(2)} fps</span>
+										<span>{formatCompactTime(duration)}</span>
+										<div className="flex-1" />
+										<button
+											onClick={() => {
+												setShowInfo(true);
+											}}
+											type="button"
+											aria-label="Open GIF file info"
+											className="inline-flex items-center gap-1 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
+											title="File info"
+										>
+											<Info size={13} />
+										</button>
+									</div>
 								)}
 							</div>
 						)}
@@ -1376,8 +1360,6 @@ function GifFoundry() {
 					file ? (
 						<InspectorPane
 							width={inspectorWidth}
-							collapsed={inspectorCollapsed}
-							onCollapsedChange={setInspectorCollapsed}
 							onWidthChange={setInspectorWidth}
 							ariaLabel="gif inspector"
 						>
