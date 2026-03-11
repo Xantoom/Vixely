@@ -36,7 +36,7 @@ export function EditorEmptyState({
 				className={`relative overflow-hidden rounded-[28px] border p-7 text-center transition-all duration-300 sm:p-8 ${
 					isDragging
 						? 'border-accent/40 bg-[linear-gradient(180deg,color-mix(in_oklab,var(--color-accent)_8%,rgba(24,24,27,0.9))_0%,rgba(9,9,11,0.98)_100%)] shadow-[0_0_0_1px_var(--color-accent-surface),0_24px_60px_rgba(0,0,0,0.36)]'
-						: 'border-[color:color-mix(in_oklab,var(--color-accent)_12%,var(--color-border))] bg-[linear-gradient(180deg,rgba(24,24,27,0.78)_0%,rgba(10,10,13,0.96)_100%)] shadow-[0_20px_48px_rgba(0,0,0,0.28)]'
+						: 'border-[color-mix(in_oklab,var(--color-accent)_12%,var(--color-border))] bg-[linear-gradient(180deg,rgba(24,24,27,0.78)_0%,rgba(10,10,13,0.96)_100%)] shadow-[0_20px_48px_rgba(0,0,0,0.28)]'
 				}`}
 			>
 				<div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.012)_0%,transparent_26%)]" />

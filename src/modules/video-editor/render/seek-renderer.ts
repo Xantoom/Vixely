@@ -1,7 +1,7 @@
 import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
+import { WebCodecsVideoDecoder } from '../decode/webcodecs-decoder.ts';
 import type { Demuxer } from '../demux/demuxer.ts';
 import type { PlaybackRenderer } from './playback-renderer.ts';
-import { WebCodecsVideoDecoder } from '../decode/webcodecs-decoder.ts';
 
 /**
  * Seek renderer: flush decoder, seek to nearest keyframe,

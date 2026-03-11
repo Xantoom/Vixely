@@ -1,7 +1,7 @@
 import { useShallow } from 'zustand/react/shallow';
-import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
 import { Button, Slider } from '@/components/ui/index.ts';
 import { filterPresetEntries } from '@/config/presets.ts';
+import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
 import { useGifEditorStore } from '@/stores/gifEditor.ts';
 
 const FILTER_PRESETS = filterPresetEntries();

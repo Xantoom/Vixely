@@ -16,9 +16,6 @@ import {
 } from 'lucide-react';
 import { useState, useRef, useCallback, useEffect, useMemo, useId } from 'react';
 import { toast } from 'sonner';
-import type { SubtitlePreviewData } from '@/hooks/useVideoProcessor.ts';
-import type { AdvancedVideoSettings } from '@/stores/videoEditor.ts';
-import type { DetailedProbeResultData } from '@/workers/ffmpeg-worker.ts';
 import {
 	EditorEmptyState,
 	EditorFileSummary,
@@ -63,15 +60,18 @@ import { usePreventUnload } from '@/hooks/usePreventUnload.ts';
 import { useSingleFileDrop } from '@/hooks/useSingleFileDrop.ts';
 import { useTimelineScrubController } from '@/hooks/useTimelineScrubController.ts';
 import { useVideoMetadataLoader, type MetadataLoadStage } from '@/hooks/useVideoMetadataLoader.ts';
+import type { SubtitlePreviewData } from '@/hooks/useVideoProcessor.ts';
 import { useVideoProcessor } from '@/hooks/useVideoProcessor.ts';
 import { buildFfmpegExportPlan } from '@/modules/video-editor/export/ffmpeg-export-plan.ts';
 import { useEditorSessionStore } from '@/stores/editorSession.ts';
 import { useEditorUxStore } from '@/stores/editorUx.ts';
+import type { AdvancedVideoSettings } from '@/stores/videoEditor.ts';
 import { useVideoEditorStore, type VideoMode } from '@/stores/videoEditor.ts';
 import { setPendingImageTransfer } from '@/utils/crossEditorTransfer.ts';
 import { buildExportFilename } from '@/utils/exportFilename.ts';
 import { formatFileSize, formatNumber } from '@/utils/format.ts';
 import { formatChannels, getLanguageName } from '@/utils/languageUtils.ts';
+import type { DetailedProbeResultData } from '@/workers/ffmpeg-worker.ts';
 
 export const Route = createFileRoute('/tools/video')({ component: VideoStudio });
 

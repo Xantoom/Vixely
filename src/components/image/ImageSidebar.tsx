@@ -2,10 +2,10 @@ import { Lock, Unlock, FilePlus2, Palette, SlidersHorizontal, Maximize2, Downloa
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
-import type { EditorStage } from '@/hooks/useEditorLayoutPrefs.ts';
 import { EditorFileSummary, EditorShellHeader, EditorUxModeSwitch } from '@/components/editor/index.ts';
 import { Button, EditorModeTabs, EditorStageTabs, type EditorModeTabItem, Slider } from '@/components/ui/index.ts';
 import { filterPresetEntries, imagePresetEntries } from '@/config/presets.ts';
+import type { EditorStage } from '@/hooks/useEditorLayoutPrefs.ts';
 import { buildFallbackFilterString } from '@/modules/photo-editor/render/fallback-filters.ts';
 import { PhotoWebGLRenderer } from '@/modules/photo-editor/render/webgl-renderer.ts';
 import { filtersAreDefault } from '@/modules/shared-core/types/filters.ts';

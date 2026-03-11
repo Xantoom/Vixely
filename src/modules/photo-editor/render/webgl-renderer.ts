@@ -1,5 +1,5 @@
-import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
 import { PipelineRendererBase } from '@/modules/shared-core/render/pipelineRendererBase.ts';
+import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
 
 /**
  * Photo-specific WebGL renderer.

@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { ProbeResultData, FontAttachmentInfo, DetailedProbeResultData } from '@/workers/ffmpeg-worker.ts';
 import { cacheKeyForFile, useVideoMetadataStore } from '@/stores/videoMetadata.ts';
 import { emitTelemetry } from '@/utils/telemetry.ts';
+import type { ProbeResultData, FontAttachmentInfo, DetailedProbeResultData } from '@/workers/ffmpeg-worker.ts';
 
 // ── Worker Message Types ──
 

@@ -1,5 +1,5 @@
-import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
 import { FilterPipeline } from '@/modules/shared-core/filter-pipeline.ts';
+import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
 
 export class PipelineRendererBase {
 	protected readonly pipeline: FilterPipeline;
