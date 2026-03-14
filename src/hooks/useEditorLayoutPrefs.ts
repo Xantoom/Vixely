@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 export type EditorKey = 'video' | 'gif' | 'image';
 export type EditorStage = 'source' | 'edit' | 'output';
@@ -52,7 +52,7 @@ export function useEditorLayoutPrefs({
 	minInspectorWidth = 280,
 	maxInspectorWidth = 520,
 }: UseEditorLayoutPrefsOptions) {
-	const storageKey = useMemo(() => `vixely:layout:${editor}`, [editor]);
+	const storageKey = `vixely:layout:${editor}`;
 
 	const [state, setState] = useState<LayoutState>(() => {
 		const fallback: LayoutState = {

@@ -229,9 +229,10 @@ function VideoStudio() {
 
 	const updateAdvanced = useCallback(
 		<K extends keyof AdvancedVideoSettings>(key: K, value: AdvancedVideoSettings[K]) => {
-			setAdvancedSettings(applyAdvancedUpdate(advancedSettings, key, value));
+			const current = useVideoEditorStore.getState().advancedSettings;
+			setAdvancedSettings(applyAdvancedUpdate(current, key, value));
 		},
-		[advancedSettings, setAdvancedSettings],
+		[setAdvancedSettings],
 	);
 
 	const [file, setFile] = useState<File | null>(null);
@@ -285,7 +286,7 @@ function VideoStudio() {
 
 	const videoStreamInfo = useMemo(() => probeResult?.streams.find((s) => s.type === 'video') ?? null, [probeResult]);
 	const videoFps = videoStreamInfo?.fps ?? 30;
-	const frameDuration = useMemo(() => 1 / Math.max(videoFps, 1), [videoFps]);
+	const frameDuration = 1 / Math.max(videoFps, 1);
 
 	const audioStreams = useMemo(() => probeResult?.streams.filter((s) => s.type === 'audio') ?? [], [probeResult]);
 	const subtitleStreams = useMemo(

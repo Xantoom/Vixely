@@ -1,4 +1,5 @@
 import { Check, X } from 'lucide-react';
+import { useMemo } from 'react';
 import { getPlatformIcon, getPlatformLabel, PlatformIconComponent } from '@/components/video/PlatformIcons.tsx';
 
 interface Preset {
@@ -18,9 +19,11 @@ interface PresetsPanelProps {
 }
 
 export function PresetsPanel({ groupedPresets, selectedPreset, onSelectPreset }: PresetsPanelProps) {
-	const selectedEntry = selectedPreset
-		? groupedPresets.flatMap((g) => g.presets).find(([key]) => key === selectedPreset)
-		: null;
+	const selectedEntry = useMemo(
+		() =>
+			selectedPreset ? groupedPresets.flatMap((g) => g.presets).find(([key]) => key === selectedPreset) : null,
+		[groupedPresets, selectedPreset],
+	);
 
 	return (
 		<div className="flex flex-col gap-4">

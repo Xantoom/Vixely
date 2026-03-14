@@ -305,9 +305,9 @@ function GifFoundry() {
 		};
 	}, [isDirty, setEditorUnsaved]);
 	const videoFps = Math.max(1, fps);
-	const frameDuration = useMemo(() => 1 / videoFps, [videoFps]);
+	const frameDuration = 1 / videoFps;
 	const minTrimDuration = frameDuration;
-	const totalFrames = useMemo(() => Math.max(0, Math.ceil(duration * videoFps)), [duration, videoFps]);
+	const totalFrames = Math.max(0, Math.ceil(duration * videoFps));
 
 	const timeToFrames = useCallback(
 		(time: number) => {

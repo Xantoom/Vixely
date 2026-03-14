@@ -1,4 +1,5 @@
 import { Layers, Scissors, Scaling, Palette, Download } from 'lucide-react';
+import { useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { EditorModeTabs, type EditorModeTabItem } from '@/components/ui/index.ts';
 import { useVideoEditorStore, type VideoMode } from '@/stores/videoEditor.ts';
@@ -27,18 +28,22 @@ export function VideoModeTabs({ hasTrimChanges = false, selectedPreset = null, m
 	const hasResizeChanges =
 		resize.originalWidth > 0 && (resize.width !== resize.originalWidth || resize.height !== resize.originalHeight);
 
-	const activity: Record<VideoMode, boolean> = {
-		presets: selectedPreset != null,
-		trim: hasTrimChanges,
-		resize: hasResizeChanges,
-		adjust: hasColorChanges,
-		export: false,
-	};
-	const availableModes = modes && modes.length > 0 ? modes : TABS.map((tab) => tab.id);
-	const items = TABS.filter((tab) => availableModes.includes(tab.id)).map((tab) => ({
-		...tab,
-		hasActivity: activity[tab.id],
-	}));
+	const hasPresetActivity = selectedPreset != null;
+
+	const items = useMemo(() => {
+		const availableModes = modes && modes.length > 0 ? modes : TABS.map((tab) => tab.id);
+		const activity: Record<VideoMode, boolean> = {
+			presets: hasPresetActivity,
+			trim: hasTrimChanges,
+			resize: hasResizeChanges,
+			adjust: hasColorChanges,
+			export: false,
+		};
+		return TABS.filter((tab) => availableModes.includes(tab.id)).map((tab) => ({
+			...tab,
+			hasActivity: activity[tab.id],
+		}));
+	}, [modes, hasPresetActivity, hasTrimChanges, hasResizeChanges, hasColorChanges]);
 
 	return (
 		<div className="shrink-0 border-b border-border/70 bg-surface-raised/15">
