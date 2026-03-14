@@ -17,7 +17,6 @@ interface GifExportPanelProps {
 	resultSize: number;
 	onGenerate: () => void;
 	onDownload: () => void;
-	onCloseDrawer: () => void;
 }
 
 export function GifExportPanel({
@@ -34,7 +33,6 @@ export function GifExportPanel({
 	resultSize,
 	onGenerate,
 	onDownload,
-	onCloseDrawer,
 }: GifExportPanelProps) {
 	const {
 		speed,
@@ -149,7 +147,6 @@ export function GifExportPanel({
 					disabled={!file || !ready || processing}
 					onClick={() => {
 						onGenerate();
-						onCloseDrawer();
 					}}
 				>
 					{processing ? `Generating ${Math.round(progress * 100)}%` : 'Generate GIF'}
@@ -161,7 +158,6 @@ export function GifExportPanel({
 						className="w-full"
 						onClick={() => {
 							onDownload();
-							onCloseDrawer();
 						}}
 					>
 						Download ({formatFileSize(resultSize)})

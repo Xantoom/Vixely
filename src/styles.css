@@ -32,9 +32,13 @@
 	--color-editor-gif: #10b981;
 	--color-editor-gif-dim: #059669;
 
+	/* ── Breakpoints ── */
+	--breakpoint-uw: 1920px;
+
 	/* ── Animations ── */
 	--animate-fade-in: fade-in 0.35s ease-out both;
 	--animate-slide-up: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+	--animate-slide-up-sheet: slide-up-sheet 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
 	--animate-scale-in: scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
 	--animate-pulse-soft: pulse-soft 2.5s ease-in-out infinite;
 	--animate-shimmer: shimmer 2s linear infinite;
@@ -130,6 +134,15 @@
 	}
 	to {
 		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes slide-up-sheet {
+	from {
+		transform: translateY(100%);
+	}
+	to {
 		transform: translateY(0);
 	}
 }

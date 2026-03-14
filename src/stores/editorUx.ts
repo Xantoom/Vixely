@@ -33,11 +33,10 @@ interface EditorUxState {
 	mode: EditorUxMode;
 	hydrated: boolean;
 	setMode: (mode: EditorUxMode) => void;
-	toggleMode: () => void;
 	hydrateFromStorage: () => void;
 }
 
-export const useEditorUxStore = create<EditorUxState>((set, get) => ({
+export const useEditorUxStore = create<EditorUxState>((set) => ({
 	mode: DEFAULT_MODE,
 	hydrated: false,
 	setMode: (mode) => {
@@ -46,10 +45,6 @@ export const useEditorUxStore = create<EditorUxState>((set, get) => ({
 			writeModeToStorage(mode);
 			return { mode, hydrated: true };
 		});
-	},
-	toggleMode: () => {
-		const nextMode: EditorUxMode = get().mode === 'simple' ? 'expert' : 'simple';
-		get().setMode(nextMode);
 	},
 	hydrateFromStorage: () => {
 		const mode = readModeFromStorage();

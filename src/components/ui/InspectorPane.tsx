@@ -1,3 +1,4 @@
+import { PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { useCallback, useEffect, useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 
 interface InspectorPaneProps {
@@ -7,6 +8,9 @@ interface InspectorPaneProps {
 	onWidthChange: (nextWidth: number) => void;
 	children: ReactNode;
 	ariaLabel: string;
+	collapsible?: boolean;
+	collapsed?: boolean;
+	onToggleCollapse?: () => void;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -20,6 +24,9 @@ export function InspectorPane({
 	onWidthChange,
 	children,
 	ariaLabel,
+	collapsible = false,
+	collapsed = false,
+	onToggleCollapse,
 }: InspectorPaneProps) {
 	const resizingRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
 
@@ -61,9 +68,25 @@ export function InspectorPane({
 		[width],
 	);
 
+	if (collapsible && collapsed) {
+		return (
+			<aside className="shrink-0 border-l border-border bg-surface flex flex-col items-center py-2">
+				<button
+					type="button"
+					onClick={onToggleCollapse}
+					className="h-8 w-8 flex items-center justify-center rounded-md text-text-tertiary hover:text-text-secondary hover:bg-surface-raised/40 transition-colors cursor-pointer"
+					aria-label={`Expand ${ariaLabel}`}
+					title="Expand sidebar"
+				>
+					<PanelRightOpen size={16} />
+				</button>
+			</aside>
+		);
+	}
+
 	return (
 		<aside
-			className="hidden md:flex shrink-0 overflow-hidden border-l border-border bg-surface flex-col relative"
+			className="flex shrink-0 overflow-hidden border-l border-border bg-surface flex-col relative"
 			style={{ width: `${width}px` }}
 		>
 			<div
@@ -73,6 +96,17 @@ export function InspectorPane({
 				aria-orientation="vertical"
 				aria-label={`${ariaLabel} resize handle`}
 			/>
+			{collapsible && onToggleCollapse && (
+				<button
+					type="button"
+					onClick={onToggleCollapse}
+					className="absolute left-2 top-2 z-10 h-7 w-7 flex items-center justify-center rounded-md text-text-tertiary hover:text-text-secondary hover:bg-surface-raised/40 transition-colors cursor-pointer"
+					aria-label={`Collapse ${ariaLabel}`}
+					title="Collapse sidebar"
+				>
+					<PanelRightClose size={14} />
+				</button>
+			)}
 			<div className="h-full min-w-0 overflow-hidden flex flex-col">{children}</div>
 		</aside>
 	);

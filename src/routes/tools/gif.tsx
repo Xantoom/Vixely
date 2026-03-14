@@ -6,7 +6,6 @@ import {
 	FilePlus2,
 	Info,
 	Palette,
-	Settings,
 	SlidersHorizontal,
 	Sparkles,
 	StepBack,
@@ -40,15 +39,7 @@ import { GifRotatePanel } from '@/components/gif/GifRotatePanel.tsx';
 import { GifSettingsPanel } from '@/components/gif/GifSettingsPanel.tsx';
 import { GifTextOverlayPanel } from '@/components/gif/GifTextOverlayPanel.tsx';
 import { Seo } from '@/components/Seo.tsx';
-import { Drawer } from '@/components/ui/Drawer.tsx';
-import {
-	Button,
-	EditorModeTabs,
-	EditorStageTabs,
-	InspectorPane,
-	Timeline,
-	formatCompactTime,
-} from '@/components/ui/index.ts';
+import { Button, EditorModeTabs, EditorStageTabs, Timeline, formatCompactTime } from '@/components/ui/index.ts';
 import { gifPresetEntries, GIF_ACCEPT } from '@/config/presets.ts';
 import { useEditorLayoutPrefs, type EditorStage } from '@/hooks/useEditorLayoutPrefs.ts';
 import { useFrameStepController } from '@/hooks/useFrameStepController.ts';
@@ -98,7 +89,7 @@ interface SidebarSection {
 	id: SidebarSectionId;
 	label: string;
 	description: string;
-	icon: typeof Settings;
+	icon: typeof SlidersHorizontal;
 	tools: SidebarTool[];
 }
 
@@ -200,7 +191,7 @@ const SIMPLE_GIF_MODES = new Set<GifMode>(['settings', 'crop', 'resize', 'filter
 
 function GifFoundry() {
 	useLongTaskObserver('gif-route');
-	const { inspectorWidth, stage, setInspectorWidth, setStage } = useEditorLayoutPrefs({
+	const { stage, setStage } = useEditorLayoutPrefs({
 		editor: 'gif',
 		defaultInspectorWidth: 360,
 		defaultStage: 'source',
@@ -262,7 +253,6 @@ function GifFoundry() {
 	const [sidebarSection, setSidebarSection] = useState<SidebarSectionId>('setup');
 
 	const [showInfo, setShowInfo] = useState(false);
-	const [drawerOpen, setDrawerOpen] = useState(false);
 	const { isConfirmOpen, requestAction, confirmPendingAction, cancelPendingAction } = usePendingActionConfirmation(
 		file !== null,
 	);
@@ -876,9 +866,6 @@ function GifFoundry() {
 							void handleGenerate();
 						}}
 						onDownload={handleDownload}
-						onCloseDrawer={() => {
-							setDrawerOpen(false);
-						}}
 					/>
 				);
 			default:
@@ -1031,7 +1018,6 @@ function GifFoundry() {
 						disabled={!file || !ready || processing}
 						onClick={() => {
 							void handleGenerate();
-							setDrawerOpen(false);
 						}}
 					>
 						{processing ? `Generating ${Math.round(progress * 100)}%` : 'Generate GIF'}
@@ -1043,7 +1029,6 @@ function GifFoundry() {
 							className="w-full"
 							onClick={() => {
 								handleDownload();
-								setDrawerOpen(false);
 							}}
 						>
 							Download ({formatFileSize(resultSize)})
@@ -1078,307 +1063,265 @@ function GifFoundry() {
 
 			<EditorShell
 				editor="gif"
+				hasFile={file !== null}
+				sidebarLabel="gif inspector"
 				main={
-					<>
-						{/* Workspace */}
-						<div
-							className="flex-1 flex items-center justify-center workspace-bg p-4 sm:p-6 lg:p-8 overflow-hidden relative"
-							{...dropHandlers}
-						>
-							{videoUrl ? (
-								<div className="w-full h-full flex items-center justify-center">
-									<div className="w-full max-w-5xl max-h-full flex flex-col items-center gap-3">
-										{canShowResultPreview && (
-											<div className="inline-flex items-center rounded-lg border border-border/60 bg-bg/40 p-0.5">
-												<button
-													onClick={() => {
-														setActivePreview('source');
-													}}
-													className={`rounded-md px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
-														!showingResult
-															? 'bg-accent/15 text-accent'
-															: 'text-text-tertiary hover:text-text-secondary'
-													}`}
-												>
-													Source
-												</button>
-												<button
-													onClick={() => {
-														setActivePreview('result');
-													}}
-													className={`rounded-md px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
-														showingResult
-															? 'bg-accent/15 text-accent'
-															: 'text-text-tertiary hover:text-text-secondary'
-													}`}
-												>
-													Result
-												</button>
-											</div>
-										)}
-
-										<div className="w-full min-h-0 flex items-center justify-center">
-											{showingResult && resultUrl ? (
-												<div className="rounded-xl border border-success/30 bg-surface/80 p-2 max-w-full max-h-full">
-													<img
-														src={resultUrl}
-														alt="Generated GIF"
-														width={width}
-														height={outputHeight}
-														className="max-w-full max-h-[min(70vh,680px)] object-contain rounded-lg bg-black"
-													/>
-												</div>
-											) : isGifSource ? (
-												<img
-													src={videoUrl}
-													alt="GIF source"
-													width={sourceWidth ?? undefined}
-													height={sourceHeight ?? undefined}
-													style={previewStyle}
-													className="max-w-full max-h-[min(70vh,680px)] rounded-lg bg-black object-contain"
-												/>
-											) : (
-												<video
-													ref={videoRef}
-													src={videoUrl}
-													onLoadedMetadata={handleVideoLoaded}
-													onTimeUpdate={handleTimeUpdate}
-													loop={loop}
-													controls
-													style={previewStyle}
-													className="max-w-full max-h-[min(70vh,680px)] rounded-lg bg-black"
-												/>
-											)}
+					<div
+						className="flex-1 flex items-center justify-center workspace-bg p-4 sm:p-6 lg:p-8 overflow-hidden relative"
+						{...dropHandlers}
+					>
+						{videoUrl ? (
+							<div className="w-full h-full flex items-center justify-center">
+								<div className="w-full max-w-5xl max-h-full flex flex-col items-center gap-3">
+									{canShowResultPreview && (
+										<div className="inline-flex items-center rounded-lg border border-border/60 bg-bg/40 p-0.5">
+											<button
+												onClick={() => {
+													setActivePreview('source');
+												}}
+												className={`rounded-md px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
+													!showingResult
+														? 'bg-accent/15 text-accent'
+														: 'text-text-tertiary hover:text-text-secondary'
+												}`}
+											>
+												Source
+											</button>
+											<button
+												onClick={() => {
+													setActivePreview('result');
+												}}
+												className={`rounded-md px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
+													showingResult
+														? 'bg-accent/15 text-accent'
+														: 'text-text-tertiary hover:text-text-secondary'
+												}`}
+											>
+												Result
+											</button>
 										</div>
+									)}
 
-										{showingResult ? (
-											<p className="text-[13px] text-success font-medium">
-												Result size: {formatFileSize(resultSize)}
-											</p>
-										) : (
-											(store.rotation !== 0 || store.flipH || store.flipV || store.crop) && (
-												<div className="mt-1 flex gap-1.5 flex-wrap justify-center">
-													{store.rotation !== 0 && (
-														<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent">
-															Rotate {store.rotation}°
-														</span>
-													)}
-													{store.flipH && (
-														<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent">
-															Flip H
-														</span>
-													)}
-													{store.flipV && (
-														<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent">
-															Flip V
-														</span>
-													)}
-													{store.crop && (
-														<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent">
-															Crop {Math.round(store.crop.width)}×
-															{Math.round(store.crop.height)}
-														</span>
-													)}
-												</div>
-											)
-										)}
-
-										{processing && (
-											<div className="w-full max-w-sm rounded-xl border border-border/70 bg-bg/60 px-4 py-3 flex flex-col items-center">
-												<div className="h-9 w-9 rounded-full border-[3px] border-border border-t-accent animate-spin" />
-												<p className="mt-2 text-sm font-medium">
-													{Math.round(progress * 100)}%
-												</p>
-												<div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-surface-raised">
-													<div
-														className="h-full bg-accent transition-all duration-300"
-														style={{ width: `${progress * 100}%` }}
-													/>
-												</div>
-												<p className="mt-2 text-[12px] text-text-tertiary">
-													Optimizing palette...
-												</p>
+									<div className="w-full min-h-0 flex items-center justify-center">
+										{showingResult && resultUrl ? (
+											<div className="rounded-xl border border-success/30 bg-surface/80 p-2 max-w-full max-h-full">
+												<img
+													src={resultUrl}
+													alt="Generated GIF"
+													width={width}
+													height={outputHeight}
+													className="max-w-full max-h-[min(70vh,680px)] object-contain rounded-lg bg-black"
+												/>
 											</div>
+										) : isGifSource ? (
+											<img
+												src={videoUrl}
+												alt="GIF source"
+												width={sourceWidth ?? undefined}
+												height={sourceHeight ?? undefined}
+												style={previewStyle}
+												className="max-w-full max-h-[min(70vh,680px)] rounded-lg bg-black object-contain"
+											/>
+										) : (
+											<video
+												ref={videoRef}
+												src={videoUrl}
+												onLoadedMetadata={handleVideoLoaded}
+												onTimeUpdate={handleTimeUpdate}
+												loop={loop}
+												controls
+												style={previewStyle}
+												className="max-w-full max-h-[min(70vh,680px)] rounded-lg bg-black"
+											/>
 										)}
 									</div>
-								</div>
-							) : (
-								<div className="flex flex-col items-center gap-6">
-									<EditorEmptyState
-										icon={Film}
-										variant="hero"
-										isDragging={isDragging}
-										title="No GIF loaded"
-										description="Drop a GIF or click to get started"
-										dragTitle="Drop your GIF here"
-										dragDescription="Release to load"
-										onChooseFile={() => fileInputRef.current?.click()}
-									/>
-								</div>
-							)}
 
-							{/* Drag overlay when file is loaded */}
-							{isDragging && videoUrl && (
-								<div className="absolute inset-0 flex items-center justify-center bg-accent-surface/50 backdrop-blur-sm z-20 pointer-events-none">
-									<div className="rounded-xl border-2 border-dashed border-accent px-6 py-4 text-sm font-medium text-accent">
-										Drop to replace GIF
-									</div>
+									{showingResult ? (
+										<p className="text-[13px] text-success font-medium">
+											Result size: {formatFileSize(resultSize)}
+										</p>
+									) : (
+										(store.rotation !== 0 || store.flipH || store.flipV || store.crop) && (
+											<div className="mt-1 flex gap-1.5 flex-wrap justify-center">
+												{store.rotation !== 0 && (
+													<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent">
+														Rotate {store.rotation}°
+													</span>
+												)}
+												{store.flipH && (
+													<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent">
+														Flip H
+													</span>
+												)}
+												{store.flipV && (
+													<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent">
+														Flip V
+													</span>
+												)}
+												{store.crop && (
+													<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent">
+														Crop {Math.round(store.crop.width)}×
+														{Math.round(store.crop.height)}
+													</span>
+												)}
+											</div>
+										)
+									)}
+
+									{processing && (
+										<div className="w-full max-w-sm rounded-xl border border-border/70 bg-bg/60 px-4 py-3 flex flex-col items-center">
+											<div className="h-9 w-9 rounded-full border-[3px] border-border border-t-accent animate-spin" />
+											<p className="mt-2 text-sm font-medium">{Math.round(progress * 100)}%</p>
+											<div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-surface-raised">
+												<div
+													className="h-full bg-accent transition-all duration-300"
+													style={{ width: `${progress * 100}%` }}
+												/>
+											</div>
+											<p className="mt-2 text-[12px] text-text-tertiary">Optimizing palette...</p>
+										</div>
+									)}
+								</div>
+							</div>
+						) : (
+							<div className="flex flex-col items-center gap-6">
+								<EditorEmptyState
+									icon={Film}
+									variant="hero"
+									isDragging={isDragging}
+									title="No GIF loaded"
+									description="Drop a GIF or click to get started"
+									dragTitle="Drop your GIF here"
+									dragDescription="Release to load"
+									onChooseFile={() => fileInputRef.current?.click()}
+								/>
+							</div>
+						)}
+
+						{/* Drag overlay when file is loaded */}
+						{isDragging && videoUrl && (
+							<div className="absolute inset-0 flex items-center justify-center bg-accent-surface/50 backdrop-blur-sm z-20 pointer-events-none">
+								<div className="rounded-xl border-2 border-dashed border-accent px-6 py-4 text-sm font-medium text-accent">
+									Drop to replace GIF
+								</div>
+							</div>
+						)}
+					</div>
+				}
+				timeline={
+					!isGifSource && duration > 0 ? (
+						<div className="border-t border-border bg-[linear-gradient(180deg,rgba(24,24,27,0.96)_0%,rgba(9,9,11,0.98)_100%)] px-3 py-3 sm:px-6 sm:py-4">
+							<div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+								<div>
+									<p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary">
+										Timeline
+									</p>
+									<p className="mt-1 text-[13px] text-text-secondary">
+										Scrub the source clip, trim timing, and step frame by frame.
+									</p>
+								</div>
+								<div className="hidden sm:inline-flex items-center rounded-full border border-border/70 bg-bg/35 px-3 py-1.5 text-[12px] font-mono text-text-tertiary tabular-nums">
+									Frame {formatNumber(timeToFrames(currentTime))} / {formatNumber(totalFrames)}
+								</div>
+							</div>
+
+							<Timeline
+								duration={duration}
+								trimStart={trimStart}
+								trimEnd={trimEnd}
+								currentTime={currentTime}
+								density="full"
+								minGap={minTrimDuration}
+								onTrimStartChange={(v) => {
+									setTrimStart(clampTrimStart(v));
+								}}
+								onTrimEndChange={(v) => {
+									setTrimEnd(clampTrimEnd(v));
+								}}
+								onSeek={handleSeek}
+								onScrubStart={handleTimelineScrubStart}
+								onScrubEnd={handleTimelineScrubEnd}
+								centerStart={
+									<Button
+										variant="ghost"
+										size="icon"
+										onPointerDown={(e) => {
+											e.preventDefault();
+											startFrameHold(-1);
+										}}
+										onPointerUp={stopFrameHold}
+										onPointerLeave={stopFrameHold}
+										onPointerCancel={stopFrameHold}
+										onKeyDown={(e) => {
+											if (e.key === 'Enter' || e.key === ' ') {
+												e.preventDefault();
+												stepCurrentFrame(-1);
+											}
+										}}
+										disabled={!file || processing}
+										title="Previous frame"
+										aria-label="Previous frame"
+									>
+										<StepBack size={16} />
+									</Button>
+								}
+								centerEnd={
+									<Button
+										variant="ghost"
+										size="icon"
+										onPointerDown={(e) => {
+											e.preventDefault();
+											startFrameHold(1);
+										}}
+										onPointerUp={stopFrameHold}
+										onPointerLeave={stopFrameHold}
+										onPointerCancel={stopFrameHold}
+										onKeyDown={(e) => {
+											if (e.key === 'Enter' || e.key === ' ') {
+												e.preventDefault();
+												stepCurrentFrame(1);
+											}
+										}}
+										disabled={!file || processing}
+										title="Next frame"
+										aria-label="Next frame"
+									>
+										<StepForward size={16} />
+									</Button>
+								}
+							/>
+
+							{file && (
+								<div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-border/70 bg-bg/35 px-3 py-2 text-[13px] text-text-tertiary">
+									<span className="font-medium text-text-secondary truncate max-w-full">
+										{file.name}
+									</span>
+									<span>{formatFileSize(file.size)}</span>
+									{sourceWidth && sourceHeight && (
+										<span>
+											{sourceWidth}&times;{sourceHeight}
+										</span>
+									)}
+									<span>{videoFps.toFixed(2)} fps</span>
+									<span>{formatCompactTime(duration)}</span>
+									<div className="flex-1" />
+									<button
+										onClick={() => {
+											setShowInfo(true);
+										}}
+										type="button"
+										aria-label="Open GIF file info"
+										className="inline-flex items-center gap-1 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
+										title="File info"
+									>
+										<Info size={13} />
+									</button>
 								</div>
 							)}
 						</div>
-
-						{/* Timeline (only for video sources) */}
-						{!isGifSource && duration > 0 && (
-							<div className="border-t border-border bg-[linear-gradient(180deg,rgba(24,24,27,0.96)_0%,rgba(9,9,11,0.98)_100%)] px-3 py-3 sm:px-6 sm:py-4">
-								<div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-									<div>
-										<p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary">
-											Timeline
-										</p>
-										<p className="mt-1 text-[13px] text-text-secondary">
-											Scrub the source clip, trim timing, and step frame by frame.
-										</p>
-									</div>
-									<div className="hidden sm:inline-flex items-center rounded-full border border-border/70 bg-bg/35 px-3 py-1.5 text-[12px] font-mono text-text-tertiary tabular-nums">
-										Frame {formatNumber(timeToFrames(currentTime))} / {formatNumber(totalFrames)}
-									</div>
-								</div>
-
-								<Timeline
-									duration={duration}
-									trimStart={trimStart}
-									trimEnd={trimEnd}
-									currentTime={currentTime}
-									density="full"
-									minGap={minTrimDuration}
-									onTrimStartChange={(v) => {
-										setTrimStart(clampTrimStart(v));
-									}}
-									onTrimEndChange={(v) => {
-										setTrimEnd(clampTrimEnd(v));
-									}}
-									onSeek={handleSeek}
-									onScrubStart={handleTimelineScrubStart}
-									onScrubEnd={handleTimelineScrubEnd}
-									centerStart={
-										<Button
-											variant="ghost"
-											size="icon"
-											onPointerDown={(e) => {
-												e.preventDefault();
-												startFrameHold(-1);
-											}}
-											onPointerUp={stopFrameHold}
-											onPointerLeave={stopFrameHold}
-											onPointerCancel={stopFrameHold}
-											onKeyDown={(e) => {
-												if (e.key === 'Enter' || e.key === ' ') {
-													e.preventDefault();
-													stepCurrentFrame(-1);
-												}
-											}}
-											disabled={!file || processing}
-											title="Previous frame"
-											aria-label="Previous frame"
-										>
-											<StepBack size={16} />
-										</Button>
-									}
-									centerEnd={
-										<Button
-											variant="ghost"
-											size="icon"
-											onPointerDown={(e) => {
-												e.preventDefault();
-												startFrameHold(1);
-											}}
-											onPointerUp={stopFrameHold}
-											onPointerLeave={stopFrameHold}
-											onPointerCancel={stopFrameHold}
-											onKeyDown={(e) => {
-												if (e.key === 'Enter' || e.key === ' ') {
-													e.preventDefault();
-													stepCurrentFrame(1);
-												}
-											}}
-											disabled={!file || processing}
-											title="Next frame"
-											aria-label="Next frame"
-										>
-											<StepForward size={16} />
-										</Button>
-									}
-								/>
-
-								{file && (
-									<div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-border/70 bg-bg/35 px-3 py-2 text-[13px] text-text-tertiary">
-										<span className="font-medium text-text-secondary truncate max-w-full">
-											{file.name}
-										</span>
-										<span>{formatFileSize(file.size)}</span>
-										{sourceWidth && sourceHeight && (
-											<span>
-												{sourceWidth}&times;{sourceHeight}
-											</span>
-										)}
-										<span>{videoFps.toFixed(2)} fps</span>
-										<span>{formatCompactTime(duration)}</span>
-										<div className="flex-1" />
-										<button
-											onClick={() => {
-												setShowInfo(true);
-											}}
-											type="button"
-											aria-label="Open GIF file info"
-											className="inline-flex items-center gap-1 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
-											title="File info"
-										>
-											<Info size={13} />
-										</button>
-									</div>
-								)}
-							</div>
-						)}
-					</>
-				}
-				mobileToggle={
-					file ? (
-						<button
-							className="md:hidden fixed bottom-20 right-4 z-30 h-12 w-12 rounded-full gradient-accent flex items-center justify-center shadow-lg cursor-pointer"
-							onClick={() => {
-								setDrawerOpen(true);
-							}}
-							type="button"
-							aria-label="Open GIF settings"
-							title="Open GIF settings"
-						>
-							<Settings size={20} className="text-white" />
-						</button>
 					) : undefined
 				}
-				inspector={
-					file ? (
-						<InspectorPane
-							width={inspectorWidth}
-							onWidthChange={setInspectorWidth}
-							ariaLabel="gif inspector"
-						>
-							{sidebarContent}
-						</InspectorPane>
-					) : undefined
-				}
-				mobileDrawer={
-					file ? (
-						<Drawer
-							open={drawerOpen}
-							onClose={() => {
-								setDrawerOpen(false);
-							}}
-						>
-							<div className="h-full flex flex-col bg-surface">{sidebarContent}</div>
-						</Drawer>
-					) : undefined
-				}
+				sidebar={file ? sidebarContent : undefined}
 				overlays={
 					<>
 						{/* File info modal */}

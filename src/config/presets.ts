@@ -66,10 +66,10 @@ export interface PresetConfig {
 
 export const presets: PresetConfig = data;
 
-export const videoPresets = presets.video;
-export const imagePresets = presets.image;
-export const gifPresets = presets.gif;
-export const filterPresets = presets.filters;
+const videoPresets = presets.video;
+const imagePresets = presets.image;
+const gifPresets = presets.gif;
+const filterPresets = presets.filters;
 
 // ── Helpers ──
 
@@ -428,4 +428,3 @@ export function buildVideoArgs(
 export const VIDEO_ACCEPT = '.mp4,.webm,.mov,.mkv,.avi,.m4v,.ts,.flv';
 export const IMAGE_ACCEPT = '.png,.jpg,.jpeg,.webp,.bmp,.tiff,.avif';
 export const GIF_ACCEPT = '.gif';
-export const ALL_MEDIA_ACCEPT = `${VIDEO_ACCEPT},${IMAGE_ACCEPT},.gif`;

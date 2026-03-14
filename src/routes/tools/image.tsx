@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { ImageIcon, Settings } from 'lucide-react';
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { ImageIcon } from 'lucide-react';
+import { useRef, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
 import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
@@ -9,8 +9,6 @@ import { ImageCanvas } from '@/components/image/ImageCanvas.tsx';
 import { ImageSidebar } from '@/components/image/ImageSidebar.tsx';
 import { ImageToolbar } from '@/components/image/ImageToolbar.tsx';
 import { Seo } from '@/components/Seo.tsx';
-import { Drawer } from '@/components/ui/Drawer.tsx';
-import { InspectorPane } from '@/components/ui/index.ts';
 import { IMAGE_ACCEPT } from '@/config/presets.ts';
 import { useEditorLayoutPrefs } from '@/hooks/useEditorLayoutPrefs.ts';
 import { useLongTaskObserver } from '@/hooks/useLongTaskObserver.ts';
@@ -40,7 +38,7 @@ function isAcceptedImageFileLike(file: File): boolean {
 export const Route = createFileRoute('/tools/image')({ component: ImageLab });
 
 function ImageLab() {
-	const { inspectorWidth, stage, setInspectorWidth, setStage } = useEditorLayoutPrefs({
+	const { stage, setStage } = useEditorLayoutPrefs({
 		editor: 'image',
 		defaultInspectorWidth: 360,
 		defaultStage: 'source',
@@ -60,7 +58,6 @@ function ImageLab() {
 
 	const canvasContainerRef = useRef<HTMLDivElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
-	const [drawerOpen, setDrawerOpen] = useState(false);
 	const hasImageLoaded = originalData !== null;
 	const { isConfirmOpen, requestAction, confirmPendingAction, cancelPendingAction } =
 		usePendingActionConfirmation(hasUnsavedChanges);
@@ -156,12 +153,6 @@ function ImageLab() {
 		};
 	}, [undo, redo]);
 
-	useEffect(() => {
-		if (!hasImageLoaded) {
-			setDrawerOpen(false);
-		}
-	}, [hasImageLoaded]);
-
 	return (
 		<>
 			<Seo
@@ -185,6 +176,8 @@ function ImageLab() {
 
 			<EditorShell
 				editor="image"
+				hasFile={hasImageLoaded}
+				sidebarLabel="image inspector"
 				main={
 					<>
 						{hasImageLoaded && <ImageToolbar containerRef={canvasContainerRef} />}
@@ -224,52 +217,14 @@ function ImageLab() {
 						</div>
 					</>
 				}
-				mobileToggle={
+				sidebar={
 					hasImageLoaded ? (
-						<button
-							className="md:hidden fixed bottom-20 right-4 z-30 h-12 w-12 rounded-full gradient-accent flex items-center justify-center shadow-lg cursor-pointer"
-							onClick={() => {
-								setDrawerOpen(true);
-							}}
-							type="button"
-							aria-label="Open image settings"
-							title="Open image settings"
-						>
-							<Settings size={20} className="text-white" />
-						</button>
-					) : undefined
-				}
-				inspector={
-					hasImageLoaded ? (
-						<InspectorPane
-							width={inspectorWidth}
-							onWidthChange={setInspectorWidth}
-							ariaLabel="image inspector"
-						>
-							<ImageSidebar
-								onOpenFile={handleOpenFile}
-								onNew={handleNew}
-								stage={stage}
-								onStageChange={setStage}
-							/>
-						</InspectorPane>
-					) : undefined
-				}
-				mobileDrawer={
-					hasImageLoaded ? (
-						<Drawer
-							open={drawerOpen}
-							onClose={() => {
-								setDrawerOpen(false);
-							}}
-						>
-							<ImageSidebar
-								onOpenFile={handleOpenFile}
-								onNew={handleNew}
-								stage={stage}
-								onStageChange={setStage}
-							/>
-						</Drawer>
+						<ImageSidebar
+							onOpenFile={handleOpenFile}
+							onNew={handleNew}
+							stage={stage}
+							onStageChange={setStage}
+						/>
 					) : undefined
 				}
 				overlays={

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useResponsiveLayout, type LayoutTier } from './useResponsiveLayout.ts';
 
 export type EditorKey = 'video' | 'gif' | 'image';
 export type EditorStage = 'source' | 'edit' | 'output';
@@ -6,6 +7,8 @@ export type EditorStage = 'source' | 'edit' | 'output';
 interface LayoutState {
 	inspectorWidth: number;
 	stage: EditorStage;
+	sidebarOpen: boolean;
+	sidebarCollapsed: boolean;
 }
 
 interface UseEditorLayoutPrefsOptions {
@@ -26,18 +29,25 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null;
 }
 
+function maxWidthForTier(tier: LayoutTier, override?: number): number {
+	if (override) return override;
+	return tier === 'ultrawide' ? 640 : 520;
+}
+
 function parseLayoutState(raw: string | null): Partial<LayoutState> {
 	if (!raw) return {};
 	try {
 		const parsed: unknown = JSON.parse(raw);
 		if (!isRecord(parsed)) return {};
-		const source = parsed;
 		const partial: Partial<LayoutState> = {};
-		if (typeof source.inspectorWidth === 'number' && Number.isFinite(source.inspectorWidth)) {
-			partial.inspectorWidth = source.inspectorWidth;
+		if (typeof parsed.inspectorWidth === 'number' && Number.isFinite(parsed.inspectorWidth)) {
+			partial.inspectorWidth = parsed.inspectorWidth;
 		}
-		if (source.stage === 'source' || source.stage === 'edit' || source.stage === 'output') {
-			partial.stage = source.stage;
+		if (parsed.stage === 'source' || parsed.stage === 'edit' || parsed.stage === 'output') {
+			partial.stage = parsed.stage;
+		}
+		if (typeof parsed.sidebarCollapsed === 'boolean') {
+			partial.sidebarCollapsed = parsed.sidebarCollapsed;
 		}
 		return partial;
 	} catch {
@@ -50,14 +60,18 @@ export function useEditorLayoutPrefs({
 	defaultInspectorWidth,
 	defaultStage = DEFAULT_STAGE,
 	minInspectorWidth = 280,
-	maxInspectorWidth = 520,
+	maxInspectorWidth: maxWidthOverride,
 }: UseEditorLayoutPrefsOptions) {
+	const { tier } = useResponsiveLayout();
 	const storageKey = `vixely:layout:${editor}`;
+	const effectiveMaxWidth = maxWidthForTier(tier, maxWidthOverride);
 
 	const [state, setState] = useState<LayoutState>(() => {
 		const fallback: LayoutState = {
-			inspectorWidth: clamp(defaultInspectorWidth, minInspectorWidth, maxInspectorWidth),
+			inspectorWidth: clamp(defaultInspectorWidth, minInspectorWidth, effectiveMaxWidth),
 			stage: defaultStage,
+			sidebarOpen: false,
+			sidebarCollapsed: false,
 		};
 		if (typeof window === 'undefined') return fallback;
 		const saved = parseLayoutState(window.localStorage.getItem(storageKey));
@@ -65,39 +79,55 @@ export function useEditorLayoutPrefs({
 			inspectorWidth: clamp(
 				saved.inspectorWidth ?? fallback.inspectorWidth,
 				minInspectorWidth,
-				maxInspectorWidth,
+				effectiveMaxWidth,
 			),
 			stage: saved.stage ?? fallback.stage,
+			sidebarOpen: false,
+			sidebarCollapsed: saved.sidebarCollapsed ?? false,
 		};
 	});
 
 	useEffect(() => {
 		if (typeof window === 'undefined') return;
-		const payload: LayoutState = {
-			inspectorWidth: clamp(state.inspectorWidth, minInspectorWidth, maxInspectorWidth),
+		const payload = {
+			inspectorWidth: clamp(state.inspectorWidth, minInspectorWidth, effectiveMaxWidth),
 			stage: state.stage,
+			sidebarCollapsed: state.sidebarCollapsed,
 		};
 		window.localStorage.setItem(storageKey, JSON.stringify(payload));
-	}, [maxInspectorWidth, minInspectorWidth, state, storageKey]);
+	}, [effectiveMaxWidth, minInspectorWidth, state, storageKey]);
 
 	const setInspectorWidth = useCallback(
 		(nextWidth: number) => {
-			const clamped = clamp(nextWidth, minInspectorWidth, maxInspectorWidth);
+			const clamped = clamp(nextWidth, minInspectorWidth, effectiveMaxWidth);
 			setState((prev) => (prev.inspectorWidth === clamped ? prev : { ...prev, inspectorWidth: clamped }));
 		},
-		[maxInspectorWidth, minInspectorWidth],
+		[effectiveMaxWidth, minInspectorWidth],
 	);
 
 	const setStage = useCallback((stage: EditorStage) => {
 		setState((prev) => (prev.stage === stage ? prev : { ...prev, stage }));
 	}, []);
 
+	const setSidebarOpen = useCallback((open: boolean) => {
+		setState((prev) => (prev.sidebarOpen === open ? prev : { ...prev, sidebarOpen: open }));
+	}, []);
+
+	const toggleSidebarCollapsed = useCallback(() => {
+		setState((prev) => ({ ...prev, sidebarCollapsed: !prev.sidebarCollapsed }));
+	}, []);
+
 	return {
+		tier,
 		inspectorWidth: state.inspectorWidth,
 		stage: state.stage,
+		sidebarOpen: state.sidebarOpen,
+		sidebarCollapsed: state.sidebarCollapsed,
 		setInspectorWidth,
 		setStage,
+		setSidebarOpen,
+		toggleSidebarCollapsed,
 		minInspectorWidth,
-		maxInspectorWidth,
+		maxInspectorWidth: effectiveMaxWidth,
 	};
 }
