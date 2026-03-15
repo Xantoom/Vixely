@@ -1,4 +1,4 @@
-import { Layers, Scissors, Scaling, Palette, Download } from 'lucide-react';
+import { Layers, Scissors, Scaling, Palette, Columns2, Download } from 'lucide-react';
 import { useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { EditorModeTabs, type EditorModeTabItem } from '@/components/ui/index.ts';
@@ -15,6 +15,7 @@ const TABS: EditorModeTabItem<VideoMode>[] = [
 	{ id: 'trim', label: 'Trim', icon: Scissors },
 	{ id: 'resize', label: 'Resize', icon: Scaling },
 	{ id: 'adjust', label: 'Adjust', icon: Palette },
+	{ id: 'compare', label: 'Compare', icon: Columns2 },
 	{ id: 'export', label: 'Export', icon: Download },
 ];
 
@@ -37,6 +38,7 @@ export function VideoModeTabs({ hasTrimChanges = false, selectedPreset = null, m
 			trim: hasTrimChanges,
 			resize: hasResizeChanges,
 			adjust: hasColorChanges,
+			compare: false,
 			export: false,
 		};
 		return TABS.filter((tab) => availableModes.includes(tab.id)).map((tab) => ({

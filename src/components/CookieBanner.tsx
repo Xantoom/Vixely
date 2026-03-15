@@ -1,74 +1,134 @@
-import { useState, useEffect, useCallback } from 'react';
-
-const STORAGE_KEY = 'vixely-cookies-accepted';
+import { Settings, ShieldCheck } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { useCookieConsentStore } from '@/stores/cookieConsent.ts';
 
 export function CookieBanner() {
-	const [visible, setVisible] = useState(false);
+	const bannerVisible = useCookieConsentStore((s) => s.bannerVisible);
+	const preferencesOpen = useCookieConsentStore((s) => s.preferencesOpen);
+	const acceptAll = useCookieConsentStore((s) => s.acceptAll);
+	const rejectAll = useCookieConsentStore((s) => s.rejectAll);
+	const accept = useCookieConsentStore((s) => s.accept);
+	const togglePreferences = useCookieConsentStore((s) => s.togglePreferences);
+	const hydrate = useCookieConsentStore((s) => s.hydrate);
+
+	const [analytics, setAnalytics] = useState(false);
+	const [advertising, setAdvertising] = useState(false);
 
 	useEffect(() => {
-		// Show after a short delay, only if not previously accepted
-		if (!localStorage.getItem(STORAGE_KEY)) {
-			const timer = setTimeout(() => {
-				setVisible(true);
-			}, 2000);
-			return () => {
-				clearTimeout(timer);
-			};
-		}
-	}, []);
+		hydrate();
+	}, [hydrate]);
 
-	const handleAccept = useCallback(() => {
-		localStorage.setItem(STORAGE_KEY, '1');
-		setVisible(false);
-	}, []);
+	const handleSavePreferences = useCallback(() => {
+		accept({ essential: true, analytics, advertising });
+	}, [accept, analytics, advertising]);
 
-	const handleDismiss = useCallback(() => {
-		localStorage.setItem(STORAGE_KEY, '1');
-		setVisible(false);
-	}, []);
-
-	if (!visible) return null;
+	if (!bannerVisible) return null;
 
 	return (
-		<div className="fixed bottom-4 right-4 z-40 w-80 rounded-xl border border-border bg-surface p-4 shadow-xl animate-slide-up">
-			<div className="flex items-start gap-3">
-				<div className="shrink-0 mt-0.5">
-					<svg
-						className="h-4 w-4 text-text-tertiary"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						strokeWidth="2"
-						strokeLinecap="round"
-						strokeLinejoin="round"
-					>
-						<circle cx="12" cy="12" r="10" />
-						<path d="M12 16v-4M12 8h.01" />
-					</svg>
+		<div
+			role="dialog"
+			aria-label="Cookie consent"
+			className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-lg rounded-2xl border border-border bg-surface p-5 shadow-2xl animate-slide-up sm:left-auto sm:right-4"
+		>
+			{/* Header */}
+			<div className="flex items-start gap-3 mb-3">
+				<div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/10">
+					<ShieldCheck size={16} className="text-accent" strokeWidth={2.5} />
 				</div>
-				<div className="flex-1 min-w-0">
-					<p className="text-[14px] text-text-secondary leading-relaxed">
-						We use minimal cookies for preferences and lightweight analytics. No personal data is collected.{' '}
+				<div>
+					<h2 className="text-sm font-semibold text-text">We respect your privacy</h2>
+					<p className="mt-1 text-[13px] leading-relaxed text-text-secondary">
+						We use essential cookies for the app to function. Optional cookies help us improve the
+						experience.{' '}
 						<a href="/privacy" className="underline text-text-secondary hover:text-text transition-colors">
-							Learn more
+							Privacy Policy
 						</a>
 					</p>
-					<div className="mt-3 flex items-center gap-2">
-						<button
-							onClick={handleAccept}
-							className="rounded-md bg-accent px-3 py-1.5 text-[14px] font-semibold text-bg transition-colors hover:bg-accent/90 cursor-pointer"
-						>
-							Accept
-						</button>
-						<button
-							onClick={handleDismiss}
-							className="rounded-md px-3 py-1.5 text-[14px] font-medium text-text-tertiary transition-colors hover:text-text-secondary cursor-pointer"
-						>
-							Dismiss
-						</button>
-					</div>
 				</div>
 			</div>
+
+			{/* Preferences Panel */}
+			{preferencesOpen && (
+				<div className="mb-4 rounded-xl border border-border bg-bg/50 p-4 space-y-3 animate-slide-up-fade">
+					<PreferenceRow
+						label="Essential"
+						description="Required for the app to work"
+						checked={true}
+						disabled={true}
+					/>
+					<PreferenceRow
+						label="Analytics"
+						description="Help us understand how the app is used"
+						checked={analytics}
+						onChange={setAnalytics}
+					/>
+					<PreferenceRow
+						label="Advertising"
+						description="Show relevant ads to support the project"
+						checked={advertising}
+						onChange={setAdvertising}
+					/>
+					<button
+						onClick={handleSavePreferences}
+						className="mt-2 w-full rounded-lg border border-accent bg-accent/10 px-4 py-2 text-[13px] font-semibold text-accent transition-colors hover:bg-accent/20 cursor-pointer"
+					>
+						Save Preferences
+					</button>
+				</div>
+			)}
+
+			{/* Action Buttons — Accept & Reject have EQUAL prominence (GDPR/CNIL requirement) */}
+			<div className="flex items-center gap-2">
+				<button
+					onClick={rejectAll}
+					className="flex-1 rounded-lg border border-border bg-surface-raised px-4 py-2.5 text-[13px] font-semibold text-text transition-colors hover:bg-surface-raised/80 cursor-pointer"
+				>
+					Reject All
+				</button>
+				<button
+					onClick={acceptAll}
+					className="flex-1 rounded-lg border border-border bg-surface-raised px-4 py-2.5 text-[13px] font-semibold text-text transition-colors hover:bg-surface-raised/80 cursor-pointer"
+				>
+					Accept All
+				</button>
+				<button
+					onClick={togglePreferences}
+					aria-label="Manage cookie preferences"
+					className="shrink-0 rounded-lg border border-border bg-surface-raised p-2.5 text-text-tertiary transition-colors hover:text-text-secondary hover:bg-surface-raised/80 cursor-pointer"
+				>
+					<Settings size={16} />
+				</button>
+			</div>
 		</div>
+	);
+}
+
+function PreferenceRow({
+	label,
+	description,
+	checked,
+	disabled,
+	onChange,
+}: {
+	label: string;
+	description: string;
+	checked: boolean;
+	disabled?: boolean;
+	onChange?: (v: boolean) => void;
+}) {
+	return (
+		<label className={`flex items-center justify-between gap-3 ${disabled ? 'opacity-60' : 'cursor-pointer'}`}>
+			<div>
+				<span className="text-[13px] font-medium text-text">{label}</span>
+				<p className="text-[12px] text-text-tertiary">{description}</p>
+			</div>
+			<input
+				type="checkbox"
+				checked={checked}
+				disabled={disabled}
+				onChange={(e) => onChange?.(e.target.checked)}
+				className="h-4 w-4 shrink-0 cursor-pointer rounded border-border accent-accent disabled:cursor-not-allowed"
+			/>
+		</label>
 	);
 }

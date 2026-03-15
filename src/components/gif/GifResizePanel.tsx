@@ -48,7 +48,7 @@ export function GifResizePanel({
 		<>
 			{/* Width / Height */}
 			<div>
-				<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">
+				<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">
 					Dimensions
 				</h3>
 				<div className="flex items-center gap-2">

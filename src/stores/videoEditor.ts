@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { withUpdatedKey } from '@/stores/storeHelpers.ts';
 
-export type VideoMode = 'presets' | 'trim' | 'resize' | 'adjust' | 'export';
+export type VideoMode = 'presets' | 'trim' | 'resize' | 'adjust' | 'compare' | 'export';
 
 export type VideoRateControlMode = 'crf' | 'bitrate' | 'qp';
 
@@ -123,6 +123,7 @@ export interface VideoEditorState {
 	resize: ResizeSettings;
 	trimInputMode: TrimInputMode;
 	advancedSettings: AdvancedVideoSettings;
+	comparePosition: number;
 
 	setMode: (mode: VideoMode) => void;
 	setFilter: <K extends keyof VideoFilters>(key: K, value: VideoFilters[K]) => void;
@@ -133,6 +134,7 @@ export interface VideoEditorState {
 	setResize: (resize: Partial<ResizeSettings>) => void;
 	setTrimInputMode: (mode: TrimInputMode) => void;
 	setAdvancedSettings: (settings: AdvancedVideoSettings) => void;
+	setComparePosition: (position: number) => void;
 	resetAll: () => void;
 
 	ffmpegFilterArgs: () => string[];
@@ -149,6 +151,7 @@ export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
 	resize: { ...DEFAULT_RESIZE },
 	trimInputMode: 'time',
 	advancedSettings: { ...DEFAULT_ADVANCED_SETTINGS },
+	comparePosition: 0.5,
 
 	setMode: (mode) => {
 		set({ mode });
@@ -209,6 +212,10 @@ export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
 		set({ advancedSettings: settings });
 	},
 
+	setComparePosition: (position) => {
+		set({ comparePosition: position });
+	},
+
 	resetAll: () => {
 		set({
 			mode: 'presets',
@@ -219,6 +226,7 @@ export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
 			resize: { ...DEFAULT_RESIZE },
 			trimInputMode: 'time',
 			advancedSettings: { ...DEFAULT_ADVANCED_SETTINGS },
+			comparePosition: 0.5,
 		});
 	},
 

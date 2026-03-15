@@ -47,7 +47,7 @@ export function GifAspectRatioPanel({ sourceWidth, sourceHeight }: GifAspectRati
 	return (
 		<>
 			<div>
-				<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">
+				<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">
 					Aspect Ratio
 				</h3>
 				<p className="text-[12px] text-text-tertiary mb-3">
@@ -84,7 +84,7 @@ export function GifAspectRatioPanel({ sourceWidth, sourceHeight }: GifAspectRati
 			{/* Padding Color */}
 			{aspectPreset !== 'free' && (
 				<div>
-					<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
+					<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
 						Padding Color
 					</h3>
 					<div className="flex items-center gap-3">

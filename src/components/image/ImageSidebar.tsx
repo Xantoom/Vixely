@@ -1,8 +1,8 @@
-import { Lock, Unlock, FilePlus2, Palette, SlidersHorizontal, Maximize2, Download } from 'lucide-react';
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { Lock, Unlock, Maximize2, SlidersHorizontal, Palette, Download } from 'lucide-react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
-import { EditorShellHeader, EditorUxModeSwitch } from '@/components/editor/index.ts';
+import { SharedPresetsPanel, type PresetEntry } from '@/components/shared/PresetsPanel.tsx';
 import { Button, EditorModeTabs, EditorStageTabs, type EditorModeTabItem, Slider } from '@/components/ui/index.ts';
 import { filterPresetEntries, imagePresetEntries } from '@/config/presets.ts';
 import type { EditorStage } from '@/hooks/useEditorLayoutPrefs.ts';
@@ -10,7 +10,7 @@ import { buildFallbackFilterString } from '@/modules/photo-editor/render/fallbac
 import { PhotoWebGLRenderer } from '@/modules/photo-editor/render/webgl-renderer.ts';
 import { filtersAreDefault } from '@/modules/shared-core/types/filters.ts';
 import { useEditorUxStore } from '@/stores/editorUx.ts';
-import { useImageEditorStore, type Filters, type ExportFormat } from '@/stores/imageEditor.ts';
+import { useImageEditorStore, type ExportFormat } from '@/stores/imageEditor.ts';
 import { buildExportFilename } from '@/utils/exportFilename.ts';
 import { formatFileSize, estimateImageSize } from '@/utils/format.ts';
 import { ImageInfoModal } from './ImageInfoModal.tsx';
@@ -19,86 +19,18 @@ const FILTER_PRESETS = filterPresetEntries();
 const IMAGE_PRESETS = imagePresetEntries();
 
 interface ImageSidebarProps {
-	onOpenFile: () => void;
-	onNew?: () => void;
 	stage: EditorStage;
 	onStageChange: (stage: EditorStage) => void;
 	showInfo: boolean;
 	onShowInfoChange: (show: boolean) => void;
 }
 
-interface SliderDef {
-	key: keyof Filters;
-	label: string;
-	min: number;
-	max: number;
-	step: number;
-	format: (v: number) => string;
-}
-
-const LIGHT_SLIDERS: SliderDef[] = [
-	{ key: 'exposure', label: 'Exposure', min: 0.2, max: 3, step: 0.01, format: (v) => (v * 100).toFixed(0) },
-	{
-		key: 'brightness',
-		label: 'Brightness',
-		min: -0.5,
-		max: 0.5,
-		step: 0.01,
-		format: (v) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)}`,
-	},
-	{ key: 'contrast', label: 'Contrast', min: 0.2, max: 3, step: 0.01, format: (v) => (v * 100).toFixed(0) },
-	{
-		key: 'highlights',
-		label: 'Highlights',
-		min: -1,
-		max: 1,
-		step: 0.01,
-		format: (v) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)}`,
-	},
-	{
-		key: 'shadows',
-		label: 'Shadows',
-		min: -1,
-		max: 1,
-		step: 0.01,
-		format: (v) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)}`,
-	},
-];
-
-const COLOR_SLIDERS: SliderDef[] = [
-	{ key: 'saturation', label: 'Saturation', min: 0, max: 3, step: 0.01, format: (v) => (v * 100).toFixed(0) },
-	{
-		key: 'temperature',
-		label: 'Temperature',
-		min: -1,
-		max: 1,
-		step: 0.01,
-		format: (v) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)}`,
-	},
-	{
-		key: 'tint',
-		label: 'Tint',
-		min: -1,
-		max: 1,
-		step: 0.01,
-		format: (v) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)}`,
-	},
-	{
-		key: 'hue',
-		label: 'Hue',
-		min: -180,
-		max: 180,
-		step: 1,
-		format: (v) => `${v >= 0 ? '+' : ''}${v.toFixed(0)}\u00b0`,
-	},
-];
-
-const EFFECTS_SLIDERS: SliderDef[] = [
-	{ key: 'blur', label: 'Blur', min: 0, max: 20, step: 0.1, format: (v) => `${v.toFixed(1)}px` },
-	{ key: 'sepia', label: 'Sepia', min: 0, max: 1, step: 0.01, format: (v) => (v * 100).toFixed(0) },
-	{ key: 'vignette', label: 'Vignette', min: 0, max: 1, step: 0.01, format: (v) => (v * 100).toFixed(0) },
-	{ key: 'grain', label: 'Grain', min: 0, max: 100, step: 1, format: (v) => v.toFixed(0) },
-];
+import {
+	LIGHT_SLIDERS,
+	COLOR_SLIDERS,
+	EFFECT_SLIDERS as EFFECTS_SLIDERS,
+	type FilterSliderDef,
+} from '@/config/filterSliders.ts';
 
 const FORMAT_OPTIONS: { value: ExportFormat; label: string }[] = [
 	{ value: 'png', label: 'PNG' },
@@ -109,10 +41,10 @@ const FORMAT_OPTIONS: { value: ExportFormat; label: string }[] = [
 type ImageMode = 'resize' | 'adjust' | 'presets' | 'export';
 
 const IMAGE_MODE_TABS: EditorModeTabItem<ImageMode>[] = [
-	{ id: 'resize', label: 'Resize', icon: Maximize2, description: 'Resize and aspect controls.' },
-	{ id: 'adjust', label: 'Adjust', icon: SlidersHorizontal, description: 'Fine tune light and color.' },
-	{ id: 'presets', label: 'Presets', icon: Palette, description: 'Apply saved style presets.' },
-	{ id: 'export', label: 'Export', icon: Download, description: 'Choose output format and quality.' },
+	{ id: 'resize', label: 'Resize', icon: Maximize2 },
+	{ id: 'adjust', label: 'Adjust', icon: SlidersHorizontal },
+	{ id: 'presets', label: 'Presets', icon: Palette },
+	{ id: 'export', label: 'Export', icon: Download },
 ];
 
 const IMAGE_MODE_STAGE: Record<ImageMode, EditorStage> = {
@@ -124,14 +56,7 @@ const IMAGE_MODE_STAGE: Record<ImageMode, EditorStage> = {
 
 const STAGE_DEFAULT_MODE: Record<EditorStage, ImageMode> = { source: 'resize', edit: 'adjust', output: 'export' };
 
-export function ImageSidebar({
-	onOpenFile,
-	onNew,
-	stage,
-	onStageChange,
-	showInfo,
-	onShowInfoChange,
-}: ImageSidebarProps) {
+export function ImageSidebar({ stage, onStageChange, showInfo, onShowInfoChange }: ImageSidebarProps) {
 	const {
 		file,
 		originalData,
@@ -177,12 +102,21 @@ export function ImageSidebar({
 	);
 
 	const [mode, setMode] = useState<ImageMode>('resize');
+	const [selectedImagePreset, setSelectedImagePreset] = useState<string | null>(null);
 	const exportRendererRef = useRef<PhotoWebGLRenderer | null>(null);
 	const resizeWidthInputId = useId();
 	const resizeHeightInputId = useId();
-	const editorUxMode = useEditorUxStore((s) => s.mode);
-	const setEditorUxMode = useEditorUxStore((s) => s.setMode);
-	const isExpertMode = editorUxMode === 'expert';
+
+	const imagePresetEntryList: PresetEntry[] = useMemo(
+		() =>
+			IMAGE_PRESETS.map(([key, preset]) => ({
+				key,
+				name: preset.name,
+				subtitle: `${preset.width ?? '?'}×${preset.height ?? '?'} · ${preset.format.toUpperCase()}`,
+			})),
+		[],
+	);
+	const isExpertMode = useEditorUxStore((s) => s.mode) === 'expert';
 
 	useEffect(() => {
 		setMode((currentMode) => {
@@ -255,10 +189,15 @@ export function ImageSidebar({
 	}, [applyResize]);
 
 	const handleApplyPreset = useCallback(
-		(key: string) => {
+		(key: string | null) => {
+			if (!key) {
+				setSelectedImagePreset(null);
+				return;
+			}
 			const preset = IMAGE_PRESETS.find(([k]) => k === key);
 			if (!preset) return;
 			const [, cfg] = preset;
+			setSelectedImagePreset(key);
 			if (cfg.width != null) setResizeWidth(cfg.width);
 			if (cfg.height != null) setResizeHeight(cfg.height);
 			if (cfg.exportFormat) setExportFormat(cfg.exportFormat as ExportFormat);
@@ -268,7 +207,7 @@ export function ImageSidebar({
 		[setResizeWidth, setResizeHeight, setExportFormat, setExportQuality],
 	);
 
-	const renderSliders = (sliders: SliderDef[]) => (
+	const renderSliders = (sliders: FilterSliderDef[]) => (
 		<div className="flex flex-col gap-3">
 			{sliders.map((s) => (
 				<Slider
@@ -318,69 +257,34 @@ export function ImageSidebar({
 			className="w-full h-full min-h-0 overflow-hidden bg-surface flex flex-col"
 			style={{ overscrollBehavior: 'contain' }}
 		>
-			<EditorShellHeader
-				title="Image Lab"
-				description={
-					isExpertMode
-						? 'Full precision controls for still-image editing.'
-						: 'Guided adjustments for fast image editing.'
-				}
-				modeSwitch={<EditorUxModeSwitch mode={editorUxMode} onChange={setEditorUxMode} />}
-				stageTabs={<EditorStageTabs stage={stage} onChange={onStageChange} />}
-				actions={
-					<>
-						<Button variant="secondary" className="flex-1 min-w-0" onClick={onOpenFile}>
-							{file ? <span className="truncate">{file.name}</span> : 'Choose Image'}
-						</Button>
-						{file && onNew && (
-							<Button
-								variant="ghost"
-								size="icon"
-								onClick={onNew}
-								title="New (discard current)"
-								aria-label="New file (discard current image)"
-							>
-								<FilePlus2 size={16} />
-							</Button>
-						)}
-					</>
-				}
-			/>
+			{/* Stage Tabs */}
+			<div className="p-2.5 border-b border-border/70 bg-surface-raised/15">
+				<EditorStageTabs stage={stage} onChange={onStageChange} />
+			</div>
 
 			{/* Mode Tabs */}
-			<div className="shrink-0 border-b border-border/70 bg-surface-raised/15">
+			<div className="shrink-0 border-b border-border/70 bg-surface-raised/10">
 				<EditorModeTabs
 					value={mode}
 					items={stageModeTabs}
 					onChange={setMode}
 					ariaLabel="Image editor mode tabs"
-					className="-mx-0"
 				/>
 			</div>
 
 			{/* Tab Content */}
-			<div className="p-4 flex flex-col gap-4 flex-1 overflow-y-auto">
+			<div className="p-3 flex flex-col gap-4 flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden">
 				{mode === 'resize' && (
 					<>
 						{originalData ? (
 							<>
-								<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider">
-									Dimensions
-								</h3>
-								<div className="flex flex-wrap gap-1">
-									{IMAGE_PRESETS.map(([key, preset]) => (
-										<button
-											key={key}
-											onClick={() => {
-												handleApplyPreset(key);
-											}}
-											className="rounded-md bg-surface-raised/60 px-2 py-1 text-[14px] font-medium text-text-tertiary hover:bg-surface-raised hover:text-text transition-all cursor-pointer"
-											title={preset.description}
-										>
-											{preset.name}
-										</button>
-									))}
-								</div>
+								<SharedPresetsPanel
+									presets={imagePresetEntryList}
+									selectedPreset={selectedImagePreset}
+									onSelectPreset={handleApplyPreset}
+									emptyLabel="Pick a preset or set custom dimensions."
+									fallbackIconLetter="I"
+								/>
 
 								<div className="flex items-center gap-2">
 									<div className="flex-1">
@@ -456,7 +360,7 @@ export function ImageSidebar({
 				{mode === 'adjust' && (
 					<>
 						<div className="flex items-center justify-between">
-							<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider">
+							<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
 								Light
 							</h3>
 							<button
@@ -468,28 +372,24 @@ export function ImageSidebar({
 						</div>
 						{renderSliders(LIGHT_SLIDERS)}
 
-						<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mt-2">
+						<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mt-2">
 							Color
 						</h3>
 						{renderSliders(COLOR_SLIDERS)}
 						{isExpertMode ? (
 							<>
-								<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mt-2">
+								<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mt-2">
 									Effects
 								</h3>
 								{renderSliders(EFFECTS_SLIDERS)}
 							</>
-						) : (
-							<p className="text-[13px] text-text-tertiary">
-								Switch to Expert mode for grain, vignette, blur, and advanced effects.
-							</p>
-						)}
+						) : null}
 					</>
 				)}
 
 				{mode === 'presets' && (
 					<>
-						<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider">
+						<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
 							Color Presets
 						</h3>
 						<div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
@@ -510,7 +410,7 @@ export function ImageSidebar({
 
 				{mode === 'export' && (
 					<>
-						<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider">
+						<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
 							Format
 						</h3>
 						<div className="flex gap-1.5">
@@ -543,11 +443,6 @@ export function ImageSidebar({
 								}}
 							/>
 						)}
-						{!isExpertMode && exportFormat !== 'png' && (
-							<p className="text-[13px] text-text-tertiary">
-								Simple mode uses balanced quality defaults. Switch to Expert to tune quality.
-							</p>
-						)}
 						{estSize != null && (
 							<p className="text-[14px] text-text-tertiary">Est. {formatFileSize(estSize)}</p>
 						)}
@@ -556,7 +451,7 @@ export function ImageSidebar({
 			</div>
 
 			{/* Actions (always visible at bottom) */}
-			<div className="p-4 border-t border-border flex flex-col gap-2 shrink-0">
+			<div className="p-3 border-t border-border flex flex-col gap-2 shrink-0 bg-surface-raised/10">
 				{originalData && (
 					<Button
 						variant="ghost"

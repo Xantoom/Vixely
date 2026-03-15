@@ -253,7 +253,7 @@ export function GifFormatConvertPanel({ file, sourceWidth, sourceHeight }: GifFo
 	return (
 		<>
 			<div>
-				<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">
+				<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">
 					Format Converter
 				</h3>
 				<p className="text-[12px] text-text-tertiary mb-3">
@@ -294,7 +294,7 @@ export function GifFormatConvertPanel({ file, sourceWidth, sourceHeight }: GifFo
 
 			{/* Format selection */}
 			<div>
-				<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
+				<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
 					Output Format
 				</h3>
 				<div className="flex flex-col gap-2">

@@ -5,7 +5,6 @@ import { useEffect, useRef, useState, useCallback, type MouseEvent as ReactMouse
 import { Toaster } from 'sonner';
 import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
 import { CookieBanner } from '@/components/CookieBanner.tsx';
-import { PrivacyModal } from '@/components/PrivacyModal.tsx';
 import { useEditorSessionStore, type EditorKey } from '@/stores/editorSession.ts';
 import { useEditorUxStore } from '@/stores/editorUx.ts';
 import { useGifEditorStore } from '@/stores/gifEditor.ts';
@@ -241,7 +240,6 @@ function RootLayout() {
 			</nav>
 
 			{/* ── Overlays ── */}
-			<PrivacyModal />
 			<CookieBanner />
 			{isEditorSwitchConfirmOpen && (
 				<ConfirmResetModal onConfirm={handleConfirmEditorSwitch} onCancel={handleCancelEditorSwitch} />

@@ -1,7 +1,9 @@
-import { Info, StepBack, StepForward } from 'lucide-react';
+import { FilePlus2, Info, StepBack, StepForward } from 'lucide-react';
 import { EditorToolbar } from '@/components/editor/EditorToolbar.tsx';
+import { EditorUxModeSwitch } from '@/components/editor/EditorUxModeSwitch.tsx';
 import { IconButton, ToolbarSeparator } from '@/components/ui/IconButton.tsx';
 import { formatCompactTime } from '@/components/ui/Timeline.tsx';
+import type { EditorUxMode } from '@/stores/editorUx.ts';
 import { formatFileSize, formatNumber } from '@/utils/format.ts';
 
 interface GifToolbarProps {
@@ -13,6 +15,10 @@ interface GifToolbarProps {
 	currentFrame: number;
 	totalFrames: number;
 	isGifSource: boolean;
+	editorUxMode: EditorUxMode;
+	onEditorUxModeChange: (mode: EditorUxMode) => void;
+	onOpenFile: () => void;
+	onNew: () => void;
 	onStepFrame: (dir: -1 | 1) => void;
 	onStartFrameHold: (dir: -1 | 1) => void;
 	onStopFrameHold: () => void;
@@ -28,6 +34,10 @@ export function GifToolbar({
 	currentFrame,
 	totalFrames,
 	isGifSource,
+	editorUxMode,
+	onEditorUxModeChange,
+	onOpenFile,
+	onNew,
 	onStepFrame,
 	onStartFrameHold,
 	onStopFrameHold,
@@ -92,7 +102,6 @@ export function GifToolbar({
 
 			{/* File metadata summary */}
 			<div className="hidden sm:flex items-center gap-3 text-[12px] text-text-tertiary font-mono tabular-nums">
-				<span className="text-text-secondary font-medium font-sans truncate max-w-40">{file.name}</span>
 				<span>{formatFileSize(file.size)}</span>
 				{sourceWidth && sourceHeight && (
 					<span>
@@ -101,6 +110,27 @@ export function GifToolbar({
 				)}
 				{duration > 0 && <span>{formatCompactTime(duration)}</span>}
 			</div>
+
+			<ToolbarSeparator />
+
+			{/* Simple / Expert toggle */}
+			<div className="hidden sm:block">
+				<EditorUxModeSwitch mode={editorUxMode} onChange={onEditorUxModeChange} />
+			</div>
+
+			<ToolbarSeparator />
+
+			{/* File chooser */}
+			<button
+				onClick={onOpenFile}
+				className="h-7 max-w-36 rounded-md bg-surface-raised/50 border border-border/60 px-2.5 text-[12px] font-medium text-text-secondary hover:bg-surface-raised hover:text-text transition-colors cursor-pointer truncate"
+				title={file.name}
+			>
+				{file.name}
+			</button>
+			<IconButton onClick={onNew} title="New (discard current)">
+				<FilePlus2 size={14} />
+			</IconButton>
 
 			<ToolbarSeparator />
 

@@ -1,11 +1,23 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { Clapperboard, Download, Film, FilePlus2, Palette, SlidersHorizontal, Sparkles } from 'lucide-react';
+import {
+	Clapperboard,
+	Download,
+	Film,
+	Video,
+	ImageIcon,
+	Palette,
+	SlidersHorizontal,
+	Sparkles,
+	Scissors,
+	Zap,
+	ShieldCheck,
+} from 'lucide-react';
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
 import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
-import { EditorEmptyState, EditorShell, EditorShellHeader, EditorUxModeSwitch } from '@/components/editor/index.ts';
-import { FileMetadataModal } from '@/components/FileMetadataModal.tsx';
+import { EditorLanding } from '@/components/editor/EditorLanding.tsx';
+import { EditorEmptyState, EditorShell } from '@/components/editor/index.ts';
 import { GifAnalyzerPanel } from '@/components/gif/GifAnalyzerPanel.tsx';
 import { GifAspectRatioPanel } from '@/components/gif/GifAspectRatioPanel.tsx';
 import { GifCropPanel } from '@/components/gif/GifCropPanel.tsx';
@@ -15,6 +27,7 @@ import { GifFiltersPanel } from '@/components/gif/GifFiltersPanel.tsx';
 import { GifFormatConvertPanel } from '@/components/gif/GifFormatConvertPanel.tsx';
 import { GifFramesPanel } from '@/components/gif/GifFramesPanel.tsx';
 import { GifImageOverlayPanel } from '@/components/gif/GifImageOverlayPanel.tsx';
+import { GifInfoModal } from '@/components/gif/GifInfoModal.tsx';
 import { GifMakerPanel } from '@/components/gif/GifMakerPanel.tsx';
 import { GifOptimizePanel } from '@/components/gif/GifOptimizePanel.tsx';
 import { GifResizePanel } from '@/components/gif/GifResizePanel.tsx';
@@ -22,7 +35,7 @@ import { GifRotatePanel } from '@/components/gif/GifRotatePanel.tsx';
 import { GifSettingsPanel } from '@/components/gif/GifSettingsPanel.tsx';
 import { GifTextOverlayPanel } from '@/components/gif/GifTextOverlayPanel.tsx';
 import { GifToolbar } from '@/components/gif/GifToolbar.tsx';
-import { Seo } from '@/components/Seo.tsx';
+import { Seo, buildWebAppSchema, buildFAQSchema } from '@/components/Seo.tsx';
 import { Button, EditorModeTabs, EditorStageTabs, Timeline } from '@/components/ui/index.ts';
 import { gifPresetEntries, GIF_ACCEPT } from '@/config/presets.ts';
 import { useEditorLayoutPrefs, type EditorStage } from '@/hooks/useEditorLayoutPrefs.ts';
@@ -40,6 +53,74 @@ import { useEditorUxStore } from '@/stores/editorUx.ts';
 import { useGifEditorStore, type GifMode } from '@/stores/gifEditor.ts';
 import { buildExportFilename } from '@/utils/exportFilename.ts';
 import { formatFileSize } from '@/utils/format.ts';
+
+/* ── SEO Landing Data ── */
+
+const GIF_LANDING_FEATURES = [
+	{
+		icon: Zap,
+		title: 'Optimize & Compress',
+		description:
+			'Reduce GIF file size dramatically while preserving visual quality. Perfect for sharing on Discord and social media.',
+	},
+	{
+		icon: Scissors,
+		title: 'Trim & Cut',
+		description: 'Remove unwanted frames, trim start and end points, and keep only the best parts of your GIF.',
+	},
+	{
+		icon: Palette,
+		title: 'Colors & Filters',
+		description: 'Adjust brightness, contrast, saturation, and apply creative filters with real-time preview.',
+	},
+	{
+		icon: ShieldCheck,
+		title: 'Privacy First',
+		description: 'Your GIFs never leave your device. All processing runs locally in your browser via WebAssembly.',
+	},
+] as const;
+
+const GIF_LANDING_FORMATS = ['GIF', 'APNG', 'WebP (animated)', 'MP4 (to GIF)'] as const;
+
+const GIF_LANDING_FAQS = [
+	{
+		question: 'How do I reduce GIF file size?',
+		answer: 'Use the Optimize panel to reduce colors, resize dimensions, adjust frame rate, and apply lossy compression. Vixely can often reduce GIF file sizes by 50-80% while maintaining good visual quality.',
+	},
+	{
+		question: 'Can I trim a GIF?',
+		answer: 'Yes. Use the timeline to set trim start and end points, then export to keep only the frames you want. You can also convert a video clip to GIF with custom timing.',
+	},
+	{
+		question: 'What GIF formats are supported?',
+		answer: 'Vixely supports GIF, APNG, and animated WebP. You can also convert video files (MP4, WebM, etc.) to GIF format with full control over quality and frame rate.',
+	},
+	{
+		question: 'Is my GIF uploaded to a server?',
+		answer: 'No. All GIF processing happens entirely in your browser using WebAssembly. Your files never leave your device — completely private.',
+	},
+] as const;
+
+const GIF_CROSS_LINKS = [
+	{
+		title: 'Video Editor',
+		subtitle: 'Trim, resize & export videos',
+		href: '/tools/video' as const,
+		icon: Video,
+		accentBg: 'bg-blue-500/10',
+		accentText: 'text-blue-400',
+		borderTop: 'border-t-blue-500',
+	},
+	{
+		title: 'Image Editor',
+		subtitle: 'Crop, adjust & export images',
+		href: '/tools/image' as const,
+		icon: ImageIcon,
+		accentBg: 'bg-amber-500/10',
+		accentText: 'text-amber-400',
+		borderTop: 'border-t-amber-500',
+	},
+] as const;
 
 export const Route = createFileRoute('/tools/gif')({ component: GifFoundry });
 
@@ -81,48 +162,48 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
 	{
 		id: 'setup',
 		label: 'Setup',
-		description: 'Define source timing and base geometry.',
+		description: '',
 		icon: SlidersHorizontal,
 		tools: [
-			{ mode: 'settings', label: 'Settings', description: 'Speed, loop, presets and trim defaults.' },
-			{ mode: 'crop', label: 'Crop', description: 'Cut framing to the exact focus area.' },
-			{ mode: 'resize', label: 'Resize', description: 'Control output dimensions and aspect lock.' },
-			{ mode: 'rotate', label: 'Rotate', description: 'Rotate and mirror orientation.' },
-			{ mode: 'aspect', label: 'Aspect', description: 'Letterbox or pillarbox to fixed aspect ratio.' },
+			{ mode: 'settings', label: 'Settings', description: '' },
+			{ mode: 'crop', label: 'Crop', description: '' },
+			{ mode: 'resize', label: 'Resize', description: '' },
+			{ mode: 'rotate', label: 'Rotate', description: '' },
+			{ mode: 'aspect', label: 'Aspect', description: '' },
 		],
 	},
 	{
 		id: 'style',
 		label: 'Style',
-		description: 'Apply visual treatment and overlays.',
+		description: '',
 		icon: Sparkles,
 		tools: [
-			{ mode: 'filters', label: 'Filters', description: 'Color tuning and image effects.' },
-			{ mode: 'text', label: 'Text', description: 'Add titles or captions over frames.' },
-			{ mode: 'overlay', label: 'Overlay', description: 'Stamp logos or watermark assets.' },
-			{ mode: 'fade', label: 'Fade', description: 'Intro and outro color fades.' },
+			{ mode: 'filters', label: 'Filters', description: '' },
+			{ mode: 'text', label: 'Text', description: '' },
+			{ mode: 'overlay', label: 'Overlay', description: '' },
+			{ mode: 'fade', label: 'Fade', description: '' },
 		],
 	},
 	{
 		id: 'timing',
 		label: 'Timing',
-		description: 'Control frame pacing and optimization.',
+		description: '',
 		icon: Clapperboard,
 		tools: [
-			{ mode: 'frames', label: 'Frames', description: 'Extract and adjust per-frame timing.' },
-			{ mode: 'optimize', label: 'Optimize', description: 'Compression and frame skipping.' },
-			{ mode: 'maker', label: 'Maker', description: 'Build GIFs from image sequences.' },
+			{ mode: 'frames', label: 'Frames', description: '' },
+			{ mode: 'optimize', label: 'Optimize', description: '' },
+			{ mode: 'maker', label: 'Maker', description: '' },
 		],
 	},
 	{
 		id: 'output',
 		label: 'Output',
-		description: 'Inspect, convert, and export final media.',
+		description: '',
 		icon: Download,
 		tools: [
-			{ mode: 'convert', label: 'Convert', description: 'Transcode into alternate formats.' },
-			{ mode: 'analyze', label: 'Analyze', description: 'Inspect GIF internals and metadata.' },
-			{ mode: 'export', label: 'Export', description: 'Generate and deliver your final GIF.' },
+			{ mode: 'convert', label: 'Convert', description: '' },
+			{ mode: 'analyze', label: 'Analyze', description: '' },
+			{ mode: 'export', label: 'Export', description: '' },
 		],
 	},
 ];
@@ -886,44 +967,14 @@ function GifFoundry() {
 	/* ── Sidebar Content ── */
 	const sidebarContent = (
 		<>
-			<EditorShellHeader
-				title="GIF Studio"
-				description={
-					isExpertMode
-						? 'Complete timing, optimization, and conversion controls.'
-						: 'Focused workflow from source to export.'
-				}
-				modeSwitch={<EditorUxModeSwitch mode={editorUxMode} onChange={setEditorUxMode} />}
-				stageTabs={<EditorStageTabs stage={stage} onChange={handleStageChange} />}
-				actions={
-					<>
-						<Button
-							variant="secondary"
-							className="flex-1 min-w-0"
-							onClick={() => {
-								fileInputRef.current?.click();
-							}}
-						>
-							{file ? <span className="truncate">{file.name}</span> : 'Choose File'}
-						</Button>
-						{file && (
-							<Button
-								variant="ghost"
-								size="icon"
-								onClick={handleNew}
-								title="New (discard current)"
-								aria-label="New file (discard current media)"
-							>
-								<FilePlus2 size={16} />
-							</Button>
-						)}
-					</>
-				}
-			/>
+			{/* Stage Tabs */}
+			<div className="p-2.5 border-b border-border/70 bg-surface-raised/15">
+				<EditorStageTabs stage={stage} onChange={handleStageChange} />
+			</div>
 
 			{visibleStageSections.length > 1 && (
 				<div className="border-b border-border/70 bg-surface/70">
-					<p className="px-4 pt-3 mb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-text-tertiary">
+					<p className="px-3 pt-2.5 mb-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-text-tertiary">
 						Workflow
 					</p>
 					<EditorModeTabs
@@ -953,12 +1004,14 @@ function GifFoundry() {
 				/>
 			</div>
 
-			<div className="p-4 flex flex-col gap-4 flex-1 overflow-y-auto">{modePanel}</div>
+			<div className="p-3 flex flex-col gap-4 flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden">
+				{modePanel}
+			</div>
 
 			{store.mode !== 'export' && (
-				<div className="p-4 border-t border-border flex flex-col gap-2 bg-surface-raised/10">
-					<div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">
-						<Palette size={12} />
+				<div className="p-3 border-t border-border flex flex-col gap-2 bg-surface-raised/10">
+					<div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
+						<Palette size={11} />
 						<span>Quick Export</span>
 					</div>
 					<Button
@@ -992,9 +1045,17 @@ function GifFoundry() {
 	return (
 		<>
 			<Seo
-				title="GIF Editor — Vixely"
-				description="Create, edit, crop, resize, rotate, optimize and convert GIFs with filters and effects — entirely in your browser."
+				title="Free Online GIF Editor — Vixely"
+				description="Create, edit, crop, resize, rotate, optimize and convert GIFs with filters and effects — entirely in your browser. No upload required."
 				path="/tools/gif"
+				jsonLd={[
+					buildWebAppSchema(
+						'Vixely GIF Editor',
+						'Create, edit, crop, resize, rotate, optimize and convert GIFs — entirely in your browser.',
+						'https://vixely.app/tools/gif',
+					),
+					buildFAQSchema(GIF_LANDING_FAQS.map((f) => ({ question: f.question, answer: f.answer }))),
+				]}
 			/>
 			<h1 className="sr-only">GIF Editor</h1>
 			<input
@@ -1025,6 +1086,12 @@ function GifFoundry() {
 								currentFrame={timeToFrames(currentTime)}
 								totalFrames={totalFrames}
 								isGifSource={isGifSource}
+								editorUxMode={editorUxMode}
+								onEditorUxModeChange={setEditorUxMode}
+								onOpenFile={() => {
+									fileInputRef.current?.click();
+								}}
+								onNew={handleNew}
 								onStepFrame={stepCurrentFrame}
 								onStartFrameHold={startFrameHold}
 								onStopFrameHold={stopFrameHold}
@@ -1033,11 +1100,11 @@ function GifFoundry() {
 								}}
 							/>
 						)}
-						<div
-							className="flex-1 flex items-center justify-center workspace-bg p-4 sm:p-6 lg:p-8 overflow-hidden relative"
-							{...dropHandlers}
-						>
-							{videoUrl ? (
+						{videoUrl ? (
+							<div
+								className="flex-1 flex items-center justify-center workspace-bg p-2 sm:p-3 overflow-hidden relative"
+								{...dropHandlers}
+							>
 								<div className="w-full h-full flex items-center justify-center">
 									<div className="w-full max-w-5xl max-h-full flex flex-col items-center gap-3">
 										{canShowResultPreview && (
@@ -1154,8 +1221,19 @@ function GifFoundry() {
 										)}
 									</div>
 								</div>
-							) : (
-								<div className="flex flex-col items-center gap-6">
+
+								{/* Drag overlay when file is loaded */}
+								{isDragging && (
+									<div className="absolute inset-0 flex items-center justify-center bg-accent-surface/50 backdrop-blur-sm z-20 pointer-events-none">
+										<div className="rounded-xl border-2 border-dashed border-accent px-6 py-4 text-sm font-medium text-accent">
+											Drop to replace GIF
+										</div>
+									</div>
+								)}
+							</div>
+						) : (
+							<EditorLanding
+								emptyState={
 									<EditorEmptyState
 										icon={Film}
 										variant="hero"
@@ -1165,19 +1243,20 @@ function GifFoundry() {
 										dragTitle="Drop your GIF here"
 										dragDescription="Release to load"
 										onChooseFile={() => fileInputRef.current?.click()}
+										formatHints={['GIF', 'APNG', 'WebP']}
 									/>
-								</div>
-							)}
-
-							{/* Drag overlay when file is loaded */}
-							{isDragging && videoUrl && (
-								<div className="absolute inset-0 flex items-center justify-center bg-accent-surface/50 backdrop-blur-sm z-20 pointer-events-none">
-									<div className="rounded-xl border-2 border-dashed border-accent px-6 py-4 text-sm font-medium text-accent">
-										Drop to replace GIF
-									</div>
-								</div>
-							)}
-						</div>
+								}
+								dropHandlers={dropHandlers}
+								isDragging={isDragging}
+								hasFile={false}
+								replaceLabel="Drop your GIF here"
+								features={[...GIF_LANDING_FEATURES]}
+								formats={GIF_LANDING_FORMATS}
+								formatColor="bg-emerald-400"
+								faqs={[...GIF_LANDING_FAQS]}
+								crossLinks={[...GIF_CROSS_LINKS]}
+							/>
+						)}
 					</>
 				}
 				timeline={
@@ -1208,45 +1287,14 @@ function GifFoundry() {
 					<>
 						{/* File info modal */}
 						{showInfo && file && (
-							<FileMetadataModal
+							<GifInfoModal
 								file={file}
-								fields={[
-									{ label: 'Source type', value: isGifSource ? 'GIF' : 'Video' },
-									{
-										label: 'Source dimensions',
-										value: sourceWidth && sourceHeight ? `${sourceWidth}×${sourceHeight}` : null,
-									},
-									{ label: 'Duration', value: duration > 0 ? `${duration.toFixed(1)}s` : null },
-									{ label: 'Output size', value: `${width}×${outputHeight}px @ ${fps}fps` },
-									{
-										label: 'Speed',
-										value:
-											store.speed !== 1
-												? `${store.speed}x${store.reverse ? ' (reversed)' : ''}`
-												: null,
-									},
-									{ label: 'Rotation', value: store.rotation !== 0 ? `${store.rotation}°` : null },
-									{
-										label: 'Flip',
-										value:
-											store.flipH || store.flipV
-												? [store.flipH && 'Horizontal', store.flipV && 'Vertical']
-														.filter(Boolean)
-														.join(', ')
-												: null,
-									},
-									{
-										label: 'Crop',
-										value: store.crop
-											? `${Math.round(store.crop.width)}×${Math.round(store.crop.height)} at (${Math.round(store.crop.x)},${Math.round(store.crop.y)})`
-											: null,
-									},
-									{ label: 'Est. frames', value: String(estimatedFrames) },
-									{
-										label: 'Loop',
-										value: store.loopCount === 0 ? 'Infinite' : `${store.loopCount}×`,
-									},
-								]}
+								width={sourceWidth}
+								height={sourceHeight}
+								duration={duration}
+								fps={fps}
+								frameCount={estimatedFrames}
+								isGifSource={isGifSource}
 								onClose={() => {
 									setShowInfo(false);
 								}}

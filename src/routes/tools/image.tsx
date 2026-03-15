@@ -1,14 +1,15 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { ImageIcon } from 'lucide-react';
+import { ImageIcon, Video, Film, Scaling, Palette, Sparkles, ShieldCheck } from 'lucide-react';
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
 import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
+import { EditorLanding } from '@/components/editor/EditorLanding.tsx';
 import { EditorEmptyState, EditorShell } from '@/components/editor/index.ts';
 import { ImageCanvas } from '@/components/image/ImageCanvas.tsx';
 import { ImageSidebar } from '@/components/image/ImageSidebar.tsx';
 import { ImageToolbar } from '@/components/image/ImageToolbar.tsx';
-import { Seo } from '@/components/Seo.tsx';
+import { Seo, buildWebAppSchema, buildFAQSchema } from '@/components/Seo.tsx';
 import { IMAGE_ACCEPT } from '@/config/presets.ts';
 import { useEditorLayoutPrefs } from '@/hooks/useEditorLayoutPrefs.ts';
 import { useLongTaskObserver } from '@/hooks/useLongTaskObserver.ts';
@@ -16,6 +17,7 @@ import { usePendingActionConfirmation } from '@/hooks/usePendingActionConfirmati
 import { usePreventUnload } from '@/hooks/usePreventUnload.ts';
 import { useSingleFileDrop } from '@/hooks/useSingleFileDrop.ts';
 import { useEditorSessionStore } from '@/stores/editorSession.ts';
+import { useEditorUxStore } from '@/stores/editorUx.ts';
 import { useImageEditorStore } from '@/stores/imageEditor.ts';
 import { consumePendingImageTransfer } from '@/utils/crossEditorTransfer.ts';
 
@@ -34,6 +36,75 @@ function isAcceptedImageFileLike(file: File): boolean {
 	const fileName = file.name.toLowerCase();
 	return ACCEPTED_IMAGE_EXTENSIONS.some((ext) => fileName.endsWith(ext));
 }
+
+/* ── SEO Landing Data ── */
+
+const IMAGE_LANDING_FEATURES = [
+	{
+		icon: Scaling,
+		title: 'Crop & Resize',
+		description:
+			'Resize to exact dimensions or crop to any aspect ratio. Perfect for social media profiles and banners.',
+	},
+	{
+		icon: Palette,
+		title: 'Color Adjustment',
+		description: 'Fine-tune brightness, contrast, saturation, hue, and temperature with real-time preview.',
+	},
+	{
+		icon: Sparkles,
+		title: 'Filters & Effects',
+		description: 'Apply professional filters including blur, sharpen, grayscale, sepia, and custom presets.',
+	},
+	{
+		icon: ShieldCheck,
+		title: 'Privacy First',
+		description:
+			'Your images never leave your device. All processing runs locally in your browser via WebAssembly.',
+	},
+] as const;
+
+const IMAGE_LANDING_FORMATS = ['PNG', 'JPG', 'WebP', 'AVIF', 'BMP', 'TIFF', 'ICO'] as const;
+
+const IMAGE_LANDING_FAQS = [
+	{
+		question: 'Can I resize images for social media?',
+		answer: 'Yes. You can resize images to exact pixel dimensions or use preset aspect ratios optimized for platforms like Instagram, Twitter, Facebook, and Discord.',
+	},
+	{
+		question: 'What image formats are supported?',
+		answer: 'Vixely supports PNG, JPG/JPEG, WebP, AVIF, BMP, TIFF, and ICO. You can import any of these formats and export to any other.',
+	},
+	{
+		question: 'Is my image uploaded to a server?',
+		answer: 'No. All image processing happens entirely in your browser using WebAssembly. Your files never leave your device — completely private.',
+	},
+	{
+		question: 'Can I convert between image formats?',
+		answer: 'Yes. Import any supported format and export to a different one. For example, convert PNG to WebP for smaller file sizes or JPG to PNG for transparency support.',
+	},
+] as const;
+
+const IMAGE_CROSS_LINKS = [
+	{
+		title: 'Video Editor',
+		subtitle: 'Trim, resize & export videos',
+		href: '/tools/video' as const,
+		icon: Video,
+		accentBg: 'bg-blue-500/10',
+		accentText: 'text-blue-400',
+		borderTop: 'border-t-blue-500',
+	},
+	{
+		title: 'GIF Editor',
+		subtitle: 'Optimize, trim & export GIFs',
+		href: '/tools/gif' as const,
+		icon: Film,
+		accentBg: 'bg-emerald-500/10',
+		accentText: 'text-emerald-400',
+		borderTop: 'border-t-emerald-500',
+	},
+] as const;
 
 export const Route = createFileRoute('/tools/image')({ component: ImageLab });
 
@@ -56,6 +127,9 @@ function ImageLab() {
 		})),
 	);
 	const setEditorUnsaved = useEditorSessionStore((s) => s.setUnsaved);
+
+	const editorUxMode = useEditorUxStore((s) => s.mode);
+	const setEditorUxMode = useEditorUxStore((s) => s.setMode);
 
 	const canvasContainerRef = useRef<HTMLDivElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -158,9 +232,17 @@ function ImageLab() {
 	return (
 		<>
 			<Seo
-				title="Image Editor — Vixely"
-				description="Apply real-time image filters, resize, crop, and export directly in your browser."
+				title="Free Online Image Editor — Vixely"
+				description="Apply real-time image filters, resize, crop, and export directly in your browser. No upload required — 100% private."
 				path="/tools/image"
+				jsonLd={[
+					buildWebAppSchema(
+						'Vixely Image Editor',
+						'Apply real-time image filters, resize, crop, and export directly in your browser.',
+						'https://vixely.app/tools/image',
+					),
+					buildFAQSchema(IMAGE_LANDING_FAQS.map((f) => ({ question: f.question, answer: f.answer }))),
+				]}
 			/>
 			<h1 className="sr-only">Image Editor</h1>
 
@@ -186,24 +268,34 @@ function ImageLab() {
 							<ImageToolbar
 								containerRef={canvasContainerRef}
 								fileName={file?.name}
+								editorUxMode={editorUxMode}
+								onEditorUxModeChange={setEditorUxMode}
+								onOpenFile={handleOpenFile}
+								onNew={handleNew}
 								onShowInfo={() => {
 									setShowInfo(true);
 								}}
 							/>
 						)}
-						<div
-							ref={canvasContainerRef}
-							className={`flex-1 relative overflow-hidden ${
-								hasImageLoaded
-									? 'checkerboard'
-									: 'workspace-bg flex items-center justify-center p-4 sm:p-6 lg:p-8'
-							} ${isDragging ? 'drop-zone-active' : ''}`}
-							{...dropHandlers}
-						>
-							{hasImageLoaded ? (
+						{hasImageLoaded ? (
+							<div
+								ref={canvasContainerRef}
+								className={`flex-1 relative overflow-hidden checkerboard ${isDragging ? 'drop-zone-active' : ''}`}
+								{...dropHandlers}
+							>
 								<ImageCanvas containerRef={canvasContainerRef} />
-							) : (
-								<div className="flex flex-col items-center gap-6">
+
+								{isDragging && (
+									<div className="absolute inset-0 flex items-center justify-center bg-accent-surface/50 backdrop-blur-sm z-20 pointer-events-none">
+										<div className="rounded-xl border-2 border-dashed border-accent px-6 py-4 text-sm font-medium text-accent">
+											Drop to replace image
+										</div>
+									</div>
+								)}
+							</div>
+						) : (
+							<EditorLanding
+								emptyState={
 									<EditorEmptyState
 										icon={ImageIcon}
 										variant="hero"
@@ -213,25 +305,25 @@ function ImageLab() {
 										dragTitle="Drop your image here"
 										dragDescription="Release to load"
 										onChooseFile={handleOpenFile}
+										formatHints={['PNG', 'JPG', 'WebP', 'AVIF', 'BMP']}
 									/>
-								</div>
-							)}
-
-							{isDragging && hasImageLoaded && (
-								<div className="absolute inset-0 flex items-center justify-center bg-accent-surface/50 backdrop-blur-sm z-20 pointer-events-none">
-									<div className="rounded-xl border-2 border-dashed border-accent px-6 py-4 text-sm font-medium text-accent">
-										Drop to replace image
-									</div>
-								</div>
-							)}
-						</div>
+								}
+								dropHandlers={dropHandlers}
+								isDragging={isDragging}
+								hasFile={false}
+								replaceLabel="Drop your image here"
+								features={[...IMAGE_LANDING_FEATURES]}
+								formats={IMAGE_LANDING_FORMATS}
+								formatColor="bg-amber-400"
+								faqs={[...IMAGE_LANDING_FAQS]}
+								crossLinks={[...IMAGE_CROSS_LINKS]}
+							/>
+						)}
 					</>
 				}
 				sidebar={
 					hasImageLoaded ? (
 						<ImageSidebar
-							onOpenFile={handleOpenFile}
-							onNew={handleNew}
 							stage={stage}
 							onStageChange={setStage}
 							showInfo={showInfo}

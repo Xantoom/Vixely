@@ -1,4 +1,3 @@
-import { AlertCircle } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useVideoEditorStore } from '@/stores/videoEditor.ts';
 
@@ -19,7 +18,7 @@ const SLIDERS = [
 		max: 3,
 		step: 0.01,
 		defaultVal: 1,
-		fmt: (v: number) => (v * 100).toFixed(0),
+		fmt: (v: number) => `${Math.round(v * 100)}%`,
 	},
 	{
 		key: 'saturation' as const,
@@ -28,7 +27,7 @@ const SLIDERS = [
 		max: 3,
 		step: 0.01,
 		defaultVal: 1,
-		fmt: (v: number) => (v * 100).toFixed(0),
+		fmt: (v: number) => `${Math.round(v * 100)}%`,
 	},
 	{
 		key: 'hue' as const,
@@ -37,7 +36,7 @@ const SLIDERS = [
 		max: 180,
 		step: 1,
 		defaultVal: 0,
-		fmt: (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(0)}\u00b0`,
+		fmt: (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(0)}°`,
 	},
 ];
 
@@ -51,15 +50,11 @@ export function AdjustPanel() {
 
 	return (
 		<div className="flex flex-col gap-4">
-			{/* Info banner */}
-			<div className="flex items-center gap-2 rounded-lg border border-accent/20 bg-accent/5 px-3 py-2">
-				<AlertCircle size={13} className="shrink-0 text-accent" />
-				<p className="text-[13px] text-text-secondary">Preview is approximate. Baked in during export.</p>
-			</div>
-
 			{/* Header */}
 			<div className="flex items-center justify-between">
-				<h3 className="text-[11px] font-bold uppercase tracking-widest text-text-tertiary">Color Correction</h3>
+				<h3 className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+					Color Correction
+				</h3>
 				{hasChanges && (
 					<button
 						onClick={resetFilters}
@@ -79,14 +74,14 @@ export function AdjustPanel() {
 						<div key={s.key} className="flex flex-col gap-1.5">
 							<div className="flex items-center justify-between">
 								<label
-									className={`text-sm font-medium transition-colors ${
+									className={`text-[13px] font-medium transition-colors ${
 										isChanged ? 'text-text' : 'text-text-secondary'
 									}`}
 								>
 									{s.label}
 								</label>
 								<span
-									className={`font-mono text-sm tabular-nums transition-colors ${
+									className={`font-mono text-[13px] tabular-nums transition-colors ${
 										isChanged ? 'text-accent' : 'text-text-tertiary'
 									}`}
 								>

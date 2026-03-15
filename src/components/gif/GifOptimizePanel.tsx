@@ -74,7 +74,7 @@ export function GifOptimizePanel() {
 
 			{/* Frame Skip */}
 			<div>
-				<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
+				<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
 					Frame Skip
 				</h3>
 				<div className="grid grid-cols-2 gap-1">

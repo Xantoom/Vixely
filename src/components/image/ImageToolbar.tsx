@@ -1,8 +1,10 @@
-import { Undo2, Redo2, ZoomOut, ZoomIn, Maximize, MousePointer, Crop, Columns2, Info } from 'lucide-react';
+import { Undo2, Redo2, ZoomOut, ZoomIn, Maximize, MousePointer, Crop, Columns2, Info, FilePlus2 } from 'lucide-react';
 import { useCallback } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { EditorToolbar } from '@/components/editor/EditorToolbar.tsx';
+import { EditorUxModeSwitch } from '@/components/editor/EditorUxModeSwitch.tsx';
 import { IconButton, ToolbarSeparator } from '@/components/ui/IconButton.tsx';
+import type { EditorUxMode } from '@/stores/editorUx.ts';
 import type { ActiveTool } from '@/stores/imageEditor.ts';
 import { useImageEditorStore } from '@/stores/imageEditor.ts';
 import { formatDimensions } from '@/utils/format.ts';
@@ -10,10 +12,22 @@ import { formatDimensions } from '@/utils/format.ts';
 interface ImageToolbarProps {
 	containerRef: React.RefObject<HTMLDivElement | null>;
 	fileName?: string;
+	editorUxMode: EditorUxMode;
+	onEditorUxModeChange: (mode: EditorUxMode) => void;
+	onOpenFile: () => void;
+	onNew?: () => void;
 	onShowInfo?: () => void;
 }
 
-export function ImageToolbar({ containerRef, fileName, onShowInfo }: ImageToolbarProps) {
+export function ImageToolbar({
+	containerRef,
+	fileName,
+	editorUxMode,
+	onEditorUxModeChange,
+	onOpenFile,
+	onNew,
+	onShowInfo,
+}: ImageToolbarProps) {
 	const {
 		zoom,
 		undoCount,
@@ -27,7 +41,6 @@ export function ImageToolbar({ containerRef, fileName, onShowInfo }: ImageToolba
 		setCompareMode,
 		undo,
 		redo,
-		resetAll,
 		setActiveTool,
 		fitToView,
 		zoomTo,
@@ -47,7 +60,6 @@ export function ImageToolbar({ containerRef, fileName, onShowInfo }: ImageToolba
 			setCompareMode: s.setCompareMode,
 			undo: s.undo,
 			redo: s.redo,
-			resetAll: s.resetAll,
 			setActiveTool: s.setActiveTool,
 			fitToView: s.fitToView,
 			zoomTo: s.zoomTo,
@@ -85,15 +97,19 @@ export function ImageToolbar({ containerRef, fileName, onShowInfo }: ImageToolba
 	const handleToolChange = useCallback(
 		(tool: ActiveTool) => {
 			setActiveTool(tool);
+			if (compareMode) setCompareMode(false);
 		},
-		[setActiveTool],
+		[setActiveTool, compareMode, setCompareMode],
 	);
 
 	const handleToggleCompare = useCallback(() => {
 		const next = !compareMode;
 		setCompareMode(next);
-		if (next) handleFit();
-	}, [compareMode, setCompareMode, handleFit]);
+		if (next) {
+			setActiveTool('pointer');
+			handleFit();
+		}
+	}, [compareMode, setCompareMode, setActiveTool, handleFit]);
 
 	return (
 		<EditorToolbar>
@@ -138,6 +154,7 @@ export function ImageToolbar({ containerRef, fileName, onShowInfo }: ImageToolba
 					handleToolChange('crop');
 				}}
 				active={activeTool === 'crop'}
+				disabled={compareMode}
 				title="Crop"
 			>
 				<Crop size={16} />
@@ -177,14 +194,34 @@ export function ImageToolbar({ containerRef, fileName, onShowInfo }: ImageToolba
 			{/* Spacer */}
 			<div className="flex-1" />
 
-			{/* File name + dimensions */}
+			{/* Dimensions */}
 			{hasOriginal && (
-				<div className="hidden sm:flex items-center gap-3 text-[12px] text-text-tertiary font-mono tabular-nums mr-2">
-					{fileName && (
-						<span className="text-text-secondary font-medium font-sans truncate max-w-40">{fileName}</span>
-					)}
-					<span>{formatDimensions(originalWidth, originalHeight)}</span>
-				</div>
+				<span className="hidden sm:inline text-[12px] text-text-tertiary font-mono tabular-nums">
+					{formatDimensions(originalWidth, originalHeight)}
+				</span>
+			)}
+
+			<ToolbarSeparator />
+
+			{/* Simple / Expert toggle */}
+			<div className="hidden sm:block">
+				<EditorUxModeSwitch mode={editorUxMode} onChange={onEditorUxModeChange} />
+			</div>
+
+			<ToolbarSeparator />
+
+			{/* File chooser */}
+			<button
+				onClick={onOpenFile}
+				className="h-7 max-w-36 rounded-md bg-surface-raised/50 border border-border/60 px-2.5 text-[12px] font-medium text-text-secondary hover:bg-surface-raised hover:text-text transition-colors cursor-pointer truncate"
+				title={fileName ?? 'Choose Image'}
+			>
+				{fileName ?? 'Open'}
+			</button>
+			{onNew && (
+				<IconButton onClick={onNew} title="New (discard current)">
+					<FilePlus2 size={14} />
+				</IconButton>
 			)}
 
 			{/* Info button */}
@@ -196,18 +233,6 @@ export function ImageToolbar({ containerRef, fileName, onShowInfo }: ImageToolba
 					</IconButton>
 				</>
 			)}
-
-			<ToolbarSeparator />
-
-			{/* Reset all */}
-			<button
-				onClick={resetAll}
-				disabled={!hasOriginal}
-				className="h-6 px-2 rounded-md text-[14px] font-medium text-text-tertiary hover:text-danger hover:bg-danger/10 transition-colors cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
-				title="Reset all changes"
-			>
-				Reset All
-			</button>
 		</EditorToolbar>
 	);
 }

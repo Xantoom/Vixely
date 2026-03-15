@@ -160,7 +160,7 @@ export function GifSettingsPanel({
 			{/* GIF source trim inputs */}
 			{isGifSource && (
 				<div>
-					<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">Trim</h3>
+					<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">Trim</h3>
 					<div className="flex items-center gap-2">
 						<div className="flex-1">
 							<label htmlFor={trimStartId} className="text-[14px] text-text-tertiary mb-1 block">

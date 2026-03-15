@@ -1,19 +1,26 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { Camera, Download, Video, Palette, Scissors, Scaling, Volume2, Subtitles } from 'lucide-react';
-import { useState, useRef, useCallback, useEffect, useMemo, useId } from 'react';
-import { toast } from 'sonner';
 import {
-	EditorEmptyState,
-	EditorQuickActions,
-	EditorShell,
-	EditorShellHeader,
-	EditorUxModeSwitch,
-} from '@/components/editor/index.ts';
-import { Seo } from '@/components/Seo.tsx';
+	Camera,
+	Download,
+	Video,
+	ImageIcon,
+	Film,
+	Palette,
+	Scissors,
+	Scaling,
+	Volume2,
+	Subtitles,
+	MonitorSmartphone,
+} from 'lucide-react';
+import { useState, useRef, useCallback, useEffect, useMemo, useId, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { toast } from 'sonner';
+import { EditorLanding } from '@/components/editor/EditorLanding.tsx';
+import { EditorEmptyState, EditorQuickActions, EditorShell } from '@/components/editor/index.ts';
+import { Seo, buildWebAppSchema, buildFAQSchema } from '@/components/Seo.tsx';
 import {
 	Button,
 	EditorStageTabs,
-	IconButton,
 	Slider,
 	Timeline,
 	Toggle,
@@ -54,13 +61,81 @@ import type { AdvancedVideoSettings } from '@/stores/videoEditor.ts';
 import { useVideoEditorStore, type VideoMode } from '@/stores/videoEditor.ts';
 import { setPendingImageTransfer } from '@/utils/crossEditorTransfer.ts';
 import { buildExportFilename } from '@/utils/exportFilename.ts';
-import { formatFileSize, formatNumber } from '@/utils/format.ts';
+import { formatFileSize, formatNumber, estimateVideoSize } from '@/utils/format.ts';
 import { formatChannels, getLanguageName } from '@/utils/languageUtils.ts';
 import type { DetailedProbeResultData } from '@/workers/ffmpeg-worker.ts';
 
 export const Route = createFileRoute('/tools/video')({ component: VideoStudio });
 
 const VIDEO_PRESETS = videoPresetEntries();
+
+/* ── SEO Landing Data ── */
+
+const VIDEO_LANDING_FEATURES = [
+	{
+		icon: Scissors,
+		title: 'Trim & Cut',
+		description:
+			'Precisely trim your videos with frame-accurate start and end points. Remove unwanted sections instantly.',
+	},
+	{
+		icon: Scaling,
+		title: 'Resize & Crop',
+		description: 'Change resolution, crop to any aspect ratio, or fit platform requirements with one click.',
+	},
+	{
+		icon: Palette,
+		title: 'Color Correction',
+		description: 'Adjust brightness, contrast, saturation, hue, and apply professional color filters in real-time.',
+	},
+	{
+		icon: MonitorSmartphone,
+		title: 'Platform Presets',
+		description: 'Export with optimized settings for Discord, TikTok, YouTube, Twitter, and more platforms.',
+	},
+] as const;
+
+const VIDEO_LANDING_FORMATS = ['MP4', 'WebM', 'MKV', 'AVI', 'MOV', 'FLV', 'WMV', 'OGV', 'M4V', 'MTS'] as const;
+
+const VIDEO_LANDING_FAQS = [
+	{
+		question: 'Can I trim videos without re-encoding?',
+		answer: 'Yes. Vixely supports stream-copy mode which trims your video without re-encoding, preserving original quality and completing almost instantly.',
+	},
+	{
+		question: 'What video formats are supported?',
+		answer: 'Vixely supports all major video formats including MP4, WebM, MKV, AVI, MOV, FLV, WMV, OGV, M4V, and MTS. You can also export to any of these formats.',
+	},
+	{
+		question: 'Is my video uploaded to a server?',
+		answer: 'No. All video processing happens entirely in your browser using WebAssembly. Your files never leave your device — zero uploads, zero server access.',
+	},
+	{
+		question: 'Can I export for Discord or TikTok?',
+		answer: 'Yes. Vixely includes built-in presets for Discord (8MB/50MB limits), TikTok, YouTube, Twitter, and other platforms with the correct codec, resolution, and bitrate settings.',
+	},
+] as const;
+
+const VIDEO_CROSS_LINKS = [
+	{
+		title: 'Image Editor',
+		subtitle: 'Crop, adjust & export images',
+		href: '/tools/image' as const,
+		icon: ImageIcon,
+		accentBg: 'bg-amber-500/10',
+		accentText: 'text-amber-400',
+		borderTop: 'border-t-amber-500',
+	},
+	{
+		title: 'GIF Editor',
+		subtitle: 'Optimize, trim & export GIFs',
+		href: '/tools/gif' as const,
+		icon: Film,
+		accentBg: 'bg-emerald-500/10',
+		accentText: 'text-emerald-400',
+		borderTop: 'border-t-emerald-500',
+	},
+] as const;
 
 const VIDEO_FILENAME_RE = /\.(mp4|mkv|webm|mov|m4v|avi|mts|m2ts|ts)$/i;
 
@@ -133,6 +208,7 @@ const VIDEO_MODE_STAGE: Record<VideoMode, 'source' | 'edit' | 'output'> = {
 	trim: 'source',
 	resize: 'edit',
 	adjust: 'edit',
+	compare: 'edit',
 	export: 'output',
 };
 
@@ -140,12 +216,6 @@ const STAGE_TO_VIDEO_MODE: Record<'source' | 'edit' | 'output', VideoMode> = {
 	source: 'presets',
 	edit: 'resize',
 	output: 'export',
-};
-
-const VIDEO_STAGE_MODES: Record<'source' | 'edit' | 'output', VideoMode[]> = {
-	source: ['presets', 'trim'],
-	edit: ['resize', 'adjust'],
-	output: ['export'],
 };
 
 function applyAdvancedUpdate(
@@ -251,6 +321,7 @@ function VideoStudio() {
 
 	const videoRef = useRef<HTMLVideoElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	const captureButtonRef = useRef<HTMLButtonElement>(null);
 	const preBurnedAssInputRef = useRef<HTMLInputElement>(null);
 	const progressRef = useRef(0);
 	const startedRef = useRef(started);
@@ -848,39 +919,16 @@ function VideoStudio() {
 	const usingPreBurnedAssSource = usePreBurnedAssSource && preBurnedAssSourceFile != null;
 	const sidebarContent = (
 		<>
-			<EditorShellHeader
-				title="Video Studio"
-				description={
-					isExpertMode
-						? 'Full control over tracks, codecs, and export pipeline.'
-						: 'Guided workflow for fast edits and reliable exports.'
-				}
-				modeSwitch={<EditorUxModeSwitch mode={editorUxMode} onChange={setEditorUxMode} />}
-				stageTabs={<EditorStageTabs stage={stage} onChange={handleStageChange} />}
-				actions={
-					<>
-						<Button
-							variant="secondary"
-							className="flex-1 min-w-0"
-							onClick={() => {
-								fileInputRef.current?.click();
-							}}
-						>
-							{file ? <span className="truncate">{file.name}</span> : 'Choose File'}
-						</Button>
-					</>
-				}
-			/>
+			{/* Stage Tabs */}
+			<div className="p-2.5 border-b border-border/70 bg-surface-raised/15">
+				<EditorStageTabs stage={stage} onChange={handleStageChange} />
+			</div>
 
 			{/* Mode Tabs */}
-			<VideoModeTabs
-				hasTrimChanges={hasTrimAdjustments}
-				selectedPreset={selectedPreset}
-				modes={VIDEO_STAGE_MODES[stage]}
-			/>
+			<VideoModeTabs hasTrimChanges={hasTrimAdjustments} selectedPreset={selectedPreset} />
 
 			{/* Tab Content */}
-			<div className="p-4 flex flex-col gap-4 flex-1 overflow-y-auto">
+			<div className="p-3 flex flex-col gap-4 flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden">
 				{/* ── Presets Tab ── */}
 				{videoMode === 'presets' && (
 					<PresetsPanel
@@ -1174,6 +1222,18 @@ function VideoStudio() {
 
 				{/* ── Adjust Tab ── */}
 				{videoMode === 'adjust' && <AdjustPanel />}
+
+				{/* ── Compare Tab ── */}
+				{videoMode === 'compare' && (
+					<div className="flex flex-col gap-3">
+						<h3 className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+							Split View
+						</h3>
+						<p className="text-[12px] text-text-tertiary">
+							Drag the slider on the video to compare original vs. edited.
+						</p>
+					</div>
+				)}
 
 				{/* ── Export Tab ── */}
 				{videoMode === 'export' && (
@@ -2010,6 +2070,41 @@ function VideoStudio() {
 											</span>
 										</div>
 									)}
+									{/* Estimated size */}
+									{isCustomExportMode &&
+										duration > 0 &&
+										videoStreamInfo?.width &&
+										videoStreamInfo?.height && (
+											<div className="flex items-center justify-between py-2.5 border-b border-border/30">
+												<span className="text-xs font-medium text-text-tertiary uppercase tracking-wide">
+													Est. Size
+												</span>
+												<span className="text-[13px] font-medium text-text-secondary font-mono tabular-nums">
+													~
+													{formatFileSize(
+														estimateVideoSize({
+															durationSec: hasTrimAdjustments
+																? Math.max(trimEnd - trimStart, 0)
+																: duration,
+															width: hasResizeAdjustments
+																? resize.width
+																: videoStreamInfo.width,
+															height: hasResizeAdjustments
+																? resize.height
+																: videoStreamInfo.height,
+															fps: videoStreamInfo.fps ?? 30,
+															codec: advancedSettings.codec,
+															rateControl: advancedSettings.rateControl,
+															crf: advancedSettings.crf,
+															targetBitrateKbps: advancedSettings.targetBitrateKbps,
+															audioBitrateKbps:
+																parseInt(advancedSettings.audioBitrate) || 128,
+															includeAudio: tracks.audioEnabled,
+														}),
+													)}
+												</span>
+											</div>
+										)}
 									{audioStreams.length > 0 && (
 										<div
 											className={`flex items-center justify-between py-2.5 ${subtitleStreams.length > 0 || usePreBurnedAssSource ? 'border-b border-border/30' : ''}`}
@@ -2149,9 +2244,17 @@ function VideoStudio() {
 	return (
 		<>
 			<Seo
-				title="Video Editor — Vixely"
-				description="Trim, crop, resize, adjust colors, and export videos locally in your browser."
+				title="Free Online Video Editor — Vixely"
+				description="Trim, crop, resize, adjust colors, and export videos locally in your browser. No upload required — 100% private."
 				path="/tools/video"
+				jsonLd={[
+					buildWebAppSchema(
+						'Vixely Video Editor',
+						'Trim, crop, resize, adjust colors, and export videos locally in your browser.',
+						'https://vixely.app/tools/video',
+					),
+					buildFAQSchema(VIDEO_LANDING_FAQS.map((f) => ({ question: f.question, answer: f.answer }))),
+				]}
 			/>
 			<h1 className="sr-only">Video Editor</h1>
 			<input
@@ -2195,23 +2298,47 @@ function VideoStudio() {
 								currentFrame={timeToFrames(currentTime)}
 								totalFrames={totalFrames}
 								detailedProbePending={detailedProbePending}
+								compareMode={videoMode === 'compare'}
+								hasChanges={
+									videoFilters.brightness !== 0 ||
+									videoFilters.contrast !== 1 ||
+									videoFilters.saturation !== 1 ||
+									videoFilters.hue !== 0 ||
+									(resize.originalWidth > 0 &&
+										(resize.width !== resize.originalWidth ||
+											resize.height !== resize.originalHeight))
+								}
+								editorUxMode={editorUxMode}
+								onEditorUxModeChange={setEditorUxMode}
+								onOpenFile={() => {
+									fileInputRef.current?.click();
+								}}
 								onStepFrame={stepCurrentFrame}
 								onStartFrameHold={startFrameHold}
 								onStopFrameHold={stopFrameHold}
 								onShowInfo={() => {
 									setShowInfo(true);
 								}}
+								onToggleCompare={() => {
+									setVideoMode(videoMode === 'compare' ? 'adjust' : 'compare');
+								}}
 								captureMenu={
 									<>
-										<IconButton
+										<button
+											ref={captureButtonRef}
 											onClick={() => {
-												setCaptureMenuOpen(!captureMenuOpen);
+												setCaptureMenuOpen((prev) => !prev);
 											}}
 											disabled={!file || processing}
 											title="Capture current frame"
+											type="button"
+											aria-label="Capture current frame"
+											className={`h-8 w-8 flex items-center justify-center rounded-md transition-all cursor-pointer
+												${captureMenuOpen ? 'bg-accent/15 text-accent' : 'text-text-tertiary hover:text-text hover:bg-surface-raised/60'}
+												${!file || processing ? 'opacity-30 pointer-events-none' : ''}`}
 										>
 											<Camera size={16} />
-										</IconButton>
+										</button>
 										{captureMenuOpen && (
 											<CaptureMenu
 												format={captureFormat}
@@ -2222,17 +2349,18 @@ function VideoStudio() {
 												onClose={() => {
 													setCaptureMenuOpen(false);
 												}}
+												anchorRef={captureButtonRef}
 											/>
 										)}
 									</>
 								}
 							/>
 						)}
-						<div
-							className="flex-1 flex items-center justify-center workspace-bg p-4 sm:p-6 lg:p-8 overflow-hidden relative"
-							{...dropHandlers}
-						>
-							{videoUrl ? (
+						{videoUrl ? (
+							<div
+								className="flex-1 flex items-center justify-center workspace-bg p-2 sm:p-3 overflow-hidden relative"
+								{...dropHandlers}
+							>
 								<VideoPlayer
 									src={videoUrl}
 									previewFile={file}
@@ -2248,8 +2376,18 @@ function VideoStudio() {
 									processing={processing}
 									progress={progress}
 								/>
-							) : (
-								<div className="flex flex-col items-center gap-6">
+
+								{isDragging && (
+									<div className="absolute inset-0 flex items-center justify-center bg-accent-surface/50 backdrop-blur-sm z-20 pointer-events-none">
+										<div className="rounded-xl border-2 border-dashed border-accent px-6 py-4 text-sm font-medium text-accent">
+											Drop to replace video
+										</div>
+									</div>
+								)}
+							</div>
+						) : (
+							<EditorLanding
+								emptyState={
 									<EditorEmptyState
 										icon={Video}
 										variant="hero"
@@ -2259,18 +2397,20 @@ function VideoStudio() {
 										dragTitle="Drop your video here"
 										dragDescription="Release to load"
 										onChooseFile={() => fileInputRef.current?.click()}
+										formatHints={['MP4', 'WebM', 'MKV', 'AVI', 'MOV']}
 									/>
-								</div>
-							)}
-
-							{isDragging && videoUrl && (
-								<div className="absolute inset-0 flex items-center justify-center bg-accent-surface/50 backdrop-blur-sm z-20 pointer-events-none">
-									<div className="rounded-xl border-2 border-dashed border-accent px-6 py-4 text-sm font-medium text-accent">
-										Drop to replace video
-									</div>
-								</div>
-							)}
-						</div>
+								}
+								dropHandlers={dropHandlers}
+								isDragging={isDragging}
+								hasFile={false}
+								replaceLabel="Drop your video here"
+								features={[...VIDEO_LANDING_FEATURES]}
+								formats={VIDEO_LANDING_FORMATS}
+								formatColor="bg-blue-400"
+								faqs={[...VIDEO_LANDING_FAQS]}
+								crossLinks={[...VIDEO_CROSS_LINKS]}
+							/>
+						)}
 					</>
 				}
 				timeline={
@@ -2330,32 +2470,53 @@ function CaptureMenu({
 	onFormatChange,
 	onAction,
 	onClose,
+	anchorRef,
 }: {
 	format: 'png' | 'jpeg' | 'webp';
 	onFormatChange: (f: 'png' | 'jpeg' | 'webp') => void;
 	onAction: (action: 'download' | 'image-editor') => void;
 	onClose: () => void;
+	anchorRef: React.RefObject<HTMLButtonElement | null>;
 }) {
+	const menuRef = useRef<HTMLDivElement>(null);
+	const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+	useLayoutEffect(() => {
+		const anchor = anchorRef.current;
+		if (!anchor) return;
+		const rect = anchor.getBoundingClientRect();
+		const menuWidth = 320;
+		let left = rect.right - menuWidth;
+		if (left < 8) left = 8;
+		setPos({ top: rect.bottom + 8, left });
+	}, [anchorRef]);
+
 	useEffect(() => {
 		const handler = (e: PointerEvent) => {
 			if (!(e.target instanceof Element)) return;
-			if (!e.target.closest('[data-capture-menu]')) onClose();
+			if (menuRef.current?.contains(e.target)) return;
+			if (anchorRef.current?.contains(e.target)) return;
+			onClose();
 		};
 		document.addEventListener('pointerdown', handler);
 		return () => {
 			document.removeEventListener('pointerdown', handler);
 		};
-	}, [onClose]);
+	}, [onClose, anchorRef]);
 
 	const groupedFormats = [
 		{ label: 'Lossless', items: CAPTURE_FORMATS.filter((item) => item.group === 'Lossless') },
 		{ label: 'Lossy', items: CAPTURE_FORMATS.filter((item) => item.group === 'Lossy') },
 	];
 
-	return (
+	if (!pos) return null;
+
+	return createPortal(
 		<div
+			ref={menuRef}
 			data-capture-menu
-			className="absolute bottom-full right-0 z-40 mb-2 w-80 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-border bg-surface shadow-xl animate-fade-in"
+			style={{ top: pos.top, left: pos.left }}
+			className="fixed z-50 w-80 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-border bg-surface shadow-xl animate-fade-in"
 		>
 			<div className="space-y-2 p-2">
 				{groupedFormats.map((section) => (
@@ -2421,6 +2582,7 @@ function CaptureMenu({
 					Image Editor
 				</button>
 			</div>
-		</div>
+		</div>,
+		document.body,
 	);
 }

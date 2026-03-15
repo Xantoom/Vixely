@@ -219,7 +219,7 @@ export function GifMakerPanel() {
 		<>
 			{/* Upload */}
 			<div>
-				<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">Images</h3>
+				<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">Images</h3>
 				<input
 					ref={fileInputRef}
 					type="file"
@@ -308,7 +308,7 @@ export function GifMakerPanel() {
 			{/* Bulk Controls */}
 			{images.length > 0 && (
 				<div>
-					<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
+					<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
 						Bulk Controls
 					</h3>
 					<div className="flex items-center gap-2 mb-2">

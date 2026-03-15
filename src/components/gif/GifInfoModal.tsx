@@ -1,39 +1,67 @@
-import { X, FileImage } from 'lucide-react';
+import { X, Film } from 'lucide-react';
 import { Button } from '@/components/ui/index.ts';
 import { formatDateTime, formatDimensions, formatFileSize } from '@/utils/format.ts';
 
-interface ImageInfoModalProps {
+interface GifInfoModalProps {
 	file: File;
-	width: number;
-	height: number;
+	width: number | null;
+	height: number | null;
+	duration: number;
+	fps: number;
+	frameCount?: number;
+	isGifSource: boolean;
 	onClose: () => void;
 }
 
-export function ImageInfoModal({ file, width, height, onClose }: ImageInfoModalProps) {
-	const megapixels = ((width * height) / 1_000_000).toFixed(1);
-	const aspect = width > 0 && height > 0 ? `${(width / height).toFixed(2)}:1` : '—';
+export function GifInfoModal({
+	file,
+	width,
+	height,
+	duration,
+	fps,
+	frameCount,
+	isGifSource,
+	onClose,
+}: GifInfoModalProps) {
+	const estimatedFrames = frameCount ?? Math.ceil(duration * fps);
 	const ext = file.name.split('.').pop()?.toUpperCase() ?? '—';
-	const bitDepth = file.type === 'image/png' ? '8-bit RGBA' : file.type === 'image/jpeg' ? '8-bit RGB' : '—';
 
 	const sections = [
 		{
 			label: 'Overview',
 			rows: [
 				['Filename', file.name],
-				['Format', `${ext} (${file.type || 'unknown'})`],
+				['Source Type', isGifSource ? 'GIF' : `Video (${ext})`],
 				['Size', formatFileSize(file.size)],
 			],
 		},
 		{
 			label: 'Dimensions',
 			rows: [
-				['Resolution', formatDimensions(width, height)],
-				['Megapixels', `${megapixels} MP`],
-				['Aspect Ratio', aspect],
-				['Color Depth', bitDepth],
+				['Resolution', width != null && height != null ? formatDimensions(width, height) : '—'],
+				[
+					'Aspect Ratio',
+					width != null && height != null && width > 0 && height > 0
+						? `${(width / height).toFixed(2)}:1`
+						: '—',
+				],
 			],
 		},
-		{ label: 'File', rows: [['Last Modified', formatDateTime(file.lastModified)]] },
+		{
+			label: 'Timing',
+			rows: [
+				['Duration', `${duration.toFixed(2)}s`],
+				['Frame Rate', `${fps} fps`],
+				['Frames', `${estimatedFrames}`],
+			],
+		},
+		{
+			label: 'File',
+			rows: [
+				['MIME Type', file.type || 'unknown'],
+				['Last Modified', formatDateTime(file.lastModified)],
+			],
+		},
 	];
 
 	return (
@@ -48,9 +76,9 @@ export function ImageInfoModal({ file, width, height, onClose }: ImageInfoModalP
 
 				<div className="flex items-center gap-3 mb-4">
 					<div className="h-9 w-9 rounded-xl gradient-accent flex items-center justify-center">
-						<FileImage size={18} className="text-white" />
+						<Film size={18} className="text-white" />
 					</div>
-					<h2 className="text-[15px] font-bold">Image Info</h2>
+					<h2 className="text-[15px] font-bold">GIF Info</h2>
 				</div>
 
 				<div className="flex flex-col gap-4">

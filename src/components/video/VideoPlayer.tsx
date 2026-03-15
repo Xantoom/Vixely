@@ -1,5 +1,16 @@
 import type JASSUB from 'jassub';
-import { AudioLines, Check, CircleOff, Languages, Maximize, Pause, Play, Volume2, VolumeX } from 'lucide-react';
+import {
+	AudioLines,
+	Check,
+	CircleOff,
+	Languages,
+	Maximize,
+	MoveHorizontal,
+	Pause,
+	Play,
+	Volume2,
+	VolumeX,
+} from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { formatPlayerTime } from '@/components/ui/index.ts';
@@ -136,6 +147,110 @@ type TrackSelectorButtonProps = {
 	onToggle: () => void;
 	children?: ReactNode;
 };
+
+function CompareOverlay({
+	combinedFilter,
+	comparePosition,
+	setComparePosition,
+}: {
+	combinedFilter: string;
+	comparePosition: number;
+	setComparePosition: (pos: number) => void;
+}) {
+	const draggingRef = useRef(false);
+	const containerRef = useRef<HTMLDivElement>(null);
+
+	const computeRatio = useCallback(
+		(clientX: number) => {
+			const el = containerRef.current;
+			if (!el) return comparePosition;
+			const rect = el.getBoundingClientRect();
+			const ratio = (clientX - rect.left) / rect.width;
+			return Math.min(1, Math.max(0, ratio));
+		},
+		[comparePosition],
+	);
+
+	const onPointerDown = useCallback(
+		(e: React.PointerEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+			e.currentTarget.setPointerCapture(e.pointerId);
+			draggingRef.current = true;
+			setComparePosition(computeRatio(e.clientX));
+		},
+		[computeRatio, setComparePosition],
+	);
+
+	const onPointerMove = useCallback(
+		(e: React.PointerEvent) => {
+			if (!draggingRef.current) return;
+			setComparePosition(computeRatio(e.clientX));
+		},
+		[computeRatio, setComparePosition],
+	);
+
+	const onPointerUp = useCallback(() => {
+		draggingRef.current = false;
+	}, []);
+
+	const pct = `${comparePosition * 100}%`;
+
+	return (
+		<div ref={containerRef} className="absolute inset-0 z-15 pointer-events-none" style={{ touchAction: 'none' }}>
+			{/* Filtered overlay on the right side */}
+			{combinedFilter && (
+				<div
+					className="absolute inset-0"
+					style={{
+						clipPath: `inset(0 0 0 ${pct})`,
+						backdropFilter: combinedFilter,
+						WebkitBackdropFilter: combinedFilter,
+					}}
+				/>
+			)}
+
+			{/* Labels */}
+			<div
+				className="absolute rounded-md bg-bg/70 px-2 py-0.5 text-[11px] font-medium backdrop-blur-sm text-text-secondary"
+				style={{ left: 8, top: 8 }}
+			>
+				Original
+			</div>
+			<div
+				className="absolute rounded-md bg-bg/70 px-2 py-0.5 text-[11px] font-medium backdrop-blur-sm text-text-secondary"
+				style={{ right: 8, top: 8 }}
+			>
+				Edited
+			</div>
+
+			{/* Divider line */}
+			<div
+				className="absolute top-0 bottom-0 w-0.5 bg-white/80"
+				style={{ left: pct, transform: 'translateX(-50%)', boxShadow: '0 0 4px rgba(0,0,0,0.5)' }}
+			/>
+
+			{/* Drag handle */}
+			<div
+				className="absolute pointer-events-auto"
+				style={{
+					left: pct,
+					top: '50%',
+					transform: 'translate(-50%, -50%)',
+					cursor: 'ew-resize',
+					padding: '8px',
+				}}
+				onPointerDown={onPointerDown}
+				onPointerMove={onPointerMove}
+				onPointerUp={onPointerUp}
+			>
+				<div className="w-6 h-8 rounded-full bg-white flex items-center justify-center shadow-lg border border-white/20">
+					<MoveHorizontal size={14} className="text-neutral-600" />
+				</div>
+			</div>
+		</div>
+	);
+}
 
 const RESIZE_CORNER_HANDLES = [
 	{
@@ -301,6 +416,8 @@ export function VideoPlayer({
 		resizeLockAspect,
 		resizeCropOffsetX,
 		resizeCropOffsetY,
+		comparePosition,
+		setComparePosition,
 	} = useVideoEditorStore(
 		useShallow((s) => ({
 			videoMode: s.mode,
@@ -322,6 +439,8 @@ export function VideoPlayer({
 			resizeLockAspect: s.resize.lockAspect,
 			resizeCropOffsetX: s.resize.cropOffsetX,
 			resizeCropOffsetY: s.resize.cropOffsetY,
+			comparePosition: s.comparePosition,
+			setComparePosition: s.setComparePosition,
 		})),
 	);
 	const audioEnabledRef = useRef(audioEnabled);
@@ -1347,6 +1466,7 @@ export function VideoPlayer({
 			const sourceHeight = sourceDimensions.height;
 			if (!sourceWidth || !sourceHeight) return;
 			e.preventDefault();
+			e.stopPropagation();
 			(e.currentTarget as HTMLButtonElement).setPointerCapture(e.pointerId);
 			const signX = Number(e.currentTarget.dataset.signX ?? 1);
 			const signY = Number(e.currentTarget.dataset.signY ?? 1);
@@ -1568,14 +1688,14 @@ export function VideoPlayer({
 					draggable={false}
 					onDragStart={handleVideoDragStart}
 					className="w-full h-full object-contain cursor-pointer transition-[filter] duration-200"
-					style={combinedFilter ? { filter: combinedFilter } : undefined}
+					style={combinedFilter && videoMode !== 'compare' ? { filter: combinedFilter } : undefined}
 				/>
 				<canvas
 					ref={scrubPreviewCanvasRef}
 					className={`pointer-events-none absolute inset-0 z-10 h-full w-full object-contain transition-opacity duration-100 ${
 						timelineScrubbing && showScrubPreviewFrame ? 'opacity-100' : 'opacity-0'
 					}`}
-					style={combinedFilter ? { filter: combinedFilter } : undefined}
+					style={combinedFilter && videoMode !== 'compare' ? { filter: combinedFilter } : undefined}
 					aria-hidden="true"
 				/>
 				{hasResizeSelectionZone && resizeZoneRect && (
@@ -1722,6 +1842,15 @@ export function VideoPlayer({
 							))}
 						</div>
 					</div>
+				)}
+
+				{/* Compare mode overlay */}
+				{videoMode === 'compare' && (
+					<CompareOverlay
+						combinedFilter={combinedFilter ?? ''}
+						comparePosition={comparePosition}
+						setComparePosition={setComparePosition}
+					/>
 				)}
 
 				<div
