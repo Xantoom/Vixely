@@ -2,7 +2,7 @@ import { Lock, Unlock, FilePlus2, Palette, SlidersHorizontal, Maximize2, Downloa
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
-import { EditorFileSummary, EditorShellHeader, EditorUxModeSwitch } from '@/components/editor/index.ts';
+import { EditorShellHeader, EditorUxModeSwitch } from '@/components/editor/index.ts';
 import { Button, EditorModeTabs, EditorStageTabs, type EditorModeTabItem, Slider } from '@/components/ui/index.ts';
 import { filterPresetEntries, imagePresetEntries } from '@/config/presets.ts';
 import type { EditorStage } from '@/hooks/useEditorLayoutPrefs.ts';
@@ -23,6 +23,8 @@ interface ImageSidebarProps {
 	onNew?: () => void;
 	stage: EditorStage;
 	onStageChange: (stage: EditorStage) => void;
+	showInfo: boolean;
+	onShowInfoChange: (show: boolean) => void;
 }
 
 interface SliderDef {
@@ -122,7 +124,14 @@ const IMAGE_MODE_STAGE: Record<ImageMode, EditorStage> = {
 
 const STAGE_DEFAULT_MODE: Record<EditorStage, ImageMode> = { source: 'resize', edit: 'adjust', output: 'export' };
 
-export function ImageSidebar({ onOpenFile, onNew, stage, onStageChange }: ImageSidebarProps) {
+export function ImageSidebar({
+	onOpenFile,
+	onNew,
+	stage,
+	onStageChange,
+	showInfo,
+	onShowInfoChange,
+}: ImageSidebarProps) {
 	const {
 		file,
 		originalData,
@@ -168,7 +177,6 @@ export function ImageSidebar({ onOpenFile, onNew, stage, onStageChange }: ImageS
 	);
 
 	const [mode, setMode] = useState<ImageMode>('resize');
-	const [showInfo, setShowInfo] = useState(false);
 	const exportRendererRef = useRef<PhotoWebGLRenderer | null>(null);
 	const resizeWidthInputId = useId();
 	const resizeHeightInputId = useId();
@@ -294,7 +302,6 @@ export function ImageSidebar({ onOpenFile, onNew, stage, onStageChange }: ImageS
 		resizeHeight != null &&
 		(resizeWidth !== originalData.width || resizeHeight !== originalData.height);
 	const hasAdjustChanges = !filtersAreDefault(filters);
-	const fileMeta = file ? formatFileSize(file.size) : null;
 	const modeActivity: Record<ImageMode, boolean> = {
 		resize: hasResizeChanges,
 		adjust: hasAdjustChanges,
@@ -337,18 +344,6 @@ export function ImageSidebar({ onOpenFile, onNew, stage, onStageChange }: ImageS
 							</Button>
 						)}
 					</>
-				}
-				fileSummary={
-					file ? (
-						<EditorFileSummary
-							fileName={file.name}
-							meta={fileMeta}
-							onInfo={() => {
-								setShowInfo(true);
-							}}
-							infoLabel="Open image file info"
-						/>
-					) : undefined
 				}
 			/>
 
@@ -599,7 +594,7 @@ export function ImageSidebar({ onOpenFile, onNew, stage, onStageChange }: ImageS
 					width={originalData.width}
 					height={originalData.height}
 					onClose={() => {
-						setShowInfo(false);
+						onShowInfoChange(false);
 					}}
 				/>
 			)}

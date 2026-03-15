@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { ImageIcon } from 'lucide-react';
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
 import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
@@ -44,8 +44,9 @@ function ImageLab() {
 		defaultStage: 'source',
 	});
 	useLongTaskObserver('image-route');
-	const { originalData, loadImage, undo, redo, clearAll, hasUnsavedChanges } = useImageEditorStore(
+	const { file, originalData, loadImage, undo, redo, clearAll, hasUnsavedChanges } = useImageEditorStore(
 		useShallow((s) => ({
+			file: s.file,
 			originalData: s.originalData,
 			loadImage: s.loadImage,
 			undo: s.undo,
@@ -58,6 +59,7 @@ function ImageLab() {
 
 	const canvasContainerRef = useRef<HTMLDivElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	const [showInfo, setShowInfo] = useState(false);
 	const hasImageLoaded = originalData !== null;
 	const { isConfirmOpen, requestAction, confirmPendingAction, cancelPendingAction } =
 		usePendingActionConfirmation(hasUnsavedChanges);
@@ -180,7 +182,15 @@ function ImageLab() {
 				sidebarLabel="image inspector"
 				main={
 					<>
-						{hasImageLoaded && <ImageToolbar containerRef={canvasContainerRef} />}
+						{hasImageLoaded && (
+							<ImageToolbar
+								containerRef={canvasContainerRef}
+								fileName={file?.name}
+								onShowInfo={() => {
+									setShowInfo(true);
+								}}
+							/>
+						)}
 						<div
 							ref={canvasContainerRef}
 							className={`flex-1 relative overflow-hidden ${
@@ -224,6 +234,8 @@ function ImageLab() {
 							onNew={handleNew}
 							stage={stage}
 							onStageChange={setStage}
+							showInfo={showInfo}
+							onShowInfoChange={setShowInfo}
 						/>
 					) : undefined
 				}

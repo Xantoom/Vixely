@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { useShallow } from 'zustand/react/shallow';
+import { GifPresetsPanel } from '@/components/gif/GifPresetsPanel.tsx';
 import { Slider, Toggle } from '@/components/ui/index.ts';
 import { gifPresetEntries } from '@/config/presets.ts';
 import { useGifEditorStore } from '@/stores/gifEditor.ts';
@@ -17,6 +18,8 @@ interface GifSettingsPanelProps {
 	onTrimStartChange: (v: number) => void;
 	onTrimEndChange: (v: number) => void;
 	duration: number;
+	selectedPreset: string | null;
+	onSelectPreset: (key: string | null) => void;
 	onApplyPreset: (key: string) => void;
 }
 
@@ -30,6 +33,8 @@ export function GifSettingsPanel({
 	trimEnd,
 	onTrimStartChange,
 	onTrimEndChange,
+	selectedPreset,
+	onSelectPreset,
 	onApplyPreset,
 }: GifSettingsPanelProps) {
 	const { speed, reverse, loopCount, setSpeed, setReverse, setLoopCount } = useGifEditorStore(
@@ -50,25 +55,14 @@ export function GifSettingsPanel({
 	return (
 		<>
 			{/* Presets */}
-			<div>
-				<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">
-					Quick Presets
-				</h3>
-				<div className="grid grid-cols-2 gap-1.5">
-					{GIF_PRESETS.map(([key, preset]) => (
-						<button
-							key={key}
-							onClick={() => {
-								onApplyPreset(key);
-							}}
-							className="rounded-lg px-2.5 py-2 text-left cursor-pointer bg-surface-raised/50 border border-transparent text-text-secondary hover:bg-surface-raised hover:text-text transition-all"
-						>
-							<p className="text-[14px] font-medium truncate">{preset.name}</p>
-							<p className="text-[14px] text-text-tertiary truncate">{preset.description}</p>
-						</button>
-					))}
-				</div>
-			</div>
+			<GifPresetsPanel
+				presets={GIF_PRESETS}
+				selectedPreset={selectedPreset}
+				onSelectPreset={(key) => {
+					onSelectPreset(key);
+					if (key) onApplyPreset(key);
+				}}
+			/>
 
 			{/* FPS */}
 			<Slider

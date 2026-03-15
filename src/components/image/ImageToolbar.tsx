@@ -1,48 +1,19 @@
-import { Undo2, Redo2, ZoomOut, ZoomIn, Maximize, MousePointer, Crop, Columns2 } from 'lucide-react';
+import { Undo2, Redo2, ZoomOut, ZoomIn, Maximize, MousePointer, Crop, Columns2, Info } from 'lucide-react';
 import { useCallback } from 'react';
 import { useShallow } from 'zustand/react/shallow';
+import { EditorToolbar } from '@/components/editor/EditorToolbar.tsx';
+import { IconButton, ToolbarSeparator } from '@/components/ui/IconButton.tsx';
 import type { ActiveTool } from '@/stores/imageEditor.ts';
 import { useImageEditorStore } from '@/stores/imageEditor.ts';
 import { formatDimensions } from '@/utils/format.ts';
 
-function IconButton({
-	onClick,
-	disabled,
-	active,
-	title,
-	children,
-}: {
-	onClick: () => void;
-	disabled?: boolean;
-	active?: boolean;
-	title: string;
-	children: React.ReactNode;
-}) {
-	return (
-		<button
-			onClick={onClick}
-			disabled={disabled}
-			title={title}
-			type="button"
-			aria-label={title}
-			className={`h-8 w-8 flex items-center justify-center rounded-md transition-all cursor-pointer
-				${active ? 'bg-accent/15 text-accent' : 'text-text-tertiary hover:text-text hover:bg-surface-raised/60'}
-				${disabled ? 'opacity-30 pointer-events-none' : ''}`}
-		>
-			{children}
-		</button>
-	);
-}
-
-function Separator() {
-	return <div className="w-px h-5 bg-border mx-1" />;
-}
-
 interface ImageToolbarProps {
 	containerRef: React.RefObject<HTMLDivElement | null>;
+	fileName?: string;
+	onShowInfo?: () => void;
 }
 
-export function ImageToolbar({ containerRef }: ImageToolbarProps) {
+export function ImageToolbar({ containerRef, fileName, onShowInfo }: ImageToolbarProps) {
 	const {
 		zoom,
 		undoCount,
@@ -125,7 +96,7 @@ export function ImageToolbar({ containerRef }: ImageToolbarProps) {
 	}, [compareMode, setCompareMode, handleFit]);
 
 	return (
-		<div className="h-11 flex items-center px-2 gap-0.5 border-b border-border bg-surface shrink-0 select-none overflow-x-auto">
+		<EditorToolbar>
 			{/* Undo / Redo */}
 			<IconButton onClick={undo} disabled={undoCount === 0} title="Undo (Ctrl+Z)">
 				<Undo2 size={16} />
@@ -134,7 +105,7 @@ export function ImageToolbar({ containerRef }: ImageToolbarProps) {
 				<Redo2 size={16} />
 			</IconButton>
 
-			<Separator />
+			<ToolbarSeparator />
 
 			{/* Zoom controls */}
 			<IconButton onClick={handleZoomOut} title="Zoom out">
@@ -150,7 +121,7 @@ export function ImageToolbar({ containerRef }: ImageToolbarProps) {
 				<Maximize size={16} />
 			</IconButton>
 
-			<Separator />
+			<ToolbarSeparator />
 
 			{/* Tool select */}
 			<IconButton
@@ -172,7 +143,7 @@ export function ImageToolbar({ containerRef }: ImageToolbarProps) {
 				<Crop size={16} />
 			</IconButton>
 
-			<Separator />
+			<ToolbarSeparator />
 
 			{/* Compare toggle */}
 			<IconButton
@@ -187,7 +158,7 @@ export function ImageToolbar({ containerRef }: ImageToolbarProps) {
 			{/* Crop actions (shown when crop is active with a selection) */}
 			{activeTool === 'crop' && crop && (
 				<>
-					<Separator />
+					<ToolbarSeparator />
 					<button
 						onClick={handleApplyCrop}
 						className="h-6 px-2 rounded-md text-[14px] font-medium bg-accent/15 text-accent hover:bg-accent/25 transition-colors cursor-pointer"
@@ -206,12 +177,27 @@ export function ImageToolbar({ containerRef }: ImageToolbarProps) {
 			{/* Spacer */}
 			<div className="flex-1" />
 
-			{/* Dimensions display */}
+			{/* File name + dimensions */}
 			{hasOriginal && (
-				<span className="text-[14px] font-mono text-text-tertiary tabular-nums mr-2">
-					{formatDimensions(originalWidth, originalHeight)}
-				</span>
+				<div className="hidden sm:flex items-center gap-3 text-[12px] text-text-tertiary font-mono tabular-nums mr-2">
+					{fileName && (
+						<span className="text-text-secondary font-medium font-sans truncate max-w-40">{fileName}</span>
+					)}
+					<span>{formatDimensions(originalWidth, originalHeight)}</span>
+				</div>
 			)}
+
+			{/* Info button */}
+			{onShowInfo && (
+				<>
+					<ToolbarSeparator />
+					<IconButton onClick={onShowInfo} title="File info">
+						<Info size={16} />
+					</IconButton>
+				</>
+			)}
+
+			<ToolbarSeparator />
 
 			{/* Reset all */}
 			<button
@@ -222,6 +208,6 @@ export function ImageToolbar({ containerRef }: ImageToolbarProps) {
 			>
 				Reset All
 			</button>
-		</div>
+		</EditorToolbar>
 	);
 }

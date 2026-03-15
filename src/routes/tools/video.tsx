@@ -1,23 +1,9 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import {
-	Camera,
-	Download,
-	Video,
-	Info,
-	Palette,
-	Scissors,
-	Scaling,
-	Volume2,
-	Subtitles,
-	StepBack,
-	StepForward,
-	LoaderCircle,
-} from 'lucide-react';
+import { Camera, Download, Video, Palette, Scissors, Scaling, Volume2, Subtitles } from 'lucide-react';
 import { useState, useRef, useCallback, useEffect, useMemo, useId } from 'react';
 import { toast } from 'sonner';
 import {
 	EditorEmptyState,
-	EditorFileSummary,
 	EditorQuickActions,
 	EditorShell,
 	EditorShellHeader,
@@ -27,6 +13,7 @@ import { Seo } from '@/components/Seo.tsx';
 import {
 	Button,
 	EditorStageTabs,
+	IconButton,
 	Slider,
 	Timeline,
 	Toggle,
@@ -40,6 +27,7 @@ import { ResizePanel } from '@/components/video/ResizePanel.tsx';
 import { VideoInfoModal } from '@/components/video/VideoInfoModal.tsx';
 import { VideoModeTabs } from '@/components/video/VideoModeTabs.tsx';
 import { VideoPlayer } from '@/components/video/VideoPlayer.tsx';
+import { VideoToolbar } from '@/components/video/VideoToolbar.tsx';
 import {
 	VIDEO_CODECS,
 	CONTAINERS,
@@ -858,15 +846,6 @@ function VideoStudio() {
 		videoFilters.saturation !== 1 ||
 		videoFilters.hue !== 0;
 	const usingPreBurnedAssSource = usePreBurnedAssSource && preBurnedAssSourceFile != null;
-	const sidebarFileMeta = useMemo(() => {
-		if (!file) return null;
-		const segments = [formatFileSize(file.size)];
-		if (videoStreamInfo?.width && videoStreamInfo.height) {
-			segments.push(`${videoStreamInfo.width}×${videoStreamInfo.height}`);
-		}
-		if (duration > 0) segments.push(formatCompactTime(duration));
-		return segments.join(' · ');
-	}, [duration, file, videoStreamInfo?.height, videoStreamInfo?.width]);
 	const sidebarContent = (
 		<>
 			<EditorShellHeader
@@ -889,32 +868,7 @@ function VideoStudio() {
 						>
 							{file ? <span className="truncate">{file.name}</span> : 'Choose File'}
 						</Button>
-						{file && (
-							<Button
-								variant="ghost"
-								size="icon"
-								onClick={() => {
-									setShowInfo(true);
-								}}
-								title="File info"
-								aria-label="Open video file info"
-							>
-								<Info size={16} />
-							</Button>
-						)}
 					</>
-				}
-				fileSummary={
-					file ? (
-						<EditorFileSummary
-							fileName={file.name}
-							meta={sidebarFileMeta}
-							onInfo={() => {
-								setShowInfo(true);
-							}}
-							infoLabel="Open video file info"
-						/>
-					) : undefined
 				}
 			/>
 
@@ -2228,147 +2182,36 @@ function VideoStudio() {
 				hasFile={file !== null}
 				sidebarLabel="video inspector"
 				main={
-					<div
-						className="flex-1 flex items-center justify-center workspace-bg p-4 sm:p-6 lg:p-8 overflow-hidden relative"
-						{...dropHandlers}
-					>
-						{videoUrl ? (
-							<VideoPlayer
-								src={videoUrl}
-								previewFile={file}
-								videoRef={videoRef}
-								assSubtitleContent={assSubtitleContent}
-								embeddedFonts={embeddedFonts}
-								onLoadedMetadata={handleVideoLoaded}
-								onTimeUpdate={handleTimeUpdate}
-								onSeek={handleSeek}
-								timelineScrubbing={timelineScrubbing}
-								scrubPreviewTime={timelineScrubbing ? currentTime : null}
-								metadataLoading={metadataVideoLoading}
+					<>
+						{file && (
+							<VideoToolbar
+								file={file}
 								processing={processing}
-								progress={progress}
-							/>
-						) : (
-							<div className="flex flex-col items-center gap-6">
-								<EditorEmptyState
-									icon={Video}
-									variant="hero"
-									isDragging={isDragging}
-									title="No video loaded"
-									description="Drop a video or click to get started"
-									dragTitle="Drop your video here"
-									dragDescription="Release to load"
-									onChooseFile={() => fileInputRef.current?.click()}
-								/>
-							</div>
-						)}
-
-						{isDragging && videoUrl && (
-							<div className="absolute inset-0 flex items-center justify-center bg-accent-surface/50 backdrop-blur-sm z-20 pointer-events-none">
-								<div className="rounded-xl border-2 border-dashed border-accent px-6 py-4 text-sm font-medium text-accent">
-									Drop to replace video
-								</div>
-							</div>
-						)}
-					</div>
-				}
-				timeline={
-					duration > 0 ? (
-						<div className="border-t border-border bg-[linear-gradient(180deg,rgba(24,24,27,0.96)_0%,rgba(9,9,11,0.98)_100%)] px-3 py-3 sm:px-6 sm:py-4">
-							<div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-								<div>
-									<p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary">
-										Timeline
-									</p>
-									<p className="mt-1 text-[13px] text-text-secondary">
-										Trim, scrub, capture, and step through frames from one view.
-									</p>
-								</div>
-								<div className="hidden sm:inline-flex items-center rounded-full border border-border/70 bg-bg/35 px-3 py-1.5 text-[12px] font-mono text-text-tertiary tabular-nums">
-									Frame {formatNumber(timeToFrames(currentTime))} / {formatNumber(totalFrames)}
-								</div>
-							</div>
-
-							<Timeline
+								videoWidth={videoStreamInfo?.width}
+								videoHeight={videoStreamInfo?.height}
+								videoFps={videoFps}
 								duration={duration}
-								trimStart={trimStart}
-								trimEnd={trimEnd}
 								currentTime={currentTime}
-								density="full"
-								minGap={minTrimDuration}
-								onTrimStartChange={(v) => {
-									setTrimStart(clampTrimStart(v));
+								currentFrame={timeToFrames(currentTime)}
+								totalFrames={totalFrames}
+								detailedProbePending={detailedProbePending}
+								onStepFrame={stepCurrentFrame}
+								onStartFrameHold={startFrameHold}
+								onStopFrameHold={stopFrameHold}
+								onShowInfo={() => {
+									setShowInfo(true);
 								}}
-								onTrimEndChange={(v) => {
-									setTrimEnd(clampTrimEnd(v));
-								}}
-								onSeek={handleSeek}
-								onScrubStart={handleTimelineScrubStart}
-								onScrubEnd={handleTimelineScrubEnd}
-								centerStart={
-									<Button
-										variant="ghost"
-										size="icon"
-										onPointerDown={(e) => {
-											e.preventDefault();
-											startFrameHold(-1);
-										}}
-										onPointerUp={stopFrameHold}
-										onPointerLeave={stopFrameHold}
-										onPointerCancel={stopFrameHold}
-										onKeyDown={(e) => {
-											if (e.key === 'Enter' || e.key === ' ') {
-												e.preventDefault();
-												stepCurrentFrame(-1);
-											}
-										}}
-										disabled={!file || processing}
-										title="Previous frame"
-										aria-label="Previous frame"
-									>
-										<StepBack size={16} />
-									</Button>
-								}
-								centerEnd={
-									<Button
-										variant="ghost"
-										size="icon"
-										onPointerDown={(e) => {
-											e.preventDefault();
-											startFrameHold(1);
-										}}
-										onPointerUp={stopFrameHold}
-										onPointerLeave={stopFrameHold}
-										onPointerCancel={stopFrameHold}
-										onKeyDown={(e) => {
-											if (e.key === 'Enter' || e.key === ' ') {
-												e.preventDefault();
-												stepCurrentFrame(1);
-											}
-										}}
-										disabled={!file || processing}
-										title="Next frame"
-										aria-label="Next frame"
-									>
-										<StepForward size={16} />
-									</Button>
-								}
-								headerEnd={
-									<div className="relative">
-										<Button
-											variant="ghost"
-											size="icon"
+								captureMenu={
+									<>
+										<IconButton
 											onClick={() => {
 												setCaptureMenuOpen(!captureMenuOpen);
 											}}
 											disabled={!file || processing}
 											title="Capture current frame"
-											aria-label="Capture current frame"
-											aria-haspopup="menu"
-											aria-expanded={captureMenuOpen}
 										>
 											<Camera size={16} />
-										</Button>
+										</IconButton>
 										{captureMenuOpen && (
 											<CaptureMenu
 												format={captureFormat}
@@ -2381,46 +2224,75 @@ function VideoStudio() {
 												}}
 											/>
 										)}
-									</div>
+									</>
 								}
 							/>
-
-							{file && (
-								<div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-border/70 bg-bg/35 px-3 py-2 text-[13px] text-text-tertiary">
-									<span className="font-medium text-text-secondary truncate max-w-full">
-										{file.name}
-									</span>
-									<span>{formatFileSize(file.size)}</span>
-									{videoStreamInfo?.width && videoStreamInfo?.height && (
-										<span>
-											{videoStreamInfo.width}&times;{videoStreamInfo.height}
-										</span>
-									)}
-									<span>{videoFps.toFixed(2)} fps</span>
-									<span>{formatCompactTime(duration)}</span>
-									<div className="flex-1" />
-									{detailedProbePending ? (
-										<span
-											className="inline-flex items-center text-text-tertiary"
-											title="Loading full metadata"
-										>
-											<LoaderCircle size={13} className="animate-spin" />
-										</span>
-									) : (
-										<button
-											onClick={() => {
-												setShowInfo(true);
-											}}
-											type="button"
-											aria-label="Open video file info"
-											className="inline-flex items-center gap-1 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
-											title="File info"
-										>
-											<Info size={13} />
-										</button>
-									)}
+						)}
+						<div
+							className="flex-1 flex items-center justify-center workspace-bg p-4 sm:p-6 lg:p-8 overflow-hidden relative"
+							{...dropHandlers}
+						>
+							{videoUrl ? (
+								<VideoPlayer
+									src={videoUrl}
+									previewFile={file}
+									videoRef={videoRef}
+									assSubtitleContent={assSubtitleContent}
+									embeddedFonts={embeddedFonts}
+									onLoadedMetadata={handleVideoLoaded}
+									onTimeUpdate={handleTimeUpdate}
+									onSeek={handleSeek}
+									timelineScrubbing={timelineScrubbing}
+									scrubPreviewTime={timelineScrubbing ? currentTime : null}
+									metadataLoading={metadataVideoLoading}
+									processing={processing}
+									progress={progress}
+								/>
+							) : (
+								<div className="flex flex-col items-center gap-6">
+									<EditorEmptyState
+										icon={Video}
+										variant="hero"
+										isDragging={isDragging}
+										title="No video loaded"
+										description="Drop a video or click to get started"
+										dragTitle="Drop your video here"
+										dragDescription="Release to load"
+										onChooseFile={() => fileInputRef.current?.click()}
+									/>
 								</div>
 							)}
+
+							{isDragging && videoUrl && (
+								<div className="absolute inset-0 flex items-center justify-center bg-accent-surface/50 backdrop-blur-sm z-20 pointer-events-none">
+									<div className="rounded-xl border-2 border-dashed border-accent px-6 py-4 text-sm font-medium text-accent">
+										Drop to replace video
+									</div>
+								</div>
+							)}
+						</div>
+					</>
+				}
+				timeline={
+					duration > 0 ? (
+						<div className="border-t border-border bg-[linear-gradient(180deg,rgba(24,24,27,0.96)_0%,rgba(9,9,11,0.98)_100%)] px-3 py-2 sm:px-4 sm:py-2.5">
+							<Timeline
+								duration={duration}
+								trimStart={trimStart}
+								trimEnd={trimEnd}
+								currentTime={currentTime}
+								density="compact"
+								minGap={minTrimDuration}
+								onTrimStartChange={(v) => {
+									setTrimStart(clampTrimStart(v));
+								}}
+								onTrimEndChange={(v) => {
+									setTrimEnd(clampTrimEnd(v));
+								}}
+								onSeek={handleSeek}
+								onScrubStart={handleTimelineScrubStart}
+								onScrubEnd={handleTimelineScrubEnd}
+							/>
 						</div>
 					) : undefined
 				}
