@@ -1,7 +1,7 @@
 import { useShallow } from 'zustand/react/shallow';
 import { Button } from '@/components/ui/index.ts';
 import { useGifEditorStore } from '@/stores/gifEditor.ts';
-import { formatFileSize, formatNumber } from '@/utils/format.ts';
+import { estimateGifSize, formatFileSize, formatNumber } from '@/utils/format.ts';
 
 interface GifExportPanelProps {
 	file: File | null;
@@ -17,7 +17,6 @@ interface GifExportPanelProps {
 	resultSize: number;
 	onGenerate: () => void;
 	onDownload: () => void;
-	onCloseDrawer: () => void;
 }
 
 export function GifExportPanel({
@@ -34,7 +33,6 @@ export function GifExportPanel({
 	resultSize,
 	onGenerate,
 	onDownload,
-	onCloseDrawer,
 }: GifExportPanelProps) {
 	const {
 		speed,
@@ -89,56 +87,71 @@ export function GifExportPanel({
 		<>
 			{/* Summary */}
 			<div className="rounded-lg bg-bg/50 p-3 flex flex-col gap-1.5">
-				<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-1">Summary</h3>
-				<div className="flex justify-between text-[14px]">
+				<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-1">Summary</h3>
+				<div className="flex justify-between text-[13px]">
 					<span className="text-text-tertiary">Frames</span>
 					<span className="font-mono text-text-secondary">{formatNumber(estimatedFrames)}</span>
 				</div>
-				<div className="flex justify-between text-[14px]">
+				<div className="flex justify-between text-[13px]">
 					<span className="text-text-tertiary">Duration</span>
 					<span className="font-mono text-text-secondary">{formatNumber(clipDuration, 1)}s</span>
 				</div>
-				<div className="flex justify-between text-[14px]">
+				<div className="flex justify-between text-[13px]">
 					<span className="text-text-tertiary">Resolution</span>
 					<span className="font-mono text-text-secondary">
 						{width} × {outputHeight}
 					</span>
 				</div>
-				<div className="flex justify-between text-[14px]">
+				<div className="flex justify-between text-[13px]">
 					<span className="text-text-tertiary">Speed</span>
 					<span className="font-mono text-text-secondary">
 						{speed}x{reverse ? ' (reversed)' : ''}
 					</span>
 				</div>
-				<div className="flex justify-between text-[14px]">
+				<div className="flex justify-between text-[13px]">
 					<span className="text-text-tertiary">Colors</span>
 					<span className="font-mono text-text-secondary">{colorReduction}</span>
 				</div>
-				<div className="flex justify-between text-[14px]">
+				<div className="flex justify-between text-[13px]">
 					<span className="text-text-tertiary">Loop</span>
 					<span className="font-mono text-text-secondary">
 						{loopCount === 0 ? 'Infinite' : `${loopCount}×`}
 					</span>
 				</div>
-				<div className="flex justify-between text-[14px]">
+				<div className="flex justify-between text-[13px]">
 					<span className="text-text-tertiary">Quality</span>
 					<span className="font-mono text-text-secondary">
 						{compressionSpeed <= 5 ? 'High' : compressionSpeed <= 15 ? 'Medium' : 'Fast'}
 					</span>
 				</div>
 				{transforms.length > 0 && (
-					<div className="flex justify-between text-[14px]">
+					<div className="flex justify-between text-[13px]">
 						<span className="text-text-tertiary">Transforms</span>
 						<span className="font-mono text-text-secondary text-right">{transforms.join(', ')}</span>
 					</div>
 				)}
+				<div className="flex justify-between text-[13px] border-t border-border/30 pt-1.5 mt-0.5">
+					<span className="text-text-tertiary">Est. Size</span>
+					<span className="font-mono text-text-secondary">
+						~
+						{formatFileSize(
+							estimateGifSize({
+								frames: estimatedFrames,
+								width,
+								height: outputHeight,
+								maxColors: colorReduction,
+								compressionSpeed,
+							}),
+						)}
+					</span>
+				</div>
 			</div>
 
 			{/* Result info */}
 			{resultUrl && (
 				<div className="rounded-lg bg-success/5 border border-success/20 px-3 py-2">
-					<p className="text-[14px] text-success font-medium">GIF ready</p>
-					<p className="text-[14px] text-text-tertiary mt-0.5">{formatFileSize(resultSize)}</p>
+					<p className="text-[13px] text-success font-medium">GIF ready</p>
+					<p className="text-[13px] text-text-tertiary mt-0.5">{formatFileSize(resultSize)}</p>
 				</div>
 			)}
 
@@ -149,7 +162,6 @@ export function GifExportPanel({
 					disabled={!file || !ready || processing}
 					onClick={() => {
 						onGenerate();
-						onCloseDrawer();
 					}}
 				>
 					{processing ? `Generating ${Math.round(progress * 100)}%` : 'Generate GIF'}
@@ -161,14 +173,13 @@ export function GifExportPanel({
 						className="w-full"
 						onClick={() => {
 							onDownload();
-							onCloseDrawer();
 						}}
 					>
 						Download ({formatFileSize(resultSize)})
 					</Button>
 				)}
 
-				{error && <p className="text-[14px] text-danger bg-danger/10 rounded-md px-2.5 py-1.5">{error}</p>}
+				{error && <p className="text-[13px] text-danger bg-danger/10 rounded-md px-2.5 py-1.5">{error}</p>}
 			</div>
 		</>
 	);

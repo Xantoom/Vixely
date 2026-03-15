@@ -1,31 +1,24 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useResponsiveLayout } from './useResponsiveLayout.ts';
 
 export type EditorKey = 'video' | 'gif' | 'image';
-export type TimelineMode = 'hidden' | 'compact' | 'full';
 export type EditorStage = 'source' | 'edit' | 'output';
 
 interface LayoutState {
-	inspectorWidth: number;
-	inspectorCollapsed: boolean;
-	timelineMode: TimelineMode;
 	stage: EditorStage;
+	sidebarOpen: boolean;
+	sidebarCollapsed: boolean;
 }
 
 interface UseEditorLayoutPrefsOptions {
 	editor: EditorKey;
-	defaultInspectorWidth: number;
-	defaultTimelineMode?: TimelineMode;
+	defaultInspectorWidth?: number;
 	defaultStage?: EditorStage;
 	minInspectorWidth?: number;
 	maxInspectorWidth?: number;
 }
 
-const DEFAULT_TIMELINE_MODE: TimelineMode = 'full';
 const DEFAULT_STAGE: EditorStage = 'source';
-
-function clamp(value: number, min: number, max: number): number {
-	return Math.max(min, Math.min(max, value));
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null;
@@ -36,19 +29,12 @@ function parseLayoutState(raw: string | null): Partial<LayoutState> {
 	try {
 		const parsed: unknown = JSON.parse(raw);
 		if (!isRecord(parsed)) return {};
-		const source = parsed;
 		const partial: Partial<LayoutState> = {};
-		if (typeof source.inspectorWidth === 'number' && Number.isFinite(source.inspectorWidth)) {
-			partial.inspectorWidth = source.inspectorWidth;
+		if (parsed.stage === 'source' || parsed.stage === 'edit' || parsed.stage === 'output') {
+			partial.stage = parsed.stage;
 		}
-		if (typeof source.inspectorCollapsed === 'boolean') {
-			partial.inspectorCollapsed = source.inspectorCollapsed;
-		}
-		if (source.timelineMode === 'hidden' || source.timelineMode === 'compact' || source.timelineMode === 'full') {
-			partial.timelineMode = source.timelineMode;
-		}
-		if (source.stage === 'source' || source.stage === 'edit' || source.stage === 'output') {
-			partial.stage = source.stage;
+		if (typeof parsed.sidebarCollapsed === 'boolean') {
+			partial.sidebarCollapsed = parsed.sidebarCollapsed;
 		}
 		return partial;
 	} catch {
@@ -56,78 +42,46 @@ function parseLayoutState(raw: string | null): Partial<LayoutState> {
 	}
 }
 
-export function useEditorLayoutPrefs({
-	editor,
-	defaultInspectorWidth,
-	defaultTimelineMode = DEFAULT_TIMELINE_MODE,
-	defaultStage = DEFAULT_STAGE,
-	minInspectorWidth = 280,
-	maxInspectorWidth = 520,
-}: UseEditorLayoutPrefsOptions) {
-	const storageKey = useMemo(() => `vixely:layout:${editor}`, [editor]);
+export function useEditorLayoutPrefs({ editor, defaultStage = DEFAULT_STAGE }: UseEditorLayoutPrefsOptions) {
+	const { tier } = useResponsiveLayout();
+	const storageKey = `vixely:layout:${editor}`;
 
 	const [state, setState] = useState<LayoutState>(() => {
-		const fallback: LayoutState = {
-			inspectorWidth: clamp(defaultInspectorWidth, minInspectorWidth, maxInspectorWidth),
-			inspectorCollapsed: false,
-			timelineMode: defaultTimelineMode,
-			stage: defaultStage,
-		};
+		const fallback: LayoutState = { stage: defaultStage, sidebarOpen: false, sidebarCollapsed: false };
 		if (typeof window === 'undefined') return fallback;
 		const saved = parseLayoutState(window.localStorage.getItem(storageKey));
 		return {
-			inspectorWidth: clamp(
-				saved.inspectorWidth ?? fallback.inspectorWidth,
-				minInspectorWidth,
-				maxInspectorWidth,
-			),
-			inspectorCollapsed: saved.inspectorCollapsed ?? fallback.inspectorCollapsed,
-			timelineMode: saved.timelineMode ?? fallback.timelineMode,
 			stage: saved.stage ?? fallback.stage,
+			sidebarOpen: false,
+			sidebarCollapsed: saved.sidebarCollapsed ?? false,
 		};
 	});
 
 	useEffect(() => {
 		if (typeof window === 'undefined') return;
-		const payload: LayoutState = {
-			inspectorWidth: clamp(state.inspectorWidth, minInspectorWidth, maxInspectorWidth),
-			inspectorCollapsed: state.inspectorCollapsed,
-			timelineMode: state.timelineMode,
-			stage: state.stage,
-		};
+		const payload = { stage: state.stage, sidebarCollapsed: state.sidebarCollapsed };
 		window.localStorage.setItem(storageKey, JSON.stringify(payload));
-	}, [maxInspectorWidth, minInspectorWidth, state, storageKey]);
-
-	const setInspectorWidth = useCallback(
-		(nextWidth: number) => {
-			const clamped = clamp(nextWidth, minInspectorWidth, maxInspectorWidth);
-			setState((prev) => (prev.inspectorWidth === clamped ? prev : { ...prev, inspectorWidth: clamped }));
-		},
-		[maxInspectorWidth, minInspectorWidth],
-	);
-
-	const setInspectorCollapsed = useCallback((collapsed: boolean) => {
-		setState((prev) => (prev.inspectorCollapsed === collapsed ? prev : { ...prev, inspectorCollapsed: collapsed }));
-	}, []);
-
-	const setTimelineMode = useCallback((timelineMode: TimelineMode) => {
-		setState((prev) => (prev.timelineMode === timelineMode ? prev : { ...prev, timelineMode }));
-	}, []);
+	}, [state, storageKey]);
 
 	const setStage = useCallback((stage: EditorStage) => {
 		setState((prev) => (prev.stage === stage ? prev : { ...prev, stage }));
 	}, []);
 
+	const setSidebarOpen = useCallback((open: boolean) => {
+		setState((prev) => (prev.sidebarOpen === open ? prev : { ...prev, sidebarOpen: open }));
+	}, []);
+
+	const toggleSidebarCollapsed = useCallback(() => {
+		setState((prev) => ({ ...prev, sidebarCollapsed: !prev.sidebarCollapsed }));
+	}, []);
+
 	return {
-		inspectorWidth: state.inspectorWidth,
-		inspectorCollapsed: state.inspectorCollapsed,
-		timelineMode: state.timelineMode,
+		tier,
 		stage: state.stage,
-		setInspectorWidth,
-		setInspectorCollapsed,
-		setTimelineMode,
+		sidebarOpen: state.sidebarOpen,
+		sidebarCollapsed: state.sidebarCollapsed,
 		setStage,
-		minInspectorWidth,
-		maxInspectorWidth,
+		setSidebarOpen,
+		toggleSidebarCollapsed,
 	};
 }

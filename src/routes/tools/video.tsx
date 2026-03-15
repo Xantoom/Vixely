@@ -3,39 +3,26 @@ import {
 	Camera,
 	Download,
 	Video,
-	Settings,
-	Info,
+	ImageIcon,
+	Film,
 	Palette,
 	Scissors,
 	Scaling,
 	Volume2,
 	Subtitles,
-	StepBack,
-	StepForward,
-	LoaderCircle,
+	MonitorSmartphone,
 } from 'lucide-react';
-import { useState, useRef, useCallback, useEffect, useMemo, useId } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo, useId, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
-import type { SubtitlePreviewData } from '@/hooks/useVideoProcessor.ts';
-import type { AdvancedVideoSettings } from '@/stores/videoEditor.ts';
-import type { DetailedProbeResultData } from '@/workers/ffmpeg-worker.ts';
-import {
-	EditorEmptyState,
-	EditorFileSummary,
-	EditorQuickActions,
-	EditorShell,
-	EditorShellHeader,
-	EditorUxModeSwitch,
-} from '@/components/editor/index.ts';
-import { Seo } from '@/components/Seo.tsx';
-import { Drawer } from '@/components/ui/Drawer.tsx';
+import { EditorLanding } from '@/components/editor/EditorLanding.tsx';
+import { EditorEmptyState, EditorQuickActions, EditorShell } from '@/components/editor/index.ts';
+import { Seo, buildWebAppSchema, buildFAQSchema } from '@/components/Seo.tsx';
 import {
 	Button,
 	EditorStageTabs,
-	InspectorPane,
 	Slider,
 	Timeline,
-	TimelineModeTabs,
 	Toggle,
 	formatTimecode,
 	formatCompactTime,
@@ -47,6 +34,7 @@ import { ResizePanel } from '@/components/video/ResizePanel.tsx';
 import { VideoInfoModal } from '@/components/video/VideoInfoModal.tsx';
 import { VideoModeTabs } from '@/components/video/VideoModeTabs.tsx';
 import { VideoPlayer } from '@/components/video/VideoPlayer.tsx';
+import { VideoToolbar } from '@/components/video/VideoToolbar.tsx';
 import {
 	VIDEO_CODECS,
 	CONTAINERS,
@@ -64,19 +52,90 @@ import { usePreventUnload } from '@/hooks/usePreventUnload.ts';
 import { useSingleFileDrop } from '@/hooks/useSingleFileDrop.ts';
 import { useTimelineScrubController } from '@/hooks/useTimelineScrubController.ts';
 import { useVideoMetadataLoader, type MetadataLoadStage } from '@/hooks/useVideoMetadataLoader.ts';
+import type { SubtitlePreviewData } from '@/hooks/useVideoProcessor.ts';
 import { useVideoProcessor } from '@/hooks/useVideoProcessor.ts';
 import { buildFfmpegExportPlan } from '@/modules/video-editor/export/ffmpeg-export-plan.ts';
 import { useEditorSessionStore } from '@/stores/editorSession.ts';
 import { useEditorUxStore } from '@/stores/editorUx.ts';
+import type { AdvancedVideoSettings } from '@/stores/videoEditor.ts';
 import { useVideoEditorStore, type VideoMode } from '@/stores/videoEditor.ts';
 import { setPendingImageTransfer } from '@/utils/crossEditorTransfer.ts';
 import { buildExportFilename } from '@/utils/exportFilename.ts';
-import { formatFileSize, formatNumber } from '@/utils/format.ts';
+import { formatFileSize, formatNumber, estimateVideoSize } from '@/utils/format.ts';
 import { formatChannels, getLanguageName } from '@/utils/languageUtils.ts';
+import type { DetailedProbeResultData } from '@/workers/ffmpeg-worker.ts';
 
 export const Route = createFileRoute('/tools/video')({ component: VideoStudio });
 
 const VIDEO_PRESETS = videoPresetEntries();
+
+/* ── SEO Landing Data ── */
+
+const VIDEO_LANDING_FEATURES = [
+	{
+		icon: Scissors,
+		title: 'Trim & Cut',
+		description:
+			'Precisely trim your videos with frame-accurate start and end points. Remove unwanted sections instantly.',
+	},
+	{
+		icon: Scaling,
+		title: 'Resize & Crop',
+		description: 'Change resolution, crop to any aspect ratio, or fit platform requirements with one click.',
+	},
+	{
+		icon: Palette,
+		title: 'Color Correction',
+		description: 'Adjust brightness, contrast, saturation, hue, and apply professional color filters in real-time.',
+	},
+	{
+		icon: MonitorSmartphone,
+		title: 'Platform Presets',
+		description: 'Export with optimized settings for Discord, TikTok, YouTube, Twitter, and more platforms.',
+	},
+] as const;
+
+const VIDEO_LANDING_FORMATS = ['MP4', 'WebM', 'MKV', 'AVI', 'MOV', 'FLV', 'WMV', 'OGV', 'M4V', 'MTS'] as const;
+
+const VIDEO_LANDING_FAQS = [
+	{
+		question: 'Can I trim videos without re-encoding?',
+		answer: 'Yes. Vixely supports stream-copy mode which trims your video without re-encoding, preserving original quality and completing almost instantly.',
+	},
+	{
+		question: 'What video formats are supported?',
+		answer: 'Vixely supports all major video formats including MP4, WebM, MKV, AVI, MOV, FLV, WMV, OGV, M4V, and MTS. You can also export to any of these formats.',
+	},
+	{
+		question: 'Is my video uploaded to a server?',
+		answer: 'No. All video processing happens entirely in your browser using WebAssembly. Your files never leave your device — zero uploads, zero server access.',
+	},
+	{
+		question: 'Can I export for Discord or TikTok?',
+		answer: 'Yes. Vixely includes built-in presets for Discord (8MB/50MB limits), TikTok, YouTube, Twitter, and other platforms with the correct codec, resolution, and bitrate settings.',
+	},
+] as const;
+
+const VIDEO_CROSS_LINKS = [
+	{
+		title: 'Image Editor',
+		subtitle: 'Crop, adjust & export images',
+		href: '/tools/image' as const,
+		icon: ImageIcon,
+		accentBg: 'bg-amber-500/10',
+		accentText: 'text-amber-400',
+		borderTop: 'border-t-amber-500',
+	},
+	{
+		title: 'GIF Editor',
+		subtitle: 'Optimize, trim & export GIFs',
+		href: '/tools/gif' as const,
+		icon: Film,
+		accentBg: 'bg-emerald-500/10',
+		accentText: 'text-emerald-400',
+		borderTop: 'border-t-emerald-500',
+	},
+] as const;
 
 const VIDEO_FILENAME_RE = /\.(mp4|mkv|webm|mov|m4v|avi|mts|m2ts|ts)$/i;
 
@@ -149,6 +208,7 @@ const VIDEO_MODE_STAGE: Record<VideoMode, 'source' | 'edit' | 'output'> = {
 	trim: 'source',
 	resize: 'edit',
 	adjust: 'edit',
+	compare: 'edit',
 	export: 'output',
 };
 
@@ -156,12 +216,6 @@ const STAGE_TO_VIDEO_MODE: Record<'source' | 'edit' | 'output', VideoMode> = {
 	source: 'presets',
 	edit: 'resize',
 	output: 'export',
-};
-
-const VIDEO_STAGE_MODES: Record<'source' | 'edit' | 'output', VideoMode[]> = {
-	source: ['presets', 'trim'],
-	edit: ['resize', 'adjust'],
-	output: ['export'],
 };
 
 function applyAdvancedUpdate(
@@ -191,19 +245,9 @@ function applyAdvancedUpdate(
 function VideoStudio() {
 	const navigate = useNavigate();
 	useLongTaskObserver('video-route');
-	const {
-		inspectorWidth,
-		inspectorCollapsed,
-		timelineMode,
-		stage,
-		setInspectorWidth,
-		setInspectorCollapsed,
-		setTimelineMode,
-		setStage,
-	} = useEditorLayoutPrefs({
+	const { stage, setStage } = useEditorLayoutPrefs({
 		editor: 'video',
 		defaultInspectorWidth: 360,
-		defaultTimelineMode: 'full',
 		defaultStage: 'source',
 	});
 	const {
@@ -240,9 +284,10 @@ function VideoStudio() {
 
 	const updateAdvanced = useCallback(
 		<K extends keyof AdvancedVideoSettings>(key: K, value: AdvancedVideoSettings[K]) => {
-			setAdvancedSettings(applyAdvancedUpdate(advancedSettings, key, value));
+			const current = useVideoEditorStore.getState().advancedSettings;
+			setAdvancedSettings(applyAdvancedUpdate(current, key, value));
 		},
-		[advancedSettings, setAdvancedSettings],
+		[setAdvancedSettings],
 	);
 
 	const [file, setFile] = useState<File | null>(null);
@@ -270,13 +315,13 @@ function VideoStudio() {
 	const [captureFormat, setCaptureFormat] = useState<'png' | 'jpeg' | 'webp'>('png');
 	const [embeddedFonts, setEmbeddedFonts] = useState<Array<{ name: string; data: Uint8Array }>>([]);
 	const [showInfo, setShowInfo] = useState(false);
-	const [drawerOpen, setDrawerOpen] = useState(false);
 	const [exportError, setExportError] = useState<string | null>(null);
 	const trimStartFrameInputId = useId();
 	const trimEndFrameInputId = useId();
 
 	const videoRef = useRef<HTMLVideoElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	const captureButtonRef = useRef<HTMLButtonElement>(null);
 	const preBurnedAssInputRef = useRef<HTMLInputElement>(null);
 	const progressRef = useRef(0);
 	const startedRef = useRef(started);
@@ -296,7 +341,7 @@ function VideoStudio() {
 
 	const videoStreamInfo = useMemo(() => probeResult?.streams.find((s) => s.type === 'video') ?? null, [probeResult]);
 	const videoFps = videoStreamInfo?.fps ?? 30;
-	const frameDuration = useMemo(() => 1 / Math.max(videoFps, 1), [videoFps]);
+	const frameDuration = 1 / Math.max(videoFps, 1);
 
 	const audioStreams = useMemo(() => probeResult?.streams.filter((s) => s.type === 'audio') ?? [], [probeResult]);
 	const subtitleStreams = useMemo(
@@ -457,7 +502,17 @@ function VideoStudio() {
 		setResize,
 	});
 
-	const handleFile = loadVideoMetadata;
+	const handleFile = useCallback(
+		(f: File) => {
+			if (!isVideoFileLike(f)) {
+				toast.error('Invalid file type', { description: 'Choose a video file (MP4, WebM, MOV, etc.)' });
+				return;
+			}
+
+			loadVideoMetadata(f);
+		},
+		[loadVideoMetadata],
+	);
 
 	const handlePreBurnedAssSourceFile = useCallback((f: File) => {
 		if (!isVideoFileLike(f)) {
@@ -862,75 +917,18 @@ function VideoStudio() {
 		videoFilters.saturation !== 1 ||
 		videoFilters.hue !== 0;
 	const usingPreBurnedAssSource = usePreBurnedAssSource && preBurnedAssSourceFile != null;
-	const sidebarFileMeta = useMemo(() => {
-		if (!file) return null;
-		const segments = [formatFileSize(file.size)];
-		if (videoStreamInfo?.width && videoStreamInfo.height) {
-			segments.push(`${videoStreamInfo.width}×${videoStreamInfo.height}`);
-		}
-		if (duration > 0) segments.push(formatCompactTime(duration));
-		return segments.join(' · ');
-	}, [duration, file, videoStreamInfo?.height, videoStreamInfo?.width]);
 	const sidebarContent = (
 		<>
-			<EditorShellHeader
-				title="Video Studio"
-				description={
-					isExpertMode
-						? 'Full control over tracks, codecs, and export pipeline.'
-						: 'Guided workflow for fast edits and reliable exports.'
-				}
-				modeSwitch={<EditorUxModeSwitch mode={editorUxMode} onChange={setEditorUxMode} />}
-				stageTabs={<EditorStageTabs stage={stage} onChange={handleStageChange} />}
-				actions={
-					<>
-						<Button
-							variant="secondary"
-							className="flex-1 min-w-0"
-							onClick={() => {
-								fileInputRef.current?.click();
-							}}
-						>
-							{file ? <span className="truncate">{file.name}</span> : 'Choose File'}
-						</Button>
-						{file && (
-							<Button
-								variant="ghost"
-								size="icon"
-								onClick={() => {
-									setShowInfo(true);
-								}}
-								title="File info"
-								aria-label="Open video file info"
-							>
-								<Info size={16} />
-							</Button>
-						)}
-					</>
-				}
-				fileSummary={
-					file ? (
-						<EditorFileSummary
-							fileName={file.name}
-							meta={sidebarFileMeta}
-							onInfo={() => {
-								setShowInfo(true);
-							}}
-							infoLabel="Open video file info"
-						/>
-					) : undefined
-				}
-			/>
+			{/* Stage Tabs */}
+			<div className="p-2.5 border-b border-border/70 bg-surface-raised/15">
+				<EditorStageTabs stage={stage} onChange={handleStageChange} />
+			</div>
 
 			{/* Mode Tabs */}
-			<VideoModeTabs
-				hasTrimChanges={hasTrimAdjustments}
-				selectedPreset={selectedPreset}
-				modes={VIDEO_STAGE_MODES[stage]}
-			/>
+			<VideoModeTabs hasTrimChanges={hasTrimAdjustments} selectedPreset={selectedPreset} />
 
 			{/* Tab Content */}
-			<div className="p-4 flex flex-col gap-4 flex-1 overflow-y-auto">
+			<div className="p-3 flex flex-col gap-4 flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden">
 				{/* ── Presets Tab ── */}
 				{videoMode === 'presets' && (
 					<PresetsPanel
@@ -1224,6 +1222,18 @@ function VideoStudio() {
 
 				{/* ── Adjust Tab ── */}
 				{videoMode === 'adjust' && <AdjustPanel />}
+
+				{/* ── Compare Tab ── */}
+				{videoMode === 'compare' && (
+					<div className="flex flex-col gap-3">
+						<h3 className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+							Split View
+						</h3>
+						<p className="text-[12px] text-text-tertiary">
+							Drag the slider on the video to compare original vs. edited.
+						</p>
+					</div>
+				)}
 
 				{/* ── Export Tab ── */}
 				{videoMode === 'export' && (
@@ -2060,6 +2070,41 @@ function VideoStudio() {
 											</span>
 										</div>
 									)}
+									{/* Estimated size */}
+									{isCustomExportMode &&
+										duration > 0 &&
+										videoStreamInfo?.width &&
+										videoStreamInfo?.height && (
+											<div className="flex items-center justify-between py-2.5 border-b border-border/30">
+												<span className="text-xs font-medium text-text-tertiary uppercase tracking-wide">
+													Est. Size
+												</span>
+												<span className="text-[13px] font-medium text-text-secondary font-mono tabular-nums">
+													~
+													{formatFileSize(
+														estimateVideoSize({
+															durationSec: hasTrimAdjustments
+																? Math.max(trimEnd - trimStart, 0)
+																: duration,
+															width: hasResizeAdjustments
+																? resize.width
+																: videoStreamInfo.width,
+															height: hasResizeAdjustments
+																? resize.height
+																: videoStreamInfo.height,
+															fps: videoStreamInfo.fps ?? 30,
+															codec: advancedSettings.codec,
+															rateControl: advancedSettings.rateControl,
+															crf: advancedSettings.crf,
+															targetBitrateKbps: advancedSettings.targetBitrateKbps,
+															audioBitrateKbps:
+																parseInt(advancedSettings.audioBitrate) || 128,
+															includeAudio: tracks.audioEnabled,
+														}),
+													)}
+												</span>
+											</div>
+										)}
 									{audioStreams.length > 0 && (
 										<div
 											className={`flex items-center justify-between py-2.5 ${subtitleStreams.length > 0 || usePreBurnedAssSource ? 'border-b border-border/30' : ''}`}
@@ -2162,7 +2207,6 @@ function VideoStudio() {
 							onClick={() => {
 								setExportError(null);
 								void handleExport();
-								setDrawerOpen(false);
 							}}
 						>
 							Export
@@ -2187,7 +2231,6 @@ function VideoStudio() {
 							className="w-full"
 							onClick={() => {
 								handleDownload();
-								setDrawerOpen(false);
 							}}
 						>
 							Download
@@ -2201,9 +2244,17 @@ function VideoStudio() {
 	return (
 		<>
 			<Seo
-				title="Video Editor — Vixely"
-				description="Trim, crop, resize, adjust colors, and export videos locally in your browser."
+				title="Free Online Video Editor — Vixely"
+				description="Trim, crop, resize, adjust colors, and export videos locally in your browser. No upload required — 100% private."
 				path="/tools/video"
+				jsonLd={[
+					buildWebAppSchema(
+						'Vixely Video Editor',
+						'Trim, crop, resize, adjust colors, and export videos locally in your browser.',
+						'https://vixely.app/tools/video',
+					),
+					buildFAQSchema(VIDEO_LANDING_FAQS.map((f) => ({ question: f.question, answer: f.answer }))),
+				]}
 			/>
 			<h1 className="sr-only">Video Editor</h1>
 			<input
@@ -2214,6 +2265,7 @@ function VideoStudio() {
 				onChange={(e) => {
 					const f = e.target.files?.[0];
 					if (f) handleFile(f);
+					e.currentTarget.value = '';
 				}}
 			/>
 			<input
@@ -2230,14 +2282,85 @@ function VideoStudio() {
 
 			<EditorShell
 				editor="video"
+				hasFile={file !== null}
+				sidebarLabel="video inspector"
 				main={
 					<>
-						{/* Player */}
-						<div
-							className="flex-1 flex items-center justify-center workspace-bg p-3 sm:p-6 overflow-hidden relative"
-							{...dropHandlers}
-						>
-							{videoUrl ? (
+						{file && (
+							<VideoToolbar
+								file={file}
+								processing={processing}
+								videoWidth={videoStreamInfo?.width}
+								videoHeight={videoStreamInfo?.height}
+								videoFps={videoFps}
+								duration={duration}
+								currentTime={currentTime}
+								currentFrame={timeToFrames(currentTime)}
+								totalFrames={totalFrames}
+								detailedProbePending={detailedProbePending}
+								compareMode={videoMode === 'compare'}
+								hasChanges={
+									videoFilters.brightness !== 0 ||
+									videoFilters.contrast !== 1 ||
+									videoFilters.saturation !== 1 ||
+									videoFilters.hue !== 0 ||
+									(resize.originalWidth > 0 &&
+										(resize.width !== resize.originalWidth ||
+											resize.height !== resize.originalHeight))
+								}
+								editorUxMode={editorUxMode}
+								onEditorUxModeChange={setEditorUxMode}
+								onOpenFile={() => {
+									fileInputRef.current?.click();
+								}}
+								onStepFrame={stepCurrentFrame}
+								onStartFrameHold={startFrameHold}
+								onStopFrameHold={stopFrameHold}
+								onShowInfo={() => {
+									setShowInfo(true);
+								}}
+								onToggleCompare={() => {
+									setVideoMode(videoMode === 'compare' ? 'adjust' : 'compare');
+								}}
+								captureMenu={
+									<>
+										<button
+											ref={captureButtonRef}
+											onClick={() => {
+												setCaptureMenuOpen((prev) => !prev);
+											}}
+											disabled={!file || processing}
+											title="Capture current frame"
+											type="button"
+											aria-label="Capture current frame"
+											className={`h-8 w-8 flex items-center justify-center rounded-md transition-all cursor-pointer
+												${captureMenuOpen ? 'bg-accent/15 text-accent' : 'text-text-tertiary hover:text-text hover:bg-surface-raised/60'}
+												${!file || processing ? 'opacity-30 pointer-events-none' : ''}`}
+										>
+											<Camera size={16} />
+										</button>
+										{captureMenuOpen && (
+											<CaptureMenu
+												format={captureFormat}
+												onFormatChange={setCaptureFormat}
+												onAction={(action) => {
+													void handleCaptureAction(captureFormat, action);
+												}}
+												onClose={() => {
+													setCaptureMenuOpen(false);
+												}}
+												anchorRef={captureButtonRef}
+											/>
+										)}
+									</>
+								}
+							/>
+						)}
+						{videoUrl ? (
+							<div
+								className="flex-1 flex items-center justify-center workspace-bg p-2 sm:p-3 overflow-hidden relative"
+								{...dropHandlers}
+							>
 								<VideoPlayer
 									src={videoUrl}
 									previewFile={file}
@@ -2253,229 +2376,67 @@ function VideoStudio() {
 									processing={processing}
 									progress={progress}
 								/>
-							) : (
-								<div className="flex flex-col items-center gap-6">
+
+								{isDragging && (
+									<div className="absolute inset-0 flex items-center justify-center bg-accent-surface/50 backdrop-blur-sm z-20 pointer-events-none">
+										<div className="rounded-xl border-2 border-dashed border-accent px-6 py-4 text-sm font-medium text-accent">
+											Drop to replace video
+										</div>
+									</div>
+								)}
+							</div>
+						) : (
+							<EditorLanding
+								emptyState={
 									<EditorEmptyState
 										icon={Video}
 										variant="hero"
 										isDragging={isDragging}
 										title="No video loaded"
-										description="Drop a file or click to get started"
+										description="Drop a video or click to get started"
 										dragTitle="Drop your video here"
 										dragDescription="Release to load"
 										onChooseFile={() => fileInputRef.current?.click()}
+										formatHints={['MP4', 'WebM', 'MKV', 'AVI', 'MOV']}
 									/>
-								</div>
-							)}
-
-							{isDragging && videoUrl && (
-								<div className="absolute inset-0 flex items-center justify-center bg-accent-surface/50 backdrop-blur-sm z-20 pointer-events-none">
-									<div className="rounded-xl border-2 border-dashed border-accent px-6 py-4 text-sm font-medium text-accent">
-										Drop to replace video
-									</div>
-								</div>
-							)}
-						</div>
-
-						{/* Timeline */}
-						{duration > 0 && (
-							<div className="border-t border-border bg-surface px-3 sm:px-6 py-3 sm:py-4">
-								<div className="mb-2 flex items-center justify-between gap-2">
-									<p className="text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">
-										Timeline
-									</p>
-									<TimelineModeTabs mode={timelineMode} onChange={setTimelineMode} />
-								</div>
-
-								{timelineMode === 'hidden' ? (
-									<div className="rounded-lg border border-border/60 bg-bg/35 px-3 py-2 text-[13px] text-text-tertiary">
-										Timeline hidden to maximize preview area.
-									</div>
-								) : (
-									<>
-										<Timeline
-											duration={duration}
-											trimStart={trimStart}
-											trimEnd={trimEnd}
-											currentTime={currentTime}
-											density={timelineMode === 'compact' ? 'compact' : 'full'}
-											minGap={minTrimDuration}
-											onTrimStartChange={(v) => {
-												setTrimStart(clampTrimStart(v));
-											}}
-											onTrimEndChange={(v) => {
-												setTrimEnd(clampTrimEnd(v));
-											}}
-											onSeek={handleSeek}
-											onScrubStart={handleTimelineScrubStart}
-											onScrubEnd={handleTimelineScrubEnd}
-											headerStart={
-												<span className="hidden sm:inline-flex items-center text-[13px] font-mono text-text-tertiary tabular-nums">
-													Frame {formatNumber(timeToFrames(currentTime))} /{' '}
-													{formatNumber(totalFrames)}
-												</span>
-											}
-											centerStart={
-												<Button
-													variant="ghost"
-													size="icon"
-													onPointerDown={(e) => {
-														e.preventDefault();
-														startFrameHold(-1);
-													}}
-													onPointerUp={stopFrameHold}
-													onPointerLeave={stopFrameHold}
-													onPointerCancel={stopFrameHold}
-													onKeyDown={(e) => {
-														if (e.key === 'Enter' || e.key === ' ') {
-															e.preventDefault();
-															stepCurrentFrame(-1);
-														}
-													}}
-													disabled={!file || processing}
-													title="Previous frame"
-													aria-label="Previous frame"
-												>
-													<StepBack size={16} />
-												</Button>
-											}
-											centerEnd={
-												<Button
-													variant="ghost"
-													size="icon"
-													onPointerDown={(e) => {
-														e.preventDefault();
-														startFrameHold(1);
-													}}
-													onPointerUp={stopFrameHold}
-													onPointerLeave={stopFrameHold}
-													onPointerCancel={stopFrameHold}
-													onKeyDown={(e) => {
-														if (e.key === 'Enter' || e.key === ' ') {
-															e.preventDefault();
-															stepCurrentFrame(1);
-														}
-													}}
-													disabled={!file || processing}
-													title="Next frame"
-													aria-label="Next frame"
-												>
-													<StepForward size={16} />
-												</Button>
-											}
-											headerEnd={
-												<div className="relative">
-													<Button
-														variant="ghost"
-														size="icon"
-														onClick={() => {
-															setCaptureMenuOpen(!captureMenuOpen);
-														}}
-														disabled={!file || processing}
-														title="Capture current frame"
-														aria-label="Capture current frame"
-														aria-haspopup="menu"
-														aria-expanded={captureMenuOpen}
-													>
-														<Camera size={16} />
-													</Button>
-													{captureMenuOpen && (
-														<CaptureMenu
-															format={captureFormat}
-															onFormatChange={setCaptureFormat}
-															onAction={(action) => {
-																void handleCaptureAction(captureFormat, action);
-															}}
-															onClose={() => {
-																setCaptureMenuOpen(false);
-															}}
-														/>
-													)}
-												</div>
-											}
-										/>
-										{file && timelineMode === 'full' && (
-											<div className="mt-3 rounded-lg border border-border/70 bg-bg/40 px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-text-tertiary">
-												<span className="font-medium text-text-secondary truncate max-w-full">
-													{file.name}
-												</span>
-												<span>{formatFileSize(file.size)}</span>
-												{videoStreamInfo?.width && videoStreamInfo?.height && (
-													<span>
-														{videoStreamInfo.width}&times;{videoStreamInfo.height}
-													</span>
-												)}
-												<span>{videoFps.toFixed(2)} fps</span>
-												<span>{formatCompactTime(duration)}</span>
-												<div className="flex-1" />
-												{detailedProbePending ? (
-													<span
-														className="inline-flex items-center text-text-tertiary"
-														title="Loading full metadata"
-													>
-														<LoaderCircle size={13} className="animate-spin" />
-													</span>
-												) : (
-													<button
-														onClick={() => {
-															setShowInfo(true);
-														}}
-														type="button"
-														aria-label="Open video file info"
-														className="inline-flex items-center gap-1 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
-														title="File info"
-													>
-														<Info size={13} />
-													</button>
-												)}
-											</div>
-										)}
-									</>
-								)}
-							</div>
+								}
+								dropHandlers={dropHandlers}
+								isDragging={isDragging}
+								hasFile={false}
+								replaceLabel="Drop your video here"
+								features={[...VIDEO_LANDING_FEATURES]}
+								formats={VIDEO_LANDING_FORMATS}
+								formatColor="bg-blue-400"
+								faqs={[...VIDEO_LANDING_FAQS]}
+								crossLinks={[...VIDEO_CROSS_LINKS]}
+							/>
 						)}
 					</>
 				}
-				mobileToggle={
-					file ? (
-						<button
-							className="md:hidden fixed bottom-20 right-4 z-30 h-12 w-12 rounded-full gradient-accent flex items-center justify-center shadow-lg cursor-pointer"
-							onClick={() => {
-								setDrawerOpen(true);
-							}}
-							type="button"
-							aria-label="Open video settings"
-							title="Open video settings"
-						>
-							<Settings size={20} className="text-white" />
-						</button>
+				timeline={
+					duration > 0 ? (
+						<div className="border-t border-border bg-[linear-gradient(180deg,rgba(24,24,27,0.96)_0%,rgba(9,9,11,0.98)_100%)] px-3 py-2 sm:px-4 sm:py-2.5">
+							<Timeline
+								duration={duration}
+								trimStart={trimStart}
+								trimEnd={trimEnd}
+								currentTime={currentTime}
+								density="compact"
+								minGap={minTrimDuration}
+								onTrimStartChange={(v) => {
+									setTrimStart(clampTrimStart(v));
+								}}
+								onTrimEndChange={(v) => {
+									setTrimEnd(clampTrimEnd(v));
+								}}
+								onSeek={handleSeek}
+								onScrubStart={handleTimelineScrubStart}
+								onScrubEnd={handleTimelineScrubEnd}
+							/>
+						</div>
 					) : undefined
 				}
-				inspector={
-					file ? (
-						<InspectorPane
-							width={inspectorWidth}
-							collapsed={inspectorCollapsed}
-							onCollapsedChange={setInspectorCollapsed}
-							onWidthChange={setInspectorWidth}
-							ariaLabel="video inspector"
-						>
-							{sidebarContent}
-						</InspectorPane>
-					) : undefined
-				}
-				mobileDrawer={
-					file ? (
-						<Drawer
-							open={drawerOpen}
-							onClose={() => {
-								setDrawerOpen(false);
-							}}
-						>
-							<div className="h-full flex flex-col bg-surface">{sidebarContent}</div>
-						</Drawer>
-					) : undefined
-				}
+				sidebar={file ? sidebarContent : undefined}
 				overlays={
 					showInfo && file ? (
 						<VideoInfoModal
@@ -2509,32 +2470,53 @@ function CaptureMenu({
 	onFormatChange,
 	onAction,
 	onClose,
+	anchorRef,
 }: {
 	format: 'png' | 'jpeg' | 'webp';
 	onFormatChange: (f: 'png' | 'jpeg' | 'webp') => void;
 	onAction: (action: 'download' | 'image-editor') => void;
 	onClose: () => void;
+	anchorRef: React.RefObject<HTMLButtonElement | null>;
 }) {
+	const menuRef = useRef<HTMLDivElement>(null);
+	const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+	useLayoutEffect(() => {
+		const anchor = anchorRef.current;
+		if (!anchor) return;
+		const rect = anchor.getBoundingClientRect();
+		const menuWidth = 320;
+		let left = rect.right - menuWidth;
+		if (left < 8) left = 8;
+		setPos({ top: rect.bottom + 8, left });
+	}, [anchorRef]);
+
 	useEffect(() => {
 		const handler = (e: PointerEvent) => {
 			if (!(e.target instanceof Element)) return;
-			if (!e.target.closest('[data-capture-menu]')) onClose();
+			if (menuRef.current?.contains(e.target)) return;
+			if (anchorRef.current?.contains(e.target)) return;
+			onClose();
 		};
 		document.addEventListener('pointerdown', handler);
 		return () => {
 			document.removeEventListener('pointerdown', handler);
 		};
-	}, [onClose]);
+	}, [onClose, anchorRef]);
 
 	const groupedFormats = [
 		{ label: 'Lossless', items: CAPTURE_FORMATS.filter((item) => item.group === 'Lossless') },
 		{ label: 'Lossy', items: CAPTURE_FORMATS.filter((item) => item.group === 'Lossy') },
 	];
 
-	return (
+	if (!pos) return null;
+
+	return createPortal(
 		<div
+			ref={menuRef}
 			data-capture-menu
-			className="absolute bottom-full right-0 z-40 mb-2 w-80 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-border bg-surface shadow-xl animate-fade-in"
+			style={{ top: pos.top, left: pos.left }}
+			className="fixed z-50 w-80 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-border bg-surface shadow-xl animate-fade-in"
 		>
 			<div className="space-y-2 p-2">
 				{groupedFormats.map((section) => (
@@ -2600,6 +2582,7 @@ function CaptureMenu({
 					Image Editor
 				</button>
 			</div>
-		</div>
+		</div>,
+		document.body,
 	);
 }

@@ -1,5 +1,5 @@
-import type { EditorUxMode } from '@/stores/editorUx.ts';
 import { EDITOR_UX_MODE_COPY } from '@/config/editorUx.ts';
+import type { EditorUxMode } from '@/stores/editorUx.ts';
 
 interface EditorUxModeSwitchProps {
 	mode: EditorUxMode;

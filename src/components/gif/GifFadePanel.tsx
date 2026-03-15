@@ -28,7 +28,7 @@ export function GifFadePanel() {
 	return (
 		<>
 			<div>
-				<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">
+				<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">
 					Fade Effects
 				</h3>
 				<p className="text-[12px] text-text-tertiary mb-3">
@@ -84,7 +84,7 @@ export function GifFadePanel() {
 
 			{/* Fade Color */}
 			<div>
-				<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
+				<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
 					Fade Color
 				</h3>
 				<div className="flex gap-2">

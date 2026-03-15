@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
 import { Info } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 interface EditorFileSummaryProps {
 	fileName: string;

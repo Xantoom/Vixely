@@ -16,7 +16,7 @@ export function EditorQuickActions({
 	secondaryAction,
 }: EditorQuickActionsProps) {
 	return (
-		<div className="p-4 border-t border-border flex flex-col gap-2 bg-surface-raised/10">
+		<div className="p-3 border-t border-border flex flex-col gap-2 bg-surface-raised/10 min-w-0">
 			{heading}
 			{status}
 			{error && (

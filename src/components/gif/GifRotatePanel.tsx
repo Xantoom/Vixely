@@ -31,7 +31,7 @@ export function GifRotatePanel() {
 		<>
 			{/* Rotation */}
 			<div>
-				<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">Rotate</h3>
+				<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">Rotate</h3>
 				<div className="grid grid-cols-4 gap-1.5">
 					{ROTATION_PRESETS.map((preset) => (
 						<button
@@ -80,7 +80,7 @@ export function GifRotatePanel() {
 
 			{/* Flip */}
 			<div>
-				<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">Flip</h3>
+				<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">Flip</h3>
 				<div className="grid grid-cols-2 gap-1.5">
 					<button
 						onClick={() => {

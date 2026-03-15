@@ -1,6 +1,5 @@
 import type { FilterParams } from './types/filters.ts';
 import type { TextureHandle } from './types/pipeline.ts';
-import type { UniformLocations } from './webgl/programs.ts';
 import { type GLContext, createWebGL2Context, destroyGLContext, drawQuad } from './webgl/context.ts';
 import {
 	type Framebuffer,
@@ -15,6 +14,7 @@ import {
 	deleteFramebuffer,
 	deletePingPongBuffers,
 } from './webgl/framebuffer.ts';
+import type { UniformLocations } from './webgl/programs.ts';
 import { linkProgram, getUniformLocations, setUniform1f, setUniform2f, setUniform1i } from './webgl/programs.ts';
 import { FULLSCREEN_VERTEX, COLOR_CORRECTION_FRAGMENT, BLUR_FRAGMENT, GRAIN_FRAGMENT } from './webgl/shaders.ts';
 import { uploadImageBitmap, uploadVideoFrame, uploadImageData, bindTexture, deleteTexture } from './webgl/textures.ts';

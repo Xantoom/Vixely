@@ -1,76 +1,11 @@
 import { useShallow } from 'zustand/react/shallow';
-import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
 import { Button, Slider } from '@/components/ui/index.ts';
+import { LIGHT_SLIDERS, COLOR_SLIDERS, EFFECT_SLIDERS, type FilterSliderDef } from '@/config/filterSliders.ts';
 import { filterPresetEntries } from '@/config/presets.ts';
+import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
 import { useGifEditorStore } from '@/stores/gifEditor.ts';
 
 const FILTER_PRESETS = filterPresetEntries();
-
-interface SliderDef {
-	key: keyof FilterParams;
-	label: string;
-	min: number;
-	max: number;
-	step: number;
-	format: (v: number) => string;
-}
-
-const LIGHT_SLIDERS: SliderDef[] = [
-	{ key: 'exposure', label: 'Exposure', min: 0.2, max: 3, step: 0.01, format: (v) => (v * 100).toFixed(0) },
-	{
-		key: 'brightness',
-		label: 'Brightness',
-		min: -0.5,
-		max: 0.5,
-		step: 0.01,
-		format: (v) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)}`,
-	},
-	{ key: 'contrast', label: 'Contrast', min: 0.2, max: 3, step: 0.01, format: (v) => (v * 100).toFixed(0) },
-	{
-		key: 'highlights',
-		label: 'Highlights',
-		min: -1,
-		max: 1,
-		step: 0.01,
-		format: (v) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)}`,
-	},
-	{
-		key: 'shadows',
-		label: 'Shadows',
-		min: -1,
-		max: 1,
-		step: 0.01,
-		format: (v) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)}`,
-	},
-];
-
-const COLOR_SLIDERS: SliderDef[] = [
-	{ key: 'saturation', label: 'Saturation', min: 0, max: 3, step: 0.01, format: (v) => (v * 100).toFixed(0) },
-	{
-		key: 'temperature',
-		label: 'Temperature',
-		min: -1,
-		max: 1,
-		step: 0.01,
-		format: (v) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)}`,
-	},
-	{
-		key: 'tint',
-		label: 'Tint',
-		min: -1,
-		max: 1,
-		step: 0.01,
-		format: (v) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)}`,
-	},
-	{ key: 'hue', label: 'Hue', min: -180, max: 180, step: 1, format: (v) => `${v >= 0 ? '+' : ''}${v.toFixed(0)}°` },
-];
-
-const EFFECT_SLIDERS: SliderDef[] = [
-	{ key: 'blur', label: 'Blur', min: 0, max: 10, step: 0.1, format: (v) => v.toFixed(1) },
-	{ key: 'sepia', label: 'Sepia', min: 0, max: 1, step: 0.01, format: (v) => `${(v * 100).toFixed(0)}%` },
-	{ key: 'vignette', label: 'Vignette', min: 0, max: 1, step: 0.01, format: (v) => `${(v * 100).toFixed(0)}%` },
-	{ key: 'grain', label: 'Grain', min: 0, max: 1, step: 0.01, format: (v) => `${(v * 100).toFixed(0)}%` },
-];
 
 const QUICK_PRESETS: { label: string; filters: Partial<FilterParams> }[] = [
 	{ label: 'Grayscale', filters: { saturation: 0 } },
@@ -83,14 +18,14 @@ const QUICK_PRESETS: { label: string; filters: Partial<FilterParams> }[] = [
 	{ label: 'Faded', filters: { contrast: 0.8, brightness: 0.1, saturation: 0.7 } },
 ];
 
-function SliderGroup({ sliders, groupLabel }: { sliders: SliderDef[]; groupLabel: string }) {
+function SliderGroup({ sliders, groupLabel }: { sliders: FilterSliderDef[]; groupLabel: string }) {
 	const { filters, setFilter } = useGifEditorStore(
 		useShallow((s) => ({ filters: s.filters, setFilter: s.setFilter })),
 	);
 
 	return (
 		<div>
-			<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">{groupLabel}</h3>
+			<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">{groupLabel}</h3>
 			<div className="flex flex-col gap-3">
 				{sliders.map((def) => (
 					<Slider
@@ -132,7 +67,7 @@ export function GifFiltersPanel() {
 		<>
 			{/* Quick Filter Presets */}
 			<div>
-				<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
+				<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
 					Quick Filters
 				</h3>
 				<div className="grid grid-cols-2 gap-1.5">
@@ -153,7 +88,7 @@ export function GifFiltersPanel() {
 			{/* Saved filter presets from config */}
 			{FILTER_PRESETS.length > 0 && (
 				<div>
-					<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
+					<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
 						Saved Presets
 					</h3>
 					<div className="grid grid-cols-2 gap-1.5">

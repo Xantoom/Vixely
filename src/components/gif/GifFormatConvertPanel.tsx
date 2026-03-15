@@ -2,8 +2,8 @@ import { zipSync } from 'fflate';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
-import type { ConvertFormat } from '@/stores/gifEditor.ts';
 import { Button } from '@/components/ui/index.ts';
+import type { ConvertFormat } from '@/stores/gifEditor.ts';
 import { useGifEditorStore } from '@/stores/gifEditor.ts';
 import { buildExportFilename } from '@/utils/exportFilename.ts';
 import { formatFileSize } from '@/utils/format.ts';
@@ -253,7 +253,7 @@ export function GifFormatConvertPanel({ file, sourceWidth, sourceHeight }: GifFo
 	return (
 		<>
 			<div>
-				<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">
+				<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">
 					Format Converter
 				</h3>
 				<p className="text-[12px] text-text-tertiary mb-3">
@@ -294,7 +294,7 @@ export function GifFormatConvertPanel({ file, sourceWidth, sourceHeight }: GifFo
 
 			{/* Format selection */}
 			<div>
-				<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
+				<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
 					Output Format
 				</h3>
 				<div className="flex flex-col gap-2">

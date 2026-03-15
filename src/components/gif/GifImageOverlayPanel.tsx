@@ -39,7 +39,7 @@ export function GifImageOverlayPanel() {
 	return (
 		<>
 			<div>
-				<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">
+				<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">
 					Image Overlay
 				</h3>
 				<p className="text-[12px] text-text-tertiary mb-3">
@@ -80,7 +80,7 @@ export function GifImageOverlayPanel() {
 
 					{/* Position */}
 					<div>
-						<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
+						<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
 							Position
 						</h3>
 						<div className="grid grid-cols-2 gap-3">
@@ -141,7 +141,7 @@ export function GifImageOverlayPanel() {
 
 					{/* Size */}
 					<div>
-						<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
+						<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
 							Size
 						</h3>
 						<div className="grid grid-cols-2 gap-3">

@@ -1,8 +1,8 @@
 import { AlertCircle, AudioLines, FileText, Film, LoaderCircle, Subtitles, X } from 'lucide-react';
 import type { ProbeResult, StreamInfo } from '@/stores/videoEditor.ts';
-import type { DetailedProbeResultData, DetailedProbeStreamInfo } from '@/workers/ffmpeg-worker.ts';
 import { formatDateTime, formatDimensions, formatFileSize, formatNumber } from '@/utils/format.ts';
 import { LANG_NAMES } from '@/utils/languageUtils.ts';
+import type { DetailedProbeResultData, DetailedProbeStreamInfo } from '@/workers/ffmpeg-worker.ts';
 
 interface VideoInfoModalProps {
 	file: File;

@@ -1,7 +1,7 @@
 import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
 import { DEFAULT_FILTER_PARAMS } from '@/modules/shared-core/types/filters.ts';
-import type { DemuxedTrack } from './demux/demuxer.ts';
 import { WebCodecsVideoDecoder, WebCodecsAudioDecoder } from './decode/webcodecs-decoder.ts';
+import type { DemuxedTrack } from './demux/demuxer.ts';
 import { Mp4boxDemuxer } from './demux/mp4box-demuxer.ts';
 import { PlaybackRenderer } from './render/playback-renderer.ts';
 

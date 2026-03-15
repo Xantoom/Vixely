@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 
 interface EditorShellHeaderProps {
 	title: string;
-	description: string;
+	description?: string;
 	modeSwitch?: ReactNode;
 	badge?: ReactNode;
 	stageTabs?: ReactNode;
@@ -24,7 +24,7 @@ export function EditorShellHeader({
 			<div className="mb-3 flex items-start justify-between gap-3">
 				<div className="min-w-0">
 					<p className="text-[11px] font-bold uppercase tracking-[0.16em] text-text-tertiary">{title}</p>
-					<p className="text-[13px] text-text-secondary">{description}</p>
+					{description && <p className="text-[13px] text-text-secondary">{description}</p>}
 				</div>
 				{(modeSwitch || badge) && (
 					<div className="shrink-0 flex items-center gap-2">

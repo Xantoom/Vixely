@@ -194,7 +194,7 @@ export function GifAnalyzerPanel({ file }: GifAnalyzerPanelProps) {
 	return (
 		<>
 			<div>
-				<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">
+				<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-3">
 					GIF Analyzer
 				</h3>
 				<p className="text-[12px] text-text-tertiary mb-3">
@@ -217,7 +217,7 @@ export function GifAnalyzerPanel({ file }: GifAnalyzerPanelProps) {
 				<>
 					{/* General */}
 					<div>
-						<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
+						<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
 							General
 						</h3>
 						<AnalysisTable
@@ -240,7 +240,7 @@ export function GifAnalyzerPanel({ file }: GifAnalyzerPanelProps) {
 
 					{/* Timing */}
 					<div>
-						<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
+						<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
 							Timing
 						</h3>
 						<AnalysisTable
@@ -261,7 +261,7 @@ export function GifAnalyzerPanel({ file }: GifAnalyzerPanelProps) {
 
 					{/* Color Table */}
 					<div>
-						<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
+						<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
 							Color Table
 						</h3>
 						<AnalysisTable
@@ -280,7 +280,7 @@ export function GifAnalyzerPanel({ file }: GifAnalyzerPanelProps) {
 					{/* Comments */}
 					{analysis.commentExtensions.length > 0 && (
 						<div>
-							<h3 className="text-[14px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
+							<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
 								Comments
 							</h3>
 							{analysis.commentExtensions.map((c, i) => (

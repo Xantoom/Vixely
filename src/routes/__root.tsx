@@ -5,7 +5,6 @@ import { useEffect, useRef, useState, useCallback, type MouseEvent as ReactMouse
 import { Toaster } from 'sonner';
 import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
 import { CookieBanner } from '@/components/CookieBanner.tsx';
-import { PrivacyModal } from '@/components/PrivacyModal.tsx';
 import { useEditorSessionStore, type EditorKey } from '@/stores/editorSession.ts';
 import { useEditorUxStore } from '@/stores/editorUx.ts';
 import { useGifEditorStore } from '@/stores/gifEditor.ts';
@@ -61,7 +60,7 @@ const navItems = [
 	},
 ];
 
-type EditorTabRoute = (typeof navItems)[number]['to'];
+type EditorTabRoute = (typeof navItems)[number]['to'] | '/';
 
 function editorFromPath(pathname: string): EditorKey | null {
 	if (pathname.startsWith('/tools/video')) return 'video';
@@ -111,8 +110,7 @@ function RootLayout() {
 		(event: ReactMouseEvent, destination: EditorTabRoute) => {
 			if (destination === pathname) return;
 			const currentEditor = editorFromPath(pathname);
-			const nextEditor = editorFromPath(destination);
-			if (!currentEditor || !nextEditor || currentEditor === nextEditor) return;
+			if (!currentEditor) return;
 			if (!unsavedByEditor[currentEditor]) return;
 			event.preventDefault();
 			setPendingEditorRoute(destination);
@@ -142,7 +140,13 @@ function RootLayout() {
 			{/* ── Desktop Sidebar ── */}
 			<aside className="hidden md:flex w-20 shrink-0 flex-col items-center border-r border-border-subtle bg-bg py-4 gap-1.5">
 				{/* Logo */}
-				<Link to="/" className="mb-6 group flex items-center justify-center">
+				<Link
+					to="/"
+					onClick={(event) => {
+						handleEditorTabClick(event, '/');
+					}}
+					className="mb-6 group flex items-center justify-center"
+				>
 					<div className="h-9 w-9 rounded-xl gradient-accent flex items-center justify-center transition-transform group-hover:scale-105">
 						<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
 							<path
@@ -205,6 +209,9 @@ function RootLayout() {
 			<nav className="md:hidden shrink-0 flex items-center justify-around border-t border-border-subtle bg-bg safe-area-bottom">
 				<Link
 					to="/"
+					onClick={(event) => {
+						handleEditorTabClick(event, '/');
+					}}
 					className={`flex flex-col items-center gap-0.5 py-3 px-4 min-w-12 transition-all ${
 						isHome ? 'text-accent' : 'text-text-tertiary'
 					}`}
@@ -233,7 +240,6 @@ function RootLayout() {
 			</nav>
 
 			{/* ── Overlays ── */}
-			<PrivacyModal />
 			<CookieBanner />
 			{isEditorSwitchConfirmOpen && (
 				<ConfirmResetModal onConfirm={handleConfirmEditorSwitch} onCancel={handleCancelEditorSwitch} />

@@ -1,6 +1,6 @@
+import { buildVideoArgs } from '@/config/presets.ts';
 import type { AdvancedVideoSettings } from '@/stores/videoEditor.ts';
 import type { StreamInfo, TrackSelection } from '@/stores/videoEditor.ts';
-import { buildVideoArgs } from '@/config/presets.ts';
 
 const CONTAINER_AUDIO_CODECS: Record<string, Set<string>> = {
 	webm: new Set(['libopus', 'opus', 'libvorbis', 'vorbis']),
