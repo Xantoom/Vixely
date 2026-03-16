@@ -55,6 +55,7 @@ import { useVideoMetadataLoader, type MetadataLoadStage } from '@/hooks/useVideo
 import type { SubtitlePreviewData } from '@/hooks/useVideoProcessor.ts';
 import { useVideoProcessor } from '@/hooks/useVideoProcessor.ts';
 import { buildFfmpegExportPlan } from '@/modules/video-editor/export/ffmpeg-export-plan.ts';
+import { sizeConstrainedExport } from '@/modules/video-editor/export/sizeConstrainedExport.ts';
 import { useEditorSessionStore } from '@/stores/editorSession.ts';
 import { useEditorUxStore } from '@/stores/editorUx.ts';
 import type { AdvancedVideoSettings } from '@/stores/videoEditor.ts';
@@ -679,6 +680,12 @@ function VideoStudio() {
 			isCustomExport,
 			selectedAudioStream,
 			selectedSubtitleStream,
+			maxSizeBytes,
+			targetVideoBitrateKbps,
+			selectedWidth,
+			selectedHeight,
+			fallbackWidth,
+			fallbackHeight,
 		} = buildFfmpegExportPlan({
 			file,
 			preBurnedAssSourceFile,
@@ -759,9 +766,43 @@ function VideoStudio() {
 		}, 10_000);
 
 		try {
-			const result = await transcode({ file: sourceFile, args, outputName, expectedDurationSec: clipDuration });
+			let resultData: Uint8Array;
+			const hasSizeConstraint = maxSizeBytes != null && targetVideoBitrateKbps != null && !videoNoReencode;
+
+			if (hasSizeConstraint) {
+				const exportResult = await sizeConstrainedExport({
+					transcode: async (retryArgs) =>
+						transcode({ file: sourceFile, args: retryArgs, outputName, expectedDurationSec: clipDuration }),
+					baseArgs: args,
+					maxSizeBytes,
+					targetVideoBitrateKbps,
+					currentResolution:
+						selectedWidth && selectedHeight ? { width: selectedWidth, height: selectedHeight } : null,
+					fallbackResolution:
+						fallbackWidth && fallbackHeight ? { width: fallbackWidth, height: fallbackHeight } : null,
+					onAttempt: (attempt, bitrateKbps, resolution) => {
+						if (attempt > 1) {
+							const desc = resolution
+								? `Bitrate: ${bitrateKbps} kbps, resolution: ${resolution.width}×${resolution.height}`
+								: `Bitrate: ${bitrateKbps} kbps`;
+							toast.info(`Re-encoding (attempt ${attempt}/3)`, { description: desc });
+						}
+					},
+				});
+				resultData = exportResult.data;
+				if (!exportResult.withinLimit) {
+					const actualMB = (exportResult.finalSizeBytes / (1024 * 1024)).toFixed(1);
+					const limitMB = (maxSizeBytes / (1024 * 1024)).toFixed(0);
+					toast.warning('File slightly over size limit', {
+						description: `${actualMB}MB vs ${limitMB}MB limit after ${exportResult.attempts} attempts`,
+					});
+				}
+			} else {
+				resultData = await transcode({ file: sourceFile, args, outputName, expectedDurationSec: clipDuration });
+			}
+
 			clearTimeout(timeoutId);
-			const blob = new Blob([new Uint8Array(result)], { type: `video/${ext}` });
+			const blob = new Blob([new Uint8Array(resultData)], { type: `video/${ext}` });
 			const url = URL.createObjectURL(blob);
 			const downloadName = buildExportFilename(sourceFile.name, ext);
 			setResultUrl(url);

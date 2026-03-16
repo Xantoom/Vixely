@@ -22,6 +22,7 @@
 			"name": "High Compression",
 			"description": "Smallest file size, lower quality",
 			"maxSizeMB": null,
+			"maxDisplayWidth": 480,
 			"format": "webm",
 			"ffmpegArgs": ["-c:v", "libvpx-vp9", "-crf", "45", "-b:v", "0"],
 			"width": null,
