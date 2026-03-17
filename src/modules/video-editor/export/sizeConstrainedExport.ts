@@ -79,6 +79,8 @@ export async function sizeConstrainedExport(
 			usedFallbackResolution ? (fallbackResolution ?? undefined) : (currentResolution ?? undefined),
 		);
 
+		// Release previous attempt's buffer before allocating a new one
+		lastResult = null;
 		// eslint-disable-next-line no-await-in-loop
 		const result = await transcode(currentArgs);
 		lastResult = result;

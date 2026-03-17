@@ -242,6 +242,36 @@ function computeBpp(bitrateKbps: number, width: number, height: number, fps: num
 }
 
 /**
+ * Iterate RESOLUTION_STEPS yielding aspect-ratio-corrected, even-dimension candidates
+ * strictly smaller than the given bounds and not below the floor width.
+ */
+function* candidateResolutions(
+	belowWidth: number,
+	belowHeight: number,
+	aspectRatio: number,
+	maxDisplayWidth: number | undefined,
+): Generator<{ width: number; height: number }> {
+	const floorWidth = maxDisplayWidth ?? DEFAULT_MIN_FLOOR_WIDTH;
+	const isPortrait = belowHeight > belowWidth;
+
+	for (const step of RESOLUTION_STEPS) {
+		const stepW = isPortrait ? Math.round(step.h * aspectRatio) : step.w;
+		const stepH = isPortrait ? step.h : Math.round(step.w / aspectRatio);
+
+		// Don't upscale
+		if (stepW >= belowWidth || stepH >= belowHeight) continue;
+
+		// Don't go below platform display floor
+		const shortSide = Math.min(stepW, stepH);
+		if (shortSide < floorWidth && floorWidth < Math.min(belowWidth, belowHeight)) continue;
+
+		const finalW = Math.max(2, Math.round(stepW / 2) * 2);
+		const finalH = Math.max(2, Math.round(stepH / 2) * 2);
+		yield { width: finalW, height: finalH };
+	}
+}
+
+/**
  * Select the optimal resolution for a given bitrate budget.
  * Starts from the source resolution and steps down only if the
  * bits-per-pixel-per-frame would be too low for acceptable quality.
@@ -259,38 +289,20 @@ function selectOptimalResolution(
 ): { width: number; height: number } | null {
 	const minBpp = MIN_BPP_BY_CODEC[codec] ?? 0.04;
 	const safeFps = clamp(fps || 30, 12, 120);
-	const floorWidth = maxDisplayWidth ?? DEFAULT_MIN_FLOOR_WIDTH;
-	const isPortrait = inputHeight > inputWidth;
 	const aspectRatio = inputWidth / inputHeight;
 
 	// Check if source resolution already has sufficient bpp
 	const sourceBpp = computeBpp(targetBitrateKbps, inputWidth, inputHeight, safeFps);
 	if (sourceBpp >= minBpp) return null;
 
-	// Walk down through resolution steps, find the highest that gives enough bpp
-	for (const step of RESOLUTION_STEPS) {
-		// For portrait videos, compare the short side (width of the step maps to the short side)
-		const stepW = isPortrait ? Math.round(step.h * aspectRatio) : step.w;
-		const stepH = isPortrait ? step.h : Math.round(step.w / aspectRatio);
-
-		// Don't upscale
-		if (stepW >= inputWidth || stepH >= inputHeight) continue;
-
-		// Don't go below platform display floor
-		const shortSide = Math.min(stepW, stepH);
-		if (shortSide < floorWidth && floorWidth < Math.min(inputWidth, inputHeight)) continue;
-
-		// Ensure even dimensions (required by most codecs)
-		const finalW = Math.round(stepW / 2) * 2;
-		const finalH = Math.round(stepH / 2) * 2;
-
-		const bpp = computeBpp(targetBitrateKbps, finalW, finalH, safeFps);
-		if (bpp >= minBpp) {
-			return { width: finalW, height: finalH };
-		}
+	for (const candidate of candidateResolutions(inputWidth, inputHeight, aspectRatio, maxDisplayWidth)) {
+		const bpp = computeBpp(targetBitrateKbps, candidate.width, candidate.height, safeFps);
+		if (bpp >= minBpp) return candidate;
 	}
 
 	// Couldn't find a step with enough bpp — use the floor resolution
+	const floorWidth = maxDisplayWidth ?? DEFAULT_MIN_FLOOR_WIDTH;
+	const isPortrait = inputHeight > inputWidth;
 	const floorW = isPortrait ? Math.round(floorWidth * aspectRatio) : floorWidth;
 	const floorH = isPortrait ? floorWidth : Math.round(floorWidth / aspectRatio);
 	const finalFloorW = Math.max(2, Math.round(floorW / 2) * 2);
@@ -311,23 +323,8 @@ function computeFallbackResolution(
 	aspectRatio: number,
 	maxDisplayWidth: number | undefined,
 ): { width: number; height: number } | null {
-	const floorWidth = maxDisplayWidth ?? DEFAULT_MIN_FLOOR_WIDTH;
-	const isPortrait = currentHeight > currentWidth;
-
-	for (const step of RESOLUTION_STEPS) {
-		const stepW = isPortrait ? Math.round(step.h * aspectRatio) : step.w;
-		const stepH = isPortrait ? step.h : Math.round(step.w / aspectRatio);
-
-		// Must be strictly smaller than current
-		if (stepW >= currentWidth || stepH >= currentHeight) continue;
-
-		// Don't go below floor
-		const shortSide = Math.min(stepW, stepH);
-		if (shortSide < floorWidth) continue;
-
-		const finalW = Math.max(2, Math.round(stepW / 2) * 2);
-		const finalH = Math.max(2, Math.round(stepH / 2) * 2);
-		return { width: finalW, height: finalH };
+	for (const candidate of candidateResolutions(currentWidth, currentHeight, aspectRatio, maxDisplayWidth)) {
+		return candidate;
 	}
 	return null;
 }

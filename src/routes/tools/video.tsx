@@ -43,7 +43,7 @@ import {
 	isValidCombo,
 	isValidAudioCombo,
 } from '@/config/codecs.ts';
-import { videoPresetEntries, buildVideoArgs, VIDEO_ACCEPT } from '@/config/presets.ts';
+import { videoPresetEntries, VIDEO_ACCEPT } from '@/config/presets.ts';
 import { useEditorLayoutPrefs } from '@/hooks/useEditorLayoutPrefs.ts';
 import { useFrameStepController } from '@/hooks/useFrameStepController.ts';
 import { useLongTaskObserver } from '@/hooks/useLongTaskObserver.ts';
@@ -870,8 +870,8 @@ function VideoStudio() {
 		if (selectedPreset == null) {
 			ext = advancedSettings.container;
 		} else if (selectedPreset) {
-			const { format } = buildVideoArgs(selectedPreset, 1);
-			ext = format;
+			const presetEntry = VIDEO_PRESETS.find(([key]) => key === selectedPreset);
+			ext = presetEntry?.[1]?.format ?? 'mp4';
 		}
 		const a = document.createElement('a');
 		a.href = resultUrl;
