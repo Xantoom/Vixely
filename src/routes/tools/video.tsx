@@ -2411,6 +2411,7 @@ function VideoStudio() {
 									onLoadedMetadata={handleVideoLoaded}
 									onTimeUpdate={handleTimeUpdate}
 									onSeek={handleSeek}
+									onTogglePlay={togglePlaybackInTrim}
 									timelineScrubbing={timelineScrubbing}
 									scrubPreviewTime={timelineScrubbing ? currentTime : null}
 									metadataLoading={metadataVideoLoading}

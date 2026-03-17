@@ -34,6 +34,7 @@ interface VideoPlayerProps {
 	onLoadedMetadata?: () => void;
 	onTimeUpdate?: () => void;
 	onSeek?: (time: number) => void;
+	onTogglePlay?: () => void;
 	processing?: boolean;
 	progress?: number;
 }
@@ -350,6 +351,7 @@ export function VideoPlayer({
 	onLoadedMetadata,
 	onTimeUpdate,
 	onSeek,
+	onTogglePlay,
 	processing,
 	progress = 0,
 }: VideoPlayerProps) {
@@ -1170,6 +1172,10 @@ export function VideoPlayer({
 	}, [videoRef, onTimeUpdate, subtitleEnabled, assSubtitleContent, repaintAssRenderer]);
 
 	const togglePlay = useCallback(() => {
+		if (onTogglePlay) {
+			onTogglePlay();
+			return;
+		}
 		const v = videoRef.current;
 		if (!v) return;
 		if (v.paused) {
@@ -1179,7 +1185,7 @@ export function VideoPlayer({
 			v.pause();
 			setPlaying(false);
 		}
-	}, [videoRef]);
+	}, [videoRef, onTogglePlay]);
 
 	const resolveSeekBarRect = useCallback((force = false): DOMRect | null => {
 		const bar = seekBarRef.current;
