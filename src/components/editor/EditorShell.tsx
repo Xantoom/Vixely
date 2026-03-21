@@ -1,8 +1,9 @@
-import { Settings } from 'lucide-react';
 import { type ReactNode } from 'react';
-import { BottomSheet } from '@/components/ui/BottomSheet.tsx';
+import { EditorToolTray } from '@/components/editor/EditorToolTray.tsx';
+import { FloatingPanel } from '@/components/ui/FloatingPanel.tsx';
+import { HalfSheet } from '@/components/ui/HalfSheet.tsx';
 import { InspectorPane } from '@/components/ui/InspectorPane.tsx';
-import { useEditorLayoutPrefs, type EditorKey, type EditorStage } from '@/hooks/useEditorLayoutPrefs.ts';
+import { useEditorLayoutPrefs, type EditorKey } from '@/hooks/useEditorLayoutPrefs.ts';
 
 /** Fixed sidebar width per layout tier */
 const SIDEBAR_WIDTH = { desktop: 340, ultrawide: 380 } as const;
@@ -10,29 +11,33 @@ const SIDEBAR_WIDTH = { desktop: 340, ultrawide: 380 } as const;
 interface EditorShellProps {
 	editor: EditorKey;
 	main: ReactNode;
+	/** The panel content (rendered inside the sidebar/sheet/floating panel) */
 	sidebar?: ReactNode;
+	/** The ToolRail element — rendered differently per breakpoint */
+	toolRail?: ReactNode;
 	timeline?: ReactNode;
 	overlays?: ReactNode;
 	sidebarLabel?: string;
 	hasFile?: boolean;
-	stage?: EditorStage;
-	onStageChange?: (stage: EditorStage) => void;
+	/** Whether a tool panel is currently open (for tablet floating panel) */
+	toolPanelOpen?: boolean;
+	/** Called when the tablet floating panel should close */
+	onToolPanelClose?: () => void;
 }
 
 export function EditorShell({
 	editor,
 	main,
 	sidebar,
+	toolRail,
 	timeline,
 	overlays,
 	sidebarLabel = 'inspector',
 	hasFile = false,
+	toolPanelOpen = false,
+	onToolPanelClose,
 }: EditorShellProps) {
-	const { tier, sidebarOpen, sidebarCollapsed, setSidebarOpen, toggleSidebarCollapsed } = useEditorLayoutPrefs({
-		editor,
-		defaultInspectorWidth: 340,
-		defaultStage: 'source',
-	});
+	const { tier, sidebarOpen, setSidebarOpen } = useEditorLayoutPrefs({ editor });
 
 	const showSidebar = hasFile && sidebar;
 	const isMobile = tier === 'mobile';
@@ -48,58 +53,59 @@ export function EditorShell({
 				<div
 					className={`flex flex-1 min-h-0 min-w-0 overflow-hidden ${isUltrawide ? 'max-w-[1920px] w-full border-x border-border/30' : ''}`}
 				>
-					{/* Main content + timeline */}
+					{/* Main content + timeline + mobile tool tray */}
 					<div className="flex-1 flex flex-col min-w-0 animate-fade-in">
 						{main}
 						{timeline}
+
+						{/* Mobile: Tool Tray + Half-Sheet */}
+						{showSidebar && isMobile && (
+							<>
+								{toolRail && <EditorToolTray>{toolRail}</EditorToolTray>}
+								<HalfSheet
+									open={sidebarOpen}
+									onClose={() => {
+										setSidebarOpen(false);
+									}}
+								>
+									{sidebar}
+								</HalfSheet>
+							</>
+						)}
 					</div>
 
-					{/* Desktop / Ultrawide */}
+					{/* Desktop / Ultrawide: Fixed Inspector */}
 					{showSidebar && !isMobile && !isTablet && (
 						<InspectorPane width={sidebarWidth} ariaLabel={sidebarLabel}>
-							{sidebar}
+							{toolRail && (
+								<div className="shrink-0 border-b border-border/70 bg-surface-raised/15">
+									{toolRail}
+								</div>
+							)}
+							<div className="flex-1 min-h-0 overflow-hidden flex flex-col">{sidebar}</div>
 						</InspectorPane>
 					)}
 
-					{/* Tablet: Collapsible */}
+					{/* Tablet: Vertical ToolRail + Floating Panel */}
 					{showSidebar && isTablet && (
-						<InspectorPane
-							width={sidebarWidth}
-							ariaLabel={sidebarLabel}
-							collapsible
-							collapsed={sidebarCollapsed}
-							onToggleCollapse={toggleSidebarCollapsed}
-						>
-							{sidebar}
-						</InspectorPane>
+						<div className="relative flex shrink-0">
+							{toolRail && (
+								<div className="shrink-0 border-l border-border bg-surface flex flex-col">
+									{toolRail}
+								</div>
+							)}
+							<FloatingPanel
+								open={toolPanelOpen}
+								onClose={onToolPanelClose ?? (() => {})}
+								width={320}
+								ariaLabel={sidebarLabel}
+							>
+								{sidebar}
+							</FloatingPanel>
+						</div>
 					)}
 				</div>
 			</div>
-
-			{/* Mobile: FAB + BottomSheet */}
-			{showSidebar && isMobile && (
-				<>
-					<button
-						className="fixed bottom-20 right-4 z-30 h-12 w-12 rounded-full gradient-accent flex items-center justify-center shadow-lg cursor-pointer"
-						onClick={() => {
-							setSidebarOpen(true);
-						}}
-						type="button"
-						aria-label={`Open ${editor} settings`}
-						title={`Open ${editor} settings`}
-					>
-						<Settings size={20} className="text-white" />
-					</button>
-					<BottomSheet
-						open={sidebarOpen}
-						onClose={() => {
-							setSidebarOpen(false);
-						}}
-					>
-						{sidebar}
-					</BottomSheet>
-				</>
-			)}
 
 			{overlays}
 		</div>

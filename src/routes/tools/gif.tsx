@@ -1,16 +1,25 @@
 import { createFileRoute } from '@tanstack/react-router';
 import {
 	Clapperboard,
+	Crop,
 	Download,
 	Film,
-	Video,
 	ImageIcon,
+	Layers,
+	Maximize2,
 	Palette,
+	RatioIcon,
+	RefreshCw,
+	RotateCw,
+	Scissors,
+	Search,
+	Settings2,
+	ShieldCheck,
 	SlidersHorizontal,
 	Sparkles,
-	Scissors,
+	Type,
+	Video,
 	Zap,
-	ShieldCheck,
 } from 'lucide-react';
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
@@ -36,9 +45,10 @@ import { GifSettingsPanel } from '@/components/gif/GifSettingsPanel.tsx';
 import { GifTextOverlayPanel } from '@/components/gif/GifTextOverlayPanel.tsx';
 import { GifToolbar } from '@/components/gif/GifToolbar.tsx';
 import { Seo, buildWebAppSchema, buildFAQSchema } from '@/components/Seo.tsx';
-import { Button, EditorModeTabs, EditorStageTabs, Timeline } from '@/components/ui/index.ts';
+import { Button, Timeline } from '@/components/ui/index.ts';
+import { ToolRail, type ToolRailItem } from '@/components/ui/ToolRail.tsx';
 import { gifPresetEntries, GIF_ACCEPT } from '@/config/presets.ts';
-import { useEditorLayoutPrefs, type EditorStage } from '@/hooks/useEditorLayoutPrefs.ts';
+import { useEditorLayoutPrefs } from '@/hooks/useEditorLayoutPrefs.ts';
 import { useFrameStepController } from '@/hooks/useFrameStepController.ts';
 import { useLongTaskObserver } from '@/hooks/useLongTaskObserver.ts';
 import { useObjectUrlState } from '@/hooks/useObjectUrlState.ts';
@@ -49,7 +59,6 @@ import { useTimelineScrubController } from '@/hooks/useTimelineScrubController.t
 import { useVideoProcessor } from '@/hooks/useVideoProcessor.ts';
 import { filtersAreDefault } from '@/modules/shared-core/types/filters.ts';
 import { useEditorSessionStore } from '@/stores/editorSession.ts';
-import { useEditorUxStore } from '@/stores/editorUx.ts';
 import { useGifEditorStore, type GifMode } from '@/stores/gifEditor.ts';
 import { buildExportFilename } from '@/utils/exportFilename.ts';
 import { formatFileSize } from '@/utils/format.ts';
@@ -142,129 +151,28 @@ function isGifFileLike(file: File): boolean {
 	return file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif');
 }
 
-type SidebarSectionId = 'setup' | 'style' | 'timing' | 'output';
-
-interface SidebarTool {
-	mode: GifMode;
-	label: string;
-	description: string;
-}
-
-interface SidebarSection {
-	id: SidebarSectionId;
-	label: string;
-	description: string;
-	icon: typeof SlidersHorizontal;
-	tools: SidebarTool[];
-}
-
-const SIDEBAR_SECTIONS: SidebarSection[] = [
-	{
-		id: 'setup',
-		label: 'Setup',
-		description: '',
-		icon: SlidersHorizontal,
-		tools: [
-			{ mode: 'settings', label: 'Settings', description: '' },
-			{ mode: 'crop', label: 'Crop', description: '' },
-			{ mode: 'resize', label: 'Resize', description: '' },
-			{ mode: 'rotate', label: 'Rotate', description: '' },
-			{ mode: 'aspect', label: 'Aspect', description: '' },
-		],
-	},
-	{
-		id: 'style',
-		label: 'Style',
-		description: '',
-		icon: Sparkles,
-		tools: [
-			{ mode: 'filters', label: 'Filters', description: '' },
-			{ mode: 'text', label: 'Text', description: '' },
-			{ mode: 'overlay', label: 'Overlay', description: '' },
-			{ mode: 'fade', label: 'Fade', description: '' },
-		],
-	},
-	{
-		id: 'timing',
-		label: 'Timing',
-		description: '',
-		icon: Clapperboard,
-		tools: [
-			{ mode: 'frames', label: 'Frames', description: '' },
-			{ mode: 'optimize', label: 'Optimize', description: '' },
-			{ mode: 'maker', label: 'Maker', description: '' },
-		],
-	},
-	{
-		id: 'output',
-		label: 'Output',
-		description: '',
-		icon: Download,
-		tools: [
-			{ mode: 'convert', label: 'Convert', description: '' },
-			{ mode: 'analyze', label: 'Analyze', description: '' },
-			{ mode: 'export', label: 'Export', description: '' },
-		],
-	},
+/** Flat tool list for the GIF editor ToolRail */
+const GIF_TOOLS: ToolRailItem<GifMode>[] = [
+	{ id: 'settings', label: 'Settings', icon: Settings2 },
+	{ id: 'crop', label: 'Crop', icon: Crop },
+	{ id: 'resize', label: 'Resize', icon: Maximize2 },
+	{ id: 'rotate', label: 'Rotate', icon: RotateCw },
+	{ id: 'aspect', label: 'Aspect', icon: RatioIcon },
+	{ id: 'filters', label: 'Filters', icon: SlidersHorizontal },
+	{ id: 'text', label: 'Text', icon: Type },
+	{ id: 'overlay', label: 'Overlay', icon: Layers },
+	{ id: 'fade', label: 'Fade', icon: Sparkles },
+	{ id: 'frames', label: 'Frames', icon: Clapperboard },
+	{ id: 'optimize', label: 'Optimize', icon: Zap },
+	{ id: 'maker', label: 'Maker', icon: Film },
+	{ id: 'convert', label: 'Convert', icon: RefreshCw },
+	{ id: 'analyze', label: 'Analyze', icon: Search },
+	{ id: 'export', label: 'Export', icon: Download },
 ];
-
-const MODE_TO_SECTION: Record<GifMode, SidebarSectionId> = {
-	settings: 'setup',
-	crop: 'setup',
-	resize: 'setup',
-	rotate: 'setup',
-	aspect: 'setup',
-	filters: 'style',
-	text: 'style',
-	overlay: 'style',
-	fade: 'style',
-	frames: 'timing',
-	optimize: 'timing',
-	maker: 'timing',
-	convert: 'output',
-	analyze: 'output',
-	export: 'output',
-};
-
-const SECTION_STAGE: Record<SidebarSectionId, EditorStage> = {
-	setup: 'source',
-	style: 'edit',
-	timing: 'edit',
-	output: 'output',
-};
-
-const GIF_MODE_STAGE: Record<GifMode, EditorStage> = {
-	settings: 'source',
-	crop: 'source',
-	resize: 'source',
-	rotate: 'source',
-	aspect: 'source',
-	filters: 'edit',
-	text: 'edit',
-	overlay: 'edit',
-	fade: 'edit',
-	frames: 'edit',
-	optimize: 'edit',
-	maker: 'edit',
-	convert: 'output',
-	analyze: 'output',
-	export: 'output',
-};
-
-const STAGE_TO_GIF_MODE: Record<EditorStage, GifMode> = { source: 'settings', edit: 'filters', output: 'export' };
-const SIMPLE_GIF_MODES = new Set<GifMode>(['settings', 'crop', 'resize', 'filters', 'overlay', 'text', 'export']);
-
 function GifFoundry() {
 	useLongTaskObserver('gif-route');
-	const { stage, setStage } = useEditorLayoutPrefs({
-		editor: 'gif',
-		defaultInspectorWidth: 360,
-		defaultStage: 'source',
-	});
+	const { tier, setSidebarOpen } = useEditorLayoutPrefs({ editor: 'gif' });
 	const { ready, processing, progress, error, createGif, extractGifFrames } = useVideoProcessor();
-	const editorUxMode = useEditorUxStore((s) => s.mode);
-	const setEditorUxMode = useEditorUxStore((s) => s.setMode);
-	const isExpertMode = editorUxMode === 'expert';
 	const store = useGifEditorStore(
 		useShallow((s) => ({
 			mode: s.mode,
@@ -315,10 +223,10 @@ function GifFoundry() {
 	const [resultSize, setResultSize] = useState(0);
 	const [resultFileName, setResultFileName] = useState<string | null>(null);
 	const [activePreview, setActivePreview] = useState<'source' | 'result'>('source');
-	const [sidebarSection, setSidebarSection] = useState<SidebarSectionId>('setup');
 	const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
 
 	const [showInfo, setShowInfo] = useState(false);
+	const [compareMode, setCompareMode] = useState(false);
 	const { isConfirmOpen, requestAction, confirmPendingAction, cancelPendingAction } = usePendingActionConfirmation(
 		file !== null,
 	);
@@ -744,66 +652,8 @@ function GifFoundry() {
 		}
 	}, [activePreview, canShowResultPreview]);
 
-	useEffect(() => {
-		const modeStage = GIF_MODE_STAGE[store.mode];
-		if (modeStage !== stage) {
-			setStage(modeStage);
-		}
-	}, [stage, store.mode, setStage]);
-
-	const handleStageChange = useCallback(
-		(nextStage: EditorStage) => {
-			setStage(nextStage);
-			if (GIF_MODE_STAGE[store.mode] !== nextStage) {
-				store.setMode(STAGE_TO_GIF_MODE[nextStage]);
-			}
-		},
-		[setStage, store.mode, store.setMode],
-	);
-
-	useEffect(() => {
-		setSidebarSection(MODE_TO_SECTION[store.mode]);
-	}, [store.mode]);
-
-	const stageSections = useMemo(
-		() => SIDEBAR_SECTIONS.filter((section) => SECTION_STAGE[section.id] === stage),
-		[stage],
-	);
-	const visibleStageSections = useMemo(
-		() =>
-			stageSections
-				.map((section) => ({
-					...section,
-					tools: isExpertMode
-						? section.tools
-						: section.tools.filter((tool) => SIMPLE_GIF_MODES.has(tool.mode)),
-				}))
-				.filter((section) => section.tools.length > 0),
-		[isExpertMode, stageSections],
-	);
-
-	useEffect(() => {
-		setSidebarSection((current) => {
-			if (visibleStageSections.some((section) => section.id === current)) return current;
-			return visibleStageSections[0]?.id ?? 'setup';
-		});
-	}, [visibleStageSections]);
-
-	useEffect(() => {
-		if (isExpertMode) return;
-		if (SIMPLE_GIF_MODES.has(store.mode)) return;
-		const fallbackMode = visibleStageSections[0]?.tools[0]?.mode ?? 'settings';
-		store.setMode(fallbackMode);
-	}, [isExpertMode, store.mode, store.setMode, visibleStageSections]);
-
-	const activeSidebarSection = useMemo(
-		() =>
-			visibleStageSections.find((section) => section.id === sidebarSection) ??
-			visibleStageSections[0] ??
-			stageSections[0] ??
-			SIDEBAR_SECTIONS[0]!,
-		[sidebarSection, stageSections, visibleStageSections],
-	);
+	const isMobile = tier === 'mobile';
+	const isTablet = tier === 'tablet';
 	const hasResizeChanges =
 		sourceWidth != null && sourceHeight != null && (width !== sourceWidth || outputHeight !== sourceHeight);
 	const toolActivity: Record<GifMode, boolean> = {
@@ -831,18 +681,42 @@ function GifFoundry() {
 		analyze: false,
 		export: false,
 	};
-	const sectionTabs = visibleStageSections.map((section) => ({
-		id: section.id,
-		label: section.label,
-		icon: section.icon,
-		description: section.description,
-	}));
-	const modeTabs = activeSidebarSection.tools.map((tool) => ({
-		id: tool.mode,
-		label: tool.label,
-		description: tool.description,
-		hasActivity: toolActivity[tool.mode],
-	}));
+	const hasChanges = Object.values(toolActivity).some(Boolean);
+
+	const gifToolItems: ToolRailItem<GifMode>[] = useMemo(
+		() => GIF_TOOLS.map((tool) => ({ ...tool, hasActivity: toolActivity[tool.id] })),
+		[toolActivity],
+	);
+
+	const handleToolChange = useCallback(
+		(toolId: GifMode) => {
+			store.setMode(toolId);
+			if (isMobile) setSidebarOpen(true);
+		},
+		[store.setMode, isMobile, setSidebarOpen],
+	);
+
+	const handleToolToggle = useCallback(
+		(toolId: GifMode) => {
+			if (store.mode === toolId) {
+				if (isMobile) setSidebarOpen(false);
+			} else {
+				store.setMode(toolId);
+				if (isMobile) setSidebarOpen(true);
+			}
+		},
+		[store.mode, store.setMode, isMobile, setSidebarOpen],
+	);
+
+	const gifToolRail = (
+		<ToolRail
+			items={gifToolItems}
+			activeId={store.mode}
+			onChange={isTablet || isMobile ? handleToolToggle : handleToolChange}
+			direction={isTablet ? 'vertical' : 'horizontal'}
+			ariaLabel="GIF editor tools"
+		/>
+	);
 
 	const modePanel = useMemo(() => {
 		switch (store.mode) {
@@ -967,44 +841,10 @@ function GifFoundry() {
 	/* ── Sidebar Content ── */
 	const sidebarContent = (
 		<>
-			{/* Stage Tabs */}
-			<div className="p-2.5 border-b border-border/70 bg-surface-raised/15">
-				<EditorStageTabs stage={stage} onChange={handleStageChange} />
-			</div>
-
-			{visibleStageSections.length > 1 && (
-				<div className="border-b border-border/70 bg-surface/70">
-					<p className="px-3 pt-2.5 mb-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-text-tertiary">
-						Workflow
-					</p>
-					<EditorModeTabs
-						value={sidebarSection}
-						items={sectionTabs}
-						onChange={(nextSection) => {
-							setSidebarSection(nextSection);
-							if (MODE_TO_SECTION[store.mode] !== nextSection) {
-								const targetSection = visibleStageSections.find(
-									(section) => section.id === nextSection,
-								);
-								const nextMode = targetSection?.tools[0]?.mode;
-								if (nextMode) store.setMode(nextMode);
-							}
-						}}
-						ariaLabel="GIF workflow sections"
-					/>
-				</div>
-			)}
-
-			<div className="border-b border-border/70 bg-surface-raised/10">
-				<EditorModeTabs
-					value={store.mode}
-					items={modeTabs}
-					onChange={store.setMode}
-					ariaLabel={`${activeSidebarSection.label} tools`}
-				/>
-			</div>
-
-			<div className="p-3 flex flex-col gap-4 flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden">
+			<div
+				className="p-3 flex flex-col gap-4 flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden animate-panel-crossfade"
+				key={store.mode}
+			>
 				{modePanel}
 			</div>
 
@@ -1074,6 +914,8 @@ function GifFoundry() {
 				editor="gif"
 				hasFile={file !== null}
 				sidebarLabel="gif inspector"
+				toolRail={file ? gifToolRail : undefined}
+				toolPanelOpen={isTablet && file !== null}
 				main={
 					<>
 						{file && (
@@ -1086,8 +928,11 @@ function GifFoundry() {
 								currentFrame={timeToFrames(currentTime)}
 								totalFrames={totalFrames}
 								isGifSource={isGifSource}
-								editorUxMode={editorUxMode}
-								onEditorUxModeChange={setEditorUxMode}
+								compareMode={compareMode}
+								hasChanges={hasChanges}
+								onToggleCompare={() => {
+									setCompareMode((prev) => !prev);
+								}}
 								onOpenFile={() => {
 									fileInputRef.current?.click();
 								}}

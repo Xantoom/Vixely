@@ -1,5 +1,5 @@
 import { AlertTriangle, X } from 'lucide-react';
-import { useEffect, useId } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/index.ts';
 
 interface ConfirmResetModalProps {
@@ -19,72 +19,82 @@ export function ConfirmResetModal({
 	confirmLabel = 'Discard Changes',
 	cancelLabel = 'Keep Editing',
 }: ConfirmResetModalProps) {
-	const titleId = useId();
-	const descriptionId = useId();
+	const cancelRef = useRef<HTMLButtonElement>(null);
 
 	useEffect(() => {
-		const onKeyDown = (event: KeyboardEvent) => {
+		cancelRef.current?.focus();
+	}, []);
+
+	const onKeyDown = useCallback(
+		(event: KeyboardEvent) => {
 			if (event.key === 'Escape') {
 				event.preventDefault();
 				onCancel();
 			}
-		};
+		},
+		[onCancel],
+	);
+
+	useEffect(() => {
 		window.addEventListener('keydown', onKeyDown);
 		return () => {
 			window.removeEventListener('keydown', onKeyDown);
 		};
-	}, [onCancel]);
+	}, [onKeyDown]);
 
 	return (
 		<div
-			className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-2 sm:p-4 animate-fade-in"
+			className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4"
 			onClick={onCancel}
 			role="presentation"
 		>
+			{/* Backdrop */}
+			<div className="absolute inset-0 bg-black/60 backdrop-blur-[6px] animate-[confirm-backdrop_250ms_ease-out_both]" />
+
+			{/* Gradient border wrapper */}
 			<div
-				className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl animate-slide-up sm:animate-scale-in"
-				role="dialog"
+				className="relative w-full max-w-md rounded-xl p-px bg-gradient-to-br from-danger/70 via-warning/50 to-danger/70 shadow-[0_16px_48px_rgba(0,0,0,0.5),0_2px_8px_rgba(0,0,0,0.3),0_0_32px_rgba(248,113,113,0.08)] animate-[confirm-dialog_350ms_cubic-bezier(0.16,1,0.3,1)_both]"
+				role="alertdialog"
 				aria-modal="true"
-				aria-labelledby={titleId}
-				aria-describedby={descriptionId}
-				onClick={(event) => {
-					event.stopPropagation();
+				aria-label={title}
+				onClick={(e) => {
+					e.stopPropagation();
 				}}
 			>
-				<div className="h-1.5 w-full bg-gradient-to-r from-danger/80 via-warning/70 to-danger/80" />
+				{/* Inner surface */}
+				<div className="rounded-[11px] bg-surface overflow-hidden">
+					{/* Close */}
+					<button
+						type="button"
+						onClick={onCancel}
+						className="absolute top-3.5 right-3.5 h-7 w-7 flex items-center justify-center rounded-md text-text-tertiary hover:text-text hover:bg-surface-raised/60 transition-colors cursor-pointer z-10"
+						aria-label="Close"
+					>
+						<X size={14} />
+					</button>
 
-				<button
-					type="button"
-					onClick={onCancel}
-					className="absolute top-3 right-3 h-8 w-8 flex items-center justify-center rounded-md text-text-tertiary hover:text-text hover:bg-surface-raised/70 transition-colors cursor-pointer"
-					aria-label="Close warning modal"
-				>
-					<X size={16} />
-				</button>
+					{/* Content */}
+					<div className="px-5 pt-5 pb-4 sm:px-6 sm:pt-6 sm:pb-5">
+						<div className="flex items-start gap-3.5">
+							{/* Icon */}
+							<div className="mt-0.5 h-9 w-9 rounded-lg bg-warning/10 text-warning flex items-center justify-center shrink-0 ring-1 ring-warning/15">
+								<AlertTriangle size={16} strokeWidth={2.25} />
+							</div>
 
-				<div className="p-5 sm:p-6">
-					<div className="flex items-start gap-3 sm:gap-4">
-						<div className="mt-0.5 h-10 w-10 rounded-xl bg-danger/15 text-danger flex items-center justify-center shrink-0">
-							<AlertTriangle size={18} />
-						</div>
-						<div className="min-w-0">
-							<h2 id={titleId} className="text-lg font-bold leading-tight">
-								{title}
-							</h2>
-							<p id={descriptionId} className="mt-2 text-sm text-text-secondary leading-relaxed">
-								{description}
-							</p>
-							<div className="mt-3 rounded-lg border border-danger/20 bg-danger/10 px-3 py-2 text-[13px] text-text-secondary">
-								Your edits are local to this editor and will be cleared after switching tabs.
+							{/* Text */}
+							<div className="min-w-0 pt-0.5">
+								<h2 className="text-[15px] font-semibold leading-tight tracking-[-0.01em]">{title}</h2>
+								<p className="mt-1.5 text-[13px] text-text-secondary leading-relaxed">{description}</p>
 							</div>
 						</div>
 					</div>
 
-					<div className="mt-5 flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
-						<Button variant="ghost" size="md" className="sm:min-w-36" onClick={onCancel}>
+					{/* Actions */}
+					<div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end px-5 pb-5 sm:px-6 sm:pb-6">
+						<Button ref={cancelRef} variant="ghost" size="md" className="sm:min-w-28" onClick={onCancel}>
 							{cancelLabel}
 						</Button>
-						<Button variant="danger" size="md" className="sm:min-w-44" onClick={onConfirm}>
+						<Button variant="danger" size="md" className="sm:min-w-36" onClick={onConfirm}>
 							{confirmLabel}
 						</Button>
 					</div>

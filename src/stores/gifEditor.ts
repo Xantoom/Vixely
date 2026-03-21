@@ -78,6 +78,10 @@ export interface GifEditorState {
 	colorReduction: number;
 	loopCount: number;
 
+	// Compare
+	compareMode: boolean;
+	comparePosition: number;
+
 	// Crop
 	crop: CropRect | null;
 	cropAspect: CropAspectPreset;
@@ -168,6 +172,10 @@ export interface GifEditorState {
 	setAspectPreset: (preset: AspectPreset) => void;
 	setAspectPaddingColor: (color: string) => void;
 
+	// Compare actions
+	setCompareMode: (enabled: boolean) => void;
+	setComparePosition: (position: number) => void;
+
 	resetAll: () => void;
 	hasFilterChanges: () => boolean;
 }
@@ -187,6 +195,9 @@ export const useGifEditorStore = create<GifEditorState>((set, get) => ({
 	reverse: false,
 	colorReduction: 256,
 	loopCount: 0,
+
+	compareMode: false,
+	comparePosition: 0.5,
 
 	crop: null,
 	cropAspect: 'free',
@@ -366,6 +377,14 @@ export const useGifEditorStore = create<GifEditorState>((set, get) => ({
 		set({ aspectPaddingColor });
 	},
 
+	// Compare actions
+	setCompareMode: (compareMode) => {
+		set({ compareMode });
+	},
+	setComparePosition: (comparePosition) => {
+		set({ comparePosition });
+	},
+
 	resetAll: () => {
 		const { extractedFrames, imageOverlay } = get();
 		for (const frame of extractedFrames) {
@@ -378,6 +397,8 @@ export const useGifEditorStore = create<GifEditorState>((set, get) => ({
 			reverse: false,
 			colorReduction: 256,
 			loopCount: 0,
+			compareMode: false,
+			comparePosition: 0.5,
 			crop: null,
 			cropAspect: 'free',
 			rotation: 0,

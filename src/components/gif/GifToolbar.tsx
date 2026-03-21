@@ -1,9 +1,7 @@
-import { FilePlus2, Info, StepBack, StepForward } from 'lucide-react';
+import { Columns2, FilePlus2, Info, StepBack, StepForward } from 'lucide-react';
 import { EditorToolbar } from '@/components/editor/EditorToolbar.tsx';
-import { EditorUxModeSwitch } from '@/components/editor/EditorUxModeSwitch.tsx';
 import { IconButton, ToolbarSeparator } from '@/components/ui/IconButton.tsx';
 import { formatCompactTime } from '@/components/ui/Timeline.tsx';
-import type { EditorUxMode } from '@/stores/editorUx.ts';
 import { formatFileSize, formatNumber } from '@/utils/format.ts';
 
 interface GifToolbarProps {
@@ -15,14 +13,15 @@ interface GifToolbarProps {
 	currentFrame: number;
 	totalFrames: number;
 	isGifSource: boolean;
-	editorUxMode: EditorUxMode;
-	onEditorUxModeChange: (mode: EditorUxMode) => void;
 	onOpenFile: () => void;
 	onNew: () => void;
 	onStepFrame: (dir: -1 | 1) => void;
 	onStartFrameHold: (dir: -1 | 1) => void;
 	onStopFrameHold: () => void;
 	onShowInfo: () => void;
+	compareMode: boolean;
+	hasChanges: boolean;
+	onToggleCompare: () => void;
 }
 
 export function GifToolbar({
@@ -34,14 +33,15 @@ export function GifToolbar({
 	currentFrame,
 	totalFrames,
 	isGifSource,
-	editorUxMode,
-	onEditorUxModeChange,
 	onOpenFile,
 	onNew,
 	onStepFrame,
 	onStartFrameHold,
 	onStopFrameHold,
 	onShowInfo,
+	compareMode,
+	hasChanges,
+	onToggleCompare,
 }: GifToolbarProps) {
 	if (!file) return null;
 
@@ -97,6 +97,13 @@ export function GifToolbar({
 				{isGifSource ? 'GIF' : 'Video'}
 			</span>
 
+			<ToolbarSeparator />
+
+			{/* Compare toggle */}
+			<IconButton onClick={onToggleCompare} active={compareMode} disabled={!hasChanges} title="Split compare">
+				<Columns2 size={16} />
+			</IconButton>
+
 			{/* Spacer */}
 			<div className="flex-1" />
 
@@ -109,13 +116,6 @@ export function GifToolbar({
 					</span>
 				)}
 				{duration > 0 && <span>{formatCompactTime(duration)}</span>}
-			</div>
-
-			<ToolbarSeparator />
-
-			{/* Simple / Expert toggle */}
-			<div className="hidden sm:block">
-				<EditorUxModeSwitch mode={editorUxMode} onChange={onEditorUxModeChange} />
 			</div>
 
 			<ToolbarSeparator />

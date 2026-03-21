@@ -195,7 +195,7 @@ void main() {
 	vec4 color = texture(u_texture, v_uv);
 	if (u_grain > 0.0) {
 		float noise = rand(v_uv + u_time) * 2.0 - 1.0;
-		color.rgb += noise * u_grain * 0.15;
+		color.rgb += noise * u_grain * 0.01;
 		color.rgb = clamp(color.rgb, 0.0, 1.0);
 	}
 	fragColor = color;

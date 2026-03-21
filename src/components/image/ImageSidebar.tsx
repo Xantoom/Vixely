@@ -1,15 +1,20 @@
 import { Lock, Unlock, Maximize2, SlidersHorizontal, Palette, Download } from 'lucide-react';
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useId, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
 import { SharedPresetsPanel, type PresetEntry } from '@/components/shared/PresetsPanel.tsx';
-import { Button, EditorModeTabs, EditorStageTabs, type EditorModeTabItem, Slider } from '@/components/ui/index.ts';
+import { Button, Slider } from '@/components/ui/index.ts';
+import { ToolRail, type ToolRailItem } from '@/components/ui/ToolRail.tsx';
+import {
+	LIGHT_SLIDERS,
+	COLOR_SLIDERS,
+	EFFECT_SLIDERS as EFFECTS_SLIDERS,
+	type FilterSliderDef,
+} from '@/config/filterSliders.ts';
 import { filterPresetEntries, imagePresetEntries } from '@/config/presets.ts';
-import type { EditorStage } from '@/hooks/useEditorLayoutPrefs.ts';
 import { buildFallbackFilterString } from '@/modules/photo-editor/render/fallback-filters.ts';
 import { PhotoWebGLRenderer } from '@/modules/photo-editor/render/webgl-renderer.ts';
 import { filtersAreDefault } from '@/modules/shared-core/types/filters.ts';
-import { useEditorUxStore } from '@/stores/editorUx.ts';
 import { useImageEditorStore, type ExportFormat } from '@/stores/imageEditor.ts';
 import { buildExportFilename } from '@/utils/exportFilename.ts';
 import { formatFileSize, estimateImageSize } from '@/utils/format.ts';
@@ -17,20 +22,6 @@ import { ImageInfoModal } from './ImageInfoModal.tsx';
 
 const FILTER_PRESETS = filterPresetEntries();
 const IMAGE_PRESETS = imagePresetEntries();
-
-interface ImageSidebarProps {
-	stage: EditorStage;
-	onStageChange: (stage: EditorStage) => void;
-	showInfo: boolean;
-	onShowInfoChange: (show: boolean) => void;
-}
-
-import {
-	LIGHT_SLIDERS,
-	COLOR_SLIDERS,
-	EFFECT_SLIDERS as EFFECTS_SLIDERS,
-	type FilterSliderDef,
-} from '@/config/filterSliders.ts';
 
 const FORMAT_OPTIONS: { value: ExportFormat; label: string }[] = [
 	{ value: 'png', label: 'PNG' },
@@ -40,23 +31,19 @@ const FORMAT_OPTIONS: { value: ExportFormat; label: string }[] = [
 
 type ImageMode = 'resize' | 'adjust' | 'presets' | 'export';
 
-const IMAGE_MODE_TABS: EditorModeTabItem<ImageMode>[] = [
+const IMAGE_TOOLS: ToolRailItem<ImageMode>[] = [
 	{ id: 'resize', label: 'Resize', icon: Maximize2 },
 	{ id: 'adjust', label: 'Adjust', icon: SlidersHorizontal },
 	{ id: 'presets', label: 'Presets', icon: Palette },
 	{ id: 'export', label: 'Export', icon: Download },
 ];
 
-const IMAGE_MODE_STAGE: Record<ImageMode, EditorStage> = {
-	resize: 'source',
-	presets: 'source',
-	adjust: 'edit',
-	export: 'output',
-};
+interface ImageSidebarProps {
+	showInfo: boolean;
+	onShowInfoChange: (show: boolean) => void;
+}
 
-const STAGE_DEFAULT_MODE: Record<EditorStage, ImageMode> = { source: 'resize', edit: 'adjust', output: 'export' };
-
-export function ImageSidebar({ stage, onStageChange, showInfo, onShowInfoChange }: ImageSidebarProps) {
+export function ImageSidebar({ showInfo, onShowInfoChange }: ImageSidebarProps) {
 	const {
 		file,
 		originalData,
@@ -116,14 +103,6 @@ export function ImageSidebar({ stage, onStageChange, showInfo, onShowInfoChange 
 			})),
 		[],
 	);
-	const isExpertMode = useEditorUxStore((s) => s.mode) === 'expert';
-
-	useEffect(() => {
-		setMode((currentMode) => {
-			if (IMAGE_MODE_STAGE[currentMode] === stage) return currentMode;
-			return STAGE_DEFAULT_MODE[stage];
-		});
-	}, [stage]);
 
 	const handleSliderCommit = useCallback(() => {
 		commitFilters();
@@ -247,33 +226,32 @@ export function ImageSidebar({ stage, onStageChange, showInfo, onShowInfoChange 
 		presets: hasAdjustChanges || hasResizeChanges,
 		export: false,
 	};
-	const stageModeTabs = IMAGE_MODE_TABS.filter((tab) => IMAGE_MODE_STAGE[tab.id] === stage).map((tab) => ({
-		...tab,
-		hasActivity: modeActivity[tab.id],
-	}));
+	const toolItems: ToolRailItem<ImageMode>[] = useMemo(
+		() => IMAGE_TOOLS.map((tool) => ({ ...tool, hasActivity: modeActivity[tool.id] })),
+		[modeActivity],
+	);
 
 	return (
 		<aside
 			className="w-full h-full min-h-0 overflow-hidden bg-surface flex flex-col"
 			style={{ overscrollBehavior: 'contain' }}
 		>
-			{/* Stage Tabs */}
-			<div className="p-2.5 border-b border-border/70 bg-surface-raised/15">
-				<EditorStageTabs stage={stage} onChange={onStageChange} />
-			</div>
-
-			{/* Mode Tabs */}
-			<div className="shrink-0 border-b border-border/70 bg-surface-raised/10">
-				<EditorModeTabs
-					value={mode}
-					items={stageModeTabs}
+			{/* ToolRail */}
+			<div className="shrink-0 border-b border-border/70 bg-surface-raised/15">
+				<ToolRail
+					items={toolItems}
+					activeId={mode}
 					onChange={setMode}
-					ariaLabel="Image editor mode tabs"
+					direction="horizontal"
+					ariaLabel="Image editor tools"
 				/>
 			</div>
 
-			{/* Tab Content */}
-			<div className="p-3 flex flex-col gap-4 flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden">
+			{/* Panel Content */}
+			<div
+				className="p-3 flex flex-col gap-4 flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden animate-panel-crossfade"
+				key={mode}
+			>
 				{mode === 'resize' && (
 					<>
 						{originalData ? (
@@ -376,14 +354,10 @@ export function ImageSidebar({ stage, onStageChange, showInfo, onShowInfoChange 
 							Color
 						</h3>
 						{renderSliders(COLOR_SLIDERS)}
-						{isExpertMode ? (
-							<>
-								<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mt-2">
-									Effects
-								</h3>
-								{renderSliders(EFFECTS_SLIDERS)}
-							</>
-						) : null}
+						<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mt-2">
+							Effects
+						</h3>
+						{renderSliders(EFFECTS_SLIDERS)}
 					</>
 				)}
 
@@ -430,7 +404,7 @@ export function ImageSidebar({ stage, onStageChange, showInfo, onShowInfoChange 
 								</button>
 							))}
 						</div>
-						{isExpertMode && exportFormat !== 'png' && (
+						{exportFormat !== 'png' && (
 							<Slider
 								label="Quality"
 								displayValue={`${exportQuality}`}

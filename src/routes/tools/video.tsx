@@ -5,6 +5,7 @@ import {
 	Video,
 	ImageIcon,
 	Film,
+	Layers,
 	Palette,
 	Scissors,
 	Scaling,
@@ -18,21 +19,13 @@ import { toast } from 'sonner';
 import { EditorLanding } from '@/components/editor/EditorLanding.tsx';
 import { EditorEmptyState, EditorQuickActions, EditorShell } from '@/components/editor/index.ts';
 import { Seo, buildWebAppSchema, buildFAQSchema } from '@/components/Seo.tsx';
-import {
-	Button,
-	EditorStageTabs,
-	Slider,
-	Timeline,
-	Toggle,
-	formatTimecode,
-	formatCompactTime,
-} from '@/components/ui/index.ts';
+import { Button, Slider, Timeline, Toggle, formatTimecode, formatCompactTime } from '@/components/ui/index.ts';
+import { ToolRail, type ToolRailItem } from '@/components/ui/ToolRail.tsx';
 import { AdjustPanel } from '@/components/video/AdjustPanel.tsx';
 import { getPlatformKey } from '@/components/video/PlatformIcons.tsx';
 import { PresetsPanel } from '@/components/video/PresetsPanel.tsx';
 import { ResizePanel } from '@/components/video/ResizePanel.tsx';
 import { VideoInfoModal } from '@/components/video/VideoInfoModal.tsx';
-import { VideoModeTabs } from '@/components/video/VideoModeTabs.tsx';
 import { VideoPlayer } from '@/components/video/VideoPlayer.tsx';
 import { VideoToolbar } from '@/components/video/VideoToolbar.tsx';
 import {
@@ -57,7 +50,6 @@ import { useVideoProcessor } from '@/hooks/useVideoProcessor.ts';
 import { buildFfmpegExportPlan } from '@/modules/video-editor/export/ffmpeg-export-plan.ts';
 import { sizeConstrainedExport } from '@/modules/video-editor/export/sizeConstrainedExport.ts';
 import { useEditorSessionStore } from '@/stores/editorSession.ts';
-import { useEditorUxStore } from '@/stores/editorUx.ts';
 import type { AdvancedVideoSettings } from '@/stores/videoEditor.ts';
 import { useVideoEditorStore, type VideoMode } from '@/stores/videoEditor.ts';
 import { setPendingImageTransfer } from '@/utils/crossEditorTransfer.ts';
@@ -204,20 +196,14 @@ function codecSupportsQp(codec: string): boolean {
 	return codec === 'libx264' || codec === 'libx265';
 }
 
-const VIDEO_MODE_STAGE: Record<VideoMode, 'source' | 'edit' | 'output'> = {
-	presets: 'source',
-	trim: 'source',
-	resize: 'edit',
-	adjust: 'edit',
-	compare: 'edit',
-	export: 'output',
-};
-
-const STAGE_TO_VIDEO_MODE: Record<'source' | 'edit' | 'output', VideoMode> = {
-	source: 'presets',
-	edit: 'resize',
-	output: 'export',
-};
+/** Flat tool list for the video editor ToolRail */
+const VIDEO_TOOLS: ToolRailItem<VideoMode>[] = [
+	{ id: 'presets', label: 'Presets', icon: Layers },
+	{ id: 'trim', label: 'Trim', icon: Scissors },
+	{ id: 'resize', label: 'Resize', icon: Scaling },
+	{ id: 'adjust', label: 'Adjust', icon: Palette },
+	{ id: 'export', label: 'Export', icon: Download },
+];
 
 function applyAdvancedUpdate(
 	settings: AdvancedVideoSettings,
@@ -246,11 +232,7 @@ function applyAdvancedUpdate(
 function VideoStudio() {
 	const navigate = useNavigate();
 	useLongTaskObserver('video-route');
-	const { stage, setStage } = useEditorLayoutPrefs({
-		editor: 'video',
-		defaultInspectorWidth: 360,
-		defaultStage: 'source',
-	});
+	const { tier, setSidebarOpen } = useEditorLayoutPrefs({ editor: 'video' });
 	const {
 		ready,
 		processing,
@@ -279,9 +261,6 @@ function VideoStudio() {
 	const setAdvancedSettings = useVideoEditorStore((s) => s.setAdvancedSettings);
 	const ffmpegFilterArgs = useVideoEditorStore((s) => s.ffmpegFilterArgs);
 	const resizeFilterArgs = useVideoEditorStore((s) => s.resizeFilterArgs);
-	const editorUxMode = useEditorUxStore((s) => s.mode);
-	const setEditorUxMode = useEditorUxStore((s) => s.setMode);
-	const isExpertMode = editorUxMode === 'expert';
 
 	const updateAdvanced = useCallback(
 		<K extends keyof AdvancedVideoSettings>(key: K, value: AdvancedVideoSettings[K]) => {
@@ -354,30 +333,6 @@ function VideoStudio() {
 	const minTrimDuration = frameDuration;
 	const metadataExportLocked = streamInfoPending;
 	const metadataVideoLoading = streamInfoPending || detailedProbePending;
-
-	useEffect(() => {
-		if (editorUxMode !== 'simple') return;
-		if (selectedPreset != null) return;
-		const fallbackPreset = groupedPresets[0]?.presets[0]?.[0] ?? null;
-		if (fallbackPreset) setSelectedPreset(fallbackPreset);
-	}, [editorUxMode, groupedPresets, selectedPreset, setSelectedPreset]);
-
-	useEffect(() => {
-		const modeStage = VIDEO_MODE_STAGE[videoMode];
-		if (modeStage !== stage) {
-			setStage(modeStage);
-		}
-	}, [stage, videoMode, setStage]);
-
-	const handleStageChange = useCallback(
-		(nextStage: 'source' | 'edit' | 'output') => {
-			setStage(nextStage);
-			if (VIDEO_MODE_STAGE[videoMode] !== nextStage) {
-				setVideoMode(STAGE_TO_VIDEO_MODE[nextStage]);
-			}
-		},
-		[setStage, setVideoMode, videoMode],
-	);
 
 	useEffect(() => {
 		progressRef.current = progress;
@@ -958,18 +913,59 @@ function VideoStudio() {
 		videoFilters.saturation !== 1 ||
 		videoFilters.hue !== 0;
 	const usingPreBurnedAssSource = usePreBurnedAssSource && preBurnedAssSourceFile != null;
+	const isMobile = tier === 'mobile';
+	const isTablet = tier === 'tablet';
+
+	const videoToolItems: ToolRailItem<VideoMode>[] = useMemo(
+		() =>
+			VIDEO_TOOLS.map((tool) => ({
+				...tool,
+				hasActivity:
+					(tool.id === 'presets' && selectedPreset != null) ||
+					(tool.id === 'trim' && hasTrimAdjustments) ||
+					(tool.id === 'resize' && hasResizeAdjustments) ||
+					(tool.id === 'adjust' && hasColorAdjustments),
+			})),
+		[selectedPreset, hasTrimAdjustments, hasResizeAdjustments, hasColorAdjustments],
+	);
+
+	const handleToolChange = useCallback(
+		(toolId: VideoMode) => {
+			setVideoMode(toolId);
+			if (isMobile) setSidebarOpen(true);
+		},
+		[setVideoMode, isMobile, setSidebarOpen],
+	);
+
+	const handleToolToggle = useCallback(
+		(toolId: VideoMode) => {
+			if (videoMode === toolId) {
+				if (isMobile) setSidebarOpen(false);
+			} else {
+				setVideoMode(toolId);
+				if (isMobile) setSidebarOpen(true);
+			}
+		},
+		[videoMode, setVideoMode, isMobile, setSidebarOpen],
+	);
+
+	const videoToolRail = (
+		<ToolRail
+			items={videoToolItems}
+			activeId={videoMode}
+			onChange={isTablet || isMobile ? handleToolToggle : handleToolChange}
+			direction={isTablet ? 'vertical' : 'horizontal'}
+			ariaLabel="Video editor tools"
+		/>
+	);
+
 	const sidebarContent = (
 		<>
-			{/* Stage Tabs */}
-			<div className="p-2.5 border-b border-border/70 bg-surface-raised/15">
-				<EditorStageTabs stage={stage} onChange={handleStageChange} />
-			</div>
-
-			{/* Mode Tabs */}
-			<VideoModeTabs hasTrimChanges={hasTrimAdjustments} selectedPreset={selectedPreset} />
-
-			{/* Tab Content */}
-			<div className="p-3 flex flex-col gap-4 flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden">
+			{/* Panel Content */}
+			<div
+				className="p-3 flex flex-col gap-4 flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden animate-panel-crossfade"
+				key={videoMode}
+			>
 				{/* ── Presets Tab ── */}
 				{videoMode === 'presets' && (
 					<PresetsPanel
@@ -1296,29 +1292,18 @@ function VideoStudio() {
 								</button>
 								<button
 									onClick={() => {
-										if (isExpertMode) setSelectedPreset(null);
+										setSelectedPreset(null);
 									}}
-									disabled={!isExpertMode}
 									className={`rounded-md px-3 py-2 text-sm font-semibold transition-colors cursor-pointer ${
 										isCustomExportMode
 											? 'bg-accent/15 text-accent'
-											: 'text-text-tertiary hover:text-text-secondary disabled:opacity-40 disabled:cursor-not-allowed'
+											: 'text-text-tertiary hover:text-text-secondary'
 									}`}
-									title={
-										isExpertMode
-											? 'Switch to custom export controls'
-											: 'Custom export is available in Expert mode'
-									}
+									title="Switch to custom export controls"
 								>
 									Custom
 								</button>
 							</div>
-							{!isExpertMode && (
-								<p className="mt-2 text-[12px] text-text-tertiary">
-									Simple mode uses presets to keep exports reliable. Switch to Expert for custom codec
-									controls.
-								</p>
-							)}
 						</div>
 
 						<div className="flex flex-col gap-2.5">
@@ -1393,7 +1378,7 @@ function VideoStudio() {
 												Video settings managed by the active preset
 											</p>
 										</div>
-									) : isExpertMode ? (
+									) : (
 										<div className="flex flex-col gap-3">
 											<div>
 												<p className="text-xs font-medium text-text-tertiary mb-2 uppercase tracking-wide">
@@ -1602,15 +1587,6 @@ function VideoStudio() {
 												</div>
 											)}
 										</div>
-									) : (
-										<div className="rounded-lg border border-border/50 bg-bg/30 px-3.5 py-2.5">
-											<p className="text-sm font-medium text-text">
-												Custom video settings are hidden in Simple mode.
-											</p>
-											<p className="mt-0.5 text-xs text-text-tertiary">
-												Switch to Expert to tune codec, container, and quality controls.
-											</p>
-										</div>
 									)}
 								</div>
 							</div>
@@ -1759,7 +1735,7 @@ function VideoStudio() {
 												</button>
 											</div>
 
-											{isExpertMode && isCustomExportMode && !audioNoReencode && (
+											{isCustomExportMode && !audioNoReencode && (
 												<>
 													<div className="h-px bg-border/40" />
 													<div className="flex flex-col gap-3">
@@ -1839,79 +1815,77 @@ function VideoStudio() {
 							)}
 
 							{/* ASS Fidelity */}
-							{isExpertMode && (
-								<div className="rounded-xl border border-border/60 overflow-hidden">
-									<div className="flex items-center justify-between px-4 py-3 bg-surface-raised/10 border-b border-border/40">
-										<div>
-											<span className="text-sm font-semibold text-text-secondary block">
-												ASS Fidelity
-											</span>
-											<span className="text-xs text-text-tertiary">
-												Pre-burned source for full styling
-											</span>
-										</div>
-										<Toggle
-											enabled={usePreBurnedAssSource}
-											onToggle={() => {
-												setUsePreBurnedAssSource((prev) => !prev);
-											}}
-											label={
-												usePreBurnedAssSource
-													? 'Disable ASS fidelity mode'
-													: 'Enable ASS fidelity mode'
-											}
-										/>
+							<div className="rounded-xl border border-border/60 overflow-hidden">
+								<div className="flex items-center justify-between px-4 py-3 bg-surface-raised/10 border-b border-border/40">
+									<div>
+										<span className="text-sm font-semibold text-text-secondary block">
+											ASS Fidelity
+										</span>
+										<span className="text-xs text-text-tertiary">
+											Pre-burned source for full styling
+										</span>
 									</div>
-									{usePreBurnedAssSource ? (
-										<div className="p-4 flex flex-col gap-2.5">
-											<div className="rounded-lg border border-border/50 bg-bg/30 px-3.5 py-2.5 flex items-center justify-between gap-2 text-sm">
-												{preBurnedAssSourceFile ? (
-													<>
-														<span className="truncate text-text">
-															{preBurnedAssSourceFile.name}
-														</span>
-														<span className="shrink-0 text-xs font-mono text-text-tertiary">
-															{formatFileSize(preBurnedAssSourceFile.size)}
-														</span>
-													</>
-												) : (
-													<span className="text-text-tertiary">No source file selected</span>
-												)}
-											</div>
-											<div className="grid grid-cols-2 gap-1.5">
-												<button
-													onClick={() => {
-														preBurnedAssInputRef.current?.click();
-													}}
-													className="rounded-lg border border-border/60 bg-surface-raised/30 px-3 py-2 text-sm font-medium text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
-												>
-													Choose file
-												</button>
-												<button
-													onClick={() => {
-														setPreBurnedAssSourceFile(null);
-														setUsePreBurnedAssSource(false);
-														if (preBurnedAssInputRef.current)
-															preBurnedAssInputRef.current.value = '';
-													}}
-													disabled={!preBurnedAssSourceFile}
-													className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-														preBurnedAssSourceFile
-															? 'border-border/60 bg-surface-raised/30 text-text-tertiary hover:text-text-secondary cursor-pointer'
-															: 'border-border/40 bg-surface-raised/20 text-text-tertiary/40 cursor-not-allowed'
-													}`}
-												>
-													Clear
-												</button>
-											</div>
-										</div>
-									) : (
-										<div className="px-4 py-3 text-sm italic text-text-tertiary">
-											Normal subtitle track export from source.
-										</div>
-									)}
+									<Toggle
+										enabled={usePreBurnedAssSource}
+										onToggle={() => {
+											setUsePreBurnedAssSource((prev) => !prev);
+										}}
+										label={
+											usePreBurnedAssSource
+												? 'Disable ASS fidelity mode'
+												: 'Enable ASS fidelity mode'
+										}
+									/>
 								</div>
-							)}
+								{usePreBurnedAssSource ? (
+									<div className="p-4 flex flex-col gap-2.5">
+										<div className="rounded-lg border border-border/50 bg-bg/30 px-3.5 py-2.5 flex items-center justify-between gap-2 text-sm">
+											{preBurnedAssSourceFile ? (
+												<>
+													<span className="truncate text-text">
+														{preBurnedAssSourceFile.name}
+													</span>
+													<span className="shrink-0 text-xs font-mono text-text-tertiary">
+														{formatFileSize(preBurnedAssSourceFile.size)}
+													</span>
+												</>
+											) : (
+												<span className="text-text-tertiary">No source file selected</span>
+											)}
+										</div>
+										<div className="grid grid-cols-2 gap-1.5">
+											<button
+												onClick={() => {
+													preBurnedAssInputRef.current?.click();
+												}}
+												className="rounded-lg border border-border/60 bg-surface-raised/30 px-3 py-2 text-sm font-medium text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
+											>
+												Choose file
+											</button>
+											<button
+												onClick={() => {
+													setPreBurnedAssSourceFile(null);
+													setUsePreBurnedAssSource(false);
+													if (preBurnedAssInputRef.current)
+														preBurnedAssInputRef.current.value = '';
+												}}
+												disabled={!preBurnedAssSourceFile}
+												className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+													preBurnedAssSourceFile
+														? 'border-border/60 bg-surface-raised/30 text-text-tertiary hover:text-text-secondary cursor-pointer'
+														: 'border-border/40 bg-surface-raised/20 text-text-tertiary/40 cursor-not-allowed'
+												}`}
+											>
+												Clear
+											</button>
+										</div>
+									</div>
+								) : (
+									<div className="px-4 py-3 text-sm italic text-text-tertiary">
+										Normal subtitle track export from source.
+									</div>
+								)}
+							</div>
 
 							{/* Subtitles */}
 							{subtitleStreams.length > 0 && (
@@ -2325,6 +2299,8 @@ function VideoStudio() {
 				editor="video"
 				hasFile={file !== null}
 				sidebarLabel="video inspector"
+				toolRail={file ? videoToolRail : undefined}
+				toolPanelOpen={isTablet && file !== null}
 				main={
 					<>
 						{file && (
@@ -2349,8 +2325,6 @@ function VideoStudio() {
 										(resize.width !== resize.originalWidth ||
 											resize.height !== resize.originalHeight))
 								}
-								editorUxMode={editorUxMode}
-								onEditorUxModeChange={setEditorUxMode}
 								onOpenFile={() => {
 									fileInputRef.current?.click();
 								}}

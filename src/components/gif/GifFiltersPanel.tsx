@@ -9,7 +9,7 @@ const FILTER_PRESETS = filterPresetEntries();
 
 const QUICK_PRESETS: { label: string; filters: Partial<FilterParams> }[] = [
 	{ label: 'Grayscale', filters: { saturation: 0 } },
-	{ label: 'Negative', filters: { exposure: -1, brightness: 1 } },
+	{ label: 'Muted', filters: { contrast: 0.7, saturation: 0.5, brightness: 0.05 } },
 	{ label: 'Vintage', filters: { sepia: 0.6, contrast: 1.2, saturation: 0.8, vignette: 0.3 } },
 	{ label: 'Cinematic', filters: { contrast: 1.3, saturation: 0.85, temperature: 0.1, vignette: 0.25 } },
 	{ label: 'Cool', filters: { temperature: -0.4, saturation: 0.9 } },

@@ -2,9 +2,7 @@ import { Undo2, Redo2, ZoomOut, ZoomIn, Maximize, MousePointer, Crop, Columns2, 
 import { useCallback } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { EditorToolbar } from '@/components/editor/EditorToolbar.tsx';
-import { EditorUxModeSwitch } from '@/components/editor/EditorUxModeSwitch.tsx';
 import { IconButton, ToolbarSeparator } from '@/components/ui/IconButton.tsx';
-import type { EditorUxMode } from '@/stores/editorUx.ts';
 import type { ActiveTool } from '@/stores/imageEditor.ts';
 import { useImageEditorStore } from '@/stores/imageEditor.ts';
 import { formatDimensions } from '@/utils/format.ts';
@@ -12,22 +10,12 @@ import { formatDimensions } from '@/utils/format.ts';
 interface ImageToolbarProps {
 	containerRef: React.RefObject<HTMLDivElement | null>;
 	fileName?: string;
-	editorUxMode: EditorUxMode;
-	onEditorUxModeChange: (mode: EditorUxMode) => void;
 	onOpenFile: () => void;
 	onNew?: () => void;
 	onShowInfo?: () => void;
 }
 
-export function ImageToolbar({
-	containerRef,
-	fileName,
-	editorUxMode,
-	onEditorUxModeChange,
-	onOpenFile,
-	onNew,
-	onShowInfo,
-}: ImageToolbarProps) {
+export function ImageToolbar({ containerRef, fileName, onOpenFile, onNew, onShowInfo }: ImageToolbarProps) {
 	const {
 		zoom,
 		undoCount,
@@ -200,13 +188,6 @@ export function ImageToolbar({
 					{formatDimensions(originalWidth, originalHeight)}
 				</span>
 			)}
-
-			<ToolbarSeparator />
-
-			{/* Simple / Expert toggle */}
-			<div className="hidden sm:block">
-				<EditorUxModeSwitch mode={editorUxMode} onChange={onEditorUxModeChange} />
-			</div>
 
 			<ToolbarSeparator />
 

@@ -1,14 +1,15 @@
 import { useEffect, useCallback, useRef, type ReactNode, type PointerEvent as ReactPointerEvent } from 'react';
 
-interface BottomSheetProps {
+interface HalfSheetProps {
 	open: boolean;
 	onClose: () => void;
 	children: ReactNode;
 }
 
-const DISMISS_THRESHOLD = 80;
+const DISMISS_THRESHOLD = 60;
+const MAX_HEIGHT = '45vh';
 
-export function BottomSheet({ open, onClose, children }: BottomSheetProps) {
+export function HalfSheet({ open, onClose, children }: HalfSheetProps) {
 	const sheetRef = useRef<HTMLDivElement>(null);
 	const dragRef = useRef<{ startY: number; currentY: number } | null>(null);
 
@@ -60,7 +61,6 @@ export function BottomSheet({ open, onClose, children }: BottomSheetProps) {
 		}
 	}, [onClose]);
 
-	// Reset transform when opened
 	useEffect(() => {
 		if (open && sheetRef.current) {
 			sheetRef.current.style.transform = '';
@@ -69,37 +69,26 @@ export function BottomSheet({ open, onClose, children }: BottomSheetProps) {
 	}, [open]);
 
 	return (
-		<>
-			{/* Backdrop */}
+		<div
+			ref={sheetRef}
+			className={`flex flex-col bg-surface/95 backdrop-blur-md rounded-t-2xl border-t border-border shadow-2xl transition-transform duration-300 ease-out ${
+				open ? 'animate-slide-up-sheet' : 'translate-y-full pointer-events-none'
+			}`}
+			style={{ maxHeight: MAX_HEIGHT }}
+		>
+			{/* Drag handle */}
 			<div
-				className={`fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-200 ${
-					open ? 'opacity-100' : 'opacity-0 pointer-events-none'
-				}`}
-				onClick={onClose}
-			/>
-
-			{/* Sheet */}
-			<div
-				ref={sheetRef}
-				className={`fixed inset-x-0 bottom-0 z-50 flex flex-col bg-surface rounded-t-2xl border-t border-border shadow-2xl transition-transform duration-300 ease-out ${
-					open ? 'animate-slide-up-sheet' : 'translate-y-full'
-				}`}
-				style={{ maxHeight: '85vh', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+				className="flex items-center justify-center py-2.5 cursor-grab active:cursor-grabbing touch-none shrink-0"
+				onPointerDown={handleDragStart}
+				onPointerMove={handleDragMove}
+				onPointerUp={handleDragEnd}
+				onPointerCancel={handleDragEnd}
 			>
-				{/* Drag handle */}
-				<div
-					className="flex items-center justify-center py-3 cursor-grab active:cursor-grabbing touch-none shrink-0"
-					onPointerDown={handleDragStart}
-					onPointerMove={handleDragMove}
-					onPointerUp={handleDragEnd}
-					onPointerCancel={handleDragEnd}
-				>
-					<div className="h-1 w-8 rounded-full bg-text-tertiary/40" />
-				</div>
-
-				{/* Content */}
-				<div className="flex-1 min-h-0 overflow-hidden flex flex-col">{children}</div>
+				<div className="h-1 w-8 rounded-full bg-text-tertiary/40" />
 			</div>
-		</>
+
+			{/* Content */}
+			<div className="flex-1 min-h-0 overflow-hidden flex flex-col">{children}</div>
+		</div>
 	);
 }

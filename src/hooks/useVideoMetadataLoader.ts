@@ -146,10 +146,14 @@ export function useVideoMetadataLoader({
 			const metadataKey = cacheKeyForFile(file);
 			useVideoMetadataStore.getState().clearMetadata(metadataKey);
 
-			probe(file, (fonts) => {
+			// Start both probes in parallel (avoid waterfall)
+			const probePromise = probe(file, (fonts) => {
 				if (probeRequestId !== probeRequestIdRef.current) return;
 				setEmbeddedFonts(fonts);
-			})
+			});
+			const detailedProbePromise = probeDetails(file);
+
+			probePromise
 				.then((result) => {
 					if (probeRequestId !== probeRequestIdRef.current) return;
 					setStreamInfoPending(false);
@@ -178,21 +182,6 @@ export function useVideoMetadataLoader({
 							scalePercent: 100,
 						});
 					}
-
-					probeDetails(file)
-						.then((detailedResult) => {
-							if (detailedProbeRequestId !== detailedProbeRequestIdRef.current) return;
-							setDetailedProbe(detailedResult);
-						})
-						.catch((err: unknown) => {
-							if (detailedProbeRequestId !== detailedProbeRequestIdRef.current) return;
-							if (err instanceof Error && err.message.includes('Superseded')) return;
-							setDetailedProbeError(err instanceof Error ? err.message : String(err));
-						})
-						.finally(() => {
-							if (detailedProbeRequestId !== detailedProbeRequestIdRef.current) return;
-							setDetailedProbePending(false);
-						});
 				})
 				.catch((err: unknown) => {
 					if (probeRequestId !== probeRequestIdRef.current) return;
@@ -210,6 +199,21 @@ export function useVideoMetadataLoader({
 					toast.error('Failed to read video metadata', {
 						description: err instanceof Error ? err.message : 'Could not read stream metadata.',
 					});
+				});
+
+			detailedProbePromise
+				.then((detailedResult) => {
+					if (detailedProbeRequestId !== detailedProbeRequestIdRef.current) return;
+					setDetailedProbe(detailedResult);
+				})
+				.catch((err: unknown) => {
+					if (detailedProbeRequestId !== detailedProbeRequestIdRef.current) return;
+					if (err instanceof Error && err.message.includes('Superseded')) return;
+					setDetailedProbeError(err instanceof Error ? err.message : String(err));
+				})
+				.finally(() => {
+					if (detailedProbeRequestId !== detailedProbeRequestIdRef.current) return;
+					setDetailedProbePending(false);
 				});
 		},
 		[

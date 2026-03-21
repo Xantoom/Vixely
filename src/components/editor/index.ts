@@ -4,4 +4,4 @@ export { EditorQuickActions } from './EditorQuickActions.tsx';
 export { EditorShell } from './EditorShell.tsx';
 export { EditorShellHeader } from './EditorShellHeader.tsx';
 export { EditorToolbar } from './EditorToolbar.tsx';
-export { EditorUxModeSwitch } from './EditorUxModeSwitch.tsx';
+export { EditorToolTray } from './EditorToolTray.tsx';
