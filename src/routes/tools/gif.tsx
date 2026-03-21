@@ -29,6 +29,7 @@ import { EditorLanding } from '@/components/editor/EditorLanding.tsx';
 import { EditorEmptyState, EditorShell } from '@/components/editor/index.ts';
 import { GifAnalyzerPanel } from '@/components/gif/GifAnalyzerPanel.tsx';
 import { GifAspectRatioPanel } from '@/components/gif/GifAspectRatioPanel.tsx';
+import { GifCanvasPlayer } from '@/components/gif/GifCanvasPlayer.tsx';
 import { GifCropPanel } from '@/components/gif/GifCropPanel.tsx';
 import { GifExportPanel } from '@/components/gif/GifExportPanel.tsx';
 import { GifFadePanel } from '@/components/gif/GifFadePanel.tsx';
@@ -50,8 +51,10 @@ import { ToolRail, type ToolRailItem } from '@/components/ui/ToolRail.tsx';
 import { gifPresetEntries, GIF_ACCEPT } from '@/config/presets.ts';
 import { useEditorLayoutPrefs } from '@/hooks/useEditorLayoutPrefs.ts';
 import { useFrameStepController } from '@/hooks/useFrameStepController.ts';
+import { useGifDecoder } from '@/hooks/useGifDecoder.ts';
 import { useLongTaskObserver } from '@/hooks/useLongTaskObserver.ts';
 import { useObjectUrlState } from '@/hooks/useObjectUrlState.ts';
+import { usePanZoom } from '@/hooks/usePanZoom.ts';
 import { usePendingActionConfirmation } from '@/hooks/usePendingActionConfirmation.ts';
 import { usePreventUnload } from '@/hooks/usePreventUnload.ts';
 import { useSingleFileDrop } from '@/hooks/useSingleFileDrop.ts';
@@ -197,10 +200,17 @@ function GifFoundry() {
 			convertFormat: s.convertFormat,
 			aspectPreset: s.aspectPreset,
 			aspectPaddingColor: s.aspectPaddingColor,
+			zoom: s.zoom,
+			panX: s.panX,
+			panY: s.panY,
 			setMode: s.setMode,
 			resetAll: s.resetAll,
 			setExtractedFrames: s.setExtractedFrames,
 			clearExtractedFrames: s.clearExtractedFrames,
+			setView: s.setView,
+			zoomTo: s.zoomTo,
+			fitToView: s.fitToView,
+			resetView: s.resetView,
 		})),
 	);
 
@@ -234,6 +244,90 @@ function GifFoundry() {
 
 	const videoRef = useRef<HTMLVideoElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	const previewContainerRef = useRef<HTMLDivElement>(null);
+
+	// Decode GIF frames for canvas-based preview (speed, reverse, filters in real-time)
+	const gifBlobUrl = isGifSource ? videoUrl : null;
+	const { frames: gifFrames, supported: gifDecoderSupported } = useGifDecoder(gifBlobUrl);
+	const hasDecodedFrames = gifDecoderSupported && gifFrames.length > 0;
+
+	// Zoom/pan
+	const zoomView = useMemo(
+		() => ({ panX: store.panX, panY: store.panY, zoom: store.zoom }),
+		[store.panX, store.panY, store.zoom],
+	);
+	usePanZoom({
+		containerRef: previewContainerRef,
+		view: zoomView,
+		setView: store.setView,
+		zoomTo: store.zoomTo,
+		enabled: !!videoUrl,
+		leftClickPan: true,
+		attachKey: videoUrl,
+	});
+
+	// Stable refs for zoom callbacks — avoids stale closures & effect re-runs
+	const fitToViewRef = useRef(store.fitToView);
+	fitToViewRef.current = store.fitToView;
+	const zoomToRef = useRef(store.zoomTo);
+	zoomToRef.current = store.zoomTo;
+	const zoomRef = useRef(store.zoom);
+	zoomRef.current = store.zoom;
+
+	const handleZoomIn = useCallback(() => {
+		const el = previewContainerRef.current;
+		if (!el) return;
+		const cx = el.clientWidth / 2;
+		const cy = el.clientHeight / 2;
+		zoomToRef.current(Math.min(10, zoomRef.current * 1.25), cx, cy);
+	}, []);
+
+	const handleZoomOut = useCallback(() => {
+		const el = previewContainerRef.current;
+		if (!el) return;
+		const cx = el.clientWidth / 2;
+		const cy = el.clientHeight / 2;
+		zoomToRef.current(Math.max(0.1, zoomRef.current / 1.25), cx, cy);
+	}, []);
+
+	const handleFitToScreen = useCallback(() => {
+		const el = previewContainerRef.current;
+		if (!el) return;
+		const w = sourceWidth ?? 480;
+		const h = sourceHeight ?? 270;
+		fitToViewRef.current(el.clientWidth, el.clientHeight, w, h);
+	}, [sourceWidth, sourceHeight]);
+
+	// Auto-fit when source dimensions change (file loaded) or container first becomes visible
+	useEffect(() => {
+		if (!sourceWidth || !sourceHeight) return;
+		const el = previewContainerRef.current;
+		if (!el) return;
+
+		const fit = () => {
+			const cw = el.clientWidth;
+			const ch = el.clientHeight;
+			if (cw > 0 && ch > 0) {
+				fitToViewRef.current(cw, ch, sourceWidth, sourceHeight);
+			}
+		};
+
+		fit();
+
+		const ro = new ResizeObserver((entries) => {
+			const entry = entries[0];
+			if (!entry) return;
+			const { width: w, height: h } = entry.contentRect;
+			if (w > 0 && h > 0) {
+				fitToViewRef.current(w, h, sourceWidth, sourceHeight);
+				ro.disconnect();
+			}
+		});
+		ro.observe(el);
+		return () => {
+			ro.disconnect();
+		};
+	}, [sourceWidth, sourceHeight]);
 
 	// Live CSS preview for filters + rotation/flip
 	const previewStyle = useMemo((): React.CSSProperties => {
@@ -943,129 +1037,151 @@ function GifFoundry() {
 								onShowInfo={() => {
 									setShowInfo(true);
 								}}
+								zoom={store.zoom}
+								onZoomIn={handleZoomIn}
+								onZoomOut={handleZoomOut}
+								onFitToScreen={handleFitToScreen}
 							/>
 						)}
 						{videoUrl ? (
 							<div
-								className="flex-1 flex items-center justify-center workspace-bg p-2 sm:p-3 overflow-hidden relative"
+								ref={previewContainerRef}
+								className="flex-1 min-h-0 relative overflow-hidden workspace-bg"
+								style={{ touchAction: 'none' }}
 								{...dropHandlers}
 							>
-								<div className="w-full h-full flex items-center justify-center">
-									<div className="w-full max-w-5xl max-h-full flex flex-col items-center gap-3">
-										{canShowResultPreview && (
-											<div className="inline-flex items-center rounded-lg border border-border/60 bg-bg/40 p-0.5">
-												<button
-													onClick={() => {
-														setActivePreview('source');
-													}}
-													className={`rounded-md px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
-														!showingResult
-															? 'bg-accent/15 text-accent'
-															: 'text-text-tertiary hover:text-text-secondary'
-													}`}
-												>
-													Source
-												</button>
-												<button
-													onClick={() => {
-														setActivePreview('result');
-													}}
-													className={`rounded-md px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
-														showingResult
-															? 'bg-accent/15 text-accent'
-															: 'text-text-tertiary hover:text-text-secondary'
-													}`}
-												>
-													Result
-												</button>
-											</div>
-										)}
+								{/* Source/Result toggle — fixed above the zoomable area */}
+								{canShowResultPreview && (
+									<div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 inline-flex items-center rounded-lg border border-border/60 bg-bg/80 backdrop-blur-sm p-0.5">
+										<button
+											onClick={() => {
+												setActivePreview('source');
+											}}
+											className={`rounded-md px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
+												!showingResult
+													? 'bg-accent/15 text-accent'
+													: 'text-text-tertiary hover:text-text-secondary'
+											}`}
+										>
+											Source
+										</button>
+										<button
+											onClick={() => {
+												setActivePreview('result');
+											}}
+											className={`rounded-md px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
+												showingResult
+													? 'bg-accent/15 text-accent'
+													: 'text-text-tertiary hover:text-text-secondary'
+											}`}
+										>
+											Result
+										</button>
+									</div>
+								)}
 
-										<div className="w-full min-h-0 flex items-center justify-center">
-											{showingResult && resultUrl ? (
-												<div className="rounded-xl border border-success/30 bg-surface/80 p-2 max-w-full max-h-full">
-													<img
-														src={resultUrl}
-														alt="Generated GIF"
-														width={width}
-														height={outputHeight}
-														className="max-w-full max-h-[min(70vh,680px)] object-contain rounded-lg bg-black"
-													/>
-												</div>
-											) : isGifSource ? (
-												<img
-													src={videoUrl}
-													alt="GIF source"
-													width={sourceWidth ?? undefined}
-													height={sourceHeight ?? undefined}
-													style={previewStyle}
-													className="max-w-full max-h-[min(70vh,680px)] rounded-lg bg-black object-contain"
-												/>
-											) : (
-												<video
-													ref={videoRef}
-													src={videoUrl}
-													onLoadedMetadata={handleVideoLoaded}
-													onTimeUpdate={handleTimeUpdate}
-													loop={loop}
-													controls
-													style={previewStyle}
-													className="max-w-full max-h-[min(70vh,680px)] rounded-lg bg-black"
-												/>
+								{/* Zoomable / pannable layer */}
+								<div
+									className="absolute top-0 left-0 pointer-events-none"
+									style={{
+										transform: `translate(${store.panX}px, ${store.panY}px) scale(${store.zoom})`,
+										transformOrigin: '0 0',
+									}}
+								>
+									{showingResult && resultUrl ? (
+										<img
+											src={resultUrl}
+											alt="Generated GIF"
+											width={width}
+											height={outputHeight}
+											className="rounded-lg bg-black"
+											draggable={false}
+										/>
+									) : isGifSource && hasDecodedFrames ? (
+										<GifCanvasPlayer
+											frames={gifFrames}
+											filters={store.filters}
+											fps={fps}
+											speed={store.speed}
+											reverse={store.reverse}
+											width={sourceWidth ?? 480}
+											height={sourceHeight ?? 270}
+											style={previewStyle}
+											className="rounded-lg bg-black"
+										/>
+									) : isGifSource ? (
+										<img
+											src={videoUrl}
+											alt="GIF source"
+											width={sourceWidth ?? undefined}
+											height={sourceHeight ?? undefined}
+											style={previewStyle}
+											className="rounded-lg bg-black"
+											draggable={false}
+										/>
+									) : (
+										<video
+											ref={videoRef}
+											src={videoUrl}
+											onLoadedMetadata={handleVideoLoaded}
+											onTimeUpdate={handleTimeUpdate}
+											loop={loop}
+											style={previewStyle}
+											className="rounded-lg bg-black pointer-events-auto"
+										/>
+									)}
+								</div>
+
+								{/* Status badges — fixed overlay */}
+								{showingResult ? (
+									<div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10">
+										<p className="text-[13px] text-success font-medium bg-bg/80 backdrop-blur-sm rounded-lg px-3 py-1.5">
+											Result size: {formatFileSize(resultSize)}
+										</p>
+									</div>
+								) : (
+									(store.rotation !== 0 || store.flipH || store.flipV || store.crop) && (
+										<div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex gap-1.5 flex-wrap justify-center">
+											{store.rotation !== 0 && (
+												<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent backdrop-blur-sm">
+													Rotate {store.rotation}°
+												</span>
+											)}
+											{store.flipH && (
+												<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent backdrop-blur-sm">
+													Flip H
+												</span>
+											)}
+											{store.flipV && (
+												<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent backdrop-blur-sm">
+													Flip V
+												</span>
+											)}
+											{store.crop && (
+												<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent backdrop-blur-sm">
+													Crop {Math.round(store.crop.width)}×{Math.round(store.crop.height)}
+												</span>
 											)}
 										</div>
+									)
+								)}
 
-										{showingResult ? (
-											<p className="text-[13px] text-success font-medium">
-												Result size: {formatFileSize(resultSize)}
-											</p>
-										) : (
-											(store.rotation !== 0 || store.flipH || store.flipV || store.crop) && (
-												<div className="mt-1 flex gap-1.5 flex-wrap justify-center">
-													{store.rotation !== 0 && (
-														<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent">
-															Rotate {store.rotation}°
-														</span>
-													)}
-													{store.flipH && (
-														<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent">
-															Flip H
-														</span>
-													)}
-													{store.flipV && (
-														<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent">
-															Flip V
-														</span>
-													)}
-													{store.crop && (
-														<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent">
-															Crop {Math.round(store.crop.width)}×
-															{Math.round(store.crop.height)}
-														</span>
-													)}
-												</div>
-											)
-										)}
-
-										{processing && (
-											<div className="w-full max-w-sm rounded-xl border border-border/70 bg-bg/60 px-4 py-3 flex flex-col items-center">
-												<div className="h-9 w-9 rounded-full border-[3px] border-border border-t-accent animate-spin" />
-												<p className="mt-2 text-sm font-medium">
-													{Math.round(progress * 100)}%
-												</p>
-												<div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-surface-raised">
-													<div
-														className="h-full bg-accent transition-all duration-300"
-														style={{ width: `${progress * 100}%` }}
-													/>
-												</div>
-												<p className="mt-2 text-[12px] text-text-tertiary">
-													Optimizing palette...
-												</p>
+								{/* Processing overlay */}
+								{processing && (
+									<div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+										<div className="w-full max-w-sm rounded-xl border border-border/70 bg-bg/60 backdrop-blur-sm px-4 py-3 flex flex-col items-center">
+											<div className="h-9 w-9 rounded-full border-[3px] border-border border-t-accent animate-spin" />
+											<p className="mt-2 text-sm font-medium">{Math.round(progress * 100)}%</p>
+											<div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-surface-raised">
+												<div
+													className="h-full bg-accent transition-all duration-300"
+													style={{ width: `${progress * 100}%` }}
+												/>
 											</div>
-										)}
+											<p className="mt-2 text-[12px] text-text-tertiary">Optimizing palette...</p>
+										</div>
 									</div>
-								</div>
+								)}
 
 								{/* Drag overlay when file is loaded */}
 								{isDragging && (

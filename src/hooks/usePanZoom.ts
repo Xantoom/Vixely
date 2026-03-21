@@ -12,9 +12,19 @@ interface UsePanZoomOptions {
 	enabled: boolean;
 	/** Allow left-click drag to pan (true for pointer mode, false for crop) */
 	leftClickPan: boolean;
+	/** Extra dependency to force re-attach when the container element changes (e.g. conditional render) */
+	attachKey?: string | number | boolean | null;
 }
 
-export function usePanZoom({ containerRef, view, setView, zoomTo, enabled, leftClickPan }: UsePanZoomOptions) {
+export function usePanZoom({
+	containerRef,
+	view,
+	setView,
+	zoomTo,
+	enabled,
+	leftClickPan,
+	attachKey,
+}: UsePanZoomOptions) {
 	const isPanning = useRef(false);
 	const lastPos = useRef({ x: 0, y: 0 });
 	const spaceHeld = useRef(false);
@@ -100,7 +110,7 @@ export function usePanZoom({ containerRef, view, setView, zoomTo, enabled, leftC
 			el.removeEventListener('pointerup', onPointerUp);
 			el.removeEventListener('pointercancel', onPointerUp);
 		};
-	}, [containerRef, enabled]);
+	}, [containerRef, enabled, attachKey]);
 
 	/* ── Wheel zoom ── */
 	useEffect(() => {
@@ -124,7 +134,7 @@ export function usePanZoom({ containerRef, view, setView, zoomTo, enabled, leftC
 		return () => {
 			el.removeEventListener('wheel', onWheel);
 		};
-	}, [containerRef, enabled]);
+	}, [containerRef, enabled, attachKey]);
 
 	const getIsPanning = useCallback(() => panningState.current, []);
 

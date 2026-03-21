@@ -122,6 +122,11 @@ export interface GifEditorState {
 	aspectPreset: AspectPreset;
 	aspectPaddingColor: string;
 
+	// View (zoom / pan)
+	zoom: number;
+	panX: number;
+	panY: number;
+
 	// Actions
 	setMode: (mode: GifMode) => void;
 	setSpeed: (speed: number) => void;
@@ -176,6 +181,12 @@ export interface GifEditorState {
 	setCompareMode: (enabled: boolean) => void;
 	setComparePosition: (position: number) => void;
 
+	// View actions
+	setView: (v: { panX?: number; panY?: number; zoom?: number }) => void;
+	zoomTo: (zoom: number, anchorX: number, anchorY: number) => void;
+	fitToView: (containerW: number, containerH: number, mediaW: number, mediaH: number) => void;
+	resetView: () => void;
+
 	resetAll: () => void;
 	hasFilterChanges: () => boolean;
 }
@@ -228,6 +239,10 @@ export const useGifEditorStore = create<GifEditorState>((set, get) => ({
 
 	aspectPreset: 'free',
 	aspectPaddingColor: '#000000',
+
+	zoom: 1,
+	panX: 0,
+	panY: 0,
 
 	setMode: (mode) => {
 		set({ mode });
@@ -385,6 +400,29 @@ export const useGifEditorStore = create<GifEditorState>((set, get) => ({
 		set({ comparePosition });
 	},
 
+	// View actions
+	setView: (v) => {
+		set((s) => ({
+			panX: v.panX ?? s.panX,
+			panY: v.panY ?? s.panY,
+			zoom: v.zoom != null ? Math.min(10, Math.max(0.1, v.zoom)) : s.zoom,
+		}));
+	},
+	zoomTo: (zoom, anchorX, anchorY) => {
+		const clamped = Math.min(10, Math.max(0.1, zoom));
+		const s = get();
+		const ratio = clamped / s.zoom;
+		set({ zoom: clamped, panX: anchorX - ratio * (anchorX - s.panX), panY: anchorY - ratio * (anchorY - s.panY) });
+	},
+	fitToView: (containerW, containerH, mediaW, mediaH) => {
+		if (!mediaW || !mediaH) return;
+		const zoom = Math.min((containerW - 48) / mediaW, (containerH - 48) / mediaH, 1);
+		set({ zoom, panX: (containerW - mediaW * zoom) / 2, panY: (containerH - mediaH * zoom) / 2 });
+	},
+	resetView: () => {
+		set({ zoom: 1, panX: 0, panY: 0 });
+	},
+
 	resetAll: () => {
 		const { extractedFrames, imageOverlay } = get();
 		for (const frame of extractedFrames) {
@@ -419,6 +457,9 @@ export const useGifEditorStore = create<GifEditorState>((set, get) => ({
 			convertFormat: 'webm',
 			aspectPreset: 'free',
 			aspectPaddingColor: '#000000',
+			zoom: 1,
+			panX: 0,
+			panY: 0,
 		});
 	},
 

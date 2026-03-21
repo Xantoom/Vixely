@@ -1,4 +1,4 @@
-import { Columns2, FilePlus2, Info, StepBack, StepForward } from 'lucide-react';
+import { Columns2, FilePlus2, Info, Maximize, Minus, Plus, StepBack, StepForward } from 'lucide-react';
 import { EditorToolbar } from '@/components/editor/EditorToolbar.tsx';
 import { IconButton, ToolbarSeparator } from '@/components/ui/IconButton.tsx';
 import { formatCompactTime } from '@/components/ui/Timeline.tsx';
@@ -22,6 +22,10 @@ interface GifToolbarProps {
 	compareMode: boolean;
 	hasChanges: boolean;
 	onToggleCompare: () => void;
+	zoom: number;
+	onZoomIn: () => void;
+	onZoomOut: () => void;
+	onFitToScreen: () => void;
 }
 
 export function GifToolbar({
@@ -42,6 +46,10 @@ export function GifToolbar({
 	compareMode,
 	hasChanges,
 	onToggleCompare,
+	zoom,
+	onZoomIn,
+	onZoomOut,
+	onFitToScreen,
 }: GifToolbarProps) {
 	if (!file) return null;
 
@@ -102,6 +110,29 @@ export function GifToolbar({
 			{/* Compare toggle */}
 			<IconButton onClick={onToggleCompare} active={compareMode} disabled={!hasChanges} title="Split compare">
 				<Columns2 size={16} />
+			</IconButton>
+
+			<ToolbarSeparator />
+
+			{/* Zoom controls */}
+			<IconButton onClick={onZoomOut} disabled={zoom <= 0.1} title="Zoom out">
+				<Minus size={16} />
+			</IconButton>
+
+			<button
+				onClick={onFitToScreen}
+				className="h-7 min-w-[3.5rem] rounded-md px-1.5 text-[12px] font-mono tabular-nums text-text-tertiary hover:text-text hover:bg-surface-raised/60 transition-colors cursor-pointer"
+				title="Fit to screen"
+			>
+				{Math.round(zoom * 100)}%
+			</button>
+
+			<IconButton onClick={onZoomIn} disabled={zoom >= 10} title="Zoom in">
+				<Plus size={16} />
+			</IconButton>
+
+			<IconButton onClick={onFitToScreen} title="Fit to screen">
+				<Maximize size={16} />
 			</IconButton>
 
 			{/* Spacer */}
