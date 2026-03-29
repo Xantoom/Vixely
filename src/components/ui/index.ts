@@ -1,4 +1,5 @@
 export { Button } from './Button.tsx';
+export { CollapsibleSection } from './CollapsibleSection.tsx';
 export { IconButton, ToolbarSeparator } from './IconButton.tsx';
 export { Slider } from './Slider.tsx';
 export { Timeline, formatTimecode, formatCompactTime, formatPlayerTime } from './Timeline.tsx';

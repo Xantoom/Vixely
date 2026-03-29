@@ -6,18 +6,12 @@ import {
 	Film,
 	ImageIcon,
 	Layers,
-	Maximize2,
 	Palette,
-	RatioIcon,
-	RefreshCw,
-	RotateCw,
 	Scissors,
-	Search,
 	Settings2,
 	ShieldCheck,
 	SlidersHorizontal,
 	Sparkles,
-	Type,
 	Video,
 	Zap,
 } from 'lucide-react';
@@ -40,12 +34,14 @@ import { GifImageOverlayPanel } from '@/components/gif/GifImageOverlayPanel.tsx'
 import { GifInfoModal } from '@/components/gif/GifInfoModal.tsx';
 import { GifMakerPanel } from '@/components/gif/GifMakerPanel.tsx';
 import { GifOptimizePanel } from '@/components/gif/GifOptimizePanel.tsx';
+import { GifPreviewOverlays } from '@/components/gif/GifPreviewOverlays.tsx';
 import { GifResizePanel } from '@/components/gif/GifResizePanel.tsx';
 import { GifRotatePanel } from '@/components/gif/GifRotatePanel.tsx';
 import { GifSettingsPanel } from '@/components/gif/GifSettingsPanel.tsx';
 import { GifTextOverlayPanel } from '@/components/gif/GifTextOverlayPanel.tsx';
 import { GifToolbar } from '@/components/gif/GifToolbar.tsx';
 import { Seo, buildWebAppSchema, buildFAQSchema } from '@/components/Seo.tsx';
+import { CollapsibleSection } from '@/components/ui/CollapsibleSection.tsx';
 import { Button, Timeline } from '@/components/ui/index.ts';
 import { ToolRail, type ToolRailItem } from '@/components/ui/ToolRail.tsx';
 import { gifPresetEntries, GIF_ACCEPT } from '@/config/presets.ts';
@@ -157,19 +153,12 @@ function isGifFileLike(file: File): boolean {
 /** Flat tool list for the GIF editor ToolRail */
 const GIF_TOOLS: ToolRailItem<GifMode>[] = [
 	{ id: 'settings', label: 'Settings', icon: Settings2 },
-	{ id: 'crop', label: 'Crop', icon: Crop },
-	{ id: 'resize', label: 'Resize', icon: Maximize2 },
-	{ id: 'rotate', label: 'Rotate', icon: RotateCw },
-	{ id: 'aspect', label: 'Aspect', icon: RatioIcon },
+	{ id: 'transform', label: 'Transform', icon: Crop },
 	{ id: 'filters', label: 'Filters', icon: SlidersHorizontal },
-	{ id: 'text', label: 'Text', icon: Type },
-	{ id: 'overlay', label: 'Overlay', icon: Layers },
-	{ id: 'fade', label: 'Fade', icon: Sparkles },
+	{ id: 'overlays', label: 'Overlays', icon: Layers },
+	{ id: 'effects', label: 'Effects', icon: Sparkles },
 	{ id: 'frames', label: 'Frames', icon: Clapperboard },
 	{ id: 'optimize', label: 'Optimize', icon: Zap },
-	{ id: 'maker', label: 'Maker', icon: Film },
-	{ id: 'convert', label: 'Convert', icon: RefreshCw },
-	{ id: 'analyze', label: 'Analyze', icon: Search },
 	{ id: 'export', label: 'Export', icon: Download },
 ];
 function GifFoundry() {
@@ -237,6 +226,9 @@ function GifFoundry() {
 
 	const [showInfo, setShowInfo] = useState(false);
 	const [compareMode, setCompareMode] = useState(false);
+	const [gifPaused, setGifPaused] = useState(false);
+	const [gifCurrentFrame, setGifCurrentFrame] = useState(0);
+	const gifPlayerRef = useRef<import('@/components/gif/GifCanvasPlayer.tsx').GifCanvasPlayerHandle>(null);
 	const { isConfirmOpen, requestAction, confirmPendingAction, cancelPendingAction } = usePendingActionConfirmation(
 		file !== null,
 	);
@@ -251,18 +243,39 @@ function GifFoundry() {
 	const { frames: gifFrames, supported: gifDecoderSupported } = useGifDecoder(gifBlobUrl);
 	const hasDecodedFrames = gifDecoderSupported && gifFrames.length > 0;
 
+	// Filter out deleted frames from preview when user has extracted and edited frames
+	const previewFrames = useMemo(() => {
+		if (store.extractedFrames.length === 0 || gifFrames.length === 0) return gifFrames;
+		// Build a set of remaining frame indices from extracted frames
+		// extractedFrames indices are re-indexed after deletion, but we track original count
+		if (store.extractedFrames.length === gifFrames.length) return gifFrames;
+		// When some frames were deleted, only keep the frames at positions matching extracted frame indices
+		// Since extracted frames are re-indexed after deletion, use the count as a signal
+		const keepCount = store.extractedFrames.length;
+		if (keepCount >= gifFrames.length) return gifFrames;
+		// Evenly sample from original frames to match the remaining count
+		const step = gifFrames.length / keepCount;
+		const filtered = [];
+		for (let i = 0; i < keepCount; i++) {
+			filtered.push(gifFrames[Math.round(i * step)]!);
+		}
+		return filtered;
+	}, [gifFrames, store.extractedFrames]);
+
 	// Zoom/pan
 	const zoomView = useMemo(
 		() => ({ panX: store.panX, panY: store.panY, zoom: store.zoom }),
 		[store.panX, store.panY, store.zoom],
 	);
+	// Disable left-click pan when crop is active so drag gestures control the crop overlay
+	const hasCropActive = store.crop != null && store.mode === 'transform';
 	usePanZoom({
 		containerRef: previewContainerRef,
 		view: zoomView,
 		setView: store.setView,
 		zoomTo: store.zoomTo,
 		enabled: !!videoUrl,
-		leftClickPan: true,
+		leftClickPan: !hasCropActive,
 		attachKey: videoUrl,
 	});
 
@@ -273,6 +286,22 @@ function GifFoundry() {
 	zoomToRef.current = store.zoomTo;
 	const zoomRef = useRef(store.zoom);
 	zoomRef.current = store.zoom;
+
+	const handleToggleGifPause = useCallback(() => {
+		setGifPaused((prev) => !prev);
+	}, []);
+
+	const handleGifStepFrame = useCallback(
+		(dir: -1 | 1) => {
+			const total = previewFrames.length;
+			if (total === 0) return;
+			setGifPaused(true);
+			const next = (((gifCurrentFrame + dir) % total) + total) % total;
+			setGifCurrentFrame(next);
+			gifPlayerRef.current?.stepTo(next);
+		},
+		[previewFrames.length, gifCurrentFrame],
+	);
 
 	const handleZoomIn = useCallback(() => {
 		const el = previewContainerRef.current;
@@ -524,14 +553,27 @@ function GifFoundry() {
 			}
 			if (e.key === ' ') {
 				e.preventDefault();
-				togglePlaybackInTrim();
+				if (isGifSource && hasDecodedFrames) {
+					handleToggleGifPause();
+				} else {
+					togglePlaybackInTrim();
+				}
+			}
+			if (isGifSource && hasDecodedFrames) {
+				if (e.key === 'ArrowLeft') {
+					e.preventDefault();
+					handleGifStepFrame(-1);
+				} else if (e.key === 'ArrowRight') {
+					e.preventDefault();
+					handleGifStepFrame(1);
+				}
 			}
 		};
 		window.addEventListener('keydown', onKeyDown);
 		return () => {
 			window.removeEventListener('keydown', onKeyDown);
 		};
-	}, [togglePlaybackInTrim]);
+	}, [togglePlaybackInTrim, isGifSource, hasDecodedFrames, handleToggleGifPause, handleGifStepFrame]);
 
 	/* ── Resize Handlers ── */
 	const handleWidthChange = useCallback(
@@ -760,19 +802,19 @@ function GifFoundry() {
 			!loop ||
 			trimStart > 0 ||
 			trimEnd < duration,
-		crop: store.crop != null,
-		resize: hasResizeChanges || !lockAspect,
-		rotate: store.rotation !== 0 || store.flipH || store.flipV,
-		aspect: store.aspectPreset !== 'free',
+		transform:
+			store.crop != null ||
+			hasResizeChanges ||
+			!lockAspect ||
+			store.rotation !== 0 ||
+			store.flipH ||
+			store.flipV ||
+			store.aspectPreset !== 'free',
 		filters: !filtersAreDefault(store.filters),
-		text: store.textOverlays.length > 0,
-		overlay: store.imageOverlay.file != null,
-		fade: store.fadeInDuration > 0 || store.fadeOutDuration > 0,
+		overlays: store.textOverlays.length > 0 || store.imageOverlay.file != null,
+		effects: store.fadeInDuration > 0 || store.fadeOutDuration > 0,
 		frames: store.extractedFrames.length > 0,
 		optimize: store.compressionSpeed !== 10 || store.frameSkip !== 'none' || !store.dithering,
-		maker: store.extractedFrames.length > 0,
-		convert: store.convertFormat !== 'webm',
-		analyze: false,
 		export: false,
 	};
 	const hasChanges = Object.values(toolActivity).some(Boolean);
@@ -832,70 +874,102 @@ function GifFoundry() {
 						onApplyPreset={applyPreset}
 					/>
 				);
-			case 'crop':
-				return <GifCropPanel sourceWidth={sourceWidth} sourceHeight={sourceHeight} />;
-			case 'resize':
+			case 'transform':
 				return (
-					<GifResizePanel
-						width={width}
-						height={height}
-						lockAspect={lockAspect}
-						sourceAspect={sourceAspect}
-						onWidthChange={handleWidthChange}
-						onHeightChange={handleHeightChange}
-						onLockAspectChange={setLockAspect}
-					/>
+					<>
+						<CollapsibleSection title="Crop" changeCount={store.crop ? 1 : 0}>
+							<GifCropPanel sourceWidth={sourceWidth} sourceHeight={sourceHeight} />
+						</CollapsibleSection>
+						<CollapsibleSection title="Resize" changeCount={hasResizeChanges ? 1 : 0}>
+							<GifResizePanel
+								width={width}
+								height={height}
+								lockAspect={lockAspect}
+								sourceAspect={sourceAspect}
+								onWidthChange={handleWidthChange}
+								onHeightChange={handleHeightChange}
+								onLockAspectChange={setLockAspect}
+							/>
+						</CollapsibleSection>
+						<CollapsibleSection
+							title="Rotate & Flip"
+							changeCount={(store.rotation !== 0 ? 1 : 0) + (store.flipH ? 1 : 0) + (store.flipV ? 1 : 0)}
+						>
+							<GifRotatePanel />
+						</CollapsibleSection>
+						<CollapsibleSection
+							title="Aspect Ratio"
+							changeCount={store.aspectPreset !== 'free' ? 1 : 0}
+							defaultCollapsed
+						>
+							<GifAspectRatioPanel sourceWidth={sourceWidth} sourceHeight={sourceHeight} />
+						</CollapsibleSection>
+					</>
 				);
-			case 'rotate':
-				return <GifRotatePanel />;
 			case 'filters':
 				return <GifFiltersPanel />;
-			case 'optimize':
-				return <GifOptimizePanel />;
+			case 'overlays':
+				return (
+					<>
+						<CollapsibleSection title="Text" changeCount={store.textOverlays.length}>
+							<GifTextOverlayPanel />
+						</CollapsibleSection>
+						<CollapsibleSection title="Image" changeCount={store.imageOverlay.file ? 1 : 0}>
+							<GifImageOverlayPanel />
+						</CollapsibleSection>
+					</>
+				);
+			case 'effects':
+				return <GifFadePanel />;
 			case 'frames':
 				return (
-					<GifFramesPanel
-						file={file}
-						processing={processing}
-						progress={progress}
-						onExtractFrames={() => {
-							void handleExtractFrames();
-						}}
-					/>
+					<>
+						<GifFramesPanel
+							file={file}
+							processing={processing}
+							progress={progress}
+							onExtractFrames={() => {
+								void handleExtractFrames();
+							}}
+						/>
+						{store.extractedFrames.length > 0 && (
+							<CollapsibleSection title="Reorder & Create">
+								<GifMakerPanel />
+							</CollapsibleSection>
+						)}
+					</>
 				);
-			case 'text':
-				return <GifTextOverlayPanel />;
-			case 'maker':
-				return <GifMakerPanel />;
-			case 'overlay':
-				return <GifImageOverlayPanel />;
-			case 'fade':
-				return <GifFadePanel />;
-			case 'analyze':
-				return <GifAnalyzerPanel file={file} />;
-			case 'convert':
-				return <GifFormatConvertPanel file={file} sourceWidth={sourceWidth} sourceHeight={sourceHeight} />;
-			case 'aspect':
-				return <GifAspectRatioPanel sourceWidth={sourceWidth} sourceHeight={sourceHeight} />;
+			case 'optimize':
+				return <GifOptimizePanel />;
 			case 'export':
 				return (
-					<GifExportPanel
-						file={file}
-						ready={ready}
-						processing={processing}
-						progress={progress}
-						error={error}
-						estimatedFrames={estimatedFrames}
-						clipDuration={clipDuration}
-						width={width}
-						outputHeight={outputHeight}
-						resultUrl={resultUrl}
-						resultSize={resultSize}
-						onGenerate={() => {
-							void handleGenerate();
-						}}
-						onDownload={handleDownload}
-					/>
+					<>
+						<GifExportPanel
+							file={file}
+							ready={ready}
+							processing={processing}
+							progress={progress}
+							error={error}
+							estimatedFrames={estimatedFrames}
+							clipDuration={clipDuration}
+							width={width}
+							outputHeight={outputHeight}
+							resultUrl={resultUrl}
+							resultSize={resultSize}
+							onGenerate={() => {
+								void handleGenerate();
+							}}
+							onDownload={handleDownload}
+						/>
+						<CollapsibleSection title="Convert Format" defaultCollapsed>
+							<GifFormatConvertPanel file={file} sourceWidth={sourceWidth} sourceHeight={sourceHeight} />
+						</CollapsibleSection>
+						{file && (
+							<CollapsibleSection title="Analyze" defaultCollapsed>
+								<GifAnalyzerPanel file={file} />
+							</CollapsibleSection>
+						)}
+					</>
 				);
 			default:
 				return null;
@@ -1019,9 +1093,12 @@ function GifFoundry() {
 								sourceWidth={sourceWidth}
 								sourceHeight={sourceHeight}
 								duration={duration}
-								currentFrame={timeToFrames(currentTime)}
-								totalFrames={totalFrames}
+								currentFrame={isGifSource ? gifCurrentFrame : timeToFrames(currentTime)}
+								totalFrames={isGifSource ? previewFrames.length : totalFrames}
 								isGifSource={isGifSource}
+								gifPaused={gifPaused}
+								onToggleGifPause={handleToggleGifPause}
+								onGifStepFrame={handleGifStepFrame}
 								compareMode={compareMode}
 								hasChanges={hasChanges}
 								onToggleCompare={() => {
@@ -1084,8 +1161,11 @@ function GifFoundry() {
 								<div
 									className="absolute top-0 left-0 pointer-events-none"
 									style={{
+										width: sourceWidth ?? undefined,
+										height: sourceHeight ?? undefined,
 										transform: `translate(${store.panX}px, ${store.panY}px) scale(${store.zoom})`,
 										transformOrigin: '0 0',
+										position: 'relative',
 									}}
 								>
 									{showingResult && resultUrl ? (
@@ -1099,13 +1179,18 @@ function GifFoundry() {
 										/>
 									) : isGifSource && hasDecodedFrames ? (
 										<GifCanvasPlayer
-											frames={gifFrames}
+											ref={gifPlayerRef}
+											frames={previewFrames}
 											filters={store.filters}
 											fps={fps}
 											speed={store.speed}
 											reverse={store.reverse}
+											paused={gifPaused}
+											onFrameChange={setGifCurrentFrame}
 											width={sourceWidth ?? 480}
 											height={sourceHeight ?? 270}
+											fadeInDuration={store.fadeInDuration}
+											fadeOutDuration={store.fadeOutDuration}
 											style={previewStyle}
 											className="rounded-lg bg-black"
 										/>
@@ -1130,6 +1215,11 @@ function GifFoundry() {
 											className="rounded-lg bg-black pointer-events-auto"
 										/>
 									)}
+
+									{/* Overlays: crop mask, text, image overlay, aspect ratio bars */}
+									{sourceWidth != null && sourceHeight != null && !showingResult && (
+										<GifPreviewOverlays sourceWidth={sourceWidth} sourceHeight={sourceHeight} />
+									)}
 								</div>
 
 								{/* Status badges — fixed overlay */}
@@ -1140,8 +1230,17 @@ function GifFoundry() {
 										</p>
 									</div>
 								) : (
-									(store.rotation !== 0 || store.flipH || store.flipV || store.crop) && (
+									(store.rotation !== 0 ||
+										store.flipH ||
+										store.flipV ||
+										store.crop ||
+										hasResizeChanges) && (
 										<div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex gap-1.5 flex-wrap justify-center">
+											{hasResizeChanges && (
+												<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent backdrop-blur-sm font-mono tabular-nums">
+													{width}×{outputHeight}
+												</span>
+											)}
 											{store.rotation !== 0 && (
 												<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent backdrop-blur-sm">
 													Rotate {store.rotation}°

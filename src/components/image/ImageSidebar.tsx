@@ -3,7 +3,7 @@ import { useCallback, useId, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
 import { SharedPresetsPanel, type PresetEntry } from '@/components/shared/PresetsPanel.tsx';
-import { Button, Slider } from '@/components/ui/index.ts';
+import { Button, CollapsibleSection, Slider } from '@/components/ui/index.ts';
 import { ToolRail, type ToolRailItem } from '@/components/ui/ToolRail.tsx';
 import {
 	LIGHT_SLIDERS,
@@ -14,6 +14,8 @@ import {
 import { filterPresetEntries, imagePresetEntries } from '@/config/presets.ts';
 import { buildFallbackFilterString } from '@/modules/photo-editor/render/fallback-filters.ts';
 import { PhotoWebGLRenderer } from '@/modules/photo-editor/render/webgl-renderer.ts';
+import { DEFAULT_FILTER_PARAMS } from '@/modules/shared-core/types/filters.ts';
+import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
 import { filtersAreDefault } from '@/modules/shared-core/types/filters.ts';
 import { useImageEditorStore, type ExportFormat } from '@/stores/imageEditor.ts';
 import { buildExportFilename } from '@/utils/exportFilename.ts';
@@ -30,6 +32,14 @@ const FORMAT_OPTIONS: { value: ExportFormat; label: string }[] = [
 ];
 
 type ImageMode = 'resize' | 'adjust' | 'presets' | 'export';
+
+function countSliderChanges(sliders: FilterSliderDef[], filters: FilterParams): number {
+	let count = 0;
+	for (const s of sliders) {
+		if (filters[s.key] !== DEFAULT_FILTER_PARAMS[s.key]) count++;
+	}
+	return count;
+}
 
 const IMAGE_TOOLS: ToolRailItem<ImageMode>[] = [
 	{ id: 'resize', label: 'Resize', icon: Maximize2 },
@@ -337,27 +347,27 @@ export function ImageSidebar({ showInfo, onShowInfoChange }: ImageSidebarProps) 
 
 				{mode === 'adjust' && (
 					<>
-						<div className="flex items-center justify-between">
-							<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
-								Light
-							</h3>
+						<div className="flex items-center justify-end">
 							<button
 								onClick={resetFilters}
-								className="text-[14px] text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
+								className="text-[12px] text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
 							>
 								Reset
 							</button>
 						</div>
-						{renderSliders(LIGHT_SLIDERS)}
-
-						<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mt-2">
-							Color
-						</h3>
-						{renderSliders(COLOR_SLIDERS)}
-						<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mt-2">
-							Effects
-						</h3>
-						{renderSliders(EFFECTS_SLIDERS)}
+						<CollapsibleSection title="Light" changeCount={countSliderChanges(LIGHT_SLIDERS, filters)}>
+							{renderSliders(LIGHT_SLIDERS)}
+						</CollapsibleSection>
+						<CollapsibleSection title="Color" changeCount={countSliderChanges(COLOR_SLIDERS, filters)}>
+							{renderSliders(COLOR_SLIDERS)}
+						</CollapsibleSection>
+						<CollapsibleSection
+							title="Effects"
+							changeCount={countSliderChanges(EFFECTS_SLIDERS, filters)}
+							defaultCollapsed
+						>
+							{renderSliders(EFFECTS_SLIDERS)}
+						</CollapsibleSection>
 					</>
 				)}
 
@@ -424,9 +434,9 @@ export function ImageSidebar({ showInfo, onShowInfoChange }: ImageSidebarProps) 
 				)}
 			</div>
 
-			{/* Actions (always visible at bottom) */}
-			<div className="p-3 border-t border-border flex flex-col gap-2 shrink-0 bg-surface-raised/10">
-				{originalData && (
+			{/* Actions — only visible when a file is loaded */}
+			{originalData && (
+				<div className="p-3 border-t border-border flex flex-col gap-2 shrink-0 bg-surface-raised/10">
 					<Button
 						variant="ghost"
 						size="sm"
@@ -443,18 +453,16 @@ export function ImageSidebar({ showInfo, onShowInfoChange }: ImageSidebarProps) 
 					>
 						Hold to Compare
 					</Button>
-				)}
-
-				<Button
-					className="w-full"
-					disabled={!originalData}
-					onClick={() => {
-						void handleExport();
-					}}
-				>
-					Export
-				</Button>
-			</div>
+					<Button
+						className="w-full"
+						onClick={() => {
+							void handleExport();
+						}}
+					>
+						Export
+					</Button>
+				</div>
+			)}
 
 			{/* Info modal */}
 			{showInfo && file && originalData && (

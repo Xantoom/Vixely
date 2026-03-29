@@ -2,22 +2,7 @@ import { create } from 'zustand';
 import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
 import { DEFAULT_FILTER_PARAMS, filtersAreDefault } from '@/modules/shared-core/types/filters.ts';
 
-export type GifMode =
-	| 'settings'
-	| 'crop'
-	| 'resize'
-	| 'rotate'
-	| 'filters'
-	| 'optimize'
-	| 'frames'
-	| 'text'
-	| 'maker'
-	| 'overlay'
-	| 'fade'
-	| 'analyze'
-	| 'convert'
-	| 'aspect'
-	| 'export';
+export type GifMode = 'settings' | 'transform' | 'filters' | 'overlays' | 'effects' | 'frames' | 'optimize' | 'export';
 
 export interface CropRect {
 	x: number;
@@ -85,6 +70,7 @@ export interface GifEditorState {
 	// Crop
 	crop: CropRect | null;
 	cropAspect: CropAspectPreset;
+	cropLockAspect: boolean;
 
 	// Rotate/Flip
 	rotation: RotationAngle;
@@ -135,6 +121,7 @@ export interface GifEditorState {
 	setLoopCount: (count: number) => void;
 	setCrop: (crop: CropRect | null) => void;
 	setCropAspect: (aspect: CropAspectPreset) => void;
+	setCropLockAspect: (lock: boolean) => void;
 	setRotation: (angle: RotationAngle) => void;
 	setFlipH: (flip: boolean) => void;
 	setFlipV: (flip: boolean) => void;
@@ -212,6 +199,7 @@ export const useGifEditorStore = create<GifEditorState>((set, get) => ({
 
 	crop: null,
 	cropAspect: 'free',
+	cropLockAspect: false,
 
 	rotation: 0,
 	flipH: false,
@@ -264,6 +252,9 @@ export const useGifEditorStore = create<GifEditorState>((set, get) => ({
 	},
 	setCropAspect: (cropAspect) => {
 		set({ cropAspect });
+	},
+	setCropLockAspect: (cropLockAspect) => {
+		set({ cropLockAspect });
 	},
 	setRotation: (rotation) => {
 		set({ rotation });
@@ -439,6 +430,7 @@ export const useGifEditorStore = create<GifEditorState>((set, get) => ({
 			comparePosition: 0.5,
 			crop: null,
 			cropAspect: 'free',
+			cropLockAspect: false,
 			rotation: 0,
 			flipH: false,
 			flipV: false,

@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useGifEditorStore } from '@/stores/gifEditor.ts';
+import { GifCropOverlay } from './GifCropOverlay.tsx';
 
 interface GifPreviewOverlaysProps {
 	sourceWidth: number;
@@ -51,19 +52,8 @@ export const GifPreviewOverlays = memo(function GifPreviewOverlays({
 
 	return (
 		<div ref={overlayRef} className="absolute inset-0 pointer-events-none overflow-hidden rounded-lg">
-			{/* ── Crop mask ── */}
-			{crop && (
-				<div
-					className="absolute border-2 border-accent/80 z-10"
-					style={{
-						left: `${(crop.x / sourceWidth) * 100}%`,
-						top: `${(crop.y / sourceHeight) * 100}%`,
-						width: `${(crop.width / sourceWidth) * 100}%`,
-						height: `${(crop.height / sourceHeight) * 100}%`,
-						boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.55)',
-					}}
-				/>
-			)}
+			{/* ── Interactive crop overlay ── */}
+			{crop && <GifCropOverlay sourceWidth={sourceWidth} sourceHeight={sourceHeight} />}
 
 			{/* ── Text overlays ── */}
 			{textOverlays.map((overlay) => (

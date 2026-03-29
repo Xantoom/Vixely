@@ -248,7 +248,7 @@ function VideoStudio() {
 	} = useVideoProcessor();
 	const videoMode = useVideoEditorStore((s) => s.mode);
 	const setVideoMode = useVideoEditorStore((s) => s.setMode);
-	const videoFilters = useVideoEditorStore((s) => s.filters);
+	const hasVideoFilterChanges = useVideoEditorStore((s) => s.hasFilterChanges);
 	const probeResult = useVideoEditorStore((s) => s.probeResult);
 	const setProbeResult = useVideoEditorStore((s) => s.setProbeResult);
 	const tracks = useVideoEditorStore((s) => s.tracks);
@@ -292,6 +292,7 @@ function VideoStudio() {
 	const [detailedProbePending, setDetailedProbePending] = useState(false);
 	const [detailedProbeError, setDetailedProbeError] = useState<string | null>(null);
 	const [captureMenuOpen, setCaptureMenuOpen] = useState(false);
+	const [compareMode, setCompareMode] = useState(false);
 	const [captureFormat, setCaptureFormat] = useState<'png' | 'jpeg' | 'webp'>('png');
 	const [embeddedFonts, setEmbeddedFonts] = useState<Array<{ name: string; data: Uint8Array }>>([]);
 	const [showInfo, setShowInfo] = useState(false);
@@ -907,11 +908,7 @@ function VideoStudio() {
 		: null;
 	const hasTrimAdjustments = trimStart > 0 || trimEnd < duration;
 	const hasResizeAdjustments = resize.width !== resize.originalWidth || resize.height !== resize.originalHeight;
-	const hasColorAdjustments =
-		videoFilters.brightness !== 0 ||
-		videoFilters.contrast !== 1 ||
-		videoFilters.saturation !== 1 ||
-		videoFilters.hue !== 0;
+	const hasColorAdjustments = hasVideoFilterChanges();
 	const usingPreBurnedAssSource = usePreBurnedAssSource && preBurnedAssSourceFile != null;
 	const isMobile = tier === 'mobile';
 	const isTablet = tier === 'tablet';
@@ -1259,18 +1256,6 @@ function VideoStudio() {
 
 				{/* ── Adjust Tab ── */}
 				{videoMode === 'adjust' && <AdjustPanel />}
-
-				{/* ── Compare Tab ── */}
-				{videoMode === 'compare' && (
-					<div className="flex flex-col gap-3">
-						<h3 className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
-							Split View
-						</h3>
-						<p className="text-[12px] text-text-tertiary">
-							Drag the slider on the video to compare original vs. edited.
-						</p>
-					</div>
-				)}
 
 				{/* ── Export Tab ── */}
 				{videoMode === 'export' && (
@@ -2315,12 +2300,9 @@ function VideoStudio() {
 								currentFrame={timeToFrames(currentTime)}
 								totalFrames={totalFrames}
 								detailedProbePending={detailedProbePending}
-								compareMode={videoMode === 'compare'}
+								compareMode={compareMode}
 								hasChanges={
-									videoFilters.brightness !== 0 ||
-									videoFilters.contrast !== 1 ||
-									videoFilters.saturation !== 1 ||
-									videoFilters.hue !== 0 ||
+									hasColorAdjustments ||
 									(resize.originalWidth > 0 &&
 										(resize.width !== resize.originalWidth ||
 											resize.height !== resize.originalHeight))
@@ -2335,7 +2317,7 @@ function VideoStudio() {
 									setShowInfo(true);
 								}}
 								onToggleCompare={() => {
-									setVideoMode(videoMode === 'compare' ? 'adjust' : 'compare');
+									setCompareMode((prev) => !prev);
 								}}
 								captureMenu={
 									<>
@@ -2382,6 +2364,7 @@ function VideoStudio() {
 									videoRef={videoRef}
 									assSubtitleContent={assSubtitleContent}
 									embeddedFonts={embeddedFonts}
+									compareMode={compareMode}
 									onLoadedMetadata={handleVideoLoaded}
 									onTimeUpdate={handleTimeUpdate}
 									onSeek={handleSeek}

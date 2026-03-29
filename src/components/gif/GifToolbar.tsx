@@ -1,4 +1,4 @@
-import { Columns2, FilePlus2, Info, Maximize, Minus, Plus, StepBack, StepForward } from 'lucide-react';
+import { Columns2, FilePlus2, Info, Maximize, Minus, Pause, Play, Plus, StepBack, StepForward } from 'lucide-react';
 import { EditorToolbar } from '@/components/editor/EditorToolbar.tsx';
 import { IconButton, ToolbarSeparator } from '@/components/ui/IconButton.tsx';
 import { formatCompactTime } from '@/components/ui/Timeline.tsx';
@@ -13,6 +13,9 @@ interface GifToolbarProps {
 	currentFrame: number;
 	totalFrames: number;
 	isGifSource: boolean;
+	gifPaused: boolean;
+	onToggleGifPause: () => void;
+	onGifStepFrame: (dir: -1 | 1) => void;
 	onOpenFile: () => void;
 	onNew: () => void;
 	onStepFrame: (dir: -1 | 1) => void;
@@ -37,6 +40,9 @@ export function GifToolbar({
 	currentFrame,
 	totalFrames,
 	isGifSource,
+	gifPaused,
+	onToggleGifPause,
+	onGifStepFrame,
 	onOpenFile,
 	onNew,
 	onStepFrame,
@@ -55,7 +61,42 @@ export function GifToolbar({
 
 	return (
 		<EditorToolbar>
-			{/* Frame step (video source only) */}
+			{/* ── GIF source playback controls ── */}
+			{isGifSource && totalFrames > 0 && (
+				<>
+					<IconButton
+						onClick={() => {
+							onGifStepFrame(-1);
+						}}
+						disabled={processing}
+						title="Previous frame"
+					>
+						<StepBack size={16} />
+					</IconButton>
+
+					<IconButton onClick={onToggleGifPause} disabled={processing} title={gifPaused ? 'Play' : 'Pause'}>
+						{gifPaused ? <Play size={16} /> : <Pause size={16} />}
+					</IconButton>
+
+					<span className="text-[12px] font-mono text-text-tertiary tabular-nums px-1">
+						{formatNumber(currentFrame + 1)} / {formatNumber(totalFrames)}
+					</span>
+
+					<IconButton
+						onClick={() => {
+							onGifStepFrame(1);
+						}}
+						disabled={processing}
+						title="Next frame"
+					>
+						<StepForward size={16} />
+					</IconButton>
+
+					<ToolbarSeparator />
+				</>
+			)}
+
+			{/* ── Video source frame step ── */}
 			{!isGifSource && (
 				<>
 					<IconButton
