@@ -70,6 +70,12 @@ export interface FfmpegExportPlan {
 	isCustomExport: boolean;
 	selectedAudioStream?: StreamInfo;
 	selectedSubtitleStream?: StreamInfo;
+	maxSizeBytes: number | null;
+	targetVideoBitrateKbps: number | null;
+	selectedWidth: number | null;
+	selectedHeight: number | null;
+	fallbackWidth: number | null;
+	fallbackHeight: number | null;
 }
 
 function codecSupportsQp(codec: string): boolean {
@@ -196,6 +202,12 @@ export function buildFfmpegExportPlan(input: BuildFfmpegExportPlanInput): Ffmpeg
 	let outputName = 'output.mp4';
 	let ext = 'mp4';
 	let includeAudio = includeAudioTracks;
+	let maxSizeBytes: number | null = null;
+	let targetVideoBitrateKbps: number | null = null;
+	let selectedWidth: number | null = null;
+	let selectedHeight: number | null = null;
+	let fallbackWidth: number | null = null;
+	let fallbackHeight: number | null = null;
 
 	if (isCustomExport) {
 		includeAudio = includeAudio && (audioNoReencode || advancedSettings.audioCodec !== 'none');
@@ -264,6 +276,12 @@ export function buildFfmpegExportPlan(input: BuildFfmpegExportPlanInput): Ffmpeg
 			selectedAudioCodec: presetAudioCodec,
 			recommendedAudioBitrateKbps: presetAudioBitrateKbps,
 			shouldReencodeAudio: forcePresetAudioReencode,
+			maxSizeBytes: presetMaxSizeBytes,
+			targetVideoBitrateKbps: presetTargetVideoBitrateKbps,
+			selectedWidth: presetSelectedWidth,
+			selectedHeight: presetSelectedHeight,
+			fallbackWidth: presetFallbackWidth,
+			fallbackHeight: presetFallbackHeight,
 		} = buildVideoArgs(selectedPreset, clipDuration, {
 			sourceSizeBytes: sourceClipBytesEstimate,
 			inputWidth: videoStreamInfo?.width,
@@ -275,6 +293,13 @@ export function buildFfmpegExportPlan(input: BuildFfmpegExportPlanInput): Ffmpeg
 			sourceAudioTotalBitrateKbps: selectedSourceAudioTotalBitrateKbps,
 			sourceAudioTrackCount: selectedAudioStreamCount,
 		});
+
+		maxSizeBytes = presetMaxSizeBytes;
+		targetVideoBitrateKbps = presetTargetVideoBitrateKbps;
+		selectedWidth = presetSelectedWidth;
+		selectedHeight = presetSelectedHeight;
+		fallbackWidth = presetFallbackWidth;
+		fallbackHeight = presetFallbackHeight;
 
 		const canCopyVideo = videoNoReencode && noVideoFilters;
 		if (videoNoReencode && !noVideoFilters) {
@@ -348,5 +373,11 @@ export function buildFfmpegExportPlan(input: BuildFfmpegExportPlanInput): Ffmpeg
 		isCustomExport,
 		selectedAudioStream,
 		selectedSubtitleStream,
+		maxSizeBytes,
+		targetVideoBitrateKbps,
+		selectedWidth,
+		selectedHeight,
+		fallbackWidth,
+		fallbackHeight,
 	};
 }

@@ -1,16 +1,19 @@
 import { createFileRoute } from '@tanstack/react-router';
 import {
 	Clapperboard,
+	Crop,
 	Download,
 	Film,
-	Video,
 	ImageIcon,
+	Layers,
 	Palette,
+	Scissors,
+	Settings2,
+	ShieldCheck,
 	SlidersHorizontal,
 	Sparkles,
-	Scissors,
+	Video,
 	Zap,
-	ShieldCheck,
 } from 'lucide-react';
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
@@ -20,6 +23,7 @@ import { EditorLanding } from '@/components/editor/EditorLanding.tsx';
 import { EditorEmptyState, EditorShell } from '@/components/editor/index.ts';
 import { GifAnalyzerPanel } from '@/components/gif/GifAnalyzerPanel.tsx';
 import { GifAspectRatioPanel } from '@/components/gif/GifAspectRatioPanel.tsx';
+import { GifCanvasPlayer } from '@/components/gif/GifCanvasPlayer.tsx';
 import { GifCropPanel } from '@/components/gif/GifCropPanel.tsx';
 import { GifExportPanel } from '@/components/gif/GifExportPanel.tsx';
 import { GifFadePanel } from '@/components/gif/GifFadePanel.tsx';
@@ -30,18 +34,23 @@ import { GifImageOverlayPanel } from '@/components/gif/GifImageOverlayPanel.tsx'
 import { GifInfoModal } from '@/components/gif/GifInfoModal.tsx';
 import { GifMakerPanel } from '@/components/gif/GifMakerPanel.tsx';
 import { GifOptimizePanel } from '@/components/gif/GifOptimizePanel.tsx';
+import { GifPreviewOverlays } from '@/components/gif/GifPreviewOverlays.tsx';
 import { GifResizePanel } from '@/components/gif/GifResizePanel.tsx';
 import { GifRotatePanel } from '@/components/gif/GifRotatePanel.tsx';
 import { GifSettingsPanel } from '@/components/gif/GifSettingsPanel.tsx';
 import { GifTextOverlayPanel } from '@/components/gif/GifTextOverlayPanel.tsx';
 import { GifToolbar } from '@/components/gif/GifToolbar.tsx';
 import { Seo, buildWebAppSchema, buildFAQSchema } from '@/components/Seo.tsx';
-import { Button, EditorModeTabs, EditorStageTabs, Timeline } from '@/components/ui/index.ts';
+import { CollapsibleSection } from '@/components/ui/CollapsibleSection.tsx';
+import { Button, Timeline } from '@/components/ui/index.ts';
+import { ToolRail, type ToolRailItem } from '@/components/ui/ToolRail.tsx';
 import { gifPresetEntries, GIF_ACCEPT } from '@/config/presets.ts';
-import { useEditorLayoutPrefs, type EditorStage } from '@/hooks/useEditorLayoutPrefs.ts';
+import { useEditorLayoutPrefs } from '@/hooks/useEditorLayoutPrefs.ts';
 import { useFrameStepController } from '@/hooks/useFrameStepController.ts';
+import { useGifDecoder } from '@/hooks/useGifDecoder.ts';
 import { useLongTaskObserver } from '@/hooks/useLongTaskObserver.ts';
 import { useObjectUrlState } from '@/hooks/useObjectUrlState.ts';
+import { usePanZoom } from '@/hooks/usePanZoom.ts';
 import { usePendingActionConfirmation } from '@/hooks/usePendingActionConfirmation.ts';
 import { usePreventUnload } from '@/hooks/usePreventUnload.ts';
 import { useSingleFileDrop } from '@/hooks/useSingleFileDrop.ts';
@@ -49,7 +58,6 @@ import { useTimelineScrubController } from '@/hooks/useTimelineScrubController.t
 import { useVideoProcessor } from '@/hooks/useVideoProcessor.ts';
 import { filtersAreDefault } from '@/modules/shared-core/types/filters.ts';
 import { useEditorSessionStore } from '@/stores/editorSession.ts';
-import { useEditorUxStore } from '@/stores/editorUx.ts';
 import { useGifEditorStore, type GifMode } from '@/stores/gifEditor.ts';
 import { buildExportFilename } from '@/utils/exportFilename.ts';
 import { formatFileSize } from '@/utils/format.ts';
@@ -142,129 +150,21 @@ function isGifFileLike(file: File): boolean {
 	return file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif');
 }
 
-type SidebarSectionId = 'setup' | 'style' | 'timing' | 'output';
-
-interface SidebarTool {
-	mode: GifMode;
-	label: string;
-	description: string;
-}
-
-interface SidebarSection {
-	id: SidebarSectionId;
-	label: string;
-	description: string;
-	icon: typeof SlidersHorizontal;
-	tools: SidebarTool[];
-}
-
-const SIDEBAR_SECTIONS: SidebarSection[] = [
-	{
-		id: 'setup',
-		label: 'Setup',
-		description: '',
-		icon: SlidersHorizontal,
-		tools: [
-			{ mode: 'settings', label: 'Settings', description: '' },
-			{ mode: 'crop', label: 'Crop', description: '' },
-			{ mode: 'resize', label: 'Resize', description: '' },
-			{ mode: 'rotate', label: 'Rotate', description: '' },
-			{ mode: 'aspect', label: 'Aspect', description: '' },
-		],
-	},
-	{
-		id: 'style',
-		label: 'Style',
-		description: '',
-		icon: Sparkles,
-		tools: [
-			{ mode: 'filters', label: 'Filters', description: '' },
-			{ mode: 'text', label: 'Text', description: '' },
-			{ mode: 'overlay', label: 'Overlay', description: '' },
-			{ mode: 'fade', label: 'Fade', description: '' },
-		],
-	},
-	{
-		id: 'timing',
-		label: 'Timing',
-		description: '',
-		icon: Clapperboard,
-		tools: [
-			{ mode: 'frames', label: 'Frames', description: '' },
-			{ mode: 'optimize', label: 'Optimize', description: '' },
-			{ mode: 'maker', label: 'Maker', description: '' },
-		],
-	},
-	{
-		id: 'output',
-		label: 'Output',
-		description: '',
-		icon: Download,
-		tools: [
-			{ mode: 'convert', label: 'Convert', description: '' },
-			{ mode: 'analyze', label: 'Analyze', description: '' },
-			{ mode: 'export', label: 'Export', description: '' },
-		],
-	},
+/** Flat tool list for the GIF editor ToolRail */
+const GIF_TOOLS: ToolRailItem<GifMode>[] = [
+	{ id: 'settings', label: 'Settings', icon: Settings2 },
+	{ id: 'transform', label: 'Transform', icon: Crop },
+	{ id: 'filters', label: 'Filters', icon: SlidersHorizontal },
+	{ id: 'overlays', label: 'Overlays', icon: Layers },
+	{ id: 'effects', label: 'Effects', icon: Sparkles },
+	{ id: 'frames', label: 'Frames', icon: Clapperboard },
+	{ id: 'optimize', label: 'Optimize', icon: Zap },
+	{ id: 'export', label: 'Export', icon: Download },
 ];
-
-const MODE_TO_SECTION: Record<GifMode, SidebarSectionId> = {
-	settings: 'setup',
-	crop: 'setup',
-	resize: 'setup',
-	rotate: 'setup',
-	aspect: 'setup',
-	filters: 'style',
-	text: 'style',
-	overlay: 'style',
-	fade: 'style',
-	frames: 'timing',
-	optimize: 'timing',
-	maker: 'timing',
-	convert: 'output',
-	analyze: 'output',
-	export: 'output',
-};
-
-const SECTION_STAGE: Record<SidebarSectionId, EditorStage> = {
-	setup: 'source',
-	style: 'edit',
-	timing: 'edit',
-	output: 'output',
-};
-
-const GIF_MODE_STAGE: Record<GifMode, EditorStage> = {
-	settings: 'source',
-	crop: 'source',
-	resize: 'source',
-	rotate: 'source',
-	aspect: 'source',
-	filters: 'edit',
-	text: 'edit',
-	overlay: 'edit',
-	fade: 'edit',
-	frames: 'edit',
-	optimize: 'edit',
-	maker: 'edit',
-	convert: 'output',
-	analyze: 'output',
-	export: 'output',
-};
-
-const STAGE_TO_GIF_MODE: Record<EditorStage, GifMode> = { source: 'settings', edit: 'filters', output: 'export' };
-const SIMPLE_GIF_MODES = new Set<GifMode>(['settings', 'crop', 'resize', 'filters', 'overlay', 'text', 'export']);
-
 function GifFoundry() {
 	useLongTaskObserver('gif-route');
-	const { stage, setStage } = useEditorLayoutPrefs({
-		editor: 'gif',
-		defaultInspectorWidth: 360,
-		defaultStage: 'source',
-	});
+	const { tier, setSidebarOpen } = useEditorLayoutPrefs({ editor: 'gif' });
 	const { ready, processing, progress, error, createGif, extractGifFrames } = useVideoProcessor();
-	const editorUxMode = useEditorUxStore((s) => s.mode);
-	const setEditorUxMode = useEditorUxStore((s) => s.setMode);
-	const isExpertMode = editorUxMode === 'expert';
 	const store = useGifEditorStore(
 		useShallow((s) => ({
 			mode: s.mode,
@@ -289,10 +189,17 @@ function GifFoundry() {
 			convertFormat: s.convertFormat,
 			aspectPreset: s.aspectPreset,
 			aspectPaddingColor: s.aspectPaddingColor,
+			zoom: s.zoom,
+			panX: s.panX,
+			panY: s.panY,
 			setMode: s.setMode,
 			resetAll: s.resetAll,
 			setExtractedFrames: s.setExtractedFrames,
 			clearExtractedFrames: s.clearExtractedFrames,
+			setView: s.setView,
+			zoomTo: s.zoomTo,
+			fitToView: s.fitToView,
+			resetView: s.resetView,
 		})),
 	);
 
@@ -315,10 +222,13 @@ function GifFoundry() {
 	const [resultSize, setResultSize] = useState(0);
 	const [resultFileName, setResultFileName] = useState<string | null>(null);
 	const [activePreview, setActivePreview] = useState<'source' | 'result'>('source');
-	const [sidebarSection, setSidebarSection] = useState<SidebarSectionId>('setup');
 	const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
 
 	const [showInfo, setShowInfo] = useState(false);
+	const [compareMode, setCompareMode] = useState(false);
+	const [gifPaused, setGifPaused] = useState(false);
+	const [gifCurrentFrame, setGifCurrentFrame] = useState(0);
+	const gifPlayerRef = useRef<import('@/components/gif/GifCanvasPlayer.tsx').GifCanvasPlayerHandle>(null);
 	const { isConfirmOpen, requestAction, confirmPendingAction, cancelPendingAction } = usePendingActionConfirmation(
 		file !== null,
 	);
@@ -326,6 +236,127 @@ function GifFoundry() {
 
 	const videoRef = useRef<HTMLVideoElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	const previewContainerRef = useRef<HTMLDivElement>(null);
+
+	// Decode GIF frames for canvas-based preview (speed, reverse, filters in real-time)
+	const gifBlobUrl = isGifSource ? videoUrl : null;
+	const { frames: gifFrames, supported: gifDecoderSupported } = useGifDecoder(gifBlobUrl);
+	const hasDecodedFrames = gifDecoderSupported && gifFrames.length > 0;
+
+	// Filter out deleted frames from preview when user has extracted and edited frames
+	const previewFrames = useMemo(() => {
+		if (store.extractedFrames.length === 0 || gifFrames.length === 0) return gifFrames;
+		// Build a set of remaining frame indices from extracted frames
+		// extractedFrames indices are re-indexed after deletion, but we track original count
+		if (store.extractedFrames.length === gifFrames.length) return gifFrames;
+		// When some frames were deleted, only keep the frames at positions matching extracted frame indices
+		// Since extracted frames are re-indexed after deletion, use the count as a signal
+		const keepCount = store.extractedFrames.length;
+		if (keepCount >= gifFrames.length) return gifFrames;
+		// Evenly sample from original frames to match the remaining count
+		const step = gifFrames.length / keepCount;
+		const filtered = [];
+		for (let i = 0; i < keepCount; i++) {
+			filtered.push(gifFrames[Math.round(i * step)]!);
+		}
+		return filtered;
+	}, [gifFrames, store.extractedFrames]);
+
+	// Zoom/pan
+	const zoomView = useMemo(
+		() => ({ panX: store.panX, panY: store.panY, zoom: store.zoom }),
+		[store.panX, store.panY, store.zoom],
+	);
+	// Disable left-click pan when crop is active so drag gestures control the crop overlay
+	const hasCropActive = store.crop != null && store.mode === 'transform';
+	usePanZoom({
+		containerRef: previewContainerRef,
+		view: zoomView,
+		setView: store.setView,
+		zoomTo: store.zoomTo,
+		enabled: !!videoUrl,
+		leftClickPan: !hasCropActive,
+		attachKey: videoUrl,
+	});
+
+	// Stable refs for zoom callbacks — avoids stale closures & effect re-runs
+	const fitToViewRef = useRef(store.fitToView);
+	fitToViewRef.current = store.fitToView;
+	const zoomToRef = useRef(store.zoomTo);
+	zoomToRef.current = store.zoomTo;
+	const zoomRef = useRef(store.zoom);
+	zoomRef.current = store.zoom;
+
+	const handleToggleGifPause = useCallback(() => {
+		setGifPaused((prev) => !prev);
+	}, []);
+
+	const handleGifStepFrame = useCallback(
+		(dir: -1 | 1) => {
+			const total = previewFrames.length;
+			if (total === 0) return;
+			setGifPaused(true);
+			const next = (((gifCurrentFrame + dir) % total) + total) % total;
+			setGifCurrentFrame(next);
+			gifPlayerRef.current?.stepTo(next);
+		},
+		[previewFrames.length, gifCurrentFrame],
+	);
+
+	const handleZoomIn = useCallback(() => {
+		const el = previewContainerRef.current;
+		if (!el) return;
+		const cx = el.clientWidth / 2;
+		const cy = el.clientHeight / 2;
+		zoomToRef.current(Math.min(10, zoomRef.current * 1.25), cx, cy);
+	}, []);
+
+	const handleZoomOut = useCallback(() => {
+		const el = previewContainerRef.current;
+		if (!el) return;
+		const cx = el.clientWidth / 2;
+		const cy = el.clientHeight / 2;
+		zoomToRef.current(Math.max(0.1, zoomRef.current / 1.25), cx, cy);
+	}, []);
+
+	const handleFitToScreen = useCallback(() => {
+		const el = previewContainerRef.current;
+		if (!el) return;
+		const w = sourceWidth ?? 480;
+		const h = sourceHeight ?? 270;
+		fitToViewRef.current(el.clientWidth, el.clientHeight, w, h);
+	}, [sourceWidth, sourceHeight]);
+
+	// Auto-fit when source dimensions change (file loaded) or container first becomes visible
+	useEffect(() => {
+		if (!sourceWidth || !sourceHeight) return;
+		const el = previewContainerRef.current;
+		if (!el) return;
+
+		const fit = () => {
+			const cw = el.clientWidth;
+			const ch = el.clientHeight;
+			if (cw > 0 && ch > 0) {
+				fitToViewRef.current(cw, ch, sourceWidth, sourceHeight);
+			}
+		};
+
+		fit();
+
+		const ro = new ResizeObserver((entries) => {
+			const entry = entries[0];
+			if (!entry) return;
+			const { width: w, height: h } = entry.contentRect;
+			if (w > 0 && h > 0) {
+				fitToViewRef.current(w, h, sourceWidth, sourceHeight);
+				ro.disconnect();
+			}
+		});
+		ro.observe(el);
+		return () => {
+			ro.disconnect();
+		};
+	}, [sourceWidth, sourceHeight]);
 
 	// Live CSS preview for filters + rotation/flip
 	const previewStyle = useMemo((): React.CSSProperties => {
@@ -522,14 +553,27 @@ function GifFoundry() {
 			}
 			if (e.key === ' ') {
 				e.preventDefault();
-				togglePlaybackInTrim();
+				if (isGifSource && hasDecodedFrames) {
+					handleToggleGifPause();
+				} else {
+					togglePlaybackInTrim();
+				}
+			}
+			if (isGifSource && hasDecodedFrames) {
+				if (e.key === 'ArrowLeft') {
+					e.preventDefault();
+					handleGifStepFrame(-1);
+				} else if (e.key === 'ArrowRight') {
+					e.preventDefault();
+					handleGifStepFrame(1);
+				}
 			}
 		};
 		window.addEventListener('keydown', onKeyDown);
 		return () => {
 			window.removeEventListener('keydown', onKeyDown);
 		};
-	}, [togglePlaybackInTrim]);
+	}, [togglePlaybackInTrim, isGifSource, hasDecodedFrames, handleToggleGifPause, handleGifStepFrame]);
 
 	/* ── Resize Handlers ── */
 	const handleWidthChange = useCallback(
@@ -744,66 +788,8 @@ function GifFoundry() {
 		}
 	}, [activePreview, canShowResultPreview]);
 
-	useEffect(() => {
-		const modeStage = GIF_MODE_STAGE[store.mode];
-		if (modeStage !== stage) {
-			setStage(modeStage);
-		}
-	}, [stage, store.mode, setStage]);
-
-	const handleStageChange = useCallback(
-		(nextStage: EditorStage) => {
-			setStage(nextStage);
-			if (GIF_MODE_STAGE[store.mode] !== nextStage) {
-				store.setMode(STAGE_TO_GIF_MODE[nextStage]);
-			}
-		},
-		[setStage, store.mode, store.setMode],
-	);
-
-	useEffect(() => {
-		setSidebarSection(MODE_TO_SECTION[store.mode]);
-	}, [store.mode]);
-
-	const stageSections = useMemo(
-		() => SIDEBAR_SECTIONS.filter((section) => SECTION_STAGE[section.id] === stage),
-		[stage],
-	);
-	const visibleStageSections = useMemo(
-		() =>
-			stageSections
-				.map((section) => ({
-					...section,
-					tools: isExpertMode
-						? section.tools
-						: section.tools.filter((tool) => SIMPLE_GIF_MODES.has(tool.mode)),
-				}))
-				.filter((section) => section.tools.length > 0),
-		[isExpertMode, stageSections],
-	);
-
-	useEffect(() => {
-		setSidebarSection((current) => {
-			if (visibleStageSections.some((section) => section.id === current)) return current;
-			return visibleStageSections[0]?.id ?? 'setup';
-		});
-	}, [visibleStageSections]);
-
-	useEffect(() => {
-		if (isExpertMode) return;
-		if (SIMPLE_GIF_MODES.has(store.mode)) return;
-		const fallbackMode = visibleStageSections[0]?.tools[0]?.mode ?? 'settings';
-		store.setMode(fallbackMode);
-	}, [isExpertMode, store.mode, store.setMode, visibleStageSections]);
-
-	const activeSidebarSection = useMemo(
-		() =>
-			visibleStageSections.find((section) => section.id === sidebarSection) ??
-			visibleStageSections[0] ??
-			stageSections[0] ??
-			SIDEBAR_SECTIONS[0]!,
-		[sidebarSection, stageSections, visibleStageSections],
-	);
+	const isMobile = tier === 'mobile';
+	const isTablet = tier === 'tablet';
 	const hasResizeChanges =
 		sourceWidth != null && sourceHeight != null && (width !== sourceWidth || outputHeight !== sourceHeight);
 	const toolActivity: Record<GifMode, boolean> = {
@@ -816,33 +802,57 @@ function GifFoundry() {
 			!loop ||
 			trimStart > 0 ||
 			trimEnd < duration,
-		crop: store.crop != null,
-		resize: hasResizeChanges || !lockAspect,
-		rotate: store.rotation !== 0 || store.flipH || store.flipV,
-		aspect: store.aspectPreset !== 'free',
+		transform:
+			store.crop != null ||
+			hasResizeChanges ||
+			!lockAspect ||
+			store.rotation !== 0 ||
+			store.flipH ||
+			store.flipV ||
+			store.aspectPreset !== 'free',
 		filters: !filtersAreDefault(store.filters),
-		text: store.textOverlays.length > 0,
-		overlay: store.imageOverlay.file != null,
-		fade: store.fadeInDuration > 0 || store.fadeOutDuration > 0,
+		overlays: store.textOverlays.length > 0 || store.imageOverlay.file != null,
+		effects: store.fadeInDuration > 0 || store.fadeOutDuration > 0,
 		frames: store.extractedFrames.length > 0,
 		optimize: store.compressionSpeed !== 10 || store.frameSkip !== 'none' || !store.dithering,
-		maker: store.extractedFrames.length > 0,
-		convert: store.convertFormat !== 'webm',
-		analyze: false,
 		export: false,
 	};
-	const sectionTabs = visibleStageSections.map((section) => ({
-		id: section.id,
-		label: section.label,
-		icon: section.icon,
-		description: section.description,
-	}));
-	const modeTabs = activeSidebarSection.tools.map((tool) => ({
-		id: tool.mode,
-		label: tool.label,
-		description: tool.description,
-		hasActivity: toolActivity[tool.mode],
-	}));
+	const hasChanges = Object.values(toolActivity).some(Boolean);
+
+	const gifToolItems: ToolRailItem<GifMode>[] = useMemo(
+		() => GIF_TOOLS.map((tool) => ({ ...tool, hasActivity: toolActivity[tool.id] })),
+		[toolActivity],
+	);
+
+	const handleToolChange = useCallback(
+		(toolId: GifMode) => {
+			store.setMode(toolId);
+			if (isMobile) setSidebarOpen(true);
+		},
+		[store.setMode, isMobile, setSidebarOpen],
+	);
+
+	const handleToolToggle = useCallback(
+		(toolId: GifMode) => {
+			if (store.mode === toolId) {
+				if (isMobile) setSidebarOpen(false);
+			} else {
+				store.setMode(toolId);
+				if (isMobile) setSidebarOpen(true);
+			}
+		},
+		[store.mode, store.setMode, isMobile, setSidebarOpen],
+	);
+
+	const gifToolRail = (
+		<ToolRail
+			items={gifToolItems}
+			activeId={store.mode}
+			onChange={isTablet || isMobile ? handleToolToggle : handleToolChange}
+			direction={isTablet ? 'vertical' : 'horizontal'}
+			ariaLabel="GIF editor tools"
+		/>
+	);
 
 	const modePanel = useMemo(() => {
 		switch (store.mode) {
@@ -864,70 +874,102 @@ function GifFoundry() {
 						onApplyPreset={applyPreset}
 					/>
 				);
-			case 'crop':
-				return <GifCropPanel sourceWidth={sourceWidth} sourceHeight={sourceHeight} />;
-			case 'resize':
+			case 'transform':
 				return (
-					<GifResizePanel
-						width={width}
-						height={height}
-						lockAspect={lockAspect}
-						sourceAspect={sourceAspect}
-						onWidthChange={handleWidthChange}
-						onHeightChange={handleHeightChange}
-						onLockAspectChange={setLockAspect}
-					/>
+					<>
+						<CollapsibleSection title="Crop" changeCount={store.crop ? 1 : 0}>
+							<GifCropPanel sourceWidth={sourceWidth} sourceHeight={sourceHeight} />
+						</CollapsibleSection>
+						<CollapsibleSection title="Resize" changeCount={hasResizeChanges ? 1 : 0}>
+							<GifResizePanel
+								width={width}
+								height={height}
+								lockAspect={lockAspect}
+								sourceAspect={sourceAspect}
+								onWidthChange={handleWidthChange}
+								onHeightChange={handleHeightChange}
+								onLockAspectChange={setLockAspect}
+							/>
+						</CollapsibleSection>
+						<CollapsibleSection
+							title="Rotate & Flip"
+							changeCount={(store.rotation !== 0 ? 1 : 0) + (store.flipH ? 1 : 0) + (store.flipV ? 1 : 0)}
+						>
+							<GifRotatePanel />
+						</CollapsibleSection>
+						<CollapsibleSection
+							title="Aspect Ratio"
+							changeCount={store.aspectPreset !== 'free' ? 1 : 0}
+							defaultCollapsed
+						>
+							<GifAspectRatioPanel sourceWidth={sourceWidth} sourceHeight={sourceHeight} />
+						</CollapsibleSection>
+					</>
 				);
-			case 'rotate':
-				return <GifRotatePanel />;
 			case 'filters':
 				return <GifFiltersPanel />;
-			case 'optimize':
-				return <GifOptimizePanel />;
+			case 'overlays':
+				return (
+					<>
+						<CollapsibleSection title="Text" changeCount={store.textOverlays.length}>
+							<GifTextOverlayPanel />
+						</CollapsibleSection>
+						<CollapsibleSection title="Image" changeCount={store.imageOverlay.file ? 1 : 0}>
+							<GifImageOverlayPanel />
+						</CollapsibleSection>
+					</>
+				);
+			case 'effects':
+				return <GifFadePanel />;
 			case 'frames':
 				return (
-					<GifFramesPanel
-						file={file}
-						processing={processing}
-						progress={progress}
-						onExtractFrames={() => {
-							void handleExtractFrames();
-						}}
-					/>
+					<>
+						<GifFramesPanel
+							file={file}
+							processing={processing}
+							progress={progress}
+							onExtractFrames={() => {
+								void handleExtractFrames();
+							}}
+						/>
+						{store.extractedFrames.length > 0 && (
+							<CollapsibleSection title="Reorder & Create">
+								<GifMakerPanel />
+							</CollapsibleSection>
+						)}
+					</>
 				);
-			case 'text':
-				return <GifTextOverlayPanel />;
-			case 'maker':
-				return <GifMakerPanel />;
-			case 'overlay':
-				return <GifImageOverlayPanel />;
-			case 'fade':
-				return <GifFadePanel />;
-			case 'analyze':
-				return <GifAnalyzerPanel file={file} />;
-			case 'convert':
-				return <GifFormatConvertPanel file={file} sourceWidth={sourceWidth} sourceHeight={sourceHeight} />;
-			case 'aspect':
-				return <GifAspectRatioPanel sourceWidth={sourceWidth} sourceHeight={sourceHeight} />;
+			case 'optimize':
+				return <GifOptimizePanel />;
 			case 'export':
 				return (
-					<GifExportPanel
-						file={file}
-						ready={ready}
-						processing={processing}
-						progress={progress}
-						error={error}
-						estimatedFrames={estimatedFrames}
-						clipDuration={clipDuration}
-						width={width}
-						outputHeight={outputHeight}
-						resultUrl={resultUrl}
-						resultSize={resultSize}
-						onGenerate={() => {
-							void handleGenerate();
-						}}
-						onDownload={handleDownload}
-					/>
+					<>
+						<GifExportPanel
+							file={file}
+							ready={ready}
+							processing={processing}
+							progress={progress}
+							error={error}
+							estimatedFrames={estimatedFrames}
+							clipDuration={clipDuration}
+							width={width}
+							outputHeight={outputHeight}
+							resultUrl={resultUrl}
+							resultSize={resultSize}
+							onGenerate={() => {
+								void handleGenerate();
+							}}
+							onDownload={handleDownload}
+						/>
+						<CollapsibleSection title="Convert Format" defaultCollapsed>
+							<GifFormatConvertPanel file={file} sourceWidth={sourceWidth} sourceHeight={sourceHeight} />
+						</CollapsibleSection>
+						{file && (
+							<CollapsibleSection title="Analyze" defaultCollapsed>
+								<GifAnalyzerPanel file={file} />
+							</CollapsibleSection>
+						)}
+					</>
 				);
 			default:
 				return null;
@@ -967,44 +1009,10 @@ function GifFoundry() {
 	/* ── Sidebar Content ── */
 	const sidebarContent = (
 		<>
-			{/* Stage Tabs */}
-			<div className="p-2.5 border-b border-border/70 bg-surface-raised/15">
-				<EditorStageTabs stage={stage} onChange={handleStageChange} />
-			</div>
-
-			{visibleStageSections.length > 1 && (
-				<div className="border-b border-border/70 bg-surface/70">
-					<p className="px-3 pt-2.5 mb-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-text-tertiary">
-						Workflow
-					</p>
-					<EditorModeTabs
-						value={sidebarSection}
-						items={sectionTabs}
-						onChange={(nextSection) => {
-							setSidebarSection(nextSection);
-							if (MODE_TO_SECTION[store.mode] !== nextSection) {
-								const targetSection = visibleStageSections.find(
-									(section) => section.id === nextSection,
-								);
-								const nextMode = targetSection?.tools[0]?.mode;
-								if (nextMode) store.setMode(nextMode);
-							}
-						}}
-						ariaLabel="GIF workflow sections"
-					/>
-				</div>
-			)}
-
-			<div className="border-b border-border/70 bg-surface-raised/10">
-				<EditorModeTabs
-					value={store.mode}
-					items={modeTabs}
-					onChange={store.setMode}
-					ariaLabel={`${activeSidebarSection.label} tools`}
-				/>
-			</div>
-
-			<div className="p-3 flex flex-col gap-4 flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden">
+			<div
+				className="p-3 flex flex-col gap-4 flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden animate-panel-crossfade"
+				key={store.mode}
+			>
 				{modePanel}
 			</div>
 
@@ -1074,6 +1082,8 @@ function GifFoundry() {
 				editor="gif"
 				hasFile={file !== null}
 				sidebarLabel="gif inspector"
+				toolRail={file ? gifToolRail : undefined}
+				toolPanelOpen={isTablet && file !== null}
 				main={
 					<>
 						{file && (
@@ -1083,11 +1093,17 @@ function GifFoundry() {
 								sourceWidth={sourceWidth}
 								sourceHeight={sourceHeight}
 								duration={duration}
-								currentFrame={timeToFrames(currentTime)}
-								totalFrames={totalFrames}
+								currentFrame={isGifSource ? gifCurrentFrame : timeToFrames(currentTime)}
+								totalFrames={isGifSource ? previewFrames.length : totalFrames}
 								isGifSource={isGifSource}
-								editorUxMode={editorUxMode}
-								onEditorUxModeChange={setEditorUxMode}
+								gifPaused={gifPaused}
+								onToggleGifPause={handleToggleGifPause}
+								onGifStepFrame={handleGifStepFrame}
+								compareMode={compareMode}
+								hasChanges={hasChanges}
+								onToggleCompare={() => {
+									setCompareMode((prev) => !prev);
+								}}
 								onOpenFile={() => {
 									fileInputRef.current?.click();
 								}}
@@ -1098,129 +1114,173 @@ function GifFoundry() {
 								onShowInfo={() => {
 									setShowInfo(true);
 								}}
+								zoom={store.zoom}
+								onZoomIn={handleZoomIn}
+								onZoomOut={handleZoomOut}
+								onFitToScreen={handleFitToScreen}
 							/>
 						)}
 						{videoUrl ? (
 							<div
-								className="flex-1 flex items-center justify-center workspace-bg p-2 sm:p-3 overflow-hidden relative"
+								ref={previewContainerRef}
+								className="flex-1 min-h-0 relative overflow-hidden workspace-bg"
+								style={{ touchAction: 'none' }}
 								{...dropHandlers}
 							>
-								<div className="w-full h-full flex items-center justify-center">
-									<div className="w-full max-w-5xl max-h-full flex flex-col items-center gap-3">
-										{canShowResultPreview && (
-											<div className="inline-flex items-center rounded-lg border border-border/60 bg-bg/40 p-0.5">
-												<button
-													onClick={() => {
-														setActivePreview('source');
-													}}
-													className={`rounded-md px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
-														!showingResult
-															? 'bg-accent/15 text-accent'
-															: 'text-text-tertiary hover:text-text-secondary'
-													}`}
-												>
-													Source
-												</button>
-												<button
-													onClick={() => {
-														setActivePreview('result');
-													}}
-													className={`rounded-md px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
-														showingResult
-															? 'bg-accent/15 text-accent'
-															: 'text-text-tertiary hover:text-text-secondary'
-													}`}
-												>
-													Result
-												</button>
-											</div>
-										)}
+								{/* Source/Result toggle — fixed above the zoomable area */}
+								{canShowResultPreview && (
+									<div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 inline-flex items-center rounded-lg border border-border/60 bg-bg/80 backdrop-blur-sm p-0.5">
+										<button
+											onClick={() => {
+												setActivePreview('source');
+											}}
+											className={`rounded-md px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
+												!showingResult
+													? 'bg-accent/15 text-accent'
+													: 'text-text-tertiary hover:text-text-secondary'
+											}`}
+										>
+											Source
+										</button>
+										<button
+											onClick={() => {
+												setActivePreview('result');
+											}}
+											className={`rounded-md px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
+												showingResult
+													? 'bg-accent/15 text-accent'
+													: 'text-text-tertiary hover:text-text-secondary'
+											}`}
+										>
+											Result
+										</button>
+									</div>
+								)}
 
-										<div className="w-full min-h-0 flex items-center justify-center">
-											{showingResult && resultUrl ? (
-												<div className="rounded-xl border border-success/30 bg-surface/80 p-2 max-w-full max-h-full">
-													<img
-														src={resultUrl}
-														alt="Generated GIF"
-														width={width}
-														height={outputHeight}
-														className="max-w-full max-h-[min(70vh,680px)] object-contain rounded-lg bg-black"
-													/>
-												</div>
-											) : isGifSource ? (
-												<img
-													src={videoUrl}
-													alt="GIF source"
-													width={sourceWidth ?? undefined}
-													height={sourceHeight ?? undefined}
-													style={previewStyle}
-													className="max-w-full max-h-[min(70vh,680px)] rounded-lg bg-black object-contain"
-												/>
-											) : (
-												<video
-													ref={videoRef}
-													src={videoUrl}
-													onLoadedMetadata={handleVideoLoaded}
-													onTimeUpdate={handleTimeUpdate}
-													loop={loop}
-													controls
-													style={previewStyle}
-													className="max-w-full max-h-[min(70vh,680px)] rounded-lg bg-black"
-												/>
+								{/* Zoomable / pannable layer */}
+								<div
+									className="absolute top-0 left-0 pointer-events-none"
+									style={{
+										width: sourceWidth ?? undefined,
+										height: sourceHeight ?? undefined,
+										transform: `translate(${store.panX}px, ${store.panY}px) scale(${store.zoom})`,
+										transformOrigin: '0 0',
+										position: 'relative',
+									}}
+								>
+									{showingResult && resultUrl ? (
+										<img
+											src={resultUrl}
+											alt="Generated GIF"
+											width={width}
+											height={outputHeight}
+											className="rounded-lg bg-black"
+											draggable={false}
+										/>
+									) : isGifSource && hasDecodedFrames ? (
+										<GifCanvasPlayer
+											ref={gifPlayerRef}
+											frames={previewFrames}
+											filters={store.filters}
+											fps={fps}
+											speed={store.speed}
+											reverse={store.reverse}
+											paused={gifPaused}
+											onFrameChange={setGifCurrentFrame}
+											width={sourceWidth ?? 480}
+											height={sourceHeight ?? 270}
+											fadeInDuration={store.fadeInDuration}
+											fadeOutDuration={store.fadeOutDuration}
+											style={previewStyle}
+											className="rounded-lg bg-black"
+										/>
+									) : isGifSource ? (
+										<img
+											src={videoUrl}
+											alt="GIF source"
+											width={sourceWidth ?? undefined}
+											height={sourceHeight ?? undefined}
+											style={previewStyle}
+											className="rounded-lg bg-black"
+											draggable={false}
+										/>
+									) : (
+										<video
+											ref={videoRef}
+											src={videoUrl}
+											onLoadedMetadata={handleVideoLoaded}
+											onTimeUpdate={handleTimeUpdate}
+											loop={loop}
+											style={previewStyle}
+											className="rounded-lg bg-black pointer-events-auto"
+										/>
+									)}
+
+									{/* Overlays: crop mask, text, image overlay, aspect ratio bars */}
+									{sourceWidth != null && sourceHeight != null && !showingResult && (
+										<GifPreviewOverlays sourceWidth={sourceWidth} sourceHeight={sourceHeight} />
+									)}
+								</div>
+
+								{/* Status badges — fixed overlay */}
+								{showingResult ? (
+									<div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10">
+										<p className="text-[13px] text-success font-medium bg-bg/80 backdrop-blur-sm rounded-lg px-3 py-1.5">
+											Result size: {formatFileSize(resultSize)}
+										</p>
+									</div>
+								) : (
+									(store.rotation !== 0 ||
+										store.flipH ||
+										store.flipV ||
+										store.crop ||
+										hasResizeChanges) && (
+										<div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex gap-1.5 flex-wrap justify-center">
+											{hasResizeChanges && (
+												<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent backdrop-blur-sm font-mono tabular-nums">
+													{width}×{outputHeight}
+												</span>
+											)}
+											{store.rotation !== 0 && (
+												<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent backdrop-blur-sm">
+													Rotate {store.rotation}°
+												</span>
+											)}
+											{store.flipH && (
+												<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent backdrop-blur-sm">
+													Flip H
+												</span>
+											)}
+											{store.flipV && (
+												<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent backdrop-blur-sm">
+													Flip V
+												</span>
+											)}
+											{store.crop && (
+												<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent backdrop-blur-sm">
+													Crop {Math.round(store.crop.width)}×{Math.round(store.crop.height)}
+												</span>
 											)}
 										</div>
+									)
+								)}
 
-										{showingResult ? (
-											<p className="text-[13px] text-success font-medium">
-												Result size: {formatFileSize(resultSize)}
-											</p>
-										) : (
-											(store.rotation !== 0 || store.flipH || store.flipV || store.crop) && (
-												<div className="mt-1 flex gap-1.5 flex-wrap justify-center">
-													{store.rotation !== 0 && (
-														<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent">
-															Rotate {store.rotation}°
-														</span>
-													)}
-													{store.flipH && (
-														<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent">
-															Flip H
-														</span>
-													)}
-													{store.flipV && (
-														<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent">
-															Flip V
-														</span>
-													)}
-													{store.crop && (
-														<span className="text-[12px] px-2 py-0.5 rounded bg-accent/10 text-accent">
-															Crop {Math.round(store.crop.width)}×
-															{Math.round(store.crop.height)}
-														</span>
-													)}
-												</div>
-											)
-										)}
-
-										{processing && (
-											<div className="w-full max-w-sm rounded-xl border border-border/70 bg-bg/60 px-4 py-3 flex flex-col items-center">
-												<div className="h-9 w-9 rounded-full border-[3px] border-border border-t-accent animate-spin" />
-												<p className="mt-2 text-sm font-medium">
-													{Math.round(progress * 100)}%
-												</p>
-												<div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-surface-raised">
-													<div
-														className="h-full bg-accent transition-all duration-300"
-														style={{ width: `${progress * 100}%` }}
-													/>
-												</div>
-												<p className="mt-2 text-[12px] text-text-tertiary">
-													Optimizing palette...
-												</p>
+								{/* Processing overlay */}
+								{processing && (
+									<div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+										<div className="w-full max-w-sm rounded-xl border border-border/70 bg-bg/60 backdrop-blur-sm px-4 py-3 flex flex-col items-center">
+											<div className="h-9 w-9 rounded-full border-[3px] border-border border-t-accent animate-spin" />
+											<p className="mt-2 text-sm font-medium">{Math.round(progress * 100)}%</p>
+											<div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-surface-raised">
+												<div
+													className="h-full bg-accent transition-all duration-300"
+													style={{ width: `${progress * 100}%` }}
+												/>
 											</div>
-										)}
+											<p className="mt-2 text-[12px] text-text-tertiary">Optimizing palette...</p>
+										</div>
 									</div>
-								</div>
+								)}
 
 								{/* Drag overlay when file is loaded */}
 								{isDragging && (

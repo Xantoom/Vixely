@@ -1,9 +1,7 @@
-import { FilePlus2, Info, StepBack, StepForward } from 'lucide-react';
+import { Columns2, FilePlus2, Info, Maximize, Minus, Pause, Play, Plus, StepBack, StepForward } from 'lucide-react';
 import { EditorToolbar } from '@/components/editor/EditorToolbar.tsx';
-import { EditorUxModeSwitch } from '@/components/editor/EditorUxModeSwitch.tsx';
 import { IconButton, ToolbarSeparator } from '@/components/ui/IconButton.tsx';
 import { formatCompactTime } from '@/components/ui/Timeline.tsx';
-import type { EditorUxMode } from '@/stores/editorUx.ts';
 import { formatFileSize, formatNumber } from '@/utils/format.ts';
 
 interface GifToolbarProps {
@@ -15,14 +13,22 @@ interface GifToolbarProps {
 	currentFrame: number;
 	totalFrames: number;
 	isGifSource: boolean;
-	editorUxMode: EditorUxMode;
-	onEditorUxModeChange: (mode: EditorUxMode) => void;
+	gifPaused: boolean;
+	onToggleGifPause: () => void;
+	onGifStepFrame: (dir: -1 | 1) => void;
 	onOpenFile: () => void;
 	onNew: () => void;
 	onStepFrame: (dir: -1 | 1) => void;
 	onStartFrameHold: (dir: -1 | 1) => void;
 	onStopFrameHold: () => void;
 	onShowInfo: () => void;
+	compareMode: boolean;
+	hasChanges: boolean;
+	onToggleCompare: () => void;
+	zoom: number;
+	onZoomIn: () => void;
+	onZoomOut: () => void;
+	onFitToScreen: () => void;
 }
 
 export function GifToolbar({
@@ -34,20 +40,63 @@ export function GifToolbar({
 	currentFrame,
 	totalFrames,
 	isGifSource,
-	editorUxMode,
-	onEditorUxModeChange,
+	gifPaused,
+	onToggleGifPause,
+	onGifStepFrame,
 	onOpenFile,
 	onNew,
 	onStepFrame,
 	onStartFrameHold,
 	onStopFrameHold,
 	onShowInfo,
+	compareMode,
+	hasChanges,
+	onToggleCompare,
+	zoom,
+	onZoomIn,
+	onZoomOut,
+	onFitToScreen,
 }: GifToolbarProps) {
 	if (!file) return null;
 
 	return (
 		<EditorToolbar>
-			{/* Frame step (video source only) */}
+			{/* ── GIF source playback controls ── */}
+			{isGifSource && totalFrames > 0 && (
+				<>
+					<IconButton
+						onClick={() => {
+							onGifStepFrame(-1);
+						}}
+						disabled={processing}
+						title="Previous frame"
+					>
+						<StepBack size={16} />
+					</IconButton>
+
+					<IconButton onClick={onToggleGifPause} disabled={processing} title={gifPaused ? 'Play' : 'Pause'}>
+						{gifPaused ? <Play size={16} /> : <Pause size={16} />}
+					</IconButton>
+
+					<span className="text-[12px] font-mono text-text-tertiary tabular-nums px-1">
+						{formatNumber(currentFrame + 1)} / {formatNumber(totalFrames)}
+					</span>
+
+					<IconButton
+						onClick={() => {
+							onGifStepFrame(1);
+						}}
+						disabled={processing}
+						title="Next frame"
+					>
+						<StepForward size={16} />
+					</IconButton>
+
+					<ToolbarSeparator />
+				</>
+			)}
+
+			{/* ── Video source frame step ── */}
 			{!isGifSource && (
 				<>
 					<IconButton
@@ -97,6 +146,36 @@ export function GifToolbar({
 				{isGifSource ? 'GIF' : 'Video'}
 			</span>
 
+			<ToolbarSeparator />
+
+			{/* Compare toggle */}
+			<IconButton onClick={onToggleCompare} active={compareMode} disabled={!hasChanges} title="Split compare">
+				<Columns2 size={16} />
+			</IconButton>
+
+			<ToolbarSeparator />
+
+			{/* Zoom controls */}
+			<IconButton onClick={onZoomOut} disabled={zoom <= 0.1} title="Zoom out">
+				<Minus size={16} />
+			</IconButton>
+
+			<button
+				onClick={onFitToScreen}
+				className="h-7 min-w-[3.5rem] rounded-md px-1.5 text-[12px] font-mono tabular-nums text-text-tertiary hover:text-text hover:bg-surface-raised/60 transition-colors cursor-pointer"
+				title="Fit to screen"
+			>
+				{Math.round(zoom * 100)}%
+			</button>
+
+			<IconButton onClick={onZoomIn} disabled={zoom >= 10} title="Zoom in">
+				<Plus size={16} />
+			</IconButton>
+
+			<IconButton onClick={onFitToScreen} title="Fit to screen">
+				<Maximize size={16} />
+			</IconButton>
+
 			{/* Spacer */}
 			<div className="flex-1" />
 
@@ -109,13 +188,6 @@ export function GifToolbar({
 					</span>
 				)}
 				{duration > 0 && <span>{formatCompactTime(duration)}</span>}
-			</div>
-
-			<ToolbarSeparator />
-
-			{/* Simple / Expert toggle */}
-			<div className="hidden sm:block">
-				<EditorUxModeSwitch mode={editorUxMode} onChange={onEditorUxModeChange} />
 			</div>
 
 			<ToolbarSeparator />

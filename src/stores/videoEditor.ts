@@ -1,7 +1,9 @@
 import { create } from 'zustand';
+import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
+import { DEFAULT_FILTER_PARAMS, filtersAreDefault } from '@/modules/shared-core/types/filters.ts';
 import { withUpdatedKey } from '@/stores/storeHelpers.ts';
 
-export type VideoMode = 'presets' | 'trim' | 'resize' | 'adjust' | 'compare' | 'export';
+export type VideoMode = 'presets' | 'trim' | 'resize' | 'adjust' | 'export';
 
 export type VideoRateControlMode = 'crf' | 'bitrate' | 'qp';
 
@@ -19,14 +21,11 @@ export interface AdvancedVideoSettings {
 
 export type TrimInputMode = 'time' | 'frames';
 
-export interface VideoFilters {
-	brightness: number;
-	contrast: number;
-	saturation: number;
-	hue: number;
-}
+/** @deprecated Use FilterParams from shared-core instead */
+export type VideoFilters = FilterParams;
 
-export const DEFAULT_VIDEO_FILTERS: VideoFilters = { brightness: 0, contrast: 1, saturation: 1, hue: 0 };
+/** @deprecated Use DEFAULT_FILTER_PARAMS from shared-core instead */
+export const DEFAULT_VIDEO_FILTERS: FilterParams = { ...DEFAULT_FILTER_PARAMS };
 
 export interface StreamInfo {
 	index: number;
@@ -116,7 +115,7 @@ function splitMediaStreamsByType(streams: StreamInfo[]): { audio: StreamInfo[]; 
 
 export interface VideoEditorState {
 	mode: VideoMode;
-	filters: VideoFilters;
+	filters: FilterParams;
 	cropAspectRatio: string | null;
 	probeResult: ProbeResult | null;
 	tracks: TrackSelection;
@@ -126,8 +125,9 @@ export interface VideoEditorState {
 	comparePosition: number;
 
 	setMode: (mode: VideoMode) => void;
-	setFilter: <K extends keyof VideoFilters>(key: K, value: VideoFilters[K]) => void;
+	setFilter: <K extends keyof FilterParams>(key: K, value: FilterParams[K]) => void;
 	resetFilters: () => void;
+	hasFilterChanges: () => boolean;
 	setCropAspectRatio: (ratio: string | null) => void;
 	setProbeResult: (result: ProbeResult | null) => void;
 	setTracks: (tracks: Partial<TrackSelection>) => void;
@@ -144,7 +144,7 @@ export interface VideoEditorState {
 
 export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
 	mode: 'presets',
-	filters: { ...DEFAULT_VIDEO_FILTERS },
+	filters: { ...DEFAULT_FILTER_PARAMS },
 	cropAspectRatio: null,
 	probeResult: null,
 	tracks: { ...DEFAULT_TRACK_SELECTION },
@@ -162,7 +162,11 @@ export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
 	},
 
 	resetFilters: () => {
-		set({ filters: { ...DEFAULT_VIDEO_FILTERS } });
+		set({ filters: { ...DEFAULT_FILTER_PARAMS } });
+	},
+
+	hasFilterChanges: () => {
+		return !filtersAreDefault(get().filters);
 	},
 
 	setCropAspectRatio: (ratio) => {
@@ -219,7 +223,7 @@ export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
 	resetAll: () => {
 		set({
 			mode: 'presets',
-			filters: { ...DEFAULT_VIDEO_FILTERS },
+			filters: { ...DEFAULT_FILTER_PARAMS },
 			cropAspectRatio: null,
 			probeResult: null,
 			tracks: { ...DEFAULT_TRACK_SELECTION },
@@ -231,10 +235,74 @@ export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
 	},
 
 	ffmpegFilterArgs: () => {
-		const { brightness, contrast, saturation } = get().filters;
-		const needsEq = brightness !== 0 || contrast !== 1 || saturation !== 1;
-		if (!needsEq) return [];
-		return [`eq=brightness=${brightness}:contrast=${contrast}:saturation=${saturation}`];
+		const f = get().filters;
+		const parts: string[] = [];
+
+		// eq filter: brightness, contrast, saturation
+		const needsEq = f.brightness !== 0 || f.contrast !== 1 || f.saturation !== 1;
+		if (needsEq) {
+			parts.push(`eq=brightness=${f.brightness}:contrast=${f.contrast}:saturation=${f.saturation}`);
+		}
+
+		// hue filter (not supported by eq)
+		if (f.hue !== 0) {
+			parts.push(`hue=h=${f.hue}`);
+		}
+
+		// colortemperature filter
+		if (f.temperature !== 0) {
+			// Map -1..1 range to 1000..13000K (6500K = neutral)
+			const kelvin = Math.round(6500 + f.temperature * 3500);
+			parts.push(`colortemperature=temperature=${kelvin}`);
+		}
+
+		// colorbalance for tint (green-magenta shift)
+		if (f.tint !== 0) {
+			const val = f.tint.toFixed(2);
+			parts.push(`colorbalance=rs=${val}:gs=-${val}:bs=${val}:rm=${val}:gm=-${val}:bm=${val}`);
+		}
+
+		// exposure via curves (approximate EV stops)
+		if (f.exposure !== 1) {
+			const factor = f.exposure;
+			parts.push(`curves=all='0/0 ${(0.5 / factor).toFixed(3)}/0.5 ${(1 / factor).toFixed(3)}/1'`);
+		}
+
+		// highlights/shadows via curves
+		if (f.highlights !== 0 || f.shadows !== 0) {
+			const sP = Math.max(0, Math.min(1, 0.25 + f.shadows * 0.15));
+			const hP = Math.max(0, Math.min(1, 0.75 + f.highlights * 0.15));
+			parts.push(`curves=all='0/${sP.toFixed(3)} 0.5/0.5 1/${hP.toFixed(3)}'`);
+		}
+
+		// sepia (colorchannelmixer)
+		if (f.sepia > 0) {
+			const s = f.sepia;
+			const inv = 1 - s;
+			parts.push(
+				`colorchannelmixer=${(inv + s * 0.393).toFixed(3)}:${(s * 0.769).toFixed(3)}:${(s * 0.189).toFixed(3)}:0:${(s * 0.349).toFixed(3)}:${(inv + s * 0.686).toFixed(3)}:${(s * 0.168).toFixed(3)}:0:${(s * 0.272).toFixed(3)}:${(s * 0.534).toFixed(3)}:${(inv + s * 0.131).toFixed(3)}:0`,
+			);
+		}
+
+		// blur (boxblur)
+		if (f.blur > 0) {
+			const r = Math.round(f.blur);
+			parts.push(`boxblur=${r}:${r}`);
+		}
+
+		// vignette
+		if (f.vignette > 0) {
+			const angle = (f.vignette * Math.PI) / 4;
+			parts.push(`vignette=angle=${angle.toFixed(3)}`);
+		}
+
+		// grain (noise)
+		if (f.grain > 0) {
+			const strength = Math.round(f.grain);
+			parts.push(`noise=alls=${strength}:allf=t`);
+		}
+
+		return parts;
 	},
 
 	resizeFilterArgs: () => {

@@ -68,6 +68,8 @@ export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 		activeTool,
 		compareMode,
 		comparePosition,
+		resizeWidth,
+		resizeHeight,
 	} = useImageEditorStore(
 		useShallow((s) => ({
 			originalData: s.originalData,
@@ -80,6 +82,8 @@ export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 			activeTool: s.activeTool,
 			compareMode: s.compareMode,
 			comparePosition: s.comparePosition,
+			resizeWidth: s.resizeWidth,
+			resizeHeight: s.resizeHeight,
 		})),
 	);
 
@@ -305,6 +309,21 @@ export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 				</div>
 			)}
 
+			{/* Resize preview overlay — shows target dimensions as dashed outline */}
+			{resizeWidth != null &&
+				resizeHeight != null &&
+				imgW > 0 &&
+				imgH > 0 &&
+				(resizeWidth !== imgW || resizeHeight !== imgH) && (
+					<ResizePreviewOverlay
+						view={view}
+						originalWidth={imgW}
+						originalHeight={imgH}
+						targetWidth={resizeWidth}
+						targetHeight={resizeHeight}
+					/>
+				)}
+
 			{/* Crop overlay */}
 			{activeTool === 'crop' && (
 				<CropOverlay
@@ -316,5 +335,59 @@ export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 				/>
 			)}
 		</>
+	);
+}
+
+function ResizePreviewOverlay({
+	view,
+	originalWidth,
+	originalHeight,
+	targetWidth,
+	targetHeight,
+}: {
+	view: { panX: number; panY: number; zoom: number };
+	originalWidth: number;
+	originalHeight: number;
+	targetWidth: number;
+	targetHeight: number;
+}) {
+	const scaleX = targetWidth / originalWidth;
+	const scaleY = targetHeight / originalHeight;
+
+	// The overlay scales with zoom but positions based on the same transform
+	const w = originalWidth * scaleX * view.zoom;
+	const h = originalHeight * scaleY * view.zoom;
+	const x = view.panX + (originalWidth * view.zoom - w) / 2;
+	const y = view.panY + (originalHeight * view.zoom - h) / 2;
+
+	const isUpscale = targetWidth > originalWidth || targetHeight > originalHeight;
+
+	return (
+		<div className="absolute inset-0 pointer-events-none z-10">
+			<div className="absolute" style={{ left: x, top: y, width: w, height: h }}>
+				<svg className="absolute inset-0 w-full h-full overflow-visible" aria-hidden="true">
+					<rect
+						x="0"
+						y="0"
+						width="100%"
+						height="100%"
+						fill="none"
+						stroke={isUpscale ? 'rgba(251,191,36,0.7)' : 'rgba(59,130,246,0.7)'}
+						strokeWidth="1.5"
+						strokeDasharray="6 4"
+						style={{ animation: 'marchingAnts 1s linear infinite' }}
+					/>
+				</svg>
+				<div
+					className={`absolute -top-6 left-1/2 -translate-x-1/2 rounded-md px-1.5 py-0.5 text-[11px] font-mono tabular-nums whitespace-nowrap ${
+						isUpscale
+							? 'bg-amber-500/15 text-amber-400 border border-amber-500/20'
+							: 'bg-accent/15 text-accent border border-accent/20'
+					}`}
+				>
+					{targetWidth} × {targetHeight}
+				</div>
+			</div>
+		</div>
 	);
 }

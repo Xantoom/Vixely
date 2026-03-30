@@ -2,22 +2,7 @@ import { create } from 'zustand';
 import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
 import { DEFAULT_FILTER_PARAMS, filtersAreDefault } from '@/modules/shared-core/types/filters.ts';
 
-export type GifMode =
-	| 'settings'
-	| 'crop'
-	| 'resize'
-	| 'rotate'
-	| 'filters'
-	| 'optimize'
-	| 'frames'
-	| 'text'
-	| 'maker'
-	| 'overlay'
-	| 'fade'
-	| 'analyze'
-	| 'convert'
-	| 'aspect'
-	| 'export';
+export type GifMode = 'settings' | 'transform' | 'filters' | 'overlays' | 'effects' | 'frames' | 'optimize' | 'export';
 
 export interface CropRect {
 	x: number;
@@ -78,9 +63,14 @@ export interface GifEditorState {
 	colorReduction: number;
 	loopCount: number;
 
+	// Compare
+	compareMode: boolean;
+	comparePosition: number;
+
 	// Crop
 	crop: CropRect | null;
 	cropAspect: CropAspectPreset;
+	cropLockAspect: boolean;
 
 	// Rotate/Flip
 	rotation: RotationAngle;
@@ -118,6 +108,11 @@ export interface GifEditorState {
 	aspectPreset: AspectPreset;
 	aspectPaddingColor: string;
 
+	// View (zoom / pan)
+	zoom: number;
+	panX: number;
+	panY: number;
+
 	// Actions
 	setMode: (mode: GifMode) => void;
 	setSpeed: (speed: number) => void;
@@ -126,6 +121,7 @@ export interface GifEditorState {
 	setLoopCount: (count: number) => void;
 	setCrop: (crop: CropRect | null) => void;
 	setCropAspect: (aspect: CropAspectPreset) => void;
+	setCropLockAspect: (lock: boolean) => void;
 	setRotation: (angle: RotationAngle) => void;
 	setFlipH: (flip: boolean) => void;
 	setFlipV: (flip: boolean) => void;
@@ -168,6 +164,16 @@ export interface GifEditorState {
 	setAspectPreset: (preset: AspectPreset) => void;
 	setAspectPaddingColor: (color: string) => void;
 
+	// Compare actions
+	setCompareMode: (enabled: boolean) => void;
+	setComparePosition: (position: number) => void;
+
+	// View actions
+	setView: (v: { panX?: number; panY?: number; zoom?: number }) => void;
+	zoomTo: (zoom: number, anchorX: number, anchorY: number) => void;
+	fitToView: (containerW: number, containerH: number, mediaW: number, mediaH: number) => void;
+	resetView: () => void;
+
 	resetAll: () => void;
 	hasFilterChanges: () => boolean;
 }
@@ -188,8 +194,12 @@ export const useGifEditorStore = create<GifEditorState>((set, get) => ({
 	colorReduction: 256,
 	loopCount: 0,
 
+	compareMode: false,
+	comparePosition: 0.5,
+
 	crop: null,
 	cropAspect: 'free',
+	cropLockAspect: false,
 
 	rotation: 0,
 	flipH: false,
@@ -218,6 +228,10 @@ export const useGifEditorStore = create<GifEditorState>((set, get) => ({
 	aspectPreset: 'free',
 	aspectPaddingColor: '#000000',
 
+	zoom: 1,
+	panX: 0,
+	panY: 0,
+
 	setMode: (mode) => {
 		set({ mode });
 	},
@@ -238,6 +252,9 @@ export const useGifEditorStore = create<GifEditorState>((set, get) => ({
 	},
 	setCropAspect: (cropAspect) => {
 		set({ cropAspect });
+	},
+	setCropLockAspect: (cropLockAspect) => {
+		set({ cropLockAspect });
 	},
 	setRotation: (rotation) => {
 		set({ rotation });
@@ -366,6 +383,37 @@ export const useGifEditorStore = create<GifEditorState>((set, get) => ({
 		set({ aspectPaddingColor });
 	},
 
+	// Compare actions
+	setCompareMode: (compareMode) => {
+		set({ compareMode });
+	},
+	setComparePosition: (comparePosition) => {
+		set({ comparePosition });
+	},
+
+	// View actions
+	setView: (v) => {
+		set((s) => ({
+			panX: v.panX ?? s.panX,
+			panY: v.panY ?? s.panY,
+			zoom: v.zoom != null ? Math.min(10, Math.max(0.1, v.zoom)) : s.zoom,
+		}));
+	},
+	zoomTo: (zoom, anchorX, anchorY) => {
+		const clamped = Math.min(10, Math.max(0.1, zoom));
+		const s = get();
+		const ratio = clamped / s.zoom;
+		set({ zoom: clamped, panX: anchorX - ratio * (anchorX - s.panX), panY: anchorY - ratio * (anchorY - s.panY) });
+	},
+	fitToView: (containerW, containerH, mediaW, mediaH) => {
+		if (!mediaW || !mediaH) return;
+		const zoom = Math.min((containerW - 48) / mediaW, (containerH - 48) / mediaH, 1);
+		set({ zoom, panX: (containerW - mediaW * zoom) / 2, panY: (containerH - mediaH * zoom) / 2 });
+	},
+	resetView: () => {
+		set({ zoom: 1, panX: 0, panY: 0 });
+	},
+
 	resetAll: () => {
 		const { extractedFrames, imageOverlay } = get();
 		for (const frame of extractedFrames) {
@@ -378,8 +426,11 @@ export const useGifEditorStore = create<GifEditorState>((set, get) => ({
 			reverse: false,
 			colorReduction: 256,
 			loopCount: 0,
+			compareMode: false,
+			comparePosition: 0.5,
 			crop: null,
 			cropAspect: 'free',
+			cropLockAspect: false,
 			rotation: 0,
 			flipH: false,
 			flipV: false,
@@ -398,6 +449,9 @@ export const useGifEditorStore = create<GifEditorState>((set, get) => ({
 			convertFormat: 'webm',
 			aspectPreset: 'free',
 			aspectPaddingColor: '#000000',
+			zoom: 1,
+			panX: 0,
+			panY: 0,
 		});
 	},
 

@@ -17,7 +17,6 @@ import { usePendingActionConfirmation } from '@/hooks/usePendingActionConfirmati
 import { usePreventUnload } from '@/hooks/usePreventUnload.ts';
 import { useSingleFileDrop } from '@/hooks/useSingleFileDrop.ts';
 import { useEditorSessionStore } from '@/stores/editorSession.ts';
-import { useEditorUxStore } from '@/stores/editorUx.ts';
 import { useImageEditorStore } from '@/stores/imageEditor.ts';
 import { consumePendingImageTransfer } from '@/utils/crossEditorTransfer.ts';
 
@@ -109,11 +108,7 @@ const IMAGE_CROSS_LINKS = [
 export const Route = createFileRoute('/tools/image')({ component: ImageLab });
 
 function ImageLab() {
-	const { stage, setStage } = useEditorLayoutPrefs({
-		editor: 'image',
-		defaultInspectorWidth: 360,
-		defaultStage: 'source',
-	});
+	useEditorLayoutPrefs({ editor: 'image' });
 	useLongTaskObserver('image-route');
 	const { file, originalData, loadImage, undo, redo, clearAll, hasUnsavedChanges } = useImageEditorStore(
 		useShallow((s) => ({
@@ -127,9 +122,6 @@ function ImageLab() {
 		})),
 	);
 	const setEditorUnsaved = useEditorSessionStore((s) => s.setUnsaved);
-
-	const editorUxMode = useEditorUxStore((s) => s.mode);
-	const setEditorUxMode = useEditorUxStore((s) => s.setMode);
 
 	const canvasContainerRef = useRef<HTMLDivElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -268,8 +260,6 @@ function ImageLab() {
 							<ImageToolbar
 								containerRef={canvasContainerRef}
 								fileName={file?.name}
-								editorUxMode={editorUxMode}
-								onEditorUxModeChange={setEditorUxMode}
 								onOpenFile={handleOpenFile}
 								onNew={handleNew}
 								onShowInfo={() => {
@@ -322,14 +312,7 @@ function ImageLab() {
 					</>
 				}
 				sidebar={
-					hasImageLoaded ? (
-						<ImageSidebar
-							stage={stage}
-							onStageChange={setStage}
-							showInfo={showInfo}
-							onShowInfoChange={setShowInfo}
-						/>
-					) : undefined
+					hasImageLoaded ? <ImageSidebar showInfo={showInfo} onShowInfoChange={setShowInfo} /> : undefined
 				}
 				overlays={
 					isConfirmOpen ? (

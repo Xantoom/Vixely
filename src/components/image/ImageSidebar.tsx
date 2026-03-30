@@ -1,15 +1,22 @@
 import { Lock, Unlock, Maximize2, SlidersHorizontal, Palette, Download } from 'lucide-react';
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useId, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
 import { SharedPresetsPanel, type PresetEntry } from '@/components/shared/PresetsPanel.tsx';
-import { Button, EditorModeTabs, EditorStageTabs, type EditorModeTabItem, Slider } from '@/components/ui/index.ts';
+import { Button, CollapsibleSection, Slider } from '@/components/ui/index.ts';
+import { ToolRail, type ToolRailItem } from '@/components/ui/ToolRail.tsx';
+import {
+	LIGHT_SLIDERS,
+	COLOR_SLIDERS,
+	EFFECT_SLIDERS as EFFECTS_SLIDERS,
+	type FilterSliderDef,
+} from '@/config/filterSliders.ts';
 import { filterPresetEntries, imagePresetEntries } from '@/config/presets.ts';
-import type { EditorStage } from '@/hooks/useEditorLayoutPrefs.ts';
 import { buildFallbackFilterString } from '@/modules/photo-editor/render/fallback-filters.ts';
 import { PhotoWebGLRenderer } from '@/modules/photo-editor/render/webgl-renderer.ts';
+import { DEFAULT_FILTER_PARAMS } from '@/modules/shared-core/types/filters.ts';
+import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
 import { filtersAreDefault } from '@/modules/shared-core/types/filters.ts';
-import { useEditorUxStore } from '@/stores/editorUx.ts';
 import { useImageEditorStore, type ExportFormat } from '@/stores/imageEditor.ts';
 import { buildExportFilename } from '@/utils/exportFilename.ts';
 import { formatFileSize, estimateImageSize } from '@/utils/format.ts';
@@ -17,20 +24,6 @@ import { ImageInfoModal } from './ImageInfoModal.tsx';
 
 const FILTER_PRESETS = filterPresetEntries();
 const IMAGE_PRESETS = imagePresetEntries();
-
-interface ImageSidebarProps {
-	stage: EditorStage;
-	onStageChange: (stage: EditorStage) => void;
-	showInfo: boolean;
-	onShowInfoChange: (show: boolean) => void;
-}
-
-import {
-	LIGHT_SLIDERS,
-	COLOR_SLIDERS,
-	EFFECT_SLIDERS as EFFECTS_SLIDERS,
-	type FilterSliderDef,
-} from '@/config/filterSliders.ts';
 
 const FORMAT_OPTIONS: { value: ExportFormat; label: string }[] = [
 	{ value: 'png', label: 'PNG' },
@@ -40,23 +33,27 @@ const FORMAT_OPTIONS: { value: ExportFormat; label: string }[] = [
 
 type ImageMode = 'resize' | 'adjust' | 'presets' | 'export';
 
-const IMAGE_MODE_TABS: EditorModeTabItem<ImageMode>[] = [
+function countSliderChanges(sliders: FilterSliderDef[], filters: FilterParams): number {
+	let count = 0;
+	for (const s of sliders) {
+		if (filters[s.key] !== DEFAULT_FILTER_PARAMS[s.key]) count++;
+	}
+	return count;
+}
+
+const IMAGE_TOOLS: ToolRailItem<ImageMode>[] = [
 	{ id: 'resize', label: 'Resize', icon: Maximize2 },
 	{ id: 'adjust', label: 'Adjust', icon: SlidersHorizontal },
 	{ id: 'presets', label: 'Presets', icon: Palette },
 	{ id: 'export', label: 'Export', icon: Download },
 ];
 
-const IMAGE_MODE_STAGE: Record<ImageMode, EditorStage> = {
-	resize: 'source',
-	presets: 'source',
-	adjust: 'edit',
-	export: 'output',
-};
+interface ImageSidebarProps {
+	showInfo: boolean;
+	onShowInfoChange: (show: boolean) => void;
+}
 
-const STAGE_DEFAULT_MODE: Record<EditorStage, ImageMode> = { source: 'resize', edit: 'adjust', output: 'export' };
-
-export function ImageSidebar({ stage, onStageChange, showInfo, onShowInfoChange }: ImageSidebarProps) {
+export function ImageSidebar({ showInfo, onShowInfoChange }: ImageSidebarProps) {
 	const {
 		file,
 		originalData,
@@ -116,14 +113,6 @@ export function ImageSidebar({ stage, onStageChange, showInfo, onShowInfoChange 
 			})),
 		[],
 	);
-	const isExpertMode = useEditorUxStore((s) => s.mode) === 'expert';
-
-	useEffect(() => {
-		setMode((currentMode) => {
-			if (IMAGE_MODE_STAGE[currentMode] === stage) return currentMode;
-			return STAGE_DEFAULT_MODE[stage];
-		});
-	}, [stage]);
 
 	const handleSliderCommit = useCallback(() => {
 		commitFilters();
@@ -247,33 +236,32 @@ export function ImageSidebar({ stage, onStageChange, showInfo, onShowInfoChange 
 		presets: hasAdjustChanges || hasResizeChanges,
 		export: false,
 	};
-	const stageModeTabs = IMAGE_MODE_TABS.filter((tab) => IMAGE_MODE_STAGE[tab.id] === stage).map((tab) => ({
-		...tab,
-		hasActivity: modeActivity[tab.id],
-	}));
+	const toolItems: ToolRailItem<ImageMode>[] = useMemo(
+		() => IMAGE_TOOLS.map((tool) => ({ ...tool, hasActivity: modeActivity[tool.id] })),
+		[modeActivity],
+	);
 
 	return (
 		<aside
 			className="w-full h-full min-h-0 overflow-hidden bg-surface flex flex-col"
 			style={{ overscrollBehavior: 'contain' }}
 		>
-			{/* Stage Tabs */}
-			<div className="p-2.5 border-b border-border/70 bg-surface-raised/15">
-				<EditorStageTabs stage={stage} onChange={onStageChange} />
-			</div>
-
-			{/* Mode Tabs */}
-			<div className="shrink-0 border-b border-border/70 bg-surface-raised/10">
-				<EditorModeTabs
-					value={mode}
-					items={stageModeTabs}
+			{/* ToolRail */}
+			<div className="shrink-0 border-b border-border/70 bg-surface-raised/15">
+				<ToolRail
+					items={toolItems}
+					activeId={mode}
 					onChange={setMode}
-					ariaLabel="Image editor mode tabs"
+					direction="horizontal"
+					ariaLabel="Image editor tools"
 				/>
 			</div>
 
-			{/* Tab Content */}
-			<div className="p-3 flex flex-col gap-4 flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden">
+			{/* Panel Content */}
+			<div
+				className="p-3 flex flex-col gap-4 flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden animate-panel-crossfade"
+				key={mode}
+			>
 				{mode === 'resize' && (
 					<>
 						{originalData ? (
@@ -359,31 +347,27 @@ export function ImageSidebar({ stage, onStageChange, showInfo, onShowInfoChange 
 
 				{mode === 'adjust' && (
 					<>
-						<div className="flex items-center justify-between">
-							<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
-								Light
-							</h3>
+						<div className="flex items-center justify-end">
 							<button
 								onClick={resetFilters}
-								className="text-[14px] text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
+								className="text-[12px] text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
 							>
 								Reset
 							</button>
 						</div>
-						{renderSliders(LIGHT_SLIDERS)}
-
-						<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mt-2">
-							Color
-						</h3>
-						{renderSliders(COLOR_SLIDERS)}
-						{isExpertMode ? (
-							<>
-								<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mt-2">
-									Effects
-								</h3>
-								{renderSliders(EFFECTS_SLIDERS)}
-							</>
-						) : null}
+						<CollapsibleSection title="Light" changeCount={countSliderChanges(LIGHT_SLIDERS, filters)}>
+							{renderSliders(LIGHT_SLIDERS)}
+						</CollapsibleSection>
+						<CollapsibleSection title="Color" changeCount={countSliderChanges(COLOR_SLIDERS, filters)}>
+							{renderSliders(COLOR_SLIDERS)}
+						</CollapsibleSection>
+						<CollapsibleSection
+							title="Effects"
+							changeCount={countSliderChanges(EFFECTS_SLIDERS, filters)}
+							defaultCollapsed
+						>
+							{renderSliders(EFFECTS_SLIDERS)}
+						</CollapsibleSection>
 					</>
 				)}
 
@@ -430,7 +414,7 @@ export function ImageSidebar({ stage, onStageChange, showInfo, onShowInfoChange 
 								</button>
 							))}
 						</div>
-						{isExpertMode && exportFormat !== 'png' && (
+						{exportFormat !== 'png' && (
 							<Slider
 								label="Quality"
 								displayValue={`${exportQuality}`}
@@ -450,9 +434,9 @@ export function ImageSidebar({ stage, onStageChange, showInfo, onShowInfoChange 
 				)}
 			</div>
 
-			{/* Actions (always visible at bottom) */}
-			<div className="p-3 border-t border-border flex flex-col gap-2 shrink-0 bg-surface-raised/10">
-				{originalData && (
+			{/* Actions — only visible when a file is loaded */}
+			{originalData && (
+				<div className="p-3 border-t border-border flex flex-col gap-2 shrink-0 bg-surface-raised/10">
 					<Button
 						variant="ghost"
 						size="sm"
@@ -469,18 +453,16 @@ export function ImageSidebar({ stage, onStageChange, showInfo, onShowInfoChange 
 					>
 						Hold to Compare
 					</Button>
-				)}
-
-				<Button
-					className="w-full"
-					disabled={!originalData}
-					onClick={() => {
-						void handleExport();
-					}}
-				>
-					Export
-				</Button>
-			</div>
+					<Button
+						className="w-full"
+						onClick={() => {
+							void handleExport();
+						}}
+					>
+						Export
+					</Button>
+				</div>
+			)}
 
 			{/* Info modal */}
 			{showInfo && file && originalData && (

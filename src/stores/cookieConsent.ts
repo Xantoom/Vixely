@@ -8,6 +8,17 @@ export interface CookieConsent {
 	advertising: boolean;
 }
 
+/** Push consent signals to Google Consent Mode v2 (gtag) */
+function updateGoogleConsent(consent: CookieConsent): void {
+	if (typeof window.gtag !== 'function') return;
+	window.gtag('consent', 'update', {
+		ad_storage: consent.advertising ? 'granted' : 'denied',
+		ad_user_data: consent.advertising ? 'granted' : 'denied',
+		ad_personalization: consent.advertising ? 'granted' : 'denied',
+		analytics_storage: consent.analytics ? 'granted' : 'denied',
+	});
+}
+
 interface CookieConsentState {
 	/** null = user hasn't made a choice yet */
 	consent: CookieConsent | null;
@@ -57,18 +68,21 @@ export const useCookieConsentStore = create<CookieConsentState>((set) => ({
 
 	accept: (consent) => {
 		persistConsent(consent);
+		updateGoogleConsent(consent);
 		set({ consent, bannerVisible: false, preferencesOpen: false });
 	},
 
 	acceptAll: () => {
 		const consent: CookieConsent = { essential: true, analytics: true, advertising: true };
 		persistConsent(consent);
+		updateGoogleConsent(consent);
 		set({ consent, bannerVisible: false, preferencesOpen: false });
 	},
 
 	rejectAll: () => {
 		const consent: CookieConsent = { essential: true, analytics: false, advertising: false };
 		persistConsent(consent);
+		updateGoogleConsent(consent);
 		set({ consent, bannerVisible: false, preferencesOpen: false });
 	},
 
@@ -87,6 +101,7 @@ export const useCookieConsentStore = create<CookieConsentState>((set) => ({
 	hydrate: () => {
 		const saved = readConsent();
 		if (saved) {
+			updateGoogleConsent(saved);
 			set({ consent: saved, bannerVisible: false });
 		} else {
 			// Delay showing banner slightly for better UX

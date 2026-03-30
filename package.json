@@ -17,35 +17,35 @@
 		"fmt:check": "oxfmt src '!src/routeTree.gen.ts' --check"
 	},
 	"dependencies": {
-		"@mediabunny/ac3": "^1.39.2",
-		"@tanstack/react-query": "^5.90.21",
-		"@tanstack/react-router": "^1.167.0",
+		"@mediabunny/ac3": "^1.40.1",
+		"@tanstack/react-query": "^5.95.2",
+		"@tanstack/react-router": "^1.168.8",
 		"fflate": "^0.8.2",
 		"jassub": "^2.4.1",
 		"lucide-react": "^0.563.0",
-		"mediabunny": "^1.39.2",
+		"mediabunny": "^1.40.1",
 		"react": "^19.2.4",
 		"react-dom": "^19.2.4",
 		"react-helmet-async": "^2.0.5",
 		"sonner": "^2.0.7",
-		"zustand": "^5.0.11"
+		"zustand": "^5.0.12"
 	},
 	"devDependencies": {
-		"@tailwindcss/vite": "^4.2.1",
-		"@tanstack/react-router-devtools": "^1.166.7",
-		"@tanstack/router-plugin": "^1.166.9",
+		"@tailwindcss/vite": "^4.2.2",
+		"@tanstack/react-router-devtools": "^1.166.11",
+		"@tanstack/router-plugin": "^1.167.9",
 		"@types/bun": "latest",
 		"@types/react": "^19.2.14",
 		"@types/react-dom": "^19.2.3",
 		"@vitejs/plugin-react": "^5.2.0",
-		"oxfmt": "^0.38.0",
-		"oxlint": "^1.55.0",
-		"oxlint-tsgolint": "^0.13.0",
-		"tailwindcss": "^4.2.1",
-		"vite": "^8.0.0",
-		"vite-plugin-wasm": "^3.5.0"
+		"oxfmt": "^0.42.0",
+		"oxlint": "^1.57.0",
+		"oxlint-tsgolint": "^0.17.4",
+		"tailwindcss": "^4.2.2",
+		"vite": "^8.0.3",
+		"vite-plugin-wasm": "^3.6.0"
 	},
 	"peerDependencies": {
-		"typescript": "^5.9.3"
+		"typescript": "6.0.2"
 	}
 }

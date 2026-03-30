@@ -14,6 +14,9 @@ import {
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { formatPlayerTime } from '@/components/ui/index.ts';
+import { FilterPipeline } from '@/modules/shared-core/filter-pipeline.ts';
+import { filtersAreDefault } from '@/modules/shared-core/types/filters.ts';
+import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
 import { useVideoEditorStore, type StreamInfo } from '@/stores/videoEditor.ts';
 import { formatChannels, getLanguageName } from '@/utils/languageUtils.ts';
 
@@ -31,9 +34,11 @@ interface VideoPlayerProps {
 	metadataLoading?: boolean;
 	assSubtitleContent?: string | null;
 	embeddedFonts?: EmbeddedFont[];
+	compareMode?: boolean;
 	onLoadedMetadata?: () => void;
 	onTimeUpdate?: () => void;
 	onSeek?: (time: number) => void;
+	onTogglePlay?: () => void;
 	processing?: boolean;
 	progress?: number;
 }
@@ -347,9 +352,11 @@ export function VideoPlayer({
 	metadataLoading = false,
 	assSubtitleContent,
 	embeddedFonts = [],
+	compareMode: compareModeFromProp = false,
 	onLoadedMetadata,
 	onTimeUpdate,
 	onSeek,
+	onTogglePlay,
 	processing,
 	progress = 0,
 }: VideoPlayerProps) {
@@ -395,6 +402,11 @@ export function VideoPlayer({
 	const [selectionHandleActive, setSelectionHandleActive] = useState(false);
 	const resizeZoneDragRef = useRef<ResizeZoneDragContext | null>(null);
 	const seekBarRectRef = useRef<DOMRect | null>(null);
+	const webglCanvasRef = useRef<HTMLCanvasElement | null>(null);
+	const webglPipelineRef = useRef<FilterPipeline | null>(null);
+	const webglFiltersRef = useRef<FilterParams | null>(null);
+	const webglRafRef = useRef<number>(0);
+	const [webglActive, setWebglActive] = useState(false);
 
 	const {
 		videoMode,
@@ -405,10 +417,7 @@ export function VideoPlayer({
 		subtitleTrackIndex,
 		setTracks,
 		setResize,
-		brightness,
-		contrast,
-		saturation,
-		hue,
+		filters,
 		resizeWidth,
 		resizeHeight,
 		resizeOriginalWidth,
@@ -428,10 +437,7 @@ export function VideoPlayer({
 			subtitleTrackIndex: s.tracks.subtitleTrackIndex,
 			setTracks: s.setTracks,
 			setResize: s.setResize,
-			brightness: s.filters.brightness,
-			contrast: s.filters.contrast,
-			saturation: s.filters.saturation,
-			hue: s.filters.hue,
+			filters: s.filters,
 			resizeWidth: s.resize.width,
 			resizeHeight: s.resize.height,
 			resizeOriginalWidth: s.resize.originalWidth,
@@ -456,8 +462,9 @@ export function VideoPlayer({
 	}, [audioEnabled, audioTrackIndex, audioStreams]);
 	const useDecodedAudioPreview = useMemo(() => {
 		if (!previewFile || !audioEnabled || selectedAudioCodec == null) return false;
-		return BROWSER_UNSUPPORTED_AUDIO_CODECS.has(selectedAudioCodec);
-	}, [previewFile, audioEnabled, selectedAudioCodec]);
+		// Activate decoded audio for unsupported codecs OR when switching between multiple tracks
+		return BROWSER_UNSUPPORTED_AUDIO_CODECS.has(selectedAudioCodec) || audioStreams.length > 1;
+	}, [previewFile, audioEnabled, selectedAudioCodec, audioStreams.length]);
 	const audioTrackMenuStreams = useMemo(() => {
 		return audioStreams.map((s, i) => {
 			const lang = getLanguageName(s.language);
@@ -478,13 +485,127 @@ export function VideoPlayer({
 	}, [subtitleStreams]);
 	const combinedFilter = useMemo(() => {
 		const parts: string[] = [];
-		if (brightness !== 0) parts.push(`brightness(${1 + brightness})`);
-		if (contrast !== 1) parts.push(`contrast(${contrast})`);
-		if (saturation !== 1) parts.push(`saturate(${saturation})`);
-		if (hue !== 0) parts.push(`hue-rotate(${hue}deg)`);
+		if (filters.brightness !== 0) parts.push(`brightness(${1 + filters.brightness})`);
+		if (filters.contrast !== 1) parts.push(`contrast(${filters.contrast})`);
+		if (filters.saturation !== 1) parts.push(`saturate(${filters.saturation})`);
+		if (filters.hue !== 0) parts.push(`hue-rotate(${filters.hue}deg)`);
+		if (filters.sepia > 0) parts.push(`sepia(${filters.sepia})`);
+		if (filters.blur > 0) parts.push(`blur(${filters.blur}px)`);
 		if (metadataLoading) parts.push('blur(2px)');
 		return parts.length > 0 ? parts.join(' ') : undefined;
-	}, [brightness, contrast, saturation, hue, metadataLoading]);
+	}, [filters, metadataLoading]);
+
+	// Keep a mutable ref of filters for the WebGL render loop
+	webglFiltersRef.current = filters;
+	const hasFilters = !filtersAreDefault(filters);
+
+	// WebGL FilterPipeline: renders video frames through GPU shaders for all 13 filters
+	useEffect(() => {
+		const canvas = webglCanvasRef.current;
+		const video = videoRef.current;
+		if (!canvas || !video) return;
+
+		// Only activate WebGL when filters are applied
+		if (!hasFilters) {
+			setWebglActive(false);
+			webglPipelineRef.current?.destroy();
+			webglPipelineRef.current = null;
+			return;
+		}
+
+		let pipeline: FilterPipeline;
+		try {
+			if (!webglPipelineRef.current) {
+				webglPipelineRef.current = new FilterPipeline(canvas);
+			}
+			pipeline = webglPipelineRef.current;
+		} catch {
+			// WebGL unavailable — fall back to CSS filters
+			setWebglActive(false);
+			return;
+		}
+
+		setWebglActive(true);
+		let disposed = false;
+
+		const renderFrame = () => {
+			if (disposed || !video.videoWidth || !video.videoHeight) return;
+			if (video.readyState < 2) return;
+
+			try {
+				// Create a VideoFrame from the current video element
+				const frame = new VideoFrame(video);
+				pipeline.uploadVideoFrame(frame);
+				pipeline.render(webglFiltersRef.current!);
+				frame.close();
+			} catch {
+				// VideoFrame API unavailable or error — try ImageBitmap fallback on next frame
+			}
+		};
+
+		// Use requestVideoFrameCallback for frame-accurate sync (if available)
+		const hasRvfc = 'requestVideoFrameCallback' in video;
+		let rvfcId = 0;
+
+		const scheduleNext = () => {
+			if (disposed) return;
+			if (hasRvfc) {
+				rvfcId = (
+					video as HTMLVideoElement & { requestVideoFrameCallback: (cb: () => void) => number }
+				).requestVideoFrameCallback(() => {
+					renderFrame();
+					scheduleNext();
+				});
+			} else {
+				webglRafRef.current = requestAnimationFrame(() => {
+					renderFrame();
+					scheduleNext();
+				});
+			}
+		};
+
+		// Initial render for paused state
+		renderFrame();
+		scheduleNext();
+
+		return () => {
+			disposed = true;
+			if (hasRvfc && rvfcId) {
+				(
+					video as HTMLVideoElement & { cancelVideoFrameCallback: (id: number) => void }
+				).cancelVideoFrameCallback(rvfcId);
+			}
+			if (webglRafRef.current) {
+				cancelAnimationFrame(webglRafRef.current);
+				webglRafRef.current = 0;
+			}
+		};
+	}, [videoRef, hasFilters]);
+
+	// Re-render WebGL when filters change while paused
+	useEffect(() => {
+		if (!webglActive || !webglPipelineRef.current) return;
+		const video = videoRef.current;
+		if (!video || !video.paused || video.readyState < 2 || !video.videoWidth) return;
+
+		try {
+			const frame = new VideoFrame(video);
+			webglPipelineRef.current.uploadVideoFrame(frame);
+			webglPipelineRef.current.render(filters);
+			frame.close();
+		} catch {
+			// Ignore
+		}
+	}, [filters, webglActive, videoRef]);
+
+	// Cleanup pipeline on unmount
+	useEffect(() => {
+		return () => {
+			webglPipelineRef.current?.destroy();
+			webglPipelineRef.current = null;
+		};
+	}, []);
+
 	const sleep = useCallback(async (ms: number): Promise<void> => {
 		await new Promise<void>((resolve) => setTimeout(resolve, ms));
 	}, []);
@@ -1170,6 +1291,10 @@ export function VideoPlayer({
 	}, [videoRef, onTimeUpdate, subtitleEnabled, assSubtitleContent, repaintAssRenderer]);
 
 	const togglePlay = useCallback(() => {
+		if (onTogglePlay) {
+			onTogglePlay();
+			return;
+		}
 		const v = videoRef.current;
 		if (!v) return;
 		if (v.paused) {
@@ -1179,7 +1304,7 @@ export function VideoPlayer({
 			v.pause();
 			setPlaying(false);
 		}
-	}, [videoRef]);
+	}, [videoRef, onTogglePlay]);
 
 	const resolveSeekBarRect = useCallback((force = false): DOMRect | null => {
 		const bar = seekBarRef.current;
@@ -1688,109 +1813,100 @@ export function VideoPlayer({
 					draggable={false}
 					onDragStart={handleVideoDragStart}
 					className="w-full h-full object-contain cursor-pointer transition-[filter] duration-200"
-					style={combinedFilter && videoMode !== 'compare' ? { filter: combinedFilter } : undefined}
+					style={{
+						...(webglActive && !compareModeFromProp ? { opacity: 0 } : {}),
+						...(!webglActive && combinedFilter && !compareModeFromProp ? { filter: combinedFilter } : {}),
+					}}
+				/>
+				{/* WebGL filter canvas — overlays video when filters are active */}
+				<canvas
+					ref={webglCanvasRef}
+					onClick={togglePlay}
+					className={`absolute inset-0 z-5 h-full w-full object-contain cursor-pointer transition-opacity duration-150 ${
+						webglActive && !compareModeFromProp ? 'opacity-100' : 'opacity-0 pointer-events-none'
+					}`}
+					aria-hidden={!webglActive}
 				/>
 				<canvas
 					ref={scrubPreviewCanvasRef}
 					className={`pointer-events-none absolute inset-0 z-10 h-full w-full object-contain transition-opacity duration-100 ${
 						timelineScrubbing && showScrubPreviewFrame ? 'opacity-100' : 'opacity-0'
 					}`}
-					style={combinedFilter && videoMode !== 'compare' ? { filter: combinedFilter } : undefined}
+					style={
+						!webglActive && combinedFilter && !compareModeFromProp ? { filter: combinedFilter } : undefined
+					}
 					aria-hidden="true"
 				/>
 				{hasResizeSelectionZone && resizeZoneRect && (
 					<div className="pointer-events-none absolute inset-0 z-15">
-						{/* Scrim — top */}
+						{/* Selection box with scrim, border, grid, handles */}
 						<div
-							className="absolute inset-x-0 top-0 bg-black/45"
-							style={{ height: `${resizeZoneRect.top}px` }}
-						/>
-						{/* Scrim — bottom */}
-						<div
-							className="absolute inset-x-0 bottom-0 bg-black/45"
-							style={{ top: `${resizeZoneRect.top + resizeZoneRect.height}px` }}
-						/>
-						{/* Scrim — left */}
-						<div
-							className="absolute bg-black/45"
-							style={{
-								left: 0,
-								top: `${resizeZoneRect.top}px`,
-								width: `${resizeZoneRect.left}px`,
-								height: `${resizeZoneRect.height}px`,
-							}}
-						/>
-						{/* Scrim — right */}
-						<div
-							className="absolute bg-black/45"
-							style={{
-								left: `${resizeZoneRect.left + resizeZoneRect.width}px`,
-								top: `${resizeZoneRect.top}px`,
-								right: 0,
-								height: `${resizeZoneRect.height}px`,
-							}}
-						/>
-						{/* Selection */}
-						<div
-							className={`absolute pointer-events-auto ${
-								!canMoveSelection
-									? 'cursor-default'
-									: selectionHandleActive && resizeZoneDragRef.current?.dragType === 'move'
-										? 'cursor-grabbing'
-										: 'cursor-grab'
-							}`}
+							className="absolute"
 							style={{
 								left: `${resizeZoneRect.left}px`,
 								top: `${resizeZoneRect.top}px`,
 								width: `${resizeZoneRect.width}px`,
 								height: `${resizeZoneRect.height}px`,
+								boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.50)',
 							}}
-							onPointerDown={handleResizeZoneMovePointerDown}
-							onPointerMove={handleResizeZoneMovePointerMove}
-							onPointerUp={handleResizeZoneMovePointerUp}
-							onPointerCancel={handleResizeZoneMovePointerCancel}
-							onDoubleClick={handleResizeZoneDoubleClick}
-							aria-label="Drag to reposition crop area, double-click to center"
 						>
-							{/* Marching ants border */}
-							<svg
-								className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
-								aria-hidden="true"
-							>
-								<rect
-									x="0"
-									y="0"
-									width="100%"
-									height="100%"
-									fill="none"
-									stroke={resizeAtMax ? 'rgba(251,191,36,0.85)' : 'rgba(255,255,255,0.75)'}
-									strokeWidth="1"
-									strokeDasharray="5 5"
-									style={{ animation: 'marchingAnts 1s linear infinite' }}
-								/>
-							</svg>
-							{/* Dimension badge — flips below the zone if near the top */}
+							{/* Border */}
 							<div
-								className={`pointer-events-none absolute left-0 flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-mono leading-none transition-colors duration-150 ${
-									resizeZoneRect.top < 28 ? 'top-1' : '-top-7'
-								} ${resizeAtMax ? 'bg-amber-500/15 text-amber-300/90' : 'bg-black/70 text-white/85'}`}
+								className="absolute inset-0 pointer-events-none"
+								style={{
+									border: `1px solid ${resizeAtMax ? 'rgba(251,191,36,0.85)' : 'rgba(255,255,255,0.8)'}`,
+									boxShadow: '0 0 0 1px rgba(0,0,0,0.35)',
+								}}
+							/>
+							{/* Grid */}
+							<div className="absolute inset-0 pointer-events-none">
+								<div className="absolute left-1/3 top-0 bottom-0 w-px bg-white/[0.12]" />
+								<div className="absolute left-2/3 top-0 bottom-0 w-px bg-white/[0.12]" />
+								<div className="absolute top-1/3 left-0 right-0 h-px bg-white/[0.12]" />
+								<div className="absolute top-2/3 left-0 right-0 h-px bg-white/[0.12]" />
+							</div>
+							{/* Move area */}
+							<div
+								className={`absolute inset-3 pointer-events-auto ${
+									!canMoveSelection
+										? 'cursor-default'
+										: selectionHandleActive && resizeZoneDragRef.current?.dragType === 'move'
+											? 'cursor-grabbing'
+											: 'cursor-grab'
+								}`}
+								onPointerDown={handleResizeZoneMovePointerDown}
+								onPointerMove={handleResizeZoneMovePointerMove}
+								onPointerUp={handleResizeZoneMovePointerUp}
+								onPointerCancel={handleResizeZoneMovePointerCancel}
+								onDoubleClick={handleResizeZoneDoubleClick}
+								aria-label="Drag to reposition crop area, double-click to center"
+							/>
+							{/* Dimension badge */}
+							<div
+								className={`pointer-events-none absolute left-1/2 -translate-x-1/2 flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-mono leading-none whitespace-nowrap backdrop-blur-sm transition-colors duration-150 ${
+									resizeAtMax ? 'bg-amber-500/15 text-amber-300/90' : 'bg-black/65 text-white/90'
+								}`}
+								style={{ bottom: 'calc(100% + 6px)' }}
 							>
-								{targetResizeDimensions.width}×{targetResizeDimensions.height}
+								{targetResizeDimensions.width}&times;{targetResizeDimensions.height}
 								{resizeAtMax ? (
 									<span className="ml-1 text-amber-400/70">max</span>
 								) : resizeIsUpscaled ? (
 									<span className="ml-1 text-orange-400/70">upscale</span>
 								) : null}
 							</div>
-							{/* Corner handles — L-shaped, 4× */}
-							{RESIZE_CORNER_HANDLES.map(
-								({ id, signX, signY, btnPos, innerPos, border, label, mainDiag }) => (
+							{/* Corner handles — L-brackets */}
+							{RESIZE_CORNER_HANDLES.map(({ id, signX, signY, btnPos, label, mainDiag }) => {
+								const bracketColor = resizeAtMax ? '#fbbf24' : '#ffffff';
+								const cornerX = signX < 0 ? 'left' : 'right';
+								const cornerY = signY < 0 ? 'top' : 'bottom';
+								return (
 									<button
 										key={id}
 										type="button"
 										data-sign-x={signX}
 										data-sign-y={signY}
-										className={`group pointer-events-auto absolute ${btnPos} h-8 w-8 ${
+										className={`pointer-events-auto absolute ${btnPos} h-8 w-8 z-30 ${
 											selectionHandleActive
 												? 'cursor-grabbing'
 												: mainDiag
@@ -1804,23 +1920,38 @@ export function VideoPlayer({
 										aria-label={`Resize selection from ${label} corner`}
 									>
 										<div
-											className={`pointer-events-none absolute ${innerPos} h-3 w-3 ${border} transition-colors duration-100 ${
-												resizeAtMax
-													? 'border-amber-400/80'
-													: 'border-white/80 group-hover:border-white'
-											}`}
+											className="pointer-events-none absolute"
+											style={{
+												[cornerY]: 12,
+												[cornerX]: 12,
+												width: 10,
+												height: 1.5,
+												background: bracketColor,
+												borderRadius: 1,
+											}}
+										/>
+										<div
+											className="pointer-events-none absolute"
+											style={{
+												[cornerY]: 12,
+												[cornerX]: 12,
+												width: 1.5,
+												height: 10,
+												background: bracketColor,
+												borderRadius: 1,
+											}}
 										/>
 									</button>
-								),
-							)}
-							{/* Edge handles — pill bars, 4× */}
-							{RESIZE_EDGE_HANDLES.map(({ id, signX, signY, btnPos, btnSize, innerClass, label, ns }) => (
+								);
+							})}
+							{/* Edge handles — pill bars */}
+							{RESIZE_EDGE_HANDLES.map(({ id, signX, signY, btnPos, btnSize, label, ns }) => (
 								<button
 									key={id}
 									type="button"
 									data-sign-x={signX}
 									data-sign-y={signY}
-									className={`group pointer-events-auto absolute ${btnPos} ${btnSize} ${
+									className={`pointer-events-auto absolute z-30 flex items-center justify-center ${btnPos} ${btnSize} ${
 										selectionHandleActive
 											? 'cursor-grabbing'
 											: ns
@@ -1834,9 +1965,10 @@ export function VideoPlayer({
 									aria-label={`Resize selection from ${label} edge`}
 								>
 									<div
-										className={`pointer-events-none ${innerClass} transition-colors duration-100 ${
-											resizeAtMax ? 'bg-amber-400/60' : 'bg-white/60 group-hover:bg-white/90'
+										className={`pointer-events-none rounded-full transition-colors duration-100 ${
+											ns ? 'w-5 h-[2px]' : 'h-5 w-[2px]'
 										}`}
+										style={{ background: resizeAtMax ? '#fbbf24' : 'rgba(255,255,255,0.7)' }}
 									/>
 								</button>
 							))}
@@ -1845,7 +1977,7 @@ export function VideoPlayer({
 				)}
 
 				{/* Compare mode overlay */}
-				{videoMode === 'compare' && (
+				{compareModeFromProp && (
 					<CompareOverlay
 						combinedFilter={combinedFilter ?? ''}
 						comparePosition={comparePosition}

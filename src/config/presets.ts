@@ -10,6 +10,7 @@ export interface VideoPreset {
 	name: string;
 	description: string;
 	maxSizeMB: number | null;
+	maxDisplayWidth?: number;
 	format: VideoContainer;
 	ffmpegArgs: string[];
 	width: number | null;
@@ -108,6 +109,12 @@ interface BuildVideoArgsResult {
 	selectedAudioCodec: AudioCodec;
 	recommendedAudioBitrateKbps: number;
 	shouldReencodeAudio: boolean;
+	maxSizeBytes: number | null;
+	targetVideoBitrateKbps: number | null;
+	selectedWidth: number | null;
+	selectedHeight: number | null;
+	fallbackWidth: number | null;
+	fallbackHeight: number | null;
 }
 
 const VIDEO_CODEC_PRIORITY: VideoCodec[] = ['libaom-av1', 'libvpx-vp9', 'libx265', 'libx264'];
@@ -193,46 +200,133 @@ function clamp(value: number, min: number, max: number): number {
 	return Math.min(max, Math.max(min, value));
 }
 
-function estimateCrfFromBudget(
-	codec: string,
-	videoBitrateKbps: number,
-	width: number,
-	height: number,
-	fps: number,
+function computeTargetVideoBitrateKbps(
+	maxSizeMB: number,
+	clipDurationSec: number,
+	plannedAudioBitrateKbps: number,
 ): number {
-	const pixels = Math.max(1, width * height);
-	const safeFps = clamp(fps || 30, 12, 120);
-	const bpppf = (videoBitrateKbps * 1000) / (pixels * safeFps);
-	const normalized = Math.max(1e-5, bpppf);
-
-	if (codec === 'libx265') {
-		const crf = 27 - 5.9 * Math.log2(normalized / 0.08);
-		return Math.round(clamp(crf, 18, 42));
-	}
-	if (codec === 'libvpx-vp9') {
-		const crf = 35 - 6.2 * Math.log2(normalized / 0.08);
-		return Math.round(clamp(crf, 20, 54));
-	}
-	if (codec === 'libaom-av1') {
-		const crf = 38 - 6.6 * Math.log2(normalized / 0.08);
-		return Math.round(clamp(crf, 22, 56));
-	}
-
-	const crf = 23 - 5.7 * Math.log2(normalized / 0.08);
-	return Math.round(clamp(crf, 16, 40));
+	const clipSec = Math.max(clipDurationSec, 0.5);
+	const safetyMargin = clipSec < 5 ? 0.85 : 0.9;
+	const targetTotalBytes = maxSizeMB * 1024 * 1024 * safetyMargin;
+	const audioBytes = (plannedAudioBitrateKbps * 1000 * clipSec) / 8;
+	const muxOverheadBytes = targetTotalBytes * 0.02;
+	const availableVideoBytes = targetTotalBytes - audioBytes - muxOverheadBytes;
+	const targetVideoKbps = Math.floor((availableVideoBytes * 8) / (clipSec * 1000));
+	return Math.max(64, targetVideoKbps);
 }
 
-function defaultCrfForCodec(codec: VideoCodec): number {
-	switch (codec) {
-		case 'libaom-av1':
-			return 34;
-		case 'libvpx-vp9':
-			return 35;
-		case 'libx265':
-			return 28;
-		case 'libx264':
-			return 23;
+// ── Resolution optimization ──
+
+const RESOLUTION_STEPS = [
+	{ w: 3840, h: 2160 },
+	{ w: 2560, h: 1440 },
+	{ w: 1920, h: 1080 },
+	{ w: 1600, h: 900 },
+	{ w: 1280, h: 720 },
+	{ w: 960, h: 540 },
+	{ w: 854, h: 480 },
+	{ w: 640, h: 360 },
+];
+
+const MIN_BPP_BY_CODEC: Record<string, number> = {
+	libx264: 0.04,
+	libx265: 0.025,
+	'libvpx-vp9': 0.02,
+	'libaom-av1': 0.018,
+};
+
+const DEFAULT_MIN_FLOOR_WIDTH = 360;
+
+function computeBpp(bitrateKbps: number, width: number, height: number, fps: number): number {
+	return (bitrateKbps * 1000) / (width * height * fps);
+}
+
+/**
+ * Iterate RESOLUTION_STEPS yielding aspect-ratio-corrected, even-dimension candidates
+ * strictly smaller than the given bounds and not below the floor width.
+ */
+function* candidateResolutions(
+	belowWidth: number,
+	belowHeight: number,
+	aspectRatio: number,
+	maxDisplayWidth: number | undefined,
+): Generator<{ width: number; height: number }> {
+	const floorWidth = maxDisplayWidth ?? DEFAULT_MIN_FLOOR_WIDTH;
+	const isPortrait = belowHeight > belowWidth;
+
+	for (const step of RESOLUTION_STEPS) {
+		const stepW = isPortrait ? Math.round(step.h * aspectRatio) : step.w;
+		const stepH = isPortrait ? step.h : Math.round(step.w / aspectRatio);
+
+		// Don't upscale
+		if (stepW >= belowWidth || stepH >= belowHeight) continue;
+
+		// Don't go below platform display floor
+		const shortSide = Math.min(stepW, stepH);
+		if (shortSide < floorWidth && floorWidth < Math.min(belowWidth, belowHeight)) continue;
+
+		const finalW = Math.max(2, Math.round(stepW / 2) * 2);
+		const finalH = Math.max(2, Math.round(stepH / 2) * 2);
+		yield { width: finalW, height: finalH };
 	}
+}
+
+/**
+ * Select the optimal resolution for a given bitrate budget.
+ * Starts from the source resolution and steps down only if the
+ * bits-per-pixel-per-frame would be too low for acceptable quality.
+ * Never descends below maxDisplayWidth (platform display floor).
+ * Never upscales.
+ * Returns null if source resolution is already optimal.
+ */
+function selectOptimalResolution(
+	targetBitrateKbps: number,
+	inputWidth: number,
+	inputHeight: number,
+	fps: number,
+	codec: VideoCodec,
+	maxDisplayWidth: number | undefined,
+): { width: number; height: number } | null {
+	const minBpp = MIN_BPP_BY_CODEC[codec] ?? 0.04;
+	const safeFps = clamp(fps || 30, 12, 120);
+	const aspectRatio = inputWidth / inputHeight;
+
+	// Check if source resolution already has sufficient bpp
+	const sourceBpp = computeBpp(targetBitrateKbps, inputWidth, inputHeight, safeFps);
+	if (sourceBpp >= minBpp) return null;
+
+	for (const candidate of candidateResolutions(inputWidth, inputHeight, aspectRatio, maxDisplayWidth)) {
+		const bpp = computeBpp(targetBitrateKbps, candidate.width, candidate.height, safeFps);
+		if (bpp >= minBpp) return candidate;
+	}
+
+	// Couldn't find a step with enough bpp — use the floor resolution
+	const floorWidth = maxDisplayWidth ?? DEFAULT_MIN_FLOOR_WIDTH;
+	const isPortrait = inputHeight > inputWidth;
+	const floorW = isPortrait ? Math.round(floorWidth * aspectRatio) : floorWidth;
+	const floorH = isPortrait ? floorWidth : Math.round(floorWidth / aspectRatio);
+	const finalFloorW = Math.max(2, Math.round(floorW / 2) * 2);
+	const finalFloorH = Math.max(2, Math.round(floorH / 2) * 2);
+
+	// Don't upscale
+	if (finalFloorW >= inputWidth && finalFloorH >= inputHeight) return null;
+
+	return { width: finalFloorW, height: finalFloorH };
+}
+
+/**
+ * Find the next resolution step below the current one for retry fallback.
+ */
+function computeFallbackResolution(
+	currentWidth: number,
+	currentHeight: number,
+	aspectRatio: number,
+	maxDisplayWidth: number | undefined,
+): { width: number; height: number } | null {
+	for (const candidate of candidateResolutions(currentWidth, currentHeight, aspectRatio, maxDisplayWidth)) {
+		return candidate;
+	}
+	return null;
 }
 
 function normalizeAllowedVideoCodecs(preset: VideoPreset): VideoCodec[] {
@@ -356,61 +450,66 @@ export function buildVideoArgs(
 			: Math.max(sourceAudioTotalBitrateKbps, recommendedAudioBitrateKbps)
 		: 0;
 
-	// Scale filter if dimensions specified
+	const cleanedPresetArgs = stripRateControlArgs(stripVideoCodecArgs(basePresetArgs));
+	args.push(...buildVideoCodecArgs(selectedVideoCodec, selectedContainer, basePresetArgs), ...cleanedPresetArgs);
+
+	// Size-constrained encoding: use ABR bitrate (-b:v) which is the only
+	// rate control mechanism actually supported by the Mediabunny worker.
+	// Also selects an optimal resolution to maximize quality within the budget.
+	let maxSizeBytes: number | null = null;
+	let targetVideoBitrateKbps: number | null = null;
+	let selectedWidth: number | null = null;
+	let selectedHeight: number | null = null;
+	let fallbackWidth: number | null = null;
+	let fallbackHeight: number | null = null;
+
 	if (preset.width != null && preset.height != null) {
+		// Preset has fixed target dimensions — use them as-is
+		selectedWidth = preset.width;
+		selectedHeight = preset.height;
 		args.push(
 			'-vf',
 			`scale=${preset.width}:${preset.height}:force_original_aspect_ratio=decrease,pad=${preset.width}:${preset.height}:(ow-iw)/2:(oh-ih)/2`,
 		);
 	}
 
-	const cleanedPresetArgs = stripRateControlArgs(stripVideoCodecArgs(basePresetArgs));
-	args.push(...buildVideoCodecArgs(selectedVideoCodec, selectedContainer, basePresetArgs), ...cleanedPresetArgs);
+	if (preset.maxSizeMB != null) {
+		maxSizeBytes = preset.maxSizeMB * 1024 * 1024;
+		const videoBitrateKbps = computeTargetVideoBitrateKbps(preset.maxSizeMB, clipDuration, plannedAudioBitrateKbps);
+		targetVideoBitrateKbps = videoBitrateKbps;
 
-	const shouldApplyQualityBudget = (() => {
-		if (preset.maxSizeMB == null) return false;
-		if (options.sourceSizeBytes == null) return true;
-		return options.sourceSizeBytes > preset.maxSizeMB * 1024 * 1024;
-	})();
-
-	if (preset.maxSizeMB != null && shouldApplyQualityBudget) {
-		const clipSec = Math.max(clipDuration, 0.5);
-		const targetTotalBytes = preset.maxSizeMB * 1024 * 1024 * 0.93;
-		const audioBytes = (plannedAudioBitrateKbps * 1000 * clipSec) / 8;
-		const muxOverheadBytes = targetTotalBytes * 0.02;
-		const targetVideoBits = Math.max(64_000, (targetTotalBytes - audioBytes - muxOverheadBytes) * 8);
-		const targetVideoKbps = Math.max(64, Math.floor(targetVideoBits / clipSec / 1000));
-		const width = preset.width ?? Math.max(16, options.inputWidth ?? 1280);
-		const height = preset.height ?? Math.max(16, options.inputHeight ?? 720);
-		const fps = options.inputFps ?? 30;
-		const estimatedCrf = estimateCrfFromBudget(selectedVideoCodec, targetVideoKbps, width, height, fps);
-		const estimatedQp = clamp(Math.round(estimatedCrf + (selectedVideoCodec === 'libx265' ? 2 : 0)), 0, 51);
-		if (selectedVideoCodec === 'libx264' || selectedVideoCodec === 'libx265') {
-			args.push('-qp', String(estimatedQp));
-		} else {
-			args.push('-crf', String(estimatedCrf));
-			if (selectedVideoCodec === 'libvpx-vp9' || selectedVideoCodec === 'libaom-av1') {
-				args.push('-b:v', '0');
-			}
-		}
-		args.push('-maxrate', `${targetVideoKbps}k`, '-bufsize', `${Math.max(targetVideoKbps * 2, 256)}k`);
-	} else {
-		const legacyCodec = findArgValue(basePresetArgs, '-c:v');
-		const legacyCrf = findArgValue(basePresetArgs, '-crf');
-		const legacyQp = findArgValue(basePresetArgs, '-qp');
-		if (legacyQp && (selectedVideoCodec === 'libx264' || selectedVideoCodec === 'libx265')) {
-			args.push('-qp', legacyQp);
-		} else {
-			const useLegacyCrf = legacyCrf != null && legacyCodec != null && legacyCodec === selectedVideoCodec;
-			const crfValue = useLegacyCrf ? Number(legacyCrf) : defaultCrfForCodec(selectedVideoCodec);
-			args.push(
-				'-crf',
-				String(Number.isFinite(crfValue) ? Math.round(crfValue) : defaultCrfForCodec(selectedVideoCodec)),
+		// Auto-select resolution if no fixed dimensions and source info available
+		if (preset.width == null && preset.height == null && options.inputWidth && options.inputHeight) {
+			const optimal = selectOptimalResolution(
+				videoBitrateKbps,
+				options.inputWidth,
+				options.inputHeight,
+				options.inputFps ?? 30,
+				selectedVideoCodec,
+				preset.maxDisplayWidth,
 			);
-			if (selectedVideoCodec === 'libvpx-vp9' || selectedVideoCodec === 'libaom-av1') {
-				args.push('-b:v', '0');
+			if (optimal) {
+				selectedWidth = optimal.width;
+				selectedHeight = optimal.height;
+				args.push('-vf', `scale=${optimal.width}:${optimal.height}:force_original_aspect_ratio=decrease`);
+			}
+
+			// Compute a fallback resolution (one step below selected) for retry
+			const currentW = selectedWidth ?? options.inputWidth;
+			const currentH = selectedHeight ?? options.inputHeight;
+			const fallback = computeFallbackResolution(
+				currentW,
+				currentH,
+				options.inputWidth / options.inputHeight,
+				preset.maxDisplayWidth,
+			);
+			if (fallback) {
+				fallbackWidth = fallback.width;
+				fallbackHeight = fallback.height;
 			}
 		}
+
+		args.push('-b:v', `${videoBitrateKbps * 1000}`);
 	}
 
 	return {
@@ -420,6 +519,12 @@ export function buildVideoArgs(
 		selectedAudioCodec,
 		recommendedAudioBitrateKbps,
 		shouldReencodeAudio,
+		maxSizeBytes,
+		targetVideoBitrateKbps,
+		selectedWidth,
+		selectedHeight,
+		fallbackWidth,
+		fallbackHeight,
 	};
 }
 

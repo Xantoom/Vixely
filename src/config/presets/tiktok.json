@@ -4,6 +4,7 @@
 			"name": "TikTok Video",
 			"description": "TikTok post target (9:16, 3s-10m, up to 4GB)",
 			"maxSizeMB": 4096,
+			"maxDisplayWidth": 1080,
 			"format": "mp4",
 			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "21", "-pix_fmt", "yuv420p"],
 			"width": 1080,

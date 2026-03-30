@@ -1,9 +1,7 @@
 import { Columns2, FilePlus2, Info, LoaderCircle, StepBack, StepForward } from 'lucide-react';
 import { EditorToolbar } from '@/components/editor/EditorToolbar.tsx';
-import { EditorUxModeSwitch } from '@/components/editor/EditorUxModeSwitch.tsx';
 import { IconButton, ToolbarSeparator } from '@/components/ui/IconButton.tsx';
 import { formatCompactTime } from '@/components/ui/Timeline.tsx';
-import type { EditorUxMode } from '@/stores/editorUx.ts';
 import { formatNumber } from '@/utils/format.ts';
 
 interface VideoToolbarProps {
@@ -19,8 +17,6 @@ interface VideoToolbarProps {
 	detailedProbePending: boolean;
 	compareMode: boolean;
 	hasChanges: boolean;
-	editorUxMode: EditorUxMode;
-	onEditorUxModeChange: (mode: EditorUxMode) => void;
 	onOpenFile: () => void;
 	onStepFrame: (dir: -1 | 1) => void;
 	onStartFrameHold: (dir: -1 | 1) => void;
@@ -42,8 +38,6 @@ export function VideoToolbar({
 	detailedProbePending,
 	compareMode,
 	hasChanges,
-	editorUxMode,
-	onEditorUxModeChange,
 	onOpenFile,
 	onStepFrame,
 	onStartFrameHold,
@@ -121,13 +115,6 @@ export function VideoToolbar({
 				)}
 				<span>{videoFps.toFixed(2)} fps</span>
 				<span>{formatCompactTime(duration)}</span>
-			</div>
-
-			<ToolbarSeparator />
-
-			{/* Simple / Expert toggle */}
-			<div className="hidden sm:block">
-				<EditorUxModeSwitch mode={editorUxMode} onChange={onEditorUxModeChange} />
 			</div>
 
 			<ToolbarSeparator />

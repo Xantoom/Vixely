@@ -1,12 +1,15 @@
 import { createRootRoute, Outlet, Link, useNavigate, useRouterState } from '@tanstack/react-router';
-import { TanStackRouterDevtools } from '@tanstack/react-router-devtools';
 import { Video, ImageIcon, Film, Home } from 'lucide-react';
-import { useEffect, useRef, useState, useCallback, type MouseEvent as ReactMouseEvent } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, useCallback, type MouseEvent as ReactMouseEvent } from 'react';
+
+const TanStackRouterDevtools = lazy(async () => {
+	const m = await import('@tanstack/react-router-devtools');
+	return { default: m.TanStackRouterDevtools };
+});
 import { Toaster } from 'sonner';
 import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
 import { CookieBanner } from '@/components/CookieBanner.tsx';
 import { useEditorSessionStore, type EditorKey } from '@/stores/editorSession.ts';
-import { useEditorUxStore } from '@/stores/editorUx.ts';
 import { useGifEditorStore } from '@/stores/gifEditor.ts';
 import { useImageEditorStore } from '@/stores/imageEditor.ts';
 import { useVideoEditorStore } from '@/stores/videoEditor.ts';
@@ -30,7 +33,7 @@ function AppToaster() {
 		};
 	}, []);
 
-	return <Toaster position="top-center" closeButton toastOptions={{ duration: 3000 }} gap={8} />;
+	return <Toaster position="top-center" closeButton toastOptions={{ duration: 3500 }} gap={6} />;
 }
 
 const navItems = [
@@ -85,16 +88,11 @@ function RootLayout() {
 	const navigate = useNavigate();
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
 	const isHome = pathname === '/';
-	const hydrateEditorUx = useEditorUxStore((s) => s.hydrateFromStorage);
 	const unsavedByEditor = useEditorSessionStore((s) => s.unsavedByEditor);
 	const setEditorUnsaved = useEditorSessionStore((s) => s.setUnsaved);
 	const [pendingEditorRoute, setPendingEditorRoute] = useState<EditorTabRoute | null>(null);
 	const [isEditorSwitchConfirmOpen, setIsEditorSwitchConfirmOpen] = useState(false);
 	const previousEditorRef = useRef<EditorKey | null>(null);
-
-	useEffect(() => {
-		hydrateEditorUx();
-	}, [hydrateEditorUx]);
 
 	useEffect(() => {
 		const previousEditor = previousEditorRef.current;
@@ -247,7 +245,11 @@ function RootLayout() {
 
 			<AppToaster />
 
-			{import.meta.env.DEV && <TanStackRouterDevtools position="bottom-left" />}
+			{import.meta.env.DEV && (
+				<Suspense>
+					<TanStackRouterDevtools position="bottom-left" />
+				</Suspense>
+			)}
 		</div>
 	);
 }

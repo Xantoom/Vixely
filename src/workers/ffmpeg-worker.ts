@@ -1709,7 +1709,7 @@ function applyPixelEffects(ctx: OffscreenCanvasRenderingContext2D, w: number, h:
 		}
 		// Grain: add noise
 		if (grain > 0.01) {
-			const noise = (Math.random() - 0.5) * grain * 80;
+			const noise = (Math.random() - 0.5) * grain * 5.1;
 			r = clamp(r + noise, 0, 255);
 			g = clamp(g + noise, 0, 255);
 			b = clamp(b + noise, 0, 255);
