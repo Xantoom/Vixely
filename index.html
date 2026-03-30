@@ -36,6 +36,25 @@
 		<!-- Favicon -->
 		<link rel="icon" type="image/svg" href="/vixely-app-logo.svg" />
 		<title>Vixely — Local-First Media Editing</title>
+		<!-- Google Consent Mode v2 — MUST come before any Google tag -->
+		<script>
+			window.dataLayer = window.dataLayer || [];
+			function gtag() { dataLayer.push(arguments); }
+			gtag('consent', 'default', {
+				ad_storage: 'denied',
+				ad_user_data: 'denied',
+				ad_personalization: 'denied',
+				analytics_storage: 'denied',
+				wait_for_update: 500,
+			});
+		</script>
+		<!-- Google AdSense -->
+		<script
+			async
+			src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7841654233087376"
+			crossorigin="anonymous"
+		></script>
+		<link rel="dns-prefetch" href="https://pagead2.googlesyndication.com" />
 		<link rel="dns-prefetch" href="https://fonts.googleapis.com" />
 		<link rel="dns-prefetch" href="https://fonts.gstatic.com" />
 		<link rel="dns-prefetch" href="https://unpkg.com" />
