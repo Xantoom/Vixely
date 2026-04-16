@@ -1,5 +1,6 @@
 import { useShallow } from 'zustand/react/shallow';
-import { Slider, Toggle } from '@/components/ui/index.ts';
+import { Slider } from '@/components/ui/Slider.tsx';
+import { Toggle } from '@/components/ui/Toggle.tsx';
 import { useGifEditorStore, type FrameSkipMode } from '@/stores/gifEditor.ts';
 
 const FRAME_SKIP_OPTIONS: { label: string; value: FrameSkipMode }[] = [

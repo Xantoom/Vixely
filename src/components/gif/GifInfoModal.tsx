@@ -1,5 +1,5 @@
 import { X, Film } from 'lucide-react';
-import { Button } from '@/components/ui/index.ts';
+import { Button } from '@/components/ui/Button.tsx';
 import { formatDateTime, formatDimensions, formatFileSize } from '@/utils/format.ts';
 
 interface GifInfoModalProps {

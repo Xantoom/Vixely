@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { formatPlayerTime } from '@/components/ui/index.ts';
+import { formatPlayerTime } from '@/components/ui/Timeline.tsx';
 import { FilterPipeline } from '@/modules/shared-core/filter-pipeline.ts';
 import { filtersAreDefault } from '@/modules/shared-core/types/filters.ts';
 import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
@@ -44,12 +44,15 @@ interface VideoPlayerProps {
 }
 
 const BROWSER_UNSUPPORTED_AUDIO_CODECS = new Set(['eac3', 'ac3', 'dts', 'truehd', 'mlp', 'dts-hd', 'dtshd']);
+const AC3_EAC3_CODECS = new Set(['ac3', 'eac3']);
 const AC3_DECODER_REGISTRATION_FLAG = '__vixelyAc3DecoderRegistered';
 const FULLSCREEN_STYLE = { width: '100vw', height: '100vh' } as const;
 const EMPTY_STREAMS: readonly StreamInfo[] = [];
 
-function ensureAc3DecoderRegistered(registerAc3Decoder: () => void): void {
+async function ensureAc3DecoderRegistered(): Promise<void> {
 	const flags = globalThis as Record<string, unknown>;
+	if (flags[AC3_DECODER_REGISTRATION_FLAG] === true) return;
+	const { registerAc3Decoder } = await import('@mediabunny/ac3');
 	if (flags[AC3_DECODER_REGISTRATION_FLAG] === true) return;
 	registerAc3Decoder();
 	flags[AC3_DECODER_REGISTRATION_FLAG] = true;
@@ -343,7 +346,7 @@ const RESIZE_EDGE_HANDLES = [
 	},
 ];
 
-export function VideoPlayer({
+function VideoPlayerImpl({
 	src,
 	previewFile,
 	timelineScrubbing = false,
@@ -1126,11 +1129,12 @@ export function VideoPlayer({
 		let cancelled = false;
 		const registerAndCreateSink = async () => {
 			try {
-				const [{ ALL_FORMATS, AudioBufferSink, BlobSource, Input }, { registerAc3Decoder }] = await Promise.all(
-					[import('mediabunny'), import('@mediabunny/ac3')],
-				);
+				const needsAc3 = selectedAudioCodec != null && AC3_EAC3_CODECS.has(selectedAudioCodec);
+				const [{ ALL_FORMATS, AudioBufferSink, BlobSource, Input }] = await Promise.all([
+					import('mediabunny'),
+					needsAc3 ? ensureAc3DecoderRegistered() : Promise.resolve(),
+				]);
 				if (cancelled) return;
-				ensureAc3DecoderRegistered(registerAc3Decoder);
 
 				const input = new Input({ source: new BlobSource(previewFile), formats: ALL_FORMATS });
 				const audioTracks = await input.getAudioTracks();
@@ -1224,6 +1228,7 @@ export function VideoPlayer({
 	}, [
 		audioTrackIndex,
 		previewFile,
+		selectedAudioCodec,
 		startDecodedAudioStream,
 		stopDecodedAudioSources,
 		useDecodedAudioPreview,
@@ -2127,6 +2132,8 @@ export function VideoPlayer({
 		</div>
 	);
 }
+
+export const VideoPlayer = memo(VideoPlayerImpl);
 
 const TrackSelectorButton = memo(function TrackSelectorButton({
 	hasTracks,

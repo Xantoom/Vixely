@@ -1,5 +1,7 @@
+import { startTransition } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { Button, Slider } from '@/components/ui/index.ts';
+import { Button } from '@/components/ui/Button.tsx';
+import { Slider } from '@/components/ui/Slider.tsx';
 import { LIGHT_SLIDERS, COLOR_SLIDERS, EFFECT_SLIDERS, type FilterSliderDef } from '@/config/filterSliders.ts';
 import { filterPresetEntries } from '@/config/presets.ts';
 import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
@@ -37,7 +39,10 @@ function SliderGroup({ sliders, groupLabel }: { sliders: FilterSliderDef[]; grou
 						step={def.step}
 						value={filters[def.key]}
 						onChange={(e) => {
-							setFilter(def.key, Number(e.target.value));
+							const next = Number(e.target.value);
+							startTransition(() => {
+								setFilter(def.key, next);
+							});
 						}}
 					/>
 				))}

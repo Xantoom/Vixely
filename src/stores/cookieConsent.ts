@@ -1,6 +1,13 @@
 import { create } from 'zustand';
 
 const STORAGE_KEY = 'vixely-cookie-consent';
+const CONSENT_SCHEMA_VERSION = 1;
+
+interface PersistedConsent {
+	v: number;
+	analytics: boolean;
+	advertising: boolean;
+}
 
 export interface CookieConsent {
 	essential: true; // Always true, cannot be disabled
@@ -37,7 +44,12 @@ interface CookieConsentState {
 
 function persistConsent(consent: CookieConsent): void {
 	try {
-		localStorage.setItem(STORAGE_KEY, JSON.stringify(consent));
+		const payload: PersistedConsent = {
+			v: CONSENT_SCHEMA_VERSION,
+			analytics: consent.analytics,
+			advertising: consent.advertising,
+		};
+		localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
 	} catch {
 		// localStorage unavailable — silently ignore
 	}
@@ -53,6 +65,15 @@ function readConsent(): CookieConsent | null {
 		}
 		const record = parsed as Record<string, unknown>;
 		if (typeof record.analytics !== 'boolean' || typeof record.advertising !== 'boolean') {
+			return null;
+		}
+		// Drop payloads written by older schemas; force re-consent
+		if (typeof record.v !== 'number' || record.v !== CONSENT_SCHEMA_VERSION) {
+			try {
+				localStorage.removeItem(STORAGE_KEY);
+			} catch {
+				// ignore
+			}
 			return null;
 		}
 		return { essential: true, analytics: record.analytics, advertising: record.advertising };

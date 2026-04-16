@@ -1,4 +1,4 @@
-import { useCallback, useRef, type MutableRefObject, type RefObject } from 'react';
+import { startTransition, useCallback, useRef, type MutableRefObject, type RefObject } from 'react';
 import { toast } from 'sonner';
 import type { SubtitlePreviewData } from '@/hooks/useVideoProcessor.ts';
 import type { ProbeResult, ResizeSettings, TrackSelection } from '@/stores/videoEditor.ts';
@@ -156,46 +156,49 @@ export function useVideoMetadataLoader({
 			probePromise
 				.then((result) => {
 					if (probeRequestId !== probeRequestIdRef.current) return;
-					setStreamInfoPending(false);
-					setMetadataLoadStage('ready');
-
 					const { videoStream, audioStreams, subtitleStreams } = splitStreamsByType(result.streams);
-					setProbeResult({
-						duration: result.duration,
-						bitrate: result.bitrate,
-						format: result.format,
-						streams: result.streams,
-					});
-					setTracks({
-						audioEnabled: audioStreams.length > 0,
-						audioTrackIndex: getDefaultAudioTrackIndex(audioStreams),
-						subtitleEnabled: subtitleStreams.some((stream) => stream.isDefault || stream.isForced),
-						subtitleTrackIndex: getDefaultSubtitleTrackIndex(subtitleStreams),
-					});
-
-					if (videoStream?.width && videoStream.height) {
-						setResize({
-							width: videoStream.width,
-							height: videoStream.height,
-							originalWidth: videoStream.width,
-							originalHeight: videoStream.height,
-							scalePercent: 100,
+					startTransition(() => {
+						setStreamInfoPending(false);
+						setMetadataLoadStage('ready');
+						setProbeResult({
+							duration: result.duration,
+							bitrate: result.bitrate,
+							format: result.format,
+							streams: result.streams,
 						});
-					}
+						setTracks({
+							audioEnabled: audioStreams.length > 0,
+							audioTrackIndex: getDefaultAudioTrackIndex(audioStreams),
+							subtitleEnabled: subtitleStreams.some((stream) => stream.isDefault || stream.isForced),
+							subtitleTrackIndex: getDefaultSubtitleTrackIndex(subtitleStreams),
+						});
+
+						if (videoStream?.width && videoStream.height) {
+							setResize({
+								width: videoStream.width,
+								height: videoStream.height,
+								originalWidth: videoStream.width,
+								originalHeight: videoStream.height,
+								scalePercent: 100,
+							});
+						}
+					});
 				})
 				.catch((err: unknown) => {
 					if (probeRequestId !== probeRequestIdRef.current) return;
-					setStreamInfoPending(false);
-					setMetadataLoadStage('error');
-					setDetailedProbePending(false);
-					setProbeResult(null);
-					setTracks({
-						audioEnabled: false,
-						audioTrackIndex: 0,
-						subtitleEnabled: false,
-						subtitleTrackIndex: 0,
+					startTransition(() => {
+						setStreamInfoPending(false);
+						setMetadataLoadStage('error');
+						setDetailedProbePending(false);
+						setProbeResult(null);
+						setTracks({
+							audioEnabled: false,
+							audioTrackIndex: 0,
+							subtitleEnabled: false,
+							subtitleTrackIndex: 0,
+						});
+						setEmbeddedFonts([]);
 					});
-					setEmbeddedFonts([]);
 					toast.error('Failed to read video metadata', {
 						description: err instanceof Error ? err.message : 'Could not read stream metadata.',
 					});
@@ -204,7 +207,9 @@ export function useVideoMetadataLoader({
 			detailedProbePromise
 				.then((detailedResult) => {
 					if (detailedProbeRequestId !== detailedProbeRequestIdRef.current) return;
-					setDetailedProbe(detailedResult);
+					startTransition(() => {
+						setDetailedProbe(detailedResult);
+					});
 				})
 				.catch((err: unknown) => {
 					if (detailedProbeRequestId !== detailedProbeRequestIdRef.current) return;
@@ -213,7 +218,9 @@ export function useVideoMetadataLoader({
 				})
 				.finally(() => {
 					if (detailedProbeRequestId !== detailedProbeRequestIdRef.current) return;
-					setDetailedProbePending(false);
+					startTransition(() => {
+						setDetailedProbePending(false);
+					});
 				});
 		},
 		[

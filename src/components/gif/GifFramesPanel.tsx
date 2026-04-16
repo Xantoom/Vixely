@@ -2,7 +2,7 @@ import { Download, Trash2, CheckSquare, Square, Clock } from 'lucide-react';
 import { useCallback, useId } from 'react';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
-import { Button } from '@/components/ui/index.ts';
+import { Button } from '@/components/ui/Button.tsx';
 import { useGifEditorStore, type ExtractedFrame } from '@/stores/gifEditor.ts';
 
 interface GifFramesPanelProps {

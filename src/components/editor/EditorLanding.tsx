@@ -38,6 +38,8 @@ interface EditorLandingProps {
 	isDragging: boolean;
 	hasFile: boolean;
 	replaceLabel: string;
+	heading: string;
+	tagline: string;
 	features: Feature[];
 	formats: readonly string[];
 	formatColor: string;
@@ -53,6 +55,8 @@ export function EditorLanding({
 	isDragging,
 	hasFile,
 	replaceLabel,
+	heading,
+	tagline,
 	features,
 	formats,
 	formatColor,
@@ -67,7 +71,15 @@ export function EditorLanding({
 		<div className="h-full overflow-y-auto workspace-bg" {...dropHandlers}>
 			{/* Hero — Drop Zone: full container height so the card is visually centered */}
 			<div className="flex items-center justify-center min-h-full px-2 sm:px-3 relative">
-				<div className="flex flex-col items-center gap-6">{emptyState}</div>
+				<div className="flex flex-col items-center gap-6 max-w-3xl text-center">
+					<h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight leading-tight px-4">
+						{heading}
+					</h1>
+					<p className="text-[14px] sm:text-[15px] text-text-secondary max-w-xl px-4 leading-relaxed -mt-2">
+						{tagline}
+					</p>
+					{emptyState}
+				</div>
 
 				{isDragging && (
 					<div className="absolute inset-0 flex items-center justify-center bg-accent-surface/50 backdrop-blur-sm z-20 pointer-events-none">

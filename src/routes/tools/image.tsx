@@ -4,8 +4,9 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
 import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
+import { EditorEmptyState } from '@/components/editor/EditorEmptyState.tsx';
 import { EditorLanding } from '@/components/editor/EditorLanding.tsx';
-import { EditorEmptyState, EditorShell } from '@/components/editor/index.ts';
+import { EditorShell } from '@/components/editor/EditorShell.tsx';
 import { ImageCanvas } from '@/components/image/ImageCanvas.tsx';
 import { ImageSidebar } from '@/components/image/ImageSidebar.tsx';
 import { ImageToolbar } from '@/components/image/ImageToolbar.tsx';
@@ -224,19 +225,19 @@ function ImageLab() {
 	return (
 		<>
 			<Seo
-				title="Free Online Image Editor — Vixely"
-				description="Apply real-time image filters, resize, crop, and export directly in your browser. No upload required — 100% private."
+				title="Free Online Image Editor — Resize, Crop & Filter"
+				description="Free online image editor — resize, crop, apply real-time filters, color-correct and export PNG, JPG, WebP, AVIF directly in your browser. No upload, 100% private."
 				path="/tools/image"
 				jsonLd={[
 					buildWebAppSchema(
 						'Vixely Image Editor',
-						'Apply real-time image filters, resize, crop, and export directly in your browser.',
+						'Resize, crop, apply real-time filters and export PNG, JPG, WebP, AVIF directly in your browser. No upload, 100% private, powered by WebAssembly.',
 						'https://vixely.app/tools/image',
 					),
 					buildFAQSchema(IMAGE_LANDING_FAQS.map((f) => ({ question: f.question, answer: f.answer }))),
 				]}
 			/>
-			<h1 className="sr-only">Image Editor</h1>
+			{hasImageLoaded && <h1 className="sr-only">Image Editor</h1>}
 
 			<input
 				ref={fileInputRef}
@@ -302,6 +303,8 @@ function ImageLab() {
 								isDragging={isDragging}
 								hasFile={false}
 								replaceLabel="Drop your image here"
+								heading="Free Online Image Editor — Resize, Crop & Filter in Browser"
+								tagline="Resize, crop, adjust colors and export PNG, JPG, WebP, AVIF instantly. No upload required — your files stay on your device."
 								features={[...IMAGE_LANDING_FEATURES]}
 								formats={IMAGE_LANDING_FORMATS}
 								formatColor="bg-amber-400"

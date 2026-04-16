@@ -1,6 +1,6 @@
 import { RotateCw, RotateCcw, FlipHorizontal, FlipVertical } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
-import { Button } from '@/components/ui/index.ts';
+import { Button } from '@/components/ui/Button.tsx';
 import { useGifEditorStore, type RotationAngle } from '@/stores/gifEditor.ts';
 
 const ROTATION_PRESETS: { label: string; icon: typeof RotateCw; value: RotationAngle }[] = [

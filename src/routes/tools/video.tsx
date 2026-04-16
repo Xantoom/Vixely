@@ -13,21 +13,31 @@ import {
 	Subtitles,
 	MonitorSmartphone,
 } from 'lucide-react';
-import { useState, useRef, useCallback, useEffect, useMemo, useId, useLayoutEffect } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
+import { useShallow } from 'zustand/react/shallow';
+import { EditorEmptyState } from '@/components/editor/EditorEmptyState.tsx';
 import { EditorLanding } from '@/components/editor/EditorLanding.tsx';
-import { EditorEmptyState, EditorQuickActions, EditorShell } from '@/components/editor/index.ts';
+import { EditorQuickActions } from '@/components/editor/EditorQuickActions.tsx';
+import { EditorShell } from '@/components/editor/EditorShell.tsx';
 import { Seo, buildWebAppSchema, buildFAQSchema } from '@/components/Seo.tsx';
-import { Button, Slider, Timeline, Toggle, formatTimecode, formatCompactTime } from '@/components/ui/index.ts';
+import { Button } from '@/components/ui/Button.tsx';
+import { Slider } from '@/components/ui/Slider.tsx';
+import { Timeline, formatTimecode, formatCompactTime } from '@/components/ui/Timeline.tsx';
+import { Toggle } from '@/components/ui/Toggle.tsx';
 import { ToolRail, type ToolRailItem } from '@/components/ui/ToolRail.tsx';
 import { AdjustPanel } from '@/components/video/AdjustPanel.tsx';
 import { getPlatformKey } from '@/components/video/PlatformIcons.tsx';
 import { PresetsPanel } from '@/components/video/PresetsPanel.tsx';
 import { ResizePanel } from '@/components/video/ResizePanel.tsx';
-import { VideoInfoModal } from '@/components/video/VideoInfoModal.tsx';
 import { VideoPlayer } from '@/components/video/VideoPlayer.tsx';
 import { VideoToolbar } from '@/components/video/VideoToolbar.tsx';
+
+const VideoInfoModal = lazy(async () => {
+	const m = await import('@/components/video/VideoInfoModal.tsx');
+	return { default: m.VideoInfoModal };
+});
 import {
 	VIDEO_CODECS,
 	CONTAINERS,
@@ -52,6 +62,7 @@ import { sizeConstrainedExport } from '@/modules/video-editor/export/sizeConstra
 import { useEditorSessionStore } from '@/stores/editorSession.ts';
 import type { AdvancedVideoSettings } from '@/stores/videoEditor.ts';
 import { useVideoEditorStore, type VideoMode } from '@/stores/videoEditor.ts';
+import type { StreamInfo } from '@/stores/videoEditor.ts';
 import { setPendingImageTransfer } from '@/utils/crossEditorTransfer.ts';
 import { buildExportFilename } from '@/utils/exportFilename.ts';
 import { formatFileSize, formatNumber, estimateVideoSize } from '@/utils/format.ts';
@@ -61,6 +72,7 @@ import type { DetailedProbeResultData } from '@/workers/ffmpeg-worker.ts';
 export const Route = createFileRoute('/tools/video')({ component: VideoStudio });
 
 const VIDEO_PRESETS = videoPresetEntries();
+const EMPTY_STREAMS: StreamInfo[] = [];
 
 /* ── SEO Landing Data ── */
 
@@ -246,21 +258,41 @@ function VideoStudio() {
 		extractSubtitlePreview,
 		cancel,
 	} = useVideoProcessor();
-	const videoMode = useVideoEditorStore((s) => s.mode);
-	const setVideoMode = useVideoEditorStore((s) => s.setMode);
-	const hasVideoFilterChanges = useVideoEditorStore((s) => s.hasFilterChanges);
-	const probeResult = useVideoEditorStore((s) => s.probeResult);
-	const setProbeResult = useVideoEditorStore((s) => s.setProbeResult);
-	const tracks = useVideoEditorStore((s) => s.tracks);
-	const setTracks = useVideoEditorStore((s) => s.setTracks);
-	const resize = useVideoEditorStore((s) => s.resize);
-	const setResize = useVideoEditorStore((s) => s.setResize);
-	const trimInputMode = useVideoEditorStore((s) => s.trimInputMode);
-	const setTrimInputMode = useVideoEditorStore((s) => s.setTrimInputMode);
-	const advancedSettings = useVideoEditorStore((s) => s.advancedSettings);
-	const setAdvancedSettings = useVideoEditorStore((s) => s.setAdvancedSettings);
-	const ffmpegFilterArgs = useVideoEditorStore((s) => s.ffmpegFilterArgs);
-	const resizeFilterArgs = useVideoEditorStore((s) => s.resizeFilterArgs);
+	const {
+		videoMode,
+		setVideoMode,
+		hasVideoFilterChanges,
+		probeResult,
+		setProbeResult,
+		tracks,
+		setTracks,
+		resize,
+		setResize,
+		trimInputMode,
+		setTrimInputMode,
+		advancedSettings,
+		setAdvancedSettings,
+		ffmpegFilterArgs,
+		resizeFilterArgs,
+	} = useVideoEditorStore(
+		useShallow((s) => ({
+			videoMode: s.mode,
+			setVideoMode: s.setMode,
+			hasVideoFilterChanges: s.hasFilterChanges,
+			probeResult: s.probeResult,
+			setProbeResult: s.setProbeResult,
+			tracks: s.tracks,
+			setTracks: s.setTracks,
+			resize: s.resize,
+			setResize: s.setResize,
+			trimInputMode: s.trimInputMode,
+			setTrimInputMode: s.setTrimInputMode,
+			advancedSettings: s.advancedSettings,
+			setAdvancedSettings: s.setAdvancedSettings,
+			ffmpegFilterArgs: s.ffmpegFilterArgs,
+			resizeFilterArgs: s.resizeFilterArgs,
+		})),
+	);
 
 	const updateAdvanced = useCallback(
 		<K extends keyof AdvancedVideoSettings>(key: K, value: AdvancedVideoSettings[K]) => {
@@ -324,9 +356,12 @@ function VideoStudio() {
 	const videoFps = videoStreamInfo?.fps ?? 30;
 	const frameDuration = 1 / Math.max(videoFps, 1);
 
-	const audioStreams = useMemo(() => probeResult?.streams.filter((s) => s.type === 'audio') ?? [], [probeResult]);
+	const audioStreams = useMemo(
+		() => probeResult?.streams.filter((s) => s.type === 'audio') ?? EMPTY_STREAMS,
+		[probeResult],
+	);
 	const subtitleStreams = useMemo(
-		() => probeResult?.streams.filter((s) => s.type === 'subtitle') ?? [],
+		() => probeResult?.streams.filter((s) => s.type === 'subtitle') ?? EMPTY_STREAMS,
 		[probeResult],
 	);
 
@@ -371,6 +406,20 @@ function VideoStudio() {
 			return Math.min(duration, Math.max(safeValue, trimStart + minTrimDuration));
 		},
 		[duration, minTrimDuration, trimEnd, trimStart],
+	);
+
+	const handleTimelineTrimStartChange = useCallback(
+		(v: number) => {
+			setTrimStart(clampTrimStart(v));
+		},
+		[clampTrimStart],
+	);
+
+	const handleTimelineTrimEndChange = useCallback(
+		(v: number) => {
+			setTrimEnd(clampTrimEnd(v));
+		},
+		[clampTrimEnd],
 	);
 
 	useEffect(() => {
@@ -2244,19 +2293,19 @@ function VideoStudio() {
 	return (
 		<>
 			<Seo
-				title="Free Online Video Editor — Vixely"
-				description="Trim, crop, resize, adjust colors, and export videos locally in your browser. No upload required — 100% private."
+				title="Free Online Video Editor — Trim, Crop & Export"
+				description="Free online video editor — trim, cut, resize, crop, color-correct and export MP4, WebM, MKV and more, directly in your browser. No upload, 100% private."
 				path="/tools/video"
 				jsonLd={[
 					buildWebAppSchema(
 						'Vixely Video Editor',
-						'Trim, crop, resize, adjust colors, and export videos locally in your browser.',
+						'Trim, cut, resize, crop, color-correct and export videos locally in your browser. No upload, 100% private, powered by WebAssembly.',
 						'https://vixely.app/tools/video',
 					),
 					buildFAQSchema(VIDEO_LANDING_FAQS.map((f) => ({ question: f.question, answer: f.answer }))),
 				]}
 			/>
-			<h1 className="sr-only">Video Editor</h1>
+			{file && <h1 className="sr-only">Video Editor</h1>}
 			<input
 				ref={fileInputRef}
 				type="file"
@@ -2403,6 +2452,8 @@ function VideoStudio() {
 								isDragging={isDragging}
 								hasFile={false}
 								replaceLabel="Drop your video here"
+								heading="Free Online Video Editor — Trim, Crop & Export in Browser"
+								tagline="Trim, cut, resize, color-correct and export MP4, WebM, MKV and more — directly in your browser. No upload, 100% private, powered by WebAssembly."
 								features={[...VIDEO_LANDING_FEATURES]}
 								formats={VIDEO_LANDING_FORMATS}
 								formatColor="bg-blue-400"
@@ -2422,12 +2473,8 @@ function VideoStudio() {
 								currentTime={currentTime}
 								density="compact"
 								minGap={minTrimDuration}
-								onTrimStartChange={(v) => {
-									setTrimStart(clampTrimStart(v));
-								}}
-								onTrimEndChange={(v) => {
-									setTrimEnd(clampTrimEnd(v));
-								}}
+								onTrimStartChange={handleTimelineTrimStartChange}
+								onTrimEndChange={handleTimelineTrimEndChange}
 								onSeek={handleSeek}
 								onScrubStart={handleTimelineScrubStart}
 								onScrubEnd={handleTimelineScrubEnd}
@@ -2438,19 +2485,21 @@ function VideoStudio() {
 				sidebar={file ? sidebarContent : undefined}
 				overlays={
 					showInfo && file ? (
-						<VideoInfoModal
-							file={file}
-							probeResult={probeResult}
-							duration={duration}
-							streamInfoPending={streamInfoPending}
-							metadataLoadStage={metadataLoadStage}
-							detailedProbe={detailedProbe}
-							detailedProbePending={detailedProbePending}
-							detailedProbeError={detailedProbeError}
-							onClose={() => {
-								setShowInfo(false);
-							}}
-						/>
+						<Suspense fallback={null}>
+							<VideoInfoModal
+								file={file}
+								probeResult={probeResult}
+								duration={duration}
+								streamInfoPending={streamInfoPending}
+								metadataLoadStage={metadataLoadStage}
+								detailedProbe={detailedProbe}
+								detailedProbePending={detailedProbePending}
+								detailedProbeError={detailedProbeError}
+								onClose={() => {
+									setShowInfo(false);
+								}}
+							/>
+						</Suspense>
 					) : undefined
 				}
 			/>

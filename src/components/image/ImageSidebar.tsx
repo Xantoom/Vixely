@@ -1,9 +1,11 @@
 import { Lock, Unlock, Maximize2, SlidersHorizontal, Palette, Download } from 'lucide-react';
-import { useCallback, useId, useMemo, useRef, useState } from 'react';
+import { startTransition, useCallback, useId, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
 import { SharedPresetsPanel, type PresetEntry } from '@/components/shared/PresetsPanel.tsx';
-import { Button, CollapsibleSection, Slider } from '@/components/ui/index.ts';
+import { Button } from '@/components/ui/Button.tsx';
+import { CollapsibleSection } from '@/components/ui/CollapsibleSection.tsx';
+import { Slider } from '@/components/ui/Slider.tsx';
 import { ToolRail, type ToolRailItem } from '@/components/ui/ToolRail.tsx';
 import {
 	LIGHT_SLIDERS,
@@ -208,7 +210,10 @@ export function ImageSidebar({ showInfo, onShowInfoChange }: ImageSidebarProps) 
 					step={s.step}
 					value={filters[s.key]}
 					onChange={(e) => {
-						setFilter(s.key, Number((e.target as HTMLInputElement).value));
+						const next = Number((e.target as HTMLInputElement).value);
+						startTransition(() => {
+							setFilter(s.key, next);
+						});
 					}}
 					onCommit={handleSliderCommit}
 				/>

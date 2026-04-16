@@ -1,6 +1,6 @@
 import { useCallback, useId, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { Button } from '@/components/ui/index.ts';
+import { Button } from '@/components/ui/Button.tsx';
 import { useGifEditorStore } from '@/stores/gifEditor.ts';
 
 export function GifImageOverlayPanel() {

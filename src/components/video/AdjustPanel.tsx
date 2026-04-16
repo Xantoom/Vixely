@@ -1,3 +1,4 @@
+import { startTransition } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection.tsx';
 import { LIGHT_SLIDERS, COLOR_SLIDERS, EFFECT_SLIDERS, type FilterSliderDef } from '@/config/filterSliders.ts';
@@ -103,7 +104,10 @@ function FilterSliders({
 							step={s.step}
 							value={value}
 							onChange={(e) => {
-								setFilter(s.key, Number(e.target.value));
+								const next = Number(e.target.value);
+								startTransition(() => {
+									setFilter(s.key, next);
+								});
 							}}
 							className="w-full"
 							aria-label={s.label}

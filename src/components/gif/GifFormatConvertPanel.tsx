@@ -2,7 +2,7 @@ import { zipSync } from 'fflate';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
-import { Button } from '@/components/ui/index.ts';
+import { Button } from '@/components/ui/Button.tsx';
 import type { ConvertFormat } from '@/stores/gifEditor.ts';
 import { useGifEditorStore } from '@/stores/gifEditor.ts';
 import { buildExportFilename } from '@/utils/exportFilename.ts';

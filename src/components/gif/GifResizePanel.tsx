@@ -1,6 +1,6 @@
 import { Lock, Unlock } from 'lucide-react';
 import { useCallback, useId } from 'react';
-import { Slider } from '@/components/ui/index.ts';
+import { Slider } from '@/components/ui/Slider.tsx';
 import { formatNumber } from '@/utils/format.ts';
 
 interface GifResizePanelProps {

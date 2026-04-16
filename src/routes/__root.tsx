@@ -9,12 +9,14 @@ const TanStackRouterDevtools = lazy(async () => {
 import { Toaster } from 'sonner';
 import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
 import { CookieBanner } from '@/components/CookieBanner.tsx';
+import { NotFound } from '@/components/NotFound.tsx';
 import { useEditorSessionStore, type EditorKey } from '@/stores/editorSession.ts';
 import { useGifEditorStore } from '@/stores/gifEditor.ts';
 import { useImageEditorStore } from '@/stores/imageEditor.ts';
 import { useVideoEditorStore } from '@/stores/videoEditor.ts';
+import { loadAdsenseDeferred } from '@/utils/adsenseLoader.ts';
 
-export const Route = createRootRoute({ component: RootLayout });
+export const Route = createRootRoute({ component: RootLayout, notFoundComponent: NotFound });
 
 function AppToaster() {
 	useEffect(() => {
@@ -103,6 +105,11 @@ function RootLayout() {
 		}
 		previousEditorRef.current = currentEditor;
 	}, [pathname, setEditorUnsaved]);
+
+	useEffect(() => {
+		if (import.meta.env.DEV) return;
+		loadAdsenseDeferred();
+	}, []);
 
 	const handleEditorTabClick = useCallback(
 		(event: ReactMouseEvent, destination: EditorTabRoute) => {

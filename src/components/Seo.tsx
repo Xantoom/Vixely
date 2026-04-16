@@ -24,7 +24,8 @@ const ORG_SCHEMA = JSON.stringify({
 	'@type': 'Organization',
 	name: 'Vixely',
 	url: SITE_URL,
-	logo: `${SITE_URL}/logo.png`,
+	logo: `${SITE_URL}/vixely-app-logo.svg`,
+	sameAs: [] as string[],
 });
 
 export function Seo({
