@@ -17,6 +17,11 @@ import {
 	type MetadataTags,
 } from 'mediabunny';
 import { encodeGif } from '@/modules/gif-editor/encode/gif-encoder.ts';
+import {
+	createSubtitleBurnInRenderer,
+	parseSubtitles,
+	type SubtitleBurnInRenderer,
+} from '@/modules/video-editor/subtitles/subtitleBurnIn.ts';
 import { parseMkvSubtitles, type MkvSubtitleTrack } from '@/utils/mkvSubtitleParser.ts';
 
 registerAc3Decoder();
@@ -31,6 +36,17 @@ interface TranscodeMessage {
 	args: string[];
 	outputName: string;
 	expectedDurationSec?: number;
+	subtitleBurnIn?: SubtitleBurnInPayload;
+}
+
+export interface SubtitleBurnInPayload {
+	content: string;
+	format?: 'srt' | 'vtt' | 'ass';
+	/**
+	 * Timestamp (in seconds) at which the output starts inside the source video.
+	 * Subtitles shift by this amount so cues line up after trimming.
+	 */
+	trimOffsetSec?: number;
 }
 
 interface GifMessage {
@@ -269,12 +285,34 @@ export interface FontAttachmentInfo {
 	filename: string;
 }
 
+export interface MediaMetadataTags {
+	title?: string;
+	artist?: string;
+	album?: string;
+	comment?: string;
+	description?: string;
+	date?: string;
+	encoder?: string;
+	genre?: string;
+	copyright?: string;
+	language?: string;
+}
+
+export interface CoverArtInfo {
+	mimeType: string;
+	dataUrl: string;
+	description?: string;
+	size: number;
+}
+
 export interface ProbeResultData {
 	duration: number;
 	bitrate: number;
 	format: string;
 	streams: ProbeStreamInfo[];
 	fontAttachments: FontAttachmentInfo[];
+	tags?: MediaMetadataTags;
+	coverArt?: CoverArtInfo;
 }
 
 export interface DetailedProbeStreamInfo {
@@ -347,6 +385,9 @@ interface ParsedFilterSettings {
 	contrast?: number;
 	saturation?: number;
 	hue?: number;
+	rotate?: 0 | 90 | 180 | 270;
+	flipH?: boolean;
+	flipV?: boolean;
 }
 
 interface ParsedTranscodeSettings {
@@ -425,7 +466,7 @@ async function maybeYieldAndCheckCancellation(jobId: number, index: number, ever
 function postPerfLog(event: string, payload: Record<string, unknown>): void {
 	post({
 		type: 'LOG',
-		message: `[perf] ${JSON.stringify({ scope: 'ffmpeg-worker', event, timestampMs: Date.now(), ...payload })}`,
+		message: `[perf] ${JSON.stringify({ scope: 'media-worker', event, timestampMs: Date.now(), ...payload })}`,
 	});
 }
 
@@ -604,6 +645,57 @@ function extractAttachedFiles(tags: MetadataTags): Array<{ key: string; file: At
 	return result;
 }
 
+function extractNormalizedTags(tags: MetadataTags): MediaMetadataTags | undefined {
+	const out: MediaMetadataTags = {};
+	if (tags.title) out.title = tags.title;
+	if (tags.artist) out.artist = tags.artist;
+	if (tags.album) out.album = tags.album;
+	if (tags.comment) out.comment = tags.comment;
+	if (tags.description) out.description = tags.description;
+	if (tags.genre) out.genre = tags.genre;
+	if (tags.date instanceof Date && !Number.isNaN(tags.date.getTime())) {
+		out.date = tags.date.toISOString();
+	}
+	// Encoder / copyright / language may live in the raw map under container-specific keys.
+	const raw = tags.raw;
+	if (raw) {
+		const pickRaw = (...keys: string[]): string | undefined => {
+			for (const key of keys) {
+				const value = raw[key];
+				if (typeof value === 'string' && value.trim()) return value.trim();
+			}
+			return undefined;
+		};
+		out.encoder = pickRaw('encoder', 'ENCODER', '©too', 'TSSE', 'TENC', 'ISFT');
+		out.copyright = pickRaw('copyright', 'COPYRIGHT', '©cpy', 'TCOP', 'ICOP');
+		out.language = pickRaw('language', 'LANGUAGE', '©lan', 'TLAN', 'ILNG');
+	}
+	// Drop empty result
+	const hasAny = Object.values(out).some((value) => value != null && value !== '');
+	return hasAny ? out : undefined;
+}
+
+function extractCoverArt(tags: MetadataTags): CoverArtInfo | undefined {
+	const images = tags.images;
+	if (!images || images.length === 0) return undefined;
+	// Prefer front cover, else first image
+	const front = images.find((img) => img.kind === 'coverFront') ?? images[0]!;
+	const mimeType = front.mimeType || 'image/jpeg';
+	try {
+		// Convert bytes to base64 without stack overflow on large buffers
+		let binary = '';
+		const bytes = front.data;
+		const chunkSize = 0x8000;
+		for (let i = 0; i < bytes.length; i += chunkSize) {
+			binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+		}
+		const dataUrl = `data:${mimeType};base64,${btoa(binary)}`;
+		return { mimeType, dataUrl, description: front.description, size: bytes.byteLength };
+	} catch {
+		return undefined;
+	}
+}
+
 function isLikelyFontAttachment(name: string | undefined, mimeType: string | undefined): boolean {
 	const lowerName = name?.toLowerCase() ?? '';
 	const lowerMime = mimeType?.toLowerCase() ?? '';
@@ -659,6 +751,14 @@ async function canvasToPngBytes(canvas: HTMLCanvasElement | OffscreenCanvas): Pr
 		}, 'image/png');
 	});
 	return new Uint8Array(await blob.arrayBuffer());
+}
+
+function normalizeRotation(value: number): 0 | 90 | 180 | 270 {
+	const mod = ((value % 360) + 360) % 360;
+	if (mod === 90) return 90;
+	if (mod === 180) return 180;
+	if (mod === 270) return 270;
+	return 0;
 }
 
 function parseTranscodeSettings(msg: TranscodeMessage): ParsedTranscodeSettings {
@@ -747,6 +847,25 @@ function parseTranscodeSettings(msg: TranscodeMessage): ParsedTranscodeSettings 
 					}
 					if (expr.startsWith('eq=')) {
 						Object.assign(settings.filters, parseEqFilter(expr));
+						continue;
+					}
+					if (expr === 'hflip') {
+						settings.filters.flipH = true;
+						continue;
+					}
+					if (expr === 'vflip') {
+						settings.filters.flipV = true;
+						continue;
+					}
+					// transpose=1 → 90°CW, transpose=2 → 90°CCW (=270° CW).
+					// transpose=1,transpose=1 (emitted as two tokens in split chain) → 180°.
+					if (expr === 'transpose=1') {
+						settings.filters.rotate = normalizeRotation((settings.filters.rotate ?? 0) + 90);
+						continue;
+					}
+					if (expr === 'transpose=2') {
+						settings.filters.rotate = normalizeRotation((settings.filters.rotate ?? 0) + 270);
+						continue;
 					}
 				}
 				i += 1;
@@ -764,11 +883,23 @@ function parseTranscodeSettings(msg: TranscodeMessage): ParsedTranscodeSettings 
 	) {
 		settings.videoForceTranscode = true;
 	}
+	// Flips must be baked via process() → force transcode. Rotation can sometimes be expressed
+	// as container metadata without re-encoding, but we also force it here for consistency.
+	if (settings.filters.flipH || settings.filters.flipV || (settings.filters.rotate ?? 0) !== 0) {
+		settings.videoForceTranscode = true;
+	}
 
 	return settings;
 }
 
-function buildVideoProcess(filters: ParsedFilterSettings): ConversionVideoOptions['process'] | undefined {
+interface BuildVideoProcessContext {
+	filters: ParsedFilterSettings;
+	subtitleRenderer?: SubtitleBurnInRenderer;
+	subtitleTrimOffsetSec?: number;
+}
+
+function buildVideoProcess(context: BuildVideoProcessContext): ConversionVideoOptions['process'] | undefined {
+	const { filters, subtitleRenderer, subtitleTrimOffsetSec = 0 } = context;
 	const brightness = filters.brightness ?? 0;
 	const contrast = filters.contrast ?? 1;
 	const saturation = filters.saturation ?? 1;
@@ -778,7 +909,9 @@ function buildVideoProcess(filters: ParsedFilterSettings): ConversionVideoOption
 		Math.abs(contrast - 1) > 1e-4 ||
 		Math.abs(saturation - 1) > 1e-4 ||
 		Math.abs(hue) > 1e-4;
-	if (!hasCustomFilter) return undefined;
+	const flipH = !!filters.flipH;
+	const flipV = !!filters.flipV;
+	if (!hasCustomFilter && !flipH && !flipV && !subtitleRenderer) return undefined;
 
 	let canvas: OffscreenCanvas | null = null;
 	let ctx: OffscreenCanvasRenderingContext2D | null = null;
@@ -797,13 +930,28 @@ function buildVideoProcess(filters: ParsedFilterSettings): ConversionVideoOption
 		const saturationPct = clamp(saturation * 100, 0, 400);
 		ctx.save();
 		ctx.clearRect(0, 0, width, height);
-		ctx.filter = `brightness(${brightnessPct}%) contrast(${contrastPct}%) saturate(${saturationPct}%) hue-rotate(${hue}deg)`;
+		if (hasCustomFilter) {
+			ctx.filter = `brightness(${brightnessPct}%) contrast(${contrastPct}%) saturate(${saturationPct}%) hue-rotate(${hue}deg)`;
+		}
+		if (flipH || flipV) {
+			const sx = flipH ? -1 : 1;
+			const sy = flipV ? -1 : 1;
+			const tx = flipH ? width : 0;
+			const ty = flipV ? height : 0;
+			ctx.translate(tx, ty);
+			ctx.scale(sx, sy);
+		}
 		(sample as { draw: (context: OffscreenCanvasRenderingContext2D, x: number, y: number) => void }).draw(
 			ctx,
 			0,
 			0,
 		);
 		ctx.restore();
+
+		if (subtitleRenderer) {
+			const timestampSec = (sample as { timestamp?: number }).timestamp ?? 0;
+			subtitleRenderer.render(ctx, timestampSec + subtitleTrimOffsetSec, width, height);
+		}
 		return canvas;
 	};
 }
@@ -934,6 +1082,9 @@ async function handleProbe(msg: ProbeMessage): Promise<void> {
 			}
 		}
 
+		const normalizedTags = extractNormalizedTags(tags);
+		const coverArt = extractCoverArt(tags);
+
 		const result: ProbeResultData = {
 			duration: Number.isFinite(duration) ? duration : 0,
 			bitrate:
@@ -943,6 +1094,8 @@ async function handleProbe(msg: ProbeMessage): Promise<void> {
 			format: (format.name || msg.file.type || '').toLowerCase(),
 			streams: allStreams,
 			fontAttachments,
+			tags: normalizedTags,
+			coverArt,
 		};
 
 		ensureJobNotCancelled(msg.jobId);
@@ -1768,7 +1921,21 @@ async function handleTranscode(msg: TranscodeMessage): Promise<void> {
 			});
 		}
 
-		const videoProcess = buildVideoProcess(parsed.filters);
+		let subtitleRenderer: SubtitleBurnInRenderer | undefined;
+		let subtitleTrimOffsetSec: number | undefined;
+		if (msg.subtitleBurnIn?.content) {
+			try {
+				const cues = parseSubtitles(msg.subtitleBurnIn.content, msg.subtitleBurnIn.format);
+				if (cues.length > 0) {
+					subtitleRenderer = createSubtitleBurnInRenderer(cues);
+					subtitleTrimOffsetSec = msg.subtitleBurnIn.trimOffsetSec ?? parsed.trimStart ?? 0;
+				}
+			} catch (err) {
+				post({ type: 'LOG', message: `[subtitles] failed to parse burn-in cues: ${String(err)}` });
+			}
+		}
+		const videoProcess = buildVideoProcess({ filters: parsed.filters, subtitleRenderer, subtitleTrimOffsetSec });
+		if (subtitleRenderer) parsed.videoForceTranscode = true;
 		const trimStart = parsed.trimStart;
 		const trimEnd =
 			parsed.trimDuration != null && parsed.trimDuration > 0
@@ -1793,6 +1960,11 @@ async function handleTranscode(msg: TranscodeMessage): Promise<void> {
 				if (parsed.videoCodec) options.codec = parsed.videoCodec;
 				if (parsed.videoBitrate != null && parsed.videoBitrate > 0) options.bitrate = parsed.videoBitrate;
 				if (parsed.videoForceTranscode) options.forceTranscode = true;
+				const rotate = parsed.filters.rotate ?? 0;
+				if (rotate !== 0) {
+					options.rotate = rotate;
+					options.allowRotationMetadata = false;
+				}
 				if (videoProcess) options.process = videoProcess;
 				return options;
 			},

@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import type { SubtitlePreviewData } from '@/hooks/useVideoProcessor.ts';
 import type { ProbeResult, ResizeSettings, TrackSelection } from '@/stores/videoEditor.ts';
 import { cacheKeyForFile, useVideoMetadataStore } from '@/stores/videoMetadata.ts';
-import type { DetailedProbeResultData, ProbeResultData } from '@/workers/ffmpeg-worker.ts';
+import type { DetailedProbeResultData, ProbeResultData } from '@/workers/media-worker.ts';
 
 export type MetadataLoadStage = 'idle' | 'fast-probe' | 'fonts' | 'ready' | 'error';
 
@@ -165,6 +165,8 @@ export function useVideoMetadataLoader({
 							bitrate: result.bitrate,
 							format: result.format,
 							streams: result.streams,
+							tags: result.tags,
+							coverArt: result.coverArt,
 						});
 						setTracks({
 							audioEnabled: audioStreams.length > 0,

@@ -6,7 +6,7 @@
 			"maxSizeMB": 10,
 			"maxDisplayWidth": 480,
 			"format": "mp4",
-			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "28", "-pix_fmt", "yuv420p"],
+			"encoderArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "28", "-pix_fmt", "yuv420p"],
 			"width": null,
 			"height": null
 		},
@@ -16,7 +16,7 @@
 			"maxSizeMB": 50,
 			"maxDisplayWidth": 720,
 			"format": "mp4",
-			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "24", "-pix_fmt", "yuv420p"],
+			"encoderArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "24", "-pix_fmt", "yuv420p"],
 			"width": null,
 			"height": null
 		},
@@ -26,7 +26,7 @@
 			"maxSizeMB": 500,
 			"maxDisplayWidth": 1080,
 			"format": "mp4",
-			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p"],
+			"encoderArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p"],
 			"width": null,
 			"height": null
 		},
@@ -35,7 +35,7 @@
 			"description": "Animated server banner target 960x540",
 			"maxSizeMB": null,
 			"format": "mp4",
-			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "23"],
+			"encoderArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "23"],
 			"width": 960,
 			"height": 540
 		}

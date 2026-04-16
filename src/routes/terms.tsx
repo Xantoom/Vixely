@@ -45,9 +45,9 @@ function TermsPage() {
 
 					<Section title="2. Service description">
 						<p>
-							Vixely provides client-side media processing using WebAssembly technology. All file
-							processing occurs locally in your web browser. No files are uploaded to any server. The
-							service is provided free of charge.
+							Vixely provides client-side media processing using native browser APIs (WebCodecs, WebGL2,
+							Web Audio, Canvas) and the Mediabunny library. All file processing occurs locally in your
+							web browser. No files are uploaded to any server. The service is provided free of charge.
 						</p>
 					</Section>
 

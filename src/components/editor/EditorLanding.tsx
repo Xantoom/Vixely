@@ -29,6 +29,7 @@ interface FAQ {
 
 interface EditorLandingProps {
 	emptyState: ReactNode;
+	extraActions?: ReactNode;
 	dropHandlers: {
 		onDragEnter: DragEventHandler<HTMLDivElement>;
 		onDragLeave: DragEventHandler<HTMLDivElement>;
@@ -51,6 +52,7 @@ interface EditorLandingProps {
 
 export function EditorLanding({
 	emptyState,
+	extraActions,
 	dropHandlers,
 	isDragging,
 	hasFile,
@@ -79,6 +81,7 @@ export function EditorLanding({
 						{tagline}
 					</p>
 					{emptyState}
+					{extraActions && <div className="flex flex-col items-center gap-2">{extraActions}</div>}
 				</div>
 
 				{isDragging && (
@@ -173,7 +176,7 @@ export function EditorLanding({
 			{/* Minimal footer line */}
 			<div className="px-4 py-6 text-center">
 				<p className="text-[12px] text-text-tertiary">
-					100% client-side &middot; No uploads &middot; Powered by WebAssembly
+					100% client-side &middot; No uploads &middot; Powered by WebCodecs &amp; WebGL2
 				</p>
 			</div>
 		</div>

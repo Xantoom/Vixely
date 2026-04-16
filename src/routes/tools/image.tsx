@@ -11,6 +11,7 @@ import { ImageCanvas } from '@/components/image/ImageCanvas.tsx';
 import { ImageSidebar } from '@/components/image/ImageSidebar.tsx';
 import { ImageToolbar } from '@/components/image/ImageToolbar.tsx';
 import { Seo, buildWebAppSchema, buildFAQSchema } from '@/components/Seo.tsx';
+import { UrlImportButton } from '@/components/ui/UrlImportButton.tsx';
 import { IMAGE_ACCEPT } from '@/config/presets.ts';
 import { useEditorLayoutPrefs } from '@/hooks/useEditorLayoutPrefs.ts';
 import { useLongTaskObserver } from '@/hooks/useLongTaskObserver.ts';
@@ -60,7 +61,7 @@ const IMAGE_LANDING_FEATURES = [
 		icon: ShieldCheck,
 		title: 'Privacy First',
 		description:
-			'Your images never leave your device. All processing runs locally in your browser via WebAssembly.',
+			'Your images never leave your device. All processing runs locally in your browser using native Canvas, WebGL2 and the Mediabunny library.',
 	},
 ] as const;
 
@@ -77,7 +78,7 @@ const IMAGE_LANDING_FAQS = [
 	},
 	{
 		question: 'Is my image uploaded to a server?',
-		answer: 'No. All image processing happens entirely in your browser using WebAssembly. Your files never leave your device — completely private.',
+		answer: 'No. All image processing happens entirely in your browser using native Canvas 2D, WebGL2 shaders and the Mediabunny library. Your files never leave your device — completely private.',
 	},
 	{
 		question: 'Can I convert between image formats?',
@@ -231,7 +232,7 @@ function ImageLab() {
 				jsonLd={[
 					buildWebAppSchema(
 						'Vixely Image Editor',
-						'Resize, crop, apply real-time filters and export PNG, JPG, WebP, AVIF directly in your browser. No upload, 100% private, powered by WebAssembly.',
+						'Resize, crop, apply real-time filters and export PNG, JPG, WebP, AVIF directly in your browser. No upload, 100% private, powered by native Canvas and WebGL2.',
 						'https://vixely.app/tools/image',
 					),
 					buildFAQSchema(IMAGE_LANDING_FAQS.map((f) => ({ question: f.question, answer: f.answer }))),
@@ -297,6 +298,13 @@ function ImageLab() {
 										dragDescription="Release to load"
 										onChooseFile={handleOpenFile}
 										formatHints={['PNG', 'JPG', 'WebP', 'AVIF', 'BMP']}
+									/>
+								}
+								extraActions={
+									<UrlImportButton
+										onFile={(f) => void handleLoadFile(f)}
+										acceptFile={isAcceptedImageFileLike}
+										placeholder="https://example.com/photo.png"
 									/>
 								}
 								dropHandlers={dropHandlers}

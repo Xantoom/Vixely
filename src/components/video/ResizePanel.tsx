@@ -1,6 +1,14 @@
-import { Link2, Link2Off, RotateCcw } from 'lucide-react';
+import {
+	FlipHorizontal,
+	FlipVertical,
+	Link2,
+	Link2Off,
+	RotateCcw,
+	RotateCw,
+	RotateCcw as RotateLeft,
+} from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
-import { useVideoEditorStore } from '@/stores/videoEditor.ts';
+import { useVideoEditorStore, type VideoRotation } from '@/stores/videoEditor.ts';
 import { formatDimensions } from '@/utils/format.ts';
 
 const SIZE_PRESETS = [
@@ -22,13 +30,28 @@ const ASPECT_PRESETS = [
 ];
 
 export function ResizePanel() {
-	const { resize, setResize } = useVideoEditorStore(
-		useShallow((s) => ({ resize: s.resize, setResize: s.setResize })),
+	const { resize, setResize, transform, setTransform, resetTransform } = useVideoEditorStore(
+		useShallow((s) => ({
+			resize: s.resize,
+			setResize: s.setResize,
+			transform: s.transform,
+			setTransform: s.setTransform,
+			resetTransform: s.resetTransform,
+		})),
 	);
 
 	const hasOriginal = resize.originalWidth > 0 && resize.originalHeight > 0;
 	const changed = resize.width !== resize.originalWidth || resize.height !== resize.originalHeight;
 	const hasCropOffset = (resize.cropOffsetX ?? 0) !== 0 || (resize.cropOffsetY ?? 0) !== 0;
+	const hasTransform = transform.rotate !== 0 || transform.flipH || transform.flipV;
+
+	const rotateBy = (delta: 90 | -90) => {
+		const next = (((transform.rotate + delta) % 360) + 360) % 360;
+		// next is always one of 0/90/180/270 by construction, but the lint rule disallows
+		// narrowing assertions so branch manually.
+		const normalized: VideoRotation = next === 0 ? 0 : next === 90 ? 90 : next === 180 ? 180 : 270;
+		setTransform({ rotate: normalized });
+	};
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -237,6 +260,86 @@ export function ResizePanel() {
 								Original
 							</button>
 						</div>
+					</div>
+
+					{/* Rotate / flip */}
+					<div className="flex flex-col gap-2">
+						<div className="flex items-center justify-between">
+							<p className="text-[11px] font-bold uppercase tracking-widest text-text-tertiary">
+								Rotate &amp; Flip
+							</p>
+							{hasTransform && (
+								<button
+									type="button"
+									onClick={resetTransform}
+									className="flex cursor-pointer items-center gap-1 text-[12px] font-medium text-text-tertiary transition-colors hover:text-text-secondary"
+								>
+									<RotateCcw size={11} />
+									Reset
+								</button>
+							)}
+						</div>
+						<div className="grid grid-cols-4 gap-1">
+							<button
+								type="button"
+								onClick={() => {
+									rotateBy(-90);
+								}}
+								className="flex items-center justify-center gap-1 rounded-md border border-transparent bg-surface-raised/60 py-1.5 text-[12px] font-medium text-text-tertiary transition-all cursor-pointer hover:bg-surface-raised hover:text-text-secondary"
+								title="Rotate 90° counter-clockwise"
+								aria-label="Rotate left"
+							>
+								<RotateLeft size={12} />
+							</button>
+							<button
+								type="button"
+								onClick={() => {
+									rotateBy(90);
+								}}
+								className="flex items-center justify-center gap-1 rounded-md border border-transparent bg-surface-raised/60 py-1.5 text-[12px] font-medium text-text-tertiary transition-all cursor-pointer hover:bg-surface-raised hover:text-text-secondary"
+								title="Rotate 90° clockwise"
+								aria-label="Rotate right"
+							>
+								<RotateCw size={12} />
+							</button>
+							<button
+								type="button"
+								onClick={() => {
+									setTransform({ flipH: !transform.flipH });
+								}}
+								className={`flex items-center justify-center rounded-md py-1.5 text-[12px] font-medium transition-all cursor-pointer ${
+									transform.flipH
+										? 'border border-accent/30 bg-accent/12 text-accent'
+										: 'border border-transparent bg-surface-raised/60 text-text-tertiary hover:bg-surface-raised hover:text-text-secondary'
+								}`}
+								aria-pressed={transform.flipH}
+								title="Flip horizontally"
+								aria-label="Flip horizontally"
+							>
+								<FlipHorizontal size={12} />
+							</button>
+							<button
+								type="button"
+								onClick={() => {
+									setTransform({ flipV: !transform.flipV });
+								}}
+								className={`flex items-center justify-center rounded-md py-1.5 text-[12px] font-medium transition-all cursor-pointer ${
+									transform.flipV
+										? 'border border-accent/30 bg-accent/12 text-accent'
+										: 'border border-transparent bg-surface-raised/60 text-text-tertiary hover:bg-surface-raised hover:text-text-secondary'
+								}`}
+								aria-pressed={transform.flipV}
+								title="Flip vertically"
+								aria-label="Flip vertically"
+							>
+								<FlipVertical size={12} />
+							</button>
+						</div>
+						{transform.rotate !== 0 && (
+							<p className="text-[12px] text-text-tertiary">
+								Rotation: <span className="text-accent">{transform.rotate}°</span>
+							</p>
+						)}
 					</div>
 
 					{/* Aspect ratio presets */}

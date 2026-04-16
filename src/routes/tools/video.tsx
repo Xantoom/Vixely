@@ -1,18 +1,5 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import {
-	Camera,
-	Download,
-	Video,
-	ImageIcon,
-	Film,
-	Layers,
-	Palette,
-	Scissors,
-	Scaling,
-	Volume2,
-	Subtitles,
-	MonitorSmartphone,
-} from 'lucide-react';
+import { Camera, Download, Video, Layers, Palette, Scissors, Scaling, Volume2, Subtitles } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
@@ -27,12 +14,19 @@ import { Slider } from '@/components/ui/Slider.tsx';
 import { Timeline, formatTimecode, formatCompactTime } from '@/components/ui/Timeline.tsx';
 import { Toggle } from '@/components/ui/Toggle.tsx';
 import { ToolRail, type ToolRailItem } from '@/components/ui/ToolRail.tsx';
+import { UrlImportButton } from '@/components/ui/UrlImportButton.tsx';
 import { AdjustPanel } from '@/components/video/AdjustPanel.tsx';
 import { getPlatformKey } from '@/components/video/PlatformIcons.tsx';
 import { PresetsPanel } from '@/components/video/PresetsPanel.tsx';
 import { ResizePanel } from '@/components/video/ResizePanel.tsx';
 import { VideoPlayer } from '@/components/video/VideoPlayer.tsx';
 import { VideoToolbar } from '@/components/video/VideoToolbar.tsx';
+import {
+	VIDEO_CROSS_LINKS,
+	VIDEO_LANDING_FAQS,
+	VIDEO_LANDING_FEATURES,
+	VIDEO_LANDING_FORMATS,
+} from './video.landing.ts';
 
 const VideoInfoModal = lazy(async () => {
 	const m = await import('@/components/video/VideoInfoModal.tsx');
@@ -57,7 +51,7 @@ import { useTimelineScrubController } from '@/hooks/useTimelineScrubController.t
 import { useVideoMetadataLoader, type MetadataLoadStage } from '@/hooks/useVideoMetadataLoader.ts';
 import type { SubtitlePreviewData } from '@/hooks/useVideoProcessor.ts';
 import { useVideoProcessor } from '@/hooks/useVideoProcessor.ts';
-import { buildFfmpegExportPlan } from '@/modules/video-editor/export/ffmpeg-export-plan.ts';
+import { buildExportPlan } from '@/modules/video-editor/export/export-plan.ts';
 import { sizeConstrainedExport } from '@/modules/video-editor/export/sizeConstrainedExport.ts';
 import { useEditorSessionStore } from '@/stores/editorSession.ts';
 import type { AdvancedVideoSettings } from '@/stores/videoEditor.ts';
@@ -67,80 +61,12 @@ import { setPendingImageTransfer } from '@/utils/crossEditorTransfer.ts';
 import { buildExportFilename } from '@/utils/exportFilename.ts';
 import { formatFileSize, formatNumber, estimateVideoSize } from '@/utils/format.ts';
 import { formatChannels, getLanguageName } from '@/utils/languageUtils.ts';
-import type { DetailedProbeResultData } from '@/workers/ffmpeg-worker.ts';
+import type { DetailedProbeResultData } from '@/workers/media-worker.ts';
 
 export const Route = createFileRoute('/tools/video')({ component: VideoStudio });
 
 const VIDEO_PRESETS = videoPresetEntries();
 const EMPTY_STREAMS: StreamInfo[] = [];
-
-/* ── SEO Landing Data ── */
-
-const VIDEO_LANDING_FEATURES = [
-	{
-		icon: Scissors,
-		title: 'Trim & Cut',
-		description:
-			'Precisely trim your videos with frame-accurate start and end points. Remove unwanted sections instantly.',
-	},
-	{
-		icon: Scaling,
-		title: 'Resize & Crop',
-		description: 'Change resolution, crop to any aspect ratio, or fit platform requirements with one click.',
-	},
-	{
-		icon: Palette,
-		title: 'Color Correction',
-		description: 'Adjust brightness, contrast, saturation, hue, and apply professional color filters in real-time.',
-	},
-	{
-		icon: MonitorSmartphone,
-		title: 'Platform Presets',
-		description: 'Export with optimized settings for Discord, TikTok, YouTube, Twitter, and more platforms.',
-	},
-] as const;
-
-const VIDEO_LANDING_FORMATS = ['MP4', 'WebM', 'MKV', 'AVI', 'MOV', 'FLV', 'WMV', 'OGV', 'M4V', 'MTS'] as const;
-
-const VIDEO_LANDING_FAQS = [
-	{
-		question: 'Can I trim videos without re-encoding?',
-		answer: 'Yes. Vixely supports stream-copy mode which trims your video without re-encoding, preserving original quality and completing almost instantly.',
-	},
-	{
-		question: 'What video formats are supported?',
-		answer: 'Vixely supports all major video formats including MP4, WebM, MKV, AVI, MOV, FLV, WMV, OGV, M4V, and MTS. You can also export to any of these formats.',
-	},
-	{
-		question: 'Is my video uploaded to a server?',
-		answer: 'No. All video processing happens entirely in your browser using WebAssembly. Your files never leave your device — zero uploads, zero server access.',
-	},
-	{
-		question: 'Can I export for Discord or TikTok?',
-		answer: 'Yes. Vixely includes built-in presets for Discord (8MB/50MB limits), TikTok, YouTube, Twitter, and other platforms with the correct codec, resolution, and bitrate settings.',
-	},
-] as const;
-
-const VIDEO_CROSS_LINKS = [
-	{
-		title: 'Image Editor',
-		subtitle: 'Crop, adjust & export images',
-		href: '/tools/image' as const,
-		icon: ImageIcon,
-		accentBg: 'bg-amber-500/10',
-		accentText: 'text-amber-400',
-		borderTop: 'border-t-amber-500',
-	},
-	{
-		title: 'GIF Editor',
-		subtitle: 'Optimize, trim & export GIFs',
-		href: '/tools/gif' as const,
-		icon: Film,
-		accentBg: 'bg-emerald-500/10',
-		accentText: 'text-emerald-400',
-		borderTop: 'border-t-emerald-500',
-	},
-] as const;
 
 const VIDEO_FILENAME_RE = /\.(mp4|mkv|webm|mov|m4v|avi|mts|m2ts|ts)$/i;
 
@@ -224,16 +150,16 @@ function applyAdvancedUpdate(
 ): AdvancedVideoSettings {
 	const next = { ...settings, [key]: value };
 	if (key === 'codec' && typeof value === 'string' && !isValidCombo(value, next.container)) {
-		const codec = VIDEO_CODECS.find((c) => c.ffmpegLib === value);
+		const codec = VIDEO_CODECS.find((c) => c.encoderId === value);
 		if (codec) next.container = codec.containers[0]!;
 	}
 	if (key === 'container' && typeof value === 'string' && !isValidCombo(next.codec, value)) {
 		const validCodec = VIDEO_CODECS.find((c) => c.containers.includes(value));
-		if (validCodec) next.codec = validCodec.ffmpegLib;
+		if (validCodec) next.codec = validCodec.encoderId;
 	}
 	if (key === 'container' && typeof value === 'string' && !isValidAudioCombo(next.audioCodec, value)) {
-		const validAudio = AUDIO_CODECS.find((c) => c.ffmpegLib !== 'none' && c.containers.includes(value));
-		if (validAudio) next.audioCodec = validAudio.ffmpegLib;
+		const validAudio = AUDIO_CODECS.find((c) => c.encoderId !== 'none' && c.containers.includes(value));
+		if (validAudio) next.audioCodec = validAudio.encoderId;
 	}
 	if (!codecSupportsQp(next.codec) && next.rateControl === 'qp') {
 		next.rateControl = 'crf';
@@ -272,7 +198,7 @@ function VideoStudio() {
 		setTrimInputMode,
 		advancedSettings,
 		setAdvancedSettings,
-		ffmpegFilterArgs,
+		encoderFilterArgs,
 		resizeFilterArgs,
 	} = useVideoEditorStore(
 		useShallow((s) => ({
@@ -289,7 +215,7 @@ function VideoStudio() {
 			setTrimInputMode: s.setTrimInputMode,
 			advancedSettings: s.advancedSettings,
 			setAdvancedSettings: s.setAdvancedSettings,
-			ffmpegFilterArgs: s.ffmpegFilterArgs,
+			encoderFilterArgs: s.encoderFilterArgs,
 			resizeFilterArgs: s.resizeFilterArgs,
 		})),
 	);
@@ -313,6 +239,7 @@ function VideoStudio() {
 	const [resultExt, setResultExt] = useState<string | null>(null);
 	const [audioExportMode, setAudioExportMode] = useState<'all' | 'single'>('all');
 	const [subtitleExportMode, setSubtitleExportMode] = useState<'all' | 'single'>('all');
+	const [burnSubtitles, setBurnSubtitles] = useState(false);
 	const [usePreBurnedAssSource, setUsePreBurnedAssSource] = useState(false);
 	const [preBurnedAssSourceFile, setPreBurnedAssSourceFile] = useState<File | null>(null);
 	const [videoNoReencode, setVideoNoReencode] = useState(false);
@@ -691,7 +618,7 @@ function VideoStudio() {
 			selectedHeight,
 			fallbackWidth,
 			fallbackHeight,
-		} = buildFfmpegExportPlan({
+		} = buildExportPlan({
 			file,
 			preBurnedAssSourceFile,
 			usePreBurnedAssSource,
@@ -705,7 +632,7 @@ function VideoStudio() {
 			audioStreams,
 			subtitleStreams,
 			resizeFilterArgs: resizeFilterArgs(),
-			ffmpegFilterArgs: ffmpegFilterArgs(),
+			encoderFilterArgs: encoderFilterArgs(),
 			trimStart,
 			trimEnd,
 			duration,
@@ -803,7 +730,17 @@ function VideoStudio() {
 					});
 				}
 			} else {
-				resultData = await transcode({ file: sourceFile, args, outputName, expectedDurationSec: clipDuration });
+				const subtitleBurnIn =
+					burnSubtitles && assSubtitleContent && tracks.subtitleEnabled
+						? { content: assSubtitleContent, trimOffsetSec: trimStart ?? 0 }
+						: undefined;
+				resultData = await transcode({
+					file: sourceFile,
+					args,
+					outputName,
+					expectedDurationSec: clipDuration,
+					subtitleBurnIn,
+				});
 			}
 
 			clearTimeout(timeoutId);
@@ -856,7 +793,7 @@ function VideoStudio() {
 		transcode,
 		cancel,
 		resizeFilterArgs,
-		ffmpegFilterArgs,
+		encoderFilterArgs,
 		minTrimDuration,
 		videoStreamInfo,
 		videoFps,
@@ -1421,12 +1358,12 @@ function VideoStudio() {
 												<div className="grid grid-cols-2 gap-0.5 rounded-lg border border-border/50 bg-bg/40 p-0.5">
 													{VIDEO_CODECS.map((codec) => (
 														<button
-															key={codec.ffmpegLib}
+															key={codec.encoderId}
 															onClick={() => {
-																updateAdvanced('codec', codec.ffmpegLib);
+																updateAdvanced('codec', codec.encoderId);
 															}}
 															className={`rounded-md py-2 text-sm font-medium transition-colors cursor-pointer ${
-																advancedSettings.codec === codec.ffmpegLib
+																advancedSettings.codec === codec.encoderId
 																	? 'bg-accent/15 text-accent'
 																	: 'text-text-tertiary hover:text-text-secondary'
 															}`}
@@ -1780,22 +1717,22 @@ function VideoStudio() {
 															<div className="grid grid-cols-2 gap-0.5 rounded-lg border border-border/50 bg-bg/40 p-0.5">
 																{AUDIO_CODECS.map((codec) => {
 																	const valid = isValidAudioCombo(
-																		codec.ffmpegLib,
+																		codec.encoderId,
 																		advancedSettings.container,
 																	);
 																	return (
 																		<button
-																			key={codec.ffmpegLib}
+																			key={codec.encoderId}
 																			onClick={() => {
 																				updateAdvanced(
 																					'audioCodec',
-																					codec.ffmpegLib,
+																					codec.encoderId,
 																				);
 																			}}
 																			disabled={!valid}
 																			className={`rounded-md py-2 text-sm font-medium transition-colors cursor-pointer ${
 																				advancedSettings.audioCodec ===
-																				codec.ffmpegLib
+																				codec.encoderId
 																					? 'bg-accent/15 text-accent'
 																					: valid
 																						? 'text-text-tertiary hover:text-text-secondary'
@@ -1948,6 +1885,32 @@ function VideoStudio() {
 													Pre-burned source active — track settings ignored.
 												</div>
 											)}
+											<label
+												className={`flex items-center justify-between gap-3 rounded-lg border px-3.5 py-2.5 transition-colors ${
+													burnSubtitles
+														? 'border-accent/30 bg-accent/8'
+														: 'border-border/50 bg-bg/30'
+												}`}
+											>
+												<div>
+													<div className="text-sm font-medium text-text">
+														Burn subtitles into video
+													</div>
+													<div className="text-xs text-text-tertiary">
+														Renders the selected track onto every exported frame (SRT /
+														WebVTT / ASS).
+													</div>
+												</div>
+												<input
+													type="checkbox"
+													className="h-4 w-4 accent-accent cursor-pointer"
+													checked={burnSubtitles}
+													onChange={(e) => {
+														setBurnSubtitles(e.target.checked);
+													}}
+													disabled={!assSubtitleContent}
+												/>
+											</label>
 											<div className="grid grid-cols-2 gap-0.5 rounded-lg border border-border/50 bg-bg/40 p-0.5">
 												<button
 													onClick={() => {
@@ -2078,7 +2041,7 @@ function VideoStudio() {
 												Codec
 											</span>
 											<span className="text-sm font-medium text-text font-mono">
-												{VIDEO_CODECS.find((c) => c.ffmpegLib === advancedSettings.codec)
+												{VIDEO_CODECS.find((c) => c.encoderId === advancedSettings.codec)
 													?.name ?? advancedSettings.codec}
 											</span>
 										</div>
@@ -2299,7 +2262,7 @@ function VideoStudio() {
 				jsonLd={[
 					buildWebAppSchema(
 						'Vixely Video Editor',
-						'Trim, cut, resize, crop, color-correct and export videos locally in your browser. No upload, 100% private, powered by WebAssembly.',
+						'Trim, cut, resize, crop, color-correct and export videos locally in your browser. No upload, 100% private, powered by native WebCodecs and WebGL2.',
 						'https://vixely.app/tools/video',
 					),
 					buildFAQSchema(VIDEO_LANDING_FAQS.map((f) => ({ question: f.question, answer: f.answer }))),
@@ -2448,12 +2411,19 @@ function VideoStudio() {
 										formatHints={['MP4', 'WebM', 'MKV', 'AVI', 'MOV']}
 									/>
 								}
+								extraActions={
+									<UrlImportButton
+										onFile={handleFile}
+										acceptFile={isVideoFileLike}
+										placeholder="https://example.com/video.mp4"
+									/>
+								}
 								dropHandlers={dropHandlers}
 								isDragging={isDragging}
 								hasFile={false}
 								replaceLabel="Drop your video here"
 								heading="Free Online Video Editor — Trim, Crop & Export in Browser"
-								tagline="Trim, cut, resize, color-correct and export MP4, WebM, MKV and more — directly in your browser. No upload, 100% private, powered by WebAssembly."
+								tagline="Trim, cut, resize, color-correct and export MP4, WebM, MKV and more — directly in your browser. No upload, 100% private, powered by native WebCodecs and WebGL2."
 								features={[...VIDEO_LANDING_FEATURES]}
 								formats={VIDEO_LANDING_FORMATS}
 								formatColor="bg-blue-400"

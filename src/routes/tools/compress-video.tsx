@@ -8,7 +8,7 @@ export const Route = createFileRoute('/tools/compress-video')({ component: Compr
 const FAQS = [
 	{
 		question: 'How does Vixely compress videos without uploading them?',
-		answer: 'Vixely runs a WebAssembly build of FFmpeg directly in your browser. Your video is read, re-encoded and saved locally — no file ever leaves your device.',
+		answer: 'Vixely uses the browser-native WebCodecs API (hardware-accelerated H.264, H.265, VP9 and AV1 encoders) together with the Mediabunny library for container I/O. Your video is read, re-encoded and saved locally — no file ever leaves your device, and no third-party encoder binary is required.',
 	},
 	{
 		question: 'What is the best codec to compress a video for the web?',
@@ -48,7 +48,7 @@ function CompressVideoLanding() {
 		<>
 			<Seo
 				title="Compress Video Online Free — No Upload"
-				description="Compress video online for free, directly in your browser. Reduce MP4, WebM or MKV file size without uploading — choose codec, bitrate or target size. 100% private, powered by WebAssembly."
+				description="Compress video online for free, directly in your browser. Reduce MP4, WebM or MKV file size without uploading — choose codec, bitrate or target size. 100% private, powered by native WebCodecs and Mediabunny."
 				path="/tools/compress-video"
 				jsonLd={[
 					buildWebAppSchema(

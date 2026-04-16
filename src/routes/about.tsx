@@ -15,7 +15,7 @@ const principles = [
 		icon: Cpu,
 		title: 'Native speed on the web',
 		description:
-			'We use WebAssembly, WebGL2 and modern browser APIs to deliver performance close to a native desktop editor — with zero install.',
+			'We use native WebCodecs, WebGL2, Web Audio and Mediabunny to deliver performance close to a native desktop editor — with zero install.',
 	},
 	{
 		icon: Globe,
@@ -65,9 +65,10 @@ function AboutPage() {
 								or client work, that&apos;s a problem.
 							</p>
 							<p>
-								Vixely takes the opposite approach. We treat the browser as a real runtime: a
-								WebAssembly FFmpeg build, WebGL2 filter pipelines, streaming demuxers. Everything runs
-								on your machine, at native-ish speed, with zero uploads.
+								Vixely takes the opposite approach. We treat the browser as a real runtime: native
+								WebCodecs for hardware-accelerated encode/decode, WebGL2 filter pipelines, Web Audio for
+								sound, and the Mediabunny library for container I/O. Everything runs on your machine, at
+								native-ish speed, with zero uploads.
 							</p>
 							<p>
 								The result: a video, image and GIF editor that&apos;s as fast as the best desktop
@@ -101,8 +102,9 @@ function AboutPage() {
 						<h2 className="text-lg sm:text-xl font-bold tracking-tight mb-4">The stack</h2>
 						<p className="text-[14px] text-text-secondary leading-relaxed mb-4">
 							Vixely is built with React 19, TypeScript, TanStack Router, TailwindCSS and Zustand on the
-							frontend. The heavy lifting uses Mediabunny, a WebAssembly build of FFmpeg, JASSUB for
-							subtitles and WebGL2 for real-time color correction and filter previews.
+							frontend. The heavy lifting uses Mediabunny for media I/O, the native WebCodecs API for
+							hardware-accelerated encoding/decoding, the Web Audio API for sound, WebGL2 for real-time
+							color correction and filter previews, and JASSUB for ASS/SSA subtitle rendering.
 						</p>
 						<p className="text-[14px] text-text-secondary leading-relaxed">
 							All code runs on your device. The only server is a static file host — no upload endpoint, no

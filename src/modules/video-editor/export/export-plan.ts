@@ -34,7 +34,7 @@ interface AudioSelectionSummary {
 	selectedSourceAudioTotalBitrateKbps: number;
 }
 
-export interface BuildFfmpegExportPlanInput {
+export interface BuildExportPlanInput {
 	file: File;
 	preBurnedAssSourceFile: File | null;
 	usePreBurnedAssSource: boolean;
@@ -48,7 +48,7 @@ export interface BuildFfmpegExportPlanInput {
 	audioStreams: StreamInfo[];
 	subtitleStreams: StreamInfo[];
 	resizeFilterArgs: string[];
-	ffmpegFilterArgs: string[];
+	encoderFilterArgs: string[];
 	trimStart: number;
 	trimEnd: number;
 	duration: number;
@@ -58,7 +58,7 @@ export interface BuildFfmpegExportPlanInput {
 	encodeThreads: string;
 }
 
-export interface FfmpegExportPlan {
+export interface ExportPlan {
 	sourceFile: File;
 	args: string[];
 	outputName: string;
@@ -129,7 +129,7 @@ function appendPresetVideoArgsWithFilters(args: string[], presetArgs: string[], 
 	args.push(...presetArgs);
 }
 
-export function buildFfmpegExportPlan(input: BuildFfmpegExportPlanInput): FfmpegExportPlan {
+export function buildExportPlan(input: BuildExportPlanInput): ExportPlan {
 	const {
 		file,
 		preBurnedAssSourceFile,
@@ -144,7 +144,7 @@ export function buildFfmpegExportPlan(input: BuildFfmpegExportPlanInput): Ffmpeg
 		audioStreams,
 		subtitleStreams,
 		resizeFilterArgs,
-		ffmpegFilterArgs,
+		encoderFilterArgs,
 		trimStart,
 		trimEnd,
 		duration,
@@ -196,7 +196,7 @@ export function buildFfmpegExportPlan(input: BuildFfmpegExportPlanInput): Ffmpeg
 			? Math.round((sourceFile.size * Math.max(clipDuration, minTrimDuration)) / duration)
 			: sourceFile.size;
 
-	const vfParts = [...resizeFilterArgs, ...ffmpegFilterArgs];
+	const vfParts = [...resizeFilterArgs, ...encoderFilterArgs];
 	const noVideoFilters = vfParts.length === 0;
 
 	let outputName = 'output.mp4';

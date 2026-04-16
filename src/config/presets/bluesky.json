@@ -6,7 +6,7 @@
 			"maxSizeMB": 100,
 			"maxDisplayWidth": 1080,
 			"format": "mp4",
-			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "24", "-pix_fmt", "yuv420p"],
+			"encoderArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "24", "-pix_fmt", "yuv420p"],
 			"width": null,
 			"height": null
 		}

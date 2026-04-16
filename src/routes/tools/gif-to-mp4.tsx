@@ -38,7 +38,11 @@ const BULLETS = [
 		title: 'Loop preserved',
 		description: 'Export with a loop attribute — the MP4 plays continuously just like the source GIF.',
 	},
-	{ title: 'No upload', description: 'Conversion happens entirely in your browser via WebAssembly FFmpeg.' },
+	{
+		title: 'No upload, hardware-accelerated',
+		description:
+			'Conversion happens entirely in your browser using native WebCodecs and Mediabunny — no server roundtrip, no third-party encoder binary, no watermark.',
+	},
 ];
 
 function GifToMp4Landing() {

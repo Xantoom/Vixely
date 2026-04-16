@@ -46,6 +46,7 @@ import { Button } from '@/components/ui/Button.tsx';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection.tsx';
 import { Timeline } from '@/components/ui/Timeline.tsx';
 import { ToolRail, type ToolRailItem } from '@/components/ui/ToolRail.tsx';
+import { UrlImportButton } from '@/components/ui/UrlImportButton.tsx';
 import { gifPresetEntries, GIF_ACCEPT } from '@/config/presets.ts';
 import { useEditorLayoutPrefs } from '@/hooks/useEditorLayoutPrefs.ts';
 import { useFrameStepController } from '@/hooks/useFrameStepController.ts';
@@ -86,7 +87,8 @@ const GIF_LANDING_FEATURES = [
 	{
 		icon: ShieldCheck,
 		title: 'Privacy First',
-		description: 'Your GIFs never leave your device. All processing runs locally in your browser via WebAssembly.',
+		description:
+			'Your GIFs never leave your device. All processing runs locally in your browser using native WebCodecs, WebGL2 and the Mediabunny library.',
 	},
 ] as const;
 
@@ -107,7 +109,7 @@ const GIF_LANDING_FAQS = [
 	},
 	{
 		question: 'Is my GIF uploaded to a server?',
-		answer: 'No. All GIF processing happens entirely in your browser using WebAssembly. Your files never leave your device — completely private.',
+		answer: 'No. All GIF processing happens entirely in your browser using native WebCodecs, WebGL2 and the Mediabunny library. Your files never leave your device — completely private.',
 	},
 ] as const;
 
@@ -1061,7 +1063,7 @@ function GifFoundry() {
 				jsonLd={[
 					buildWebAppSchema(
 						'Vixely GIF Editor',
-						'Trim, crop, resize, optimize and convert GIF, APNG and animated WebP — directly in your browser. No upload, 100% private, powered by WebAssembly.',
+						'Trim, crop, resize, optimize and convert GIF, APNG and animated WebP — directly in your browser. No upload, 100% private, powered by native WebCodecs and WebGL2.',
 						'https://vixely.app/tools/gif',
 					),
 					buildFAQSchema(GIF_LANDING_FAQS.map((f) => ({ question: f.question, answer: f.answer }))),
@@ -1308,12 +1310,19 @@ function GifFoundry() {
 										formatHints={['GIF', 'APNG', 'WebP']}
 									/>
 								}
+								extraActions={
+									<UrlImportButton
+										onFile={handleFile}
+										acceptFile={isGifFileLike}
+										placeholder="https://example.com/loop.gif"
+									/>
+								}
 								dropHandlers={dropHandlers}
 								isDragging={isDragging}
 								hasFile={false}
 								replaceLabel="Drop your GIF here"
 								heading="Free Online GIF Editor — Optimize, Trim & Convert in Browser"
-								tagline="Trim, crop, resize, optimize and convert GIF, APNG and animated WebP in real time. No upload, no servers — powered by WebAssembly."
+								tagline="Trim, crop, resize, optimize and convert GIF, APNG and animated WebP in real time. No upload, no servers — powered by native WebCodecs and WebGL2."
 								features={[...GIF_LANDING_FEATURES]}
 								formats={GIF_LANDING_FORMATS}
 								formatColor="bg-emerald-400"

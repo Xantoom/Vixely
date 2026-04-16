@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { cacheKeyForFile, useVideoMetadataStore } from '@/stores/videoMetadata.ts';
 import { emitTelemetry } from '@/utils/telemetry.ts';
-import type { ProbeResultData, FontAttachmentInfo, DetailedProbeResultData } from '@/workers/ffmpeg-worker.ts';
+import type { ProbeResultData, FontAttachmentInfo, DetailedProbeResultData } from '@/workers/media-worker.ts';
 
 // ── Worker Message Types ──
 
@@ -12,6 +12,13 @@ interface TranscodeRequest {
 	args: string[];
 	outputName: string;
 	expectedDurationSec?: number;
+	subtitleBurnIn?: SubtitleBurnInPayload;
+}
+
+export interface SubtitleBurnInPayload {
+	content: string;
+	format?: 'srt' | 'vtt' | 'ass';
+	trimOffsetSec?: number;
 }
 
 interface GifRequest {
@@ -255,6 +262,7 @@ interface TranscodeOptions {
 	args: string[];
 	outputName: string;
 	expectedDurationSec?: number;
+	subtitleBurnIn?: SubtitleBurnInPayload;
 }
 
 interface GifOptions {
@@ -438,7 +446,7 @@ function isForegroundRequest(message: WorkerRequest): boolean {
 }
 
 function createWorker() {
-	return new Worker(new URL('../workers/ffmpeg-worker.ts', import.meta.url), { type: 'module' });
+	return new Worker(new URL('../workers/media-worker.ts', import.meta.url), { type: 'module' });
 }
 
 export function useVideoProcessor() {
@@ -729,19 +737,19 @@ export function useVideoProcessor() {
 							lastProgressEmitRef.current = now;
 						}
 						setState((s) => {
-							const rawFfmpegProgress =
+							const rawEncoderProgress =
 								Number.isFinite(msg.progress) && msg.progress > 0
 									? Math.min(0.999, msg.progress)
 									: null;
 							const timeProgress = normalizeProgressFromTime(
 								msg.time,
 								exportExpectedDurationRef.current,
-								rawFfmpegProgress ?? undefined,
+								rawEncoderProgress ?? undefined,
 							);
 							const nextProgress =
 								exportExpectedDurationRef.current > 0
-									? (timeProgress ?? rawFfmpegProgress ?? s.progress)
-									: (rawFfmpegProgress ?? timeProgress ?? s.progress);
+									? (timeProgress ?? rawEncoderProgress ?? s.progress)
+									: (rawEncoderProgress ?? timeProgress ?? s.progress);
 							return {
 								...s,
 								progress: Math.max(s.progress, nextProgress),
@@ -1001,6 +1009,7 @@ export function useVideoProcessor() {
 				args: opts.args,
 				outputName: opts.outputName,
 				expectedDurationSec: opts.expectedDurationSec,
+				subtitleBurnIn: opts.subtitleBurnIn,
 			});
 		},
 		[sendCommand],

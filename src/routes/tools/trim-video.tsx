@@ -20,7 +20,7 @@ const FAQS = [
 	},
 	{
 		question: 'Which formats can I trim?',
-		answer: 'MP4, WebM, MKV, MOV, AVI, FLV, OGV — any format decoded by Mediabunny or our WebAssembly FFmpeg build.',
+		answer: 'MP4, WebM, MKV, MOV, AVI, FLV, OGV — every container supported by the Mediabunny library plus the browser-native WebCodecs API.',
 	},
 ];
 
