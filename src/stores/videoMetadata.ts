@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { DetailedProbeResultData, ProbeResultData } from '@/workers/ffmpeg-worker.ts';
+import type { DetailedProbeResultData, ProbeResultData } from '@/workers/media-worker.ts';
 
 const MAX_METADATA_CACHE_ENTRIES = 24;
 

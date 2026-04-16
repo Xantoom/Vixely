@@ -1,8 +1,18 @@
-import { AlertCircle, AudioLines, FileText, Film, LoaderCircle, Subtitles, X } from 'lucide-react';
+import {
+	AlertCircle,
+	AudioLines,
+	FileText,
+	Film,
+	Image as ImageIcon,
+	LoaderCircle,
+	Subtitles,
+	Tag,
+	X,
+} from 'lucide-react';
 import type { ProbeResult, StreamInfo } from '@/stores/videoEditor.ts';
 import { formatDateTime, formatDimensions, formatFileSize, formatNumber } from '@/utils/format.ts';
 import { LANG_NAMES } from '@/utils/languageUtils.ts';
-import type { DetailedProbeResultData, DetailedProbeStreamInfo } from '@/workers/ffmpeg-worker.ts';
+import type { DetailedProbeResultData, DetailedProbeStreamInfo } from '@/workers/media-worker.ts';
 
 interface VideoInfoModalProps {
 	file: File;
@@ -453,6 +463,78 @@ export function VideoInfoModal({
 						</div>
 						<SubtitleTracksTable streams={subtitleStreams} detailedMap={detailedTrackMap} />
 					</div>
+
+					{probeResult?.tags && Object.values(probeResult.tags).some((v) => v) && (
+						<div className="mt-4 rounded-2xl border border-border/70 bg-surface-raised/35 p-4">
+							<div className="mb-2 flex items-center gap-2">
+								<Tag size={14} className="text-accent" />
+								<h3 className="text-[14px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
+									Tags
+								</h3>
+							</div>
+							<div className="rounded-xl border border-border/70 bg-bg/35 p-3">
+								<div className="space-y-1.5">
+									{probeResult.tags.title && (
+										<VideoDetailRow label="Title" value={probeResult.tags.title} />
+									)}
+									{probeResult.tags.artist && (
+										<VideoDetailRow label="Artist" value={probeResult.tags.artist} />
+									)}
+									{probeResult.tags.album && (
+										<VideoDetailRow label="Album" value={probeResult.tags.album} />
+									)}
+									{probeResult.tags.genre && (
+										<VideoDetailRow label="Genre" value={probeResult.tags.genre} />
+									)}
+									{probeResult.tags.date && (
+										<VideoDetailRow label="Date" value={probeResult.tags.date.slice(0, 10)} />
+									)}
+									{probeResult.tags.description && (
+										<VideoDetailRow label="Description" value={probeResult.tags.description} />
+									)}
+									{probeResult.tags.comment && (
+										<VideoDetailRow label="Comment" value={probeResult.tags.comment} />
+									)}
+									{probeResult.tags.encoder && (
+										<VideoDetailRow label="Encoder" value={probeResult.tags.encoder} />
+									)}
+									{probeResult.tags.copyright && (
+										<VideoDetailRow label="Copyright" value={probeResult.tags.copyright} />
+									)}
+									{probeResult.tags.language && (
+										<VideoDetailRow label="Language" value={probeResult.tags.language} />
+									)}
+								</div>
+							</div>
+						</div>
+					)}
+
+					{probeResult?.coverArt && (
+						<div className="mt-4 rounded-2xl border border-border/70 bg-surface-raised/35 p-4">
+							<div className="mb-2 flex items-center gap-2">
+								<ImageIcon size={14} className="text-accent" />
+								<h3 className="text-[14px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
+									Cover Art
+								</h3>
+							</div>
+							<div className="flex gap-3 rounded-xl border border-border/70 bg-bg/35 p-3">
+								<img
+									src={probeResult.coverArt.dataUrl}
+									alt={probeResult.coverArt.description ?? 'Cover art'}
+									className="h-24 w-24 rounded-lg object-cover"
+								/>
+								<div className="flex flex-1 flex-col justify-center gap-1 text-[13px]">
+									<span className="text-text-tertiary">{probeResult.coverArt.mimeType}</span>
+									<span className="text-text-tertiary">
+										{formatFileSize(probeResult.coverArt.size)}
+									</span>
+									{probeResult.coverArt.description && (
+										<span className="text-text-secondary">{probeResult.coverArt.description}</span>
+									)}
+								</div>
+							</div>
+						</div>
+					)}
 				</div>
 			</div>
 		</div>

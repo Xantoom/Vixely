@@ -56,7 +56,8 @@ function PrivacyPage() {
 					<Section title="What data we collect">
 						<p>
 							<strong className="text-text">Your media files:</strong> None. All video, image, and GIF
-							processing runs client-side via WebAssembly. No file data is transmitted to any server.
+							processing runs client-side using native WebCodecs, WebGL2 and the Mediabunny library. No
+							file data is transmitted to any server.
 						</p>
 						<p className="mt-2">
 							<strong className="text-text">Personal data:</strong> We do not require account creation. We
@@ -127,16 +128,16 @@ function PrivacyPage() {
 							</li>
 						</ul>
 						<p className="mt-2">
-							All media processing libraries (Mediabunny, WASM modules) are bundled locally and do not
-							make external network requests.
+							All media processing libraries (Mediabunny, a small Rust/WASM GIF encoder) are bundled
+							locally and do not make external network requests.
 						</p>
 					</Section>
 
 					<Section title="Data security">
 						<p>
 							Because your files never leave your browser, the risk of data breach from file processing is
-							inherently eliminated. We use HTTPS for all page loads and set appropriate security headers
-							(COOP/COEP) for WebAssembly compatibility.
+							inherently eliminated. We use HTTPS for all page loads and set appropriate cross-origin
+							security headers (COOP/COEP).
 						</p>
 					</Section>
 

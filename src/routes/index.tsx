@@ -54,8 +54,9 @@ const features = [
 	},
 	{
 		icon: Cpu,
-		title: 'WebAssembly Powered',
-		description: 'Near-native performance directly in your browser with real-time preview.',
+		title: 'Hardware-Accelerated',
+		description:
+			'Native WebCodecs + WebGL2 pipeline delivers near-native performance directly in your browser with real-time preview.',
 	},
 	{ icon: Zap, title: 'Instant Export', description: 'Export in any format without waiting for server processing.' },
 	{
@@ -98,7 +99,7 @@ const faqs = [
 	},
 	{
 		question: 'Are my files uploaded to a server?',
-		answer: 'No. Vixely processes everything locally in your browser using WebAssembly technology. Your files never leave your device — we have zero access to your media.',
+		answer: 'No. Vixely processes everything locally in your browser using native WebCodecs, WebGL2 and the Mediabunny library. Your files never leave your device — we have zero access to your media.',
 	},
 	{
 		question: 'What formats does Vixely support?',
@@ -110,7 +111,7 @@ const faqs = [
 	},
 	{
 		question: 'How does browser-based editing work?',
-		answer: 'Vixely uses WebAssembly (WASM) to run powerful media processing code directly in your browser. This gives near-native performance without needing to install any software or upload files to a server.',
+		answer: 'Vixely uses native browser APIs — WebCodecs for hardware-accelerated video decoding/encoding, WebGL2 for real-time filtering, Web Audio API for sound, and the Mediabunny library for container I/O. This delivers near-native performance without installing software or uploading files.',
 	},
 	{
 		question: 'Is Vixely safe to use?',
@@ -133,12 +134,12 @@ function HomePage() {
 		<>
 			<Seo
 				title="Vixely — Free Online Video, Image & GIF Editor"
-				description="Free online video, image and GIF editor. Trim, crop, resize, color-correct, add filters and export MP4, WebM, PNG, GIF and more — directly in your browser. No upload, 100% private, powered by WebAssembly."
+				description="Free online video, image and GIF editor. Trim, crop, resize, color-correct, add filters and export MP4, WebM, PNG, GIF and more — directly in your browser. No upload, 100% private, powered by native WebCodecs and WebGL2."
 				path="/"
 				jsonLd={[
 					buildWebAppSchema(
 						'Vixely',
-						'Free online video, image and GIF editor. Trim, crop, resize, color-correct and export directly in your browser. No upload, 100% private, powered by WebAssembly.',
+						'Free online video, image and GIF editor. Trim, crop, resize, color-correct and export directly in your browser. No upload, 100% private, powered by native WebCodecs and WebGL2.',
 						'https://vixely.app',
 					),
 					buildFAQSchema(faqs.map((f) => ({ question: f.question, answer: f.answer }))),
@@ -191,7 +192,7 @@ function HeroSection() {
 					style={{ animationDelay: '120ms' }}
 				>
 					Powerful media editing that runs entirely in your browser. No uploads, no servers, no sign-up —
-					powered by WebAssembly.
+					powered by native WebCodecs &amp; WebGL2.
 				</p>
 
 				{/* Editor Cards */}
@@ -380,7 +381,7 @@ function FooterSection() {
 							<span className="text-[15px] font-bold">Vixely</span>
 						</div>
 						<p className="text-[12px] text-text-tertiary leading-relaxed">
-							Free, private media editing powered by WebAssembly.
+							Free, private media editing powered by native browser APIs.
 						</p>
 					</div>
 
@@ -450,7 +451,7 @@ function FooterSection() {
 							>
 								About Vixely
 							</Link>
-							<span className="text-[13px] text-text-tertiary">Made with WebAssembly</span>
+							<span className="text-[13px] text-text-tertiary">Made with WebCodecs</span>
 							<span className="text-[13px] text-text-tertiary">GDPR compliant</span>
 						</nav>
 					</div>

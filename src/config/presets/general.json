@@ -5,7 +5,7 @@
 			"description": "Instagram / TikTok square crop",
 			"maxSizeMB": null,
 			"format": "mp4",
-			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "23"],
+			"encoderArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "23"],
 			"width": 720,
 			"height": 720
 		},
@@ -14,7 +14,7 @@
 			"description": "Vertical video for Reels / Shorts / TikTok",
 			"maxSizeMB": null,
 			"format": "mp4",
-			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "23"],
+			"encoderArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "23"],
 			"width": 720,
 			"height": 1280
 		},
@@ -24,7 +24,7 @@
 			"maxSizeMB": null,
 			"maxDisplayWidth": 480,
 			"format": "webm",
-			"ffmpegArgs": ["-c:v", "libvpx-vp9", "-crf", "45", "-b:v", "0"],
+			"encoderArgs": ["-c:v", "libvpx-vp9", "-crf", "45", "-b:v", "0"],
 			"width": null,
 			"height": null
 		},
@@ -33,7 +33,7 @@
 			"description": "Ultra HD 3840x2160",
 			"maxSizeMB": null,
 			"format": "mp4",
-			"ffmpegArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "18"],
+			"encoderArgs": ["-c:v", "libx264", "-preset", "fast", "-crf", "18"],
 			"width": 3840,
 			"height": 2160
 		}

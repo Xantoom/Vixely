@@ -43,7 +43,7 @@ const accentStyles = {
 
 const defaultTrustBadges = [
 	{ icon: ShieldCheck, label: '100% private — no upload' },
-	{ icon: Cpu, label: 'WebAssembly speed' },
+	{ icon: Cpu, label: 'Hardware-accelerated' },
 	{ icon: Zap, label: 'No sign-up required' },
 ];
 
@@ -155,7 +155,7 @@ export function FeatureLanding({
 			{/* Footer note */}
 			<div className="px-4 py-8 text-center border-t border-border">
 				<p className="text-[12px] text-text-tertiary">
-					100% client-side &middot; No uploads &middot; Powered by WebAssembly
+					100% client-side &middot; No uploads &middot; Powered by WebCodecs &amp; WebGL2
 				</p>
 			</div>
 		</div>

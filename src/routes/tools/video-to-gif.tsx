@@ -38,8 +38,9 @@ const BULLETS = [
 		description: 'Modern platforms accept animated WebP and MP4 — often 10× smaller than the equivalent GIF.',
 	},
 	{
-		title: 'No upload',
-		description: 'Your source clip stays on your machine. Conversion runs entirely through WebAssembly.',
+		title: 'No upload, 100% local',
+		description:
+			'Your source clip never leaves the browser. Conversion runs on native browser APIs (WebCodecs + Mediabunny) with hardware acceleration — no server, no third-party encoder binary, no watermark.',
 	},
 ];
 

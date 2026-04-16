@@ -21,12 +21,6 @@ export interface AdvancedVideoSettings {
 
 export type TrimInputMode = 'time' | 'frames';
 
-/** @deprecated Use FilterParams from shared-core instead */
-export type VideoFilters = FilterParams;
-
-/** @deprecated Use DEFAULT_FILTER_PARAMS from shared-core instead */
-export const DEFAULT_VIDEO_FILTERS: FilterParams = { ...DEFAULT_FILTER_PARAMS };
-
 export interface StreamInfo {
 	index: number;
 	type: 'video' | 'audio' | 'subtitle';
@@ -45,11 +39,33 @@ export interface StreamInfo {
 	disposition?: Record<string, number>;
 }
 
+export interface ProbeMediaTags {
+	title?: string;
+	artist?: string;
+	album?: string;
+	comment?: string;
+	description?: string;
+	date?: string;
+	encoder?: string;
+	genre?: string;
+	copyright?: string;
+	language?: string;
+}
+
+export interface ProbeCoverArt {
+	mimeType: string;
+	dataUrl: string;
+	description?: string;
+	size: number;
+}
+
 export interface ProbeResult {
 	duration: number;
 	bitrate: number;
 	format: string;
 	streams: StreamInfo[];
+	tags?: ProbeMediaTags;
+	coverArt?: ProbeCoverArt;
 }
 
 export interface TrackSelection {
@@ -80,6 +96,16 @@ export const DEFAULT_RESIZE: ResizeSettings = {
 	cropOffsetX: 0,
 	cropOffsetY: 0,
 };
+
+export type VideoRotation = 0 | 90 | 180 | 270;
+
+export interface VideoTransform {
+	rotate: VideoRotation;
+	flipH: boolean;
+	flipV: boolean;
+}
+
+export const DEFAULT_TRANSFORM: VideoTransform = { rotate: 0, flipH: false, flipV: false };
 
 export const DEFAULT_TRACK_SELECTION: TrackSelection = {
 	audioEnabled: true,
@@ -123,6 +149,7 @@ export interface VideoEditorState {
 	trimInputMode: TrimInputMode;
 	advancedSettings: AdvancedVideoSettings;
 	comparePosition: number;
+	transform: VideoTransform;
 
 	setMode: (mode: VideoMode) => void;
 	setFilter: <K extends keyof FilterParams>(key: K, value: FilterParams[K]) => void;
@@ -135,9 +162,11 @@ export interface VideoEditorState {
 	setTrimInputMode: (mode: TrimInputMode) => void;
 	setAdvancedSettings: (settings: AdvancedVideoSettings) => void;
 	setComparePosition: (position: number) => void;
+	setTransform: (transform: Partial<VideoTransform>) => void;
+	resetTransform: () => void;
 	resetAll: () => void;
 
-	ffmpegFilterArgs: () => string[];
+	encoderFilterArgs: () => string[];
 	resizeFilterArgs: () => string[];
 	trackArgs: () => string[];
 }
@@ -152,6 +181,7 @@ export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
 	trimInputMode: 'time',
 	advancedSettings: { ...DEFAULT_ADVANCED_SETTINGS },
 	comparePosition: 0.5,
+	transform: { ...DEFAULT_TRANSFORM },
 
 	setMode: (mode) => {
 		set({ mode });
@@ -220,6 +250,14 @@ export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
 		set({ comparePosition: position });
 	},
 
+	setTransform: (partial) => {
+		set((s) => ({ transform: { ...s.transform, ...partial } }));
+	},
+
+	resetTransform: () => {
+		set({ transform: { ...DEFAULT_TRANSFORM } });
+	},
+
 	resetAll: () => {
 		set({
 			mode: 'presets',
@@ -231,10 +269,11 @@ export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
 			trimInputMode: 'time',
 			advancedSettings: { ...DEFAULT_ADVANCED_SETTINGS },
 			comparePosition: 0.5,
+			transform: { ...DEFAULT_TRANSFORM },
 		});
 	},
 
-	ffmpegFilterArgs: () => {
+	encoderFilterArgs: () => {
 		const f = get().filters;
 		const parts: string[] = [];
 
@@ -301,6 +340,15 @@ export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
 			const strength = Math.round(f.grain);
 			parts.push(`noise=alls=${strength}:allf=t`);
 		}
+
+		// rotation / flip (emitted using a compact filter-chain syntax the worker parses and
+		// routes through Mediabunny's native `rotate` option and the flip process callback)
+		const { transform } = get();
+		if (transform.rotate === 90) parts.push('transpose=1');
+		else if (transform.rotate === 180) parts.push('transpose=1,transpose=1');
+		else if (transform.rotate === 270) parts.push('transpose=2');
+		if (transform.flipH) parts.push('hflip');
+		if (transform.flipV) parts.push('vflip');
 
 		return parts;
 	},

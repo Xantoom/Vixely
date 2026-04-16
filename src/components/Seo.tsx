@@ -106,7 +106,7 @@ export function buildWebAppSchema(name: string, description: string, url: string
 		applicationCategory: 'MultimediaApplication',
 		operatingSystem: 'Web',
 		offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-		browserRequirements: 'Requires a modern web browser with WebAssembly support',
+		browserRequirements: 'Requires a modern web browser with WebCodecs and WebGL2 support',
 		featureList: [
 			'Video trimming and cutting',
 			'Image cropping and resizing',
@@ -115,7 +115,8 @@ export function buildWebAppSchema(name: string, description: string, url: string
 			'Platform presets for social media',
 			'100% client-side processing',
 			'No file uploads required',
-			'WebAssembly powered',
+			'Hardware-accelerated WebCodecs pipeline',
+			'WebGL2 real-time filters',
 		],
 	};
 }

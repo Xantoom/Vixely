@@ -12,7 +12,7 @@ export interface VideoPreset {
 	maxSizeMB: number | null;
 	maxDisplayWidth?: number;
 	format: VideoContainer;
-	ffmpegArgs: string[];
+	encoderArgs: string[];
 	width: number | null;
 	height: number | null;
 	allowedVideoCodecs?: VideoCodec[];
@@ -419,7 +419,7 @@ export function buildVideoArgs(
 	if (!preset) throw new Error(`Unknown video preset: ${presetKey}`);
 
 	const args: string[] = [];
-	const basePresetArgs = [...preset.ffmpegArgs];
+	const basePresetArgs = [...preset.encoderArgs];
 	const allowedVideoCodecs = normalizeAllowedVideoCodecs(preset);
 	const allowedContainers = normalizeAllowedContainers(preset);
 	const selectedVideoCodec = selectVideoCodec(allowedVideoCodecs, allowedContainers);

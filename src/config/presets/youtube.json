@@ -5,7 +5,7 @@
 			"description": "Vertical/square Shorts target (up to 3 minutes)",
 			"maxSizeMB": 262144,
 			"format": "mp4",
-			"ffmpegArgs": [
+			"encoderArgs": [
 				"-c:v",
 				"libx264",
 				"-preset",
@@ -25,7 +25,7 @@
 			"description": "Standard HD upload target (up to 256GB or 12 hours)",
 			"maxSizeMB": 262144,
 			"format": "mp4",
-			"ffmpegArgs": [
+			"encoderArgs": [
 				"-c:v",
 				"libx264",
 				"-preset",

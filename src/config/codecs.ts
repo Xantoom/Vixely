@@ -1,6 +1,6 @@
 export interface CodecDef {
 	name: string;
-	ffmpegLib: string;
+	encoderId: string;
 	containers: string[];
 }
 
@@ -11,15 +11,15 @@ export interface ContainerDef {
 
 export interface AudioCodecDef {
 	name: string;
-	ffmpegLib: string;
+	encoderId: string;
 	containers: string[];
 }
 
 export const VIDEO_CODECS: CodecDef[] = [
-	{ name: 'H.264 (AVC)', ffmpegLib: 'libx264', containers: ['mp4', 'mkv'] },
-	{ name: 'H.265 (HEVC)', ffmpegLib: 'libx265', containers: ['mp4', 'mkv'] },
-	{ name: 'VP9', ffmpegLib: 'libvpx-vp9', containers: ['webm', 'mkv'] },
-	{ name: 'AV1', ffmpegLib: 'libaom-av1', containers: ['webm', 'mp4', 'mkv'] },
+	{ name: 'H.264 (AVC)', encoderId: 'libx264', containers: ['mp4', 'mkv'] },
+	{ name: 'H.265 (HEVC)', encoderId: 'libx265', containers: ['mp4', 'mkv'] },
+	{ name: 'VP9', encoderId: 'libvpx-vp9', containers: ['webm', 'mkv'] },
+	{ name: 'AV1', encoderId: 'libaom-av1', containers: ['webm', 'mp4', 'mkv'] },
 ];
 
 export const CONTAINERS: ContainerDef[] = [
@@ -29,9 +29,9 @@ export const CONTAINERS: ContainerDef[] = [
 ];
 
 export const AUDIO_CODECS: AudioCodecDef[] = [
-	{ name: 'AAC', ffmpegLib: 'aac', containers: ['mp4', 'mkv'] },
-	{ name: 'Opus', ffmpegLib: 'libopus', containers: ['webm', 'mkv', 'mp4'] },
-	{ name: 'No Audio', ffmpegLib: 'none', containers: ['mp4', 'mkv', 'webm'] },
+	{ name: 'AAC', encoderId: 'aac', containers: ['mp4', 'mkv'] },
+	{ name: 'Opus', encoderId: 'libopus', containers: ['webm', 'mkv', 'mp4'] },
+	{ name: 'No Audio', encoderId: 'none', containers: ['mp4', 'mkv', 'webm'] },
 ];
 
 export const AUDIO_BITRATES = [
@@ -45,13 +45,13 @@ export const AUDIO_BITRATES = [
 
 /** Check if a codec+container combo is valid */
 export function isValidCombo(codecLib: string, container: string): boolean {
-	const codec = VIDEO_CODECS.find((c) => c.ffmpegLib === codecLib);
+	const codec = VIDEO_CODECS.find((c) => c.encoderId === codecLib);
 	return codec?.containers.includes(container) ?? false;
 }
 
 /** Check if an audio codec+container combo is valid */
 export function isValidAudioCombo(audioLib: string, container: string): boolean {
 	if (audioLib === 'none') return true;
-	const codec = AUDIO_CODECS.find((c) => c.ffmpegLib === audioLib);
+	const codec = AUDIO_CODECS.find((c) => c.encoderId === audioLib);
 	return codec?.containers.includes(container) ?? false;
 }

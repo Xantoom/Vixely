@@ -49,7 +49,7 @@ function parseVideoPreset(value: unknown): VideoPreset | null {
 		description,
 		maxSizeMB,
 		format,
-		ffmpegArgs,
+		encoderArgs,
 		width,
 		height,
 		allowedVideoCodecs,
@@ -60,7 +60,7 @@ function parseVideoPreset(value: unknown): VideoPreset | null {
 	if (typeof name !== 'string' || typeof description !== 'string') return null;
 	if (maxSizeMB !== null && typeof maxSizeMB !== 'number') return null;
 	if (format !== 'mp4' && format !== 'webm' && format !== 'mkv') return null;
-	if (!isStringArray(ffmpegArgs)) return null;
+	if (!isStringArray(encoderArgs)) return null;
 	if (width !== null && typeof width !== 'number') return null;
 	if (height !== null && typeof height !== 'number') return null;
 	if (allowedVideoCodecs != null && !isStringArray(allowedVideoCodecs)) return null;
@@ -81,7 +81,7 @@ function parseVideoPreset(value: unknown): VideoPreset | null {
 		description,
 		maxSizeMB,
 		format,
-		ffmpegArgs,
+		encoderArgs,
 		width,
 		height,
 		...(parsedAllowedVideoCodecs != null ? { allowedVideoCodecs: parsedAllowedVideoCodecs } : {}),
