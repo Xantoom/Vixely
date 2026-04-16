@@ -1,7 +1,7 @@
 import { useCallback, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
-import { Button } from '@/components/ui/index.ts';
+import { Button } from '@/components/ui/Button.tsx';
 import { useObjectUrlState } from '@/hooks/useObjectUrlState.ts';
 import { encodeGif } from '@/modules/gif-editor/encode/gif-encoder.ts';
 import { useGifEditorStore } from '@/stores/gifEditor.ts';

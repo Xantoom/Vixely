@@ -133,12 +133,12 @@ function HomePage() {
 		<>
 			<Seo
 				title="Vixely — Free Online Video, Image & GIF Editor"
-				description="Edit videos, images and GIFs for free, directly in your browser. No uploads, no servers, 100% private. Trim, crop, resize, add filters and export — powered by WebAssembly."
+				description="Free online video, image and GIF editor. Trim, crop, resize, color-correct, add filters and export MP4, WebM, PNG, GIF and more — directly in your browser. No upload, 100% private, powered by WebAssembly."
 				path="/"
 				jsonLd={[
 					buildWebAppSchema(
 						'Vixely',
-						'Free online video, image, and GIF editor. Edit entirely in your browser with no uploads. Powered by WebAssembly.',
+						'Free online video, image and GIF editor. Trim, crop, resize, color-correct and export directly in your browser. No upload, 100% private, powered by WebAssembly.',
 						'https://vixely.app',
 					),
 					buildFAQSchema(faqs.map((f) => ({ question: f.question, answer: f.answer }))),
@@ -443,11 +443,16 @@ function FooterSection() {
 						<h4 className="text-[11px] font-bold uppercase tracking-widest text-text-tertiary mb-3">
 							About
 						</h4>
-						<div className="flex flex-col gap-2">
+						<nav className="flex flex-col gap-2">
+							<Link
+								to="/about"
+								className="text-[13px] text-text-secondary hover:text-text transition-colors"
+							>
+								About Vixely
+							</Link>
 							<span className="text-[13px] text-text-tertiary">Made with WebAssembly</span>
-							<span className="text-[13px] text-text-tertiary">No server processing</span>
 							<span className="text-[13px] text-text-tertiary">GDPR compliant</span>
-						</div>
+						</nav>
 					</div>
 				</div>
 

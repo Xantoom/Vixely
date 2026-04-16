@@ -1,6 +1,6 @@
 import { AlertTriangle, X } from 'lucide-react';
 import { useCallback, useEffect, useRef } from 'react';
-import { Button } from '@/components/ui/index.ts';
+import { Button } from '@/components/ui/Button.tsx';
 
 interface ConfirmResetModalProps {
 	onConfirm: () => void;

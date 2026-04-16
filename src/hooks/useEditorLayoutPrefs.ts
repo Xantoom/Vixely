@@ -3,6 +3,8 @@ import { useResponsiveLayout } from './useResponsiveLayout.ts';
 
 export type EditorKey = 'video' | 'gif' | 'image';
 
+const LAYOUT_SCHEMA_VERSION = 1;
+
 interface LayoutState {
 	sidebarOpen: boolean;
 	sidebarCollapsed: boolean;
@@ -16,11 +18,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null;
 }
 
-function parseLayoutState(raw: string | null): Partial<LayoutState> {
+function parseLayoutState(storageKey: string, raw: string | null): Partial<LayoutState> {
 	if (!raw) return {};
 	try {
 		const parsed: unknown = JSON.parse(raw);
 		if (!isRecord(parsed)) return {};
+		// Drop payloads without the current schema version
+		if (typeof parsed.v !== 'number' || parsed.v !== LAYOUT_SCHEMA_VERSION) {
+			if (typeof window !== 'undefined') {
+				try {
+					window.localStorage.removeItem(storageKey);
+				} catch {
+					// ignore
+				}
+			}
+			return {};
+		}
 		const partial: Partial<LayoutState> = {};
 		if (typeof parsed.sidebarCollapsed === 'boolean') {
 			partial.sidebarCollapsed = parsed.sidebarCollapsed;
@@ -38,13 +51,13 @@ export function useEditorLayoutPrefs({ editor }: UseEditorLayoutPrefsOptions) {
 	const [state, setState] = useState<LayoutState>(() => {
 		const fallback: LayoutState = { sidebarOpen: false, sidebarCollapsed: false };
 		if (typeof window === 'undefined') return fallback;
-		const saved = parseLayoutState(window.localStorage.getItem(storageKey));
+		const saved = parseLayoutState(storageKey, window.localStorage.getItem(storageKey));
 		return { sidebarOpen: false, sidebarCollapsed: saved.sidebarCollapsed ?? false };
 	});
 
 	useEffect(() => {
 		if (typeof window === 'undefined') return;
-		const payload = { sidebarCollapsed: state.sidebarCollapsed };
+		const payload = { v: LAYOUT_SCHEMA_VERSION, sidebarCollapsed: state.sidebarCollapsed };
 		window.localStorage.setItem(storageKey, JSON.stringify(payload));
 	}, [state, storageKey]);
 

@@ -1,7 +1,8 @@
 import { useId } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { GifPresetsPanel } from '@/components/gif/GifPresetsPanel.tsx';
-import { Slider, Toggle } from '@/components/ui/index.ts';
+import { Slider } from '@/components/ui/Slider.tsx';
+import { Toggle } from '@/components/ui/Toggle.tsx';
 import { gifPresetEntries } from '@/config/presets.ts';
 import { useGifEditorStore } from '@/stores/gifEditor.ts';
 

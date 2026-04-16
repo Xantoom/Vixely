@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState, type PointerEvent, type ReactNode } from 'react';
+import { memo, useCallback, useRef, useState, type PointerEvent, type ReactNode } from 'react';
 
 interface TimelineProps {
 	duration: number;
@@ -34,7 +34,7 @@ function formatTimecode(seconds: number): string {
 
 type DragTarget = 'start' | 'end' | 'playhead' | 'range' | null;
 
-export function Timeline({
+function TimelineImpl({
 	duration,
 	trimStart,
 	trimEnd,
@@ -285,5 +285,7 @@ function formatPlayerTime(seconds: number): string {
 	if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 	return `${m}:${String(s).padStart(2, '0')}`;
 }
+
+export const Timeline = memo(TimelineImpl);
 
 export { formatTimecode, formatCompactTime, formatPlayerTime };

@@ -1,6 +1,6 @@
 import { Shield, Check } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
-import { Button } from '@/components/ui/index.ts';
+import { Button } from '@/components/ui/Button.tsx';
 
 const STORAGE_KEY = 'vixely-privacy-acknowledged';
 

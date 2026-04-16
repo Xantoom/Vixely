@@ -1,5 +1,5 @@
 import { useShallow } from 'zustand/react/shallow';
-import { Button } from '@/components/ui/index.ts';
+import { Button } from '@/components/ui/Button.tsx';
 import { useGifEditorStore } from '@/stores/gifEditor.ts';
 import { estimateGifSize, formatFileSize, formatNumber } from '@/utils/format.ts';
 

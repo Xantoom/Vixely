@@ -19,8 +19,9 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
 import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
+import { EditorEmptyState } from '@/components/editor/EditorEmptyState.tsx';
 import { EditorLanding } from '@/components/editor/EditorLanding.tsx';
-import { EditorEmptyState, EditorShell } from '@/components/editor/index.ts';
+import { EditorShell } from '@/components/editor/EditorShell.tsx';
 import { GifAnalyzerPanel } from '@/components/gif/GifAnalyzerPanel.tsx';
 import { GifAspectRatioPanel } from '@/components/gif/GifAspectRatioPanel.tsx';
 import { GifCanvasPlayer } from '@/components/gif/GifCanvasPlayer.tsx';
@@ -41,8 +42,9 @@ import { GifSettingsPanel } from '@/components/gif/GifSettingsPanel.tsx';
 import { GifTextOverlayPanel } from '@/components/gif/GifTextOverlayPanel.tsx';
 import { GifToolbar } from '@/components/gif/GifToolbar.tsx';
 import { Seo, buildWebAppSchema, buildFAQSchema } from '@/components/Seo.tsx';
+import { Button } from '@/components/ui/Button.tsx';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection.tsx';
-import { Button, Timeline } from '@/components/ui/index.ts';
+import { Timeline } from '@/components/ui/Timeline.tsx';
 import { ToolRail, type ToolRailItem } from '@/components/ui/ToolRail.tsx';
 import { gifPresetEntries, GIF_ACCEPT } from '@/config/presets.ts';
 import { useEditorLayoutPrefs } from '@/hooks/useEditorLayoutPrefs.ts';
@@ -1053,19 +1055,19 @@ function GifFoundry() {
 	return (
 		<>
 			<Seo
-				title="Free Online GIF Editor — Vixely"
-				description="Create, edit, crop, resize, rotate, optimize and convert GIFs with filters and effects — entirely in your browser. No upload required."
+				title="Free Online GIF Editor — Optimize, Trim & Convert"
+				description="Free online GIF editor — trim, crop, resize, optimize and convert GIF, APNG and animated WebP with real-time filters, directly in your browser. No upload, 100% private."
 				path="/tools/gif"
 				jsonLd={[
 					buildWebAppSchema(
 						'Vixely GIF Editor',
-						'Create, edit, crop, resize, rotate, optimize and convert GIFs — entirely in your browser.',
+						'Trim, crop, resize, optimize and convert GIF, APNG and animated WebP — directly in your browser. No upload, 100% private, powered by WebAssembly.',
 						'https://vixely.app/tools/gif',
 					),
 					buildFAQSchema(GIF_LANDING_FAQS.map((f) => ({ question: f.question, answer: f.answer }))),
 				]}
 			/>
-			<h1 className="sr-only">GIF Editor</h1>
+			{file && <h1 className="sr-only">GIF Editor</h1>}
 			<input
 				ref={fileInputRef}
 				type="file"
@@ -1310,6 +1312,8 @@ function GifFoundry() {
 								isDragging={isDragging}
 								hasFile={false}
 								replaceLabel="Drop your GIF here"
+								heading="Free Online GIF Editor — Optimize, Trim & Convert in Browser"
+								tagline="Trim, crop, resize, optimize and convert GIF, APNG and animated WebP in real time. No upload, no servers — powered by WebAssembly."
 								features={[...GIF_LANDING_FEATURES]}
 								formats={GIF_LANDING_FORMATS}
 								formatColor="bg-emerald-400"

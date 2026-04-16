@@ -1,7 +1,7 @@
 import { Lock, Unlock } from 'lucide-react';
 import { useId } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { Button } from '@/components/ui/index.ts';
+import { Button } from '@/components/ui/Button.tsx';
 import { useGifEditorStore, CROP_ASPECT_RATIOS, type CropAspectPreset } from '@/stores/gifEditor.ts';
 
 const ASPECT_PRESETS: { label: string; value: CropAspectPreset }[] = [

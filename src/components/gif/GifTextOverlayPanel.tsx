@@ -1,7 +1,8 @@
 import { Plus, Trash2, Type } from 'lucide-react';
 import { useCallback, useId } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { Button, Slider } from '@/components/ui/index.ts';
+import { Button } from '@/components/ui/Button.tsx';
+import { Slider } from '@/components/ui/Slider.tsx';
 import { useGifEditorStore, type TextOverlay } from '@/stores/gifEditor.ts';
 
 const FONT_FAMILIES = [
