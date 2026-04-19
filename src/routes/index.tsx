@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Video, ImageIcon, Film, ShieldCheck, Cpu, Zap, Palette, MonitorSmartphone, Upload } from 'lucide-react';
+import { Logo } from '@/components/Logo.tsx';
 import { Seo, buildWebAppSchema, buildFAQSchema, buildWebSiteSchema } from '@/components/Seo.tsx';
 import { FAQItem } from '@/components/ui/FAQItem.tsx';
 
@@ -367,17 +368,7 @@ function FooterSection() {
 					{/* Brand */}
 					<div className="col-span-2 sm:col-span-1">
 						<div className="flex items-center gap-2 mb-3">
-							<div className="h-7 w-7 rounded-lg gradient-accent flex items-center justify-center">
-								<svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-									<path
-										d="M3 3.5l5 9 5-9"
-										stroke="white"
-										strokeWidth="2.5"
-										strokeLinecap="round"
-										strokeLinejoin="round"
-									/>
-								</svg>
-							</div>
+							<Logo className="h-7 w-7" />
 							<span className="text-[15px] font-bold">Vixely</span>
 						</div>
 						<p className="text-[12px] text-text-tertiary leading-relaxed">

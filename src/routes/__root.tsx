@@ -9,6 +9,7 @@ const TanStackRouterDevtools = lazy(async () => {
 import { Toaster } from 'sonner';
 import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
 import { CookieBanner } from '@/components/CookieBanner.tsx';
+import { Logo } from '@/components/Logo.tsx';
 import { NotFound } from '@/components/NotFound.tsx';
 import { useEditorSessionStore, type EditorKey } from '@/stores/editorSession.ts';
 import { useGifEditorStore } from '@/stores/gifEditor.ts';
@@ -152,17 +153,7 @@ function RootLayout() {
 					}}
 					className="mb-6 group flex items-center justify-center"
 				>
-					<div className="h-9 w-9 rounded-xl gradient-accent flex items-center justify-center transition-transform group-hover:scale-105">
-						<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-							<path
-								d="M3 3.5l5 9 5-9"
-								stroke="white"
-								strokeWidth="2.5"
-								strokeLinecap="round"
-								strokeLinejoin="round"
-							/>
-						</svg>
-					</div>
+					<Logo className="h-9 w-9 transition-transform group-hover:scale-105" />
 				</Link>
 
 				{/* Nav */}

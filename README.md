@@ -1,108 +1,124 @@
 <div align="center">
 
-<img src="public/vixely-app-logo.svg" alt="Vixely" width="64" height="64" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="public/brand/lockup-horizontal-dark.svg" />
+  <img alt="Vixely" src="public/brand/lockup-horizontal-light.svg" height="64" />
+</picture>
 
-# Vixely
+<br /><br />
 
-**Free, private, browser-based media editor powered by WebAssembly.**
+**Edit videos, images &amp; GIFs in your browser.**
 
-Edit video, images, and GIFs directly in your browser. No uploads, no sign-up, no limits.
+Free. Private. No sign-up. No uploads. Powered by native WebCodecs and WebGL2.
+
+<br />
 
 <a href="https://vixely.app">
-  <img src="https://img.shields.io/badge/Try_it_live-vixely.app-3b82f6?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Try Vixely" />
+  <img src="https://img.shields.io/badge/Open_vixely.app-7c3aed?style=for-the-badge&labelColor=18181b" alt="Open Vixely" />
 </a>
 
 <br /><br />
 
-<img src="https://img.shields.io/badge/100%25_Client--Side-no_uploads-10b981?style=flat-square" alt="Client-side" />
-<img src="https://img.shields.io/badge/WebAssembly-powered-654ff0?style=flat-square&logo=webassembly&logoColor=white" alt="WebAssembly" />
-<img src="https://img.shields.io/badge/Free-no_sign--up-f59e0b?style=flat-square" alt="Free" />
-<img src="https://img.shields.io/badge/GDPR-compliant-10b981?style=flat-square" alt="GDPR" />
+<sub>
+  <img src="https://img.shields.io/badge/100%25_client--side-fafafa?style=flat-square&labelColor=27272a&color=18181b" alt="100% client-side" />
+  <img src="https://img.shields.io/badge/no_uploads-fafafa?style=flat-square&labelColor=27272a&color=18181b" alt="No uploads" />
+  <img src="https://img.shields.io/badge/no_account-fafafa?style=flat-square&labelColor=27272a&color=18181b" alt="No account" />
+  <img src="https://img.shields.io/badge/GDPR-fafafa?style=flat-square&labelColor=27272a&color=18181b" alt="GDPR compliant" />
+</sub>
 
 </div>
 
 <br />
 
-<!-- Replace with an actual screenshot of the app -->
-<!-- <div align="center">
-  <img src=".github/assets/screenshot.png" alt="Vixely Editor" width="800" />
-  <br />
-  <em>Video editor with real-time preview, trim, color correction, and export</em>
-</div> -->
+---
 
-## Features
+## Three editors, one workspace
 
 <table>
-  <tr>
-    <td align="center" width="33%">
-      <img src="https://img.shields.io/badge/-Video-3b82f6?style=for-the-badge" /><br /><br />
-      <strong>Video Editor</strong><br />
-      Trim, crop, resize, color correction, subtitle & audio track selection, platform presets, export to any format
-    </td>
-    <td align="center" width="33%">
-      <img src="https://img.shields.io/badge/-Image-f59e0b?style=for-the-badge" /><br /><br />
-      <strong>Image Editor</strong><br />
-      Crop, resize, filters, color adjustments, format conversion with real-time preview
-    </td>
-    <td align="center" width="33%">
-      <img src="https://img.shields.io/badge/-GIF-10b981?style=for-the-badge" /><br /><br />
-      <strong>GIF Editor</strong><br />
-      Trim, crop, optimize file size, adjust speed, apply filters, convert formats
-    </td>
-  </tr>
+<tr>
+<td width="33%" valign="top">
+
+<img src="https://img.shields.io/badge/VIDEO-3b82f6?style=flat-square&labelColor=3b82f6" alt="Video" />
+
+Trim, crop, resize. Color correction, subtitle &amp; audio track switch. Social presets. Export to any container/codec.
+
+</td>
+<td width="33%" valign="top">
+
+<img src="https://img.shields.io/badge/IMAGE-f59e0b?style=flat-square&labelColor=f59e0b" alt="Image" />
+
+Crop, resize, filters. Brightness, contrast, saturation. Real-time WebGL preview. Format conversion.
+
+</td>
+<td width="33%" valign="top">
+
+<img src="https://img.shields.io/badge/GIF-10b981?style=flat-square&labelColor=10b981" alt="GIF" />
+
+Trim, crop, frame editing. Size optimization. Fade in/out. Convert to APNG or animated WebP.
+
+</td>
+</tr>
 </table>
 
-<br />
+## What's inside
 
-- **Real-time preview** — See every change instantly, no waiting
-- **Social media presets** — One-click export settings for Discord, TikTok, Twitter, YouTube, Twitch
-- **Frame capture** — Extract frames from video, send to image or GIF editor
-- **Format conversion** — Broad codec and container support via FFmpeg/WebAssembly
-- **Cross-editor workflow** — Move media between video, image, and GIF editors seamlessly
-- **Dark UI** — Designed for focus, dark mode only
+- **Real-time preview.** Every adjustment renders instantly via WebGL2.
+- **Cross-editor flow.** Grab a video frame, hand it off to the image or GIF editor.
+- **Platform presets.** One-click export for Discord, TikTok, Twitter, YouTube, Twitch.
+- **Hardware-accelerated.** Native WebCodecs decode &amp; encode wherever the browser supports them.
+- **Local-only.** Files never reach a server. There is no server.
 
-## Why Vixely?
+## Local-first
 
-| | Vixely | Cloud-based editors |
-|---|---|---|
-| **Privacy** | Files never leave your browser | Files uploaded to servers |
-| **Speed** | WebAssembly, near-native performance | Limited by upload/download speed |
-| **Cost** | Free, no account required | Freemium with paywalls |
-| **Offline** | Works without internet after initial load | Requires constant connection |
-| **Data** | Zero tracking, GDPR compliant | Analytics and tracking cookies |
+|              | Vixely                                  | Cloud editors                       |
+| ------------ | --------------------------------------- | ----------------------------------- |
+| **Privacy**  | Files stay on your device               | Files uploaded to a remote          |
+| **Speed**    | Limited only by your hardware           | Limited by upload &amp; download     |
+| **Cost**     | Free, no account                        | Freemium with paywalls              |
+| **Network**  | Works offline after first load          | Constant connection required        |
+| **Tracking** | Zero analytics on your media            | Analytics &amp; tracking cookies     |
 
-## How It Works
+## How it works
 
-1. **Open** — Go to [vixely.app](https://vixely.app). No install, no sign-up.
-2. **Edit** — Drop a file into the editor, edit with real-time preview.
-3. **Export** — Download your result. Nothing is ever uploaded.
+```
+1.  open  vixely.app    →  no install · no account
+2.  drop  any media     →  stays in your browser
+3.  edit  in real-time  →  WebGL2 preview, no buffering
+4.  export              →  pick format · download · done
+```
 
-## Supported Formats
+## Built with
 
-| Video | Image | GIF & Animation |
-|---|---|---|
-| MP4, WebM, MKV, AVI, MOV, FLV, WMV, OGV, M4V, MTS | PNG, JPG, WebP, AVIF, BMP, TIFF, ICO | GIF, APNG, WebP (animated) |
+```
+React 19   TypeScript 6   TailwindCSS 4   Vite 8   Bun 1.3
+Tanstack Router · Zustand · Mediabunny · WebCodecs · WebGL2
+```
 
-## Built With
+No FFmpeg. No backend. No API routes. The app ships as a static SPA.
 
-<p>
-  <img src="https://img.shields.io/badge/React-19-61dafb?style=flat-square&logo=react&logoColor=white" />
-  <img src="https://img.shields.io/badge/TypeScript-5.9-3178c6?style=flat-square&logo=typescript&logoColor=white" />
-  <img src="https://img.shields.io/badge/WebAssembly-FFmpeg-654ff0?style=flat-square&logo=webassembly&logoColor=white" />
-  <img src="https://img.shields.io/badge/TailwindCSS-4-06b6d4?style=flat-square&logo=tailwindcss&logoColor=white" />
-  <img src="https://img.shields.io/badge/Vite-8-646cff?style=flat-square&logo=vite&logoColor=white" />
-  <img src="https://img.shields.io/badge/Bun-1.3-f9f1e1?style=flat-square&logo=bun&logoColor=black" />
-</p>
+## Supported formats
+
+|        | Import &amp; export                                |
+| ------ | -------------------------------------------------- |
+| Video  | MP4, WebM, MKV, AVI, MOV, FLV, WMV, OGV, M4V, MTS  |
+| Image  | PNG, JPG, WebP, AVIF, BMP, TIFF, ICO               |
+| GIF    | GIF, APNG, WebP (animated)                         |
 
 ## Links
 
-- [Try Vixely](https://vixely.app)
-- [Privacy Policy](https://vixely.app/privacy)
-- [Terms of Use](https://vixely.app/terms)
-- [Legal Notice](https://vixely.app/legal)
+- [vixely.app](https://vixely.app) — try it live
+- [Privacy policy](https://vixely.app/privacy)
+- [Terms of use](https://vixely.app/terms)
+- [Legal notice](https://vixely.app/legal)
 
 ---
 
 <div align="center">
-  <sub>Your files, your device, your privacy.</sub>
+
+<img alt="" src="public/brand/logo.svg" width="28" height="28" />
+
+<br /><br />
+
+<sub>Your files. Your device. Your privacy.</sub>
+
 </div>

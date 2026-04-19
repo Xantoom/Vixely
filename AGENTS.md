@@ -4,8 +4,8 @@ This project is a Media converting, editing, exporting app fully web-client base
 
 ## TECH STACK
 
-- **Frontend:** React 19, Typescript 5.9, TailwindCSS 4 (custom theme), Tanstack Router, Tanstack React Query 5.
-- **Server/Bundler:** Bun 1.3 for package manager, Vite 8.
+- **Frontend:** React 19+, Typescript 6+, TailwindCSS 4+ (custom theme), Tanstack Router, Tanstack React Query 5.
+- **Server/Bundler:** Bun 1.3 for package manager, Vite 8+.
 - **Advanced:** You can use Rust and WebAssembly if needed.
 - **Production:** Github CI/CD Pipelines with a develop branch and main branch (main = production), Deployed on Railway.com (auto deploy when Merge on main and CI passed), DNS records on Cloudflare, Domain name on Hostinger (vixely.app).
 - **Environment:** On Railway, NODE_ENV=PRODUCTION, PORT=80.
@@ -14,7 +14,7 @@ This project is a Media converting, editing, exporting app fully web-client base
 ## PROJECT DESCRIPTION
 
 Vixely is a **web app**, **client-based**. Meaning I try to do everything in the client instead of the server.
-Thanks to [Mediabunny library](https://mediabunny.dev/), we can do: reading, writing, and converting media files, directly in the browser.
+Thanks to [Mediabunny library](https://mediabunny.dev/), we can do: reading, writing, and converting media files, directly in the browser. **ALWAYS USE MEDIABUNNY IF POSSIBLE**.
 
 The App has 3 functionnalities:
 
