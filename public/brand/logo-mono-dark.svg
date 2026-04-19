@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Vixely">
+	<defs>
+		<mask id="vx-cut">
+			<rect width="64" height="64" fill="white"/>
+			<path d="M15 16 L32 50 L49 16 Z" fill="black"/>
+		</mask>
+	</defs>
+	<rect width="64" height="64" rx="14" fill="#0f0f12" mask="url(#vx-cut)"/>
+</svg>
