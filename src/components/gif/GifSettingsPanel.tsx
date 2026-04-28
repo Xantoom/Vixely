@@ -1,12 +1,16 @@
 import { useId } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { GifPresetsPanel } from '@/components/gif/GifPresetsPanel.tsx';
+import { SharedPresetsPanel, type PresetEntry } from '@/components/shared/PresetsPanel.tsx';
 import { Slider } from '@/components/ui/Slider.tsx';
 import { Toggle } from '@/components/ui/Toggle.tsx';
 import { gifPresetEntries } from '@/config/presets.ts';
 import { useGifEditorStore } from '@/stores/gifEditor.ts';
 
-const GIF_PRESETS = gifPresetEntries();
+const GIF_PRESET_ENTRIES: PresetEntry[] = gifPresetEntries().map(([key, preset]) => ({
+	key,
+	name: preset.name,
+	subtitle: `${preset.width}px · ${preset.fps}fps${preset.maxDuration ? ` · ${preset.maxDuration}s max` : ''}`,
+}));
 
 interface GifSettingsPanelProps {
 	fps: number;
@@ -56,13 +60,15 @@ export function GifSettingsPanel({
 	return (
 		<>
 			{/* Presets */}
-			<GifPresetsPanel
-				presets={GIF_PRESETS}
+			<SharedPresetsPanel
+				presets={GIF_PRESET_ENTRIES}
 				selectedPreset={selectedPreset}
 				onSelectPreset={(key) => {
 					onSelectPreset(key);
 					if (key) onApplyPreset(key);
 				}}
+				emptyLabel="Pick a preset optimized for your target platform."
+				fallbackIconLetter="G"
 			/>
 
 			{/* FPS */}

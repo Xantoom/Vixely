@@ -1,8 +1,8 @@
-import { Columns2, FilePlus2, Info, LoaderCircle, StepBack, StepForward } from 'lucide-react';
+import { Columns2 } from 'lucide-react';
 import { EditorToolbar } from '@/components/editor/EditorToolbar.tsx';
+import { FileChooserCluster, FrameStepGroup } from '@/components/editor/ToolbarParts.tsx';
 import { IconButton, ToolbarSeparator } from '@/components/ui/IconButton.tsx';
 import { formatCompactTime } from '@/components/ui/Timeline.tsx';
-import { formatNumber } from '@/utils/format.ts';
 
 interface VideoToolbarProps {
 	file: File | null;
@@ -50,46 +50,14 @@ export function VideoToolbar({
 
 	return (
 		<EditorToolbar>
-			{/* Frame step back */}
-			<IconButton
-				onClick={() => {
-					onStepFrame(-1);
-				}}
-				onPointerDown={(e) => {
-					e.preventDefault();
-					onStartFrameHold(-1);
-				}}
-				onPointerUp={onStopFrameHold}
-				onPointerLeave={onStopFrameHold}
-				onPointerCancel={onStopFrameHold}
-				disabled={!file || processing}
-				title="Previous frame"
-			>
-				<StepBack size={16} />
-			</IconButton>
-
-			{/* Frame counter */}
-			<span className="text-[12px] font-mono text-text-tertiary tabular-nums px-1.5">
-				{formatNumber(currentFrame)} / {formatNumber(totalFrames)}
-			</span>
-
-			{/* Frame step forward */}
-			<IconButton
-				onClick={() => {
-					onStepFrame(1);
-				}}
-				onPointerDown={(e) => {
-					e.preventDefault();
-					onStartFrameHold(1);
-				}}
-				onPointerUp={onStopFrameHold}
-				onPointerLeave={onStopFrameHold}
-				onPointerCancel={onStopFrameHold}
-				disabled={!file || processing}
-				title="Next frame"
-			>
-				<StepForward size={16} />
-			</IconButton>
+			<FrameStepGroup
+				currentFrame={currentFrame}
+				totalFrames={totalFrames}
+				disabled={processing}
+				onStepFrame={onStepFrame}
+				onStartFrameHold={onStartFrameHold}
+				onStopFrameHold={onStopFrameHold}
+			/>
 
 			<ToolbarSeparator />
 
@@ -119,30 +87,12 @@ export function VideoToolbar({
 
 			<ToolbarSeparator />
 
-			{/* File chooser */}
-			<button
-				onClick={onOpenFile}
-				className="h-7 max-w-36 rounded-md bg-surface-raised/50 border border-border/60 px-2.5 text-[12px] font-medium text-text-secondary hover:bg-surface-raised hover:text-text transition-colors cursor-pointer truncate"
-				title={file.name}
-			>
-				{file.name}
-			</button>
-			<IconButton onClick={onOpenFile} title="Open new file">
-				<FilePlus2 size={14} />
-			</IconButton>
-
-			<ToolbarSeparator />
-
-			{/* Info button */}
-			{detailedProbePending ? (
-				<span className="h-8 w-8 flex items-center justify-center text-text-tertiary" title="Loading metadata">
-					<LoaderCircle size={14} className="animate-spin" />
-				</span>
-			) : (
-				<IconButton onClick={onShowInfo} title="File info">
-					<Info size={16} />
-				</IconButton>
-			)}
+			<FileChooserCluster
+				fileName={file.name}
+				onOpenFile={onOpenFile}
+				onShowInfo={onShowInfo}
+				infoLoading={detailedProbePending}
+			/>
 		</EditorToolbar>
 	);
 }

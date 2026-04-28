@@ -1,5 +1,6 @@
-import { Columns2, FilePlus2, Info, Maximize, Minus, Pause, Play, Plus, StepBack, StepForward } from 'lucide-react';
+import { Columns2, Maximize, Minus, Pause, Play, Plus, StepBack, StepForward } from 'lucide-react';
 import { EditorToolbar } from '@/components/editor/EditorToolbar.tsx';
+import { FileChooserCluster, FrameStepGroup } from '@/components/editor/ToolbarParts.tsx';
 import { IconButton, ToolbarSeparator } from '@/components/ui/IconButton.tsx';
 import { formatCompactTime } from '@/components/ui/Timeline.tsx';
 import { formatFileSize, formatNumber } from '@/utils/format.ts';
@@ -99,44 +100,14 @@ export function GifToolbar({
 			{/* ── Video source frame step ── */}
 			{!isGifSource && (
 				<>
-					<IconButton
-						onClick={() => {
-							onStepFrame(-1);
-						}}
-						onPointerDown={(e) => {
-							e.preventDefault();
-							onStartFrameHold(-1);
-						}}
-						onPointerUp={onStopFrameHold}
-						onPointerLeave={onStopFrameHold}
-						onPointerCancel={onStopFrameHold}
+					<FrameStepGroup
+						currentFrame={currentFrame}
+						totalFrames={totalFrames}
 						disabled={processing}
-						title="Previous frame"
-					>
-						<StepBack size={16} />
-					</IconButton>
-
-					<span className="text-[12px] font-mono text-text-tertiary tabular-nums px-1.5">
-						{formatNumber(currentFrame)} / {formatNumber(totalFrames)}
-					</span>
-
-					<IconButton
-						onClick={() => {
-							onStepFrame(1);
-						}}
-						onPointerDown={(e) => {
-							e.preventDefault();
-							onStartFrameHold(1);
-						}}
-						onPointerUp={onStopFrameHold}
-						onPointerLeave={onStopFrameHold}
-						onPointerCancel={onStopFrameHold}
-						disabled={processing}
-						title="Next frame"
-					>
-						<StepForward size={16} />
-					</IconButton>
-
+						onStepFrame={onStepFrame}
+						onStartFrameHold={onStartFrameHold}
+						onStopFrameHold={onStopFrameHold}
+					/>
 					<ToolbarSeparator />
 				</>
 			)}
@@ -192,24 +163,7 @@ export function GifToolbar({
 
 			<ToolbarSeparator />
 
-			{/* File chooser */}
-			<button
-				onClick={onOpenFile}
-				className="h-7 max-w-36 rounded-md bg-surface-raised/50 border border-border/60 px-2.5 text-[12px] font-medium text-text-secondary hover:bg-surface-raised hover:text-text transition-colors cursor-pointer truncate"
-				title={file.name}
-			>
-				{file.name}
-			</button>
-			<IconButton onClick={onNew} title="New (discard current)">
-				<FilePlus2 size={14} />
-			</IconButton>
-
-			<ToolbarSeparator />
-
-			{/* Info button */}
-			<IconButton onClick={onShowInfo} title="File info">
-				<Info size={16} />
-			</IconButton>
+			<FileChooserCluster fileName={file.name} onOpenFile={onOpenFile} onNew={onNew} onShowInfo={onShowInfo} />
 		</EditorToolbar>
 	);
 }

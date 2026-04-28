@@ -9,6 +9,7 @@ import { EditorLanding } from '@/components/editor/EditorLanding.tsx';
 import { EditorQuickActions } from '@/components/editor/EditorQuickActions.tsx';
 import { EditorShell } from '@/components/editor/EditorShell.tsx';
 import { Seo, buildWebAppSchema, buildFAQSchema } from '@/components/Seo.tsx';
+import { SharedPresetsPanel, type PresetEntry } from '@/components/shared/PresetsPanel.tsx';
 import { Button } from '@/components/ui/Button.tsx';
 import { Slider } from '@/components/ui/Slider.tsx';
 import { Timeline, formatTimecode, formatCompactTime } from '@/components/ui/Timeline.tsx';
@@ -16,8 +17,6 @@ import { Toggle } from '@/components/ui/Toggle.tsx';
 import { ToolRail, type ToolRailItem } from '@/components/ui/ToolRail.tsx';
 import { UrlImportButton } from '@/components/ui/UrlImportButton.tsx';
 import { AdjustPanel } from '@/components/video/AdjustPanel.tsx';
-import { getPlatformKey } from '@/components/video/PlatformIcons.tsx';
-import { PresetsPanel } from '@/components/video/PresetsPanel.tsx';
 import { ResizePanel } from '@/components/video/ResizePanel.tsx';
 import { VideoPlayer } from '@/components/video/VideoPlayer.tsx';
 import { VideoToolbar } from '@/components/video/VideoToolbar.tsx';
@@ -41,19 +40,21 @@ import {
 	isValidAudioCombo,
 } from '@/config/codecs.ts';
 import { videoPresetEntries, VIDEO_ACCEPT } from '@/config/presets.ts';
+import { useEditorKeyboardShortcuts } from '@/hooks/useEditorKeyboardShortcuts.ts';
 import { useEditorLayoutPrefs } from '@/hooks/useEditorLayoutPrefs.ts';
+import { useEditorUnsavedState } from '@/hooks/useEditorUnsavedState.ts';
 import { useFrameStepController } from '@/hooks/useFrameStepController.ts';
 import { useLongTaskObserver } from '@/hooks/useLongTaskObserver.ts';
 import { useObjectUrlState } from '@/hooks/useObjectUrlState.ts';
-import { usePreventUnload } from '@/hooks/usePreventUnload.ts';
 import { useSingleFileDrop } from '@/hooks/useSingleFileDrop.ts';
 import { useTimelineScrubController } from '@/hooks/useTimelineScrubController.ts';
 import { useVideoMetadataLoader, type MetadataLoadStage } from '@/hooks/useVideoMetadataLoader.ts';
 import type { SubtitlePreviewData } from '@/hooks/useVideoProcessor.ts';
 import { useVideoProcessor } from '@/hooks/useVideoProcessor.ts';
+import { applyAdvancedUpdate, codecSupportsQp } from '@/modules/video-editor/advancedSettings.ts';
 import { buildExportPlan } from '@/modules/video-editor/export/export-plan.ts';
 import { sizeConstrainedExport } from '@/modules/video-editor/export/sizeConstrainedExport.ts';
-import { useEditorSessionStore } from '@/stores/editorSession.ts';
+import { convertPngToFormat, pickEncodeThreads } from '@/modules/video-editor/frameCapture.ts';
 import type { AdvancedVideoSettings } from '@/stores/videoEditor.ts';
 import { useVideoEditorStore, type VideoMode } from '@/stores/videoEditor.ts';
 import type { StreamInfo } from '@/stores/videoEditor.ts';
@@ -70,69 +71,15 @@ const EMPTY_STREAMS: StreamInfo[] = [];
 
 const VIDEO_FILENAME_RE = /\.(mp4|mkv|webm|mov|m4v|avi|mts|m2ts|ts)$/i;
 
-async function convertPngToFormat(pngData: Uint8Array, format: 'jpeg' | 'webp'): Promise<Blob> {
-	return new Promise((resolve, reject) => {
-		const sourceBlob = new Blob([new Uint8Array(pngData)], { type: 'image/png' });
-		const sourceUrl = URL.createObjectURL(sourceBlob);
-		const img = new Image();
-		img.onload = () => {
-			const canvas = document.createElement('canvas');
-			canvas.width = img.width;
-			canvas.height = img.height;
-			const ctx = canvas.getContext('2d');
-			if (!ctx) {
-				URL.revokeObjectURL(sourceUrl);
-				reject(new Error('Canvas context unavailable'));
-				return;
-			}
-			ctx.drawImage(img, 0, 0);
-			canvas.toBlob(
-				(blob) => {
-					URL.revokeObjectURL(sourceUrl);
-					if (!blob) {
-						reject(new Error('Failed to encode frame'));
-						return;
-					}
-					resolve(blob);
-				},
-				format === 'jpeg' ? 'image/jpeg' : 'image/webp',
-				0.92,
-			);
-		};
-		img.onerror = () => {
-			URL.revokeObjectURL(sourceUrl);
-			reject(new Error('Failed to decode frame'));
-		};
-		img.src = sourceUrl;
-	});
-}
-
-function pickEncodeThreads(): number {
-	const hc = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 0;
-	if (!Number.isFinite(hc) || hc <= 0) return 2;
-	return Math.min(Math.floor(hc / 2), 8);
-}
-
 function isVideoFileLike(file: File): boolean {
 	return file.type.startsWith('video/') || VIDEO_FILENAME_RE.test(file.name);
 }
 
-/* ── Group presets by platform ── */
-
-function groupPresetsByPlatform(presets: [string, { name: string; description: string }][]) {
-	const groups: Record<string, [string, { name: string; description: string }][]> = {};
-	for (const entry of presets) {
-		const platform = getPlatformKey(entry[0]);
-		if (!groups[platform]) groups[platform] = [];
-		groups[platform].push(entry);
-	}
-	const order = ['discord', 'twitch', 'youtube', 'twitter', 'tiktok', 'bluesky', 'general'];
-	return order.filter((p) => groups[p]).map((p) => ({ platform: p, presets: groups[p]! }));
-}
-
-function codecSupportsQp(codec: string): boolean {
-	return codec === 'libx264' || codec === 'libx265';
-}
+const VIDEO_PRESET_ENTRIES: PresetEntry[] = VIDEO_PRESETS.map(([key, preset]) => ({
+	key,
+	name: preset.name,
+	subtitle: preset.description,
+}));
 
 /** Flat tool list for the video editor ToolRail */
 const VIDEO_TOOLS: ToolRailItem<VideoMode>[] = [
@@ -142,30 +89,6 @@ const VIDEO_TOOLS: ToolRailItem<VideoMode>[] = [
 	{ id: 'adjust', label: 'Adjust', icon: Palette },
 	{ id: 'export', label: 'Export', icon: Download },
 ];
-
-function applyAdvancedUpdate(
-	settings: AdvancedVideoSettings,
-	key: keyof AdvancedVideoSettings,
-	value: AdvancedVideoSettings[keyof AdvancedVideoSettings],
-): AdvancedVideoSettings {
-	const next = { ...settings, [key]: value };
-	if (key === 'codec' && typeof value === 'string' && !isValidCombo(value, next.container)) {
-		const codec = VIDEO_CODECS.find((c) => c.encoderId === value);
-		if (codec) next.container = codec.containers[0]!;
-	}
-	if (key === 'container' && typeof value === 'string' && !isValidCombo(next.codec, value)) {
-		const validCodec = VIDEO_CODECS.find((c) => c.containers.includes(value));
-		if (validCodec) next.codec = validCodec.encoderId;
-	}
-	if (key === 'container' && typeof value === 'string' && !isValidAudioCombo(next.audioCodec, value)) {
-		const validAudio = AUDIO_CODECS.find((c) => c.encoderId !== 'none' && c.containers.includes(value));
-		if (validAudio) next.audioCodec = validAudio.encoderId;
-	}
-	if (!codecSupportsQp(next.codec) && next.rateControl === 'qp') {
-		next.rateControl = 'crf';
-	}
-	return next;
-}
 
 function VideoStudio() {
 	const navigate = useNavigate();
@@ -269,15 +192,7 @@ function VideoStudio() {
 	const subtitleCacheRef = useRef<Map<string, SubtitlePreviewData>>(new Map());
 
 	const isDirty = file !== null;
-	usePreventUnload(isDirty || processing);
-	const setEditorUnsaved = useEditorSessionStore((s) => s.setUnsaved);
-
-	useEffect(() => {
-		setEditorUnsaved('video', isDirty);
-		return () => {
-			setEditorUnsaved('video', false);
-		};
-	}, [isDirty, setEditorUnsaved]);
+	useEditorUnsavedState('video', isDirty || processing);
 
 	const videoStreamInfo = useMemo(() => probeResult?.streams.find((s) => s.type === 'video') ?? null, [probeResult]);
 	const videoFps = videoStreamInfo?.fps ?? 30;
@@ -292,7 +207,6 @@ function VideoStudio() {
 		[probeResult],
 	);
 
-	const groupedPresets = useMemo(() => groupPresetsByPlatform(VIDEO_PRESETS), []);
 	const minTrimDuration = frameDuration;
 	const metadataExportLocked = streamInfoPending;
 	const metadataVideoLoading = streamInfoPending || detailedProbePending;
@@ -509,27 +423,7 @@ function VideoStudio() {
 		},
 	});
 
-	/* ── Keyboard shortcuts ── */
-	useEffect(() => {
-		const onKeyDown = (e: KeyboardEvent) => {
-			if (
-				e.target instanceof HTMLInputElement ||
-				e.target instanceof HTMLTextAreaElement ||
-				e.target instanceof HTMLSelectElement ||
-				(e.target instanceof HTMLElement && e.target.isContentEditable)
-			) {
-				return;
-			}
-			if (e.key === ' ') {
-				e.preventDefault();
-				togglePlaybackInTrim();
-			}
-		};
-		window.addEventListener('keydown', onKeyDown);
-		return () => {
-			window.removeEventListener('keydown', onKeyDown);
-		};
-	}, [togglePlaybackInTrim]);
+	useEditorKeyboardShortcuts({ onTogglePlayback: togglePlaybackInTrim });
 
 	const handleExportFrameToImageEditor = useCallback(
 		(frameFile: File) => {
@@ -951,10 +845,12 @@ function VideoStudio() {
 			>
 				{/* ── Presets Tab ── */}
 				{videoMode === 'presets' && (
-					<PresetsPanel
-						groupedPresets={groupedPresets}
+					<SharedPresetsPanel
+						presets={VIDEO_PRESET_ENTRIES}
 						selectedPreset={selectedPreset}
 						onSelectPreset={setSelectedPreset}
+						emptyLabel="Pick a preset optimized for your target platform, then export."
+						fallbackIconLetter="V"
 					/>
 				)}
 

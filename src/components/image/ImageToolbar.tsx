@@ -1,7 +1,8 @@
-import { Undo2, Redo2, ZoomOut, ZoomIn, Maximize, MousePointer, Crop, Columns2, Info, FilePlus2 } from 'lucide-react';
+import { Undo2, Redo2, ZoomOut, ZoomIn, Maximize, MousePointer, Crop, Columns2 } from 'lucide-react';
 import { useCallback } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { EditorToolbar } from '@/components/editor/EditorToolbar.tsx';
+import { FileChooserCluster } from '@/components/editor/ToolbarParts.tsx';
 import { IconButton, ToolbarSeparator } from '@/components/ui/IconButton.tsx';
 import type { ActiveTool } from '@/stores/imageEditor.ts';
 import { useImageEditorStore } from '@/stores/imageEditor.ts';
@@ -191,29 +192,12 @@ export function ImageToolbar({ containerRef, fileName, onOpenFile, onNew, onShow
 
 			<ToolbarSeparator />
 
-			{/* File chooser */}
-			<button
-				onClick={onOpenFile}
-				className="h-7 max-w-36 rounded-md bg-surface-raised/50 border border-border/60 px-2.5 text-[12px] font-medium text-text-secondary hover:bg-surface-raised hover:text-text transition-colors cursor-pointer truncate"
-				title={fileName ?? 'Choose Image'}
-			>
-				{fileName ?? 'Open'}
-			</button>
-			{onNew && (
-				<IconButton onClick={onNew} title="New (discard current)">
-					<FilePlus2 size={14} />
-				</IconButton>
-			)}
-
-			{/* Info button */}
-			{onShowInfo && (
-				<>
-					<ToolbarSeparator />
-					<IconButton onClick={onShowInfo} title="File info">
-						<Info size={16} />
-					</IconButton>
-				</>
-			)}
+			<FileChooserCluster
+				fileName={fileName ?? 'Open'}
+				onOpenFile={onOpenFile}
+				onNew={onNew}
+				onShowInfo={onShowInfo}
+			/>
 		</EditorToolbar>
 	);
 }

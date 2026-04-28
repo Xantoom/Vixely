@@ -4,15 +4,11 @@ import {
 	Crop,
 	Download,
 	Film,
-	ImageIcon,
 	Layers,
 	Palette,
-	Scissors,
 	Settings2,
-	ShieldCheck,
 	SlidersHorizontal,
 	Sparkles,
-	Video,
 	Zap,
 } from 'lucide-react';
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
@@ -48,91 +44,23 @@ import { Timeline } from '@/components/ui/Timeline.tsx';
 import { ToolRail, type ToolRailItem } from '@/components/ui/ToolRail.tsx';
 import { UrlImportButton } from '@/components/ui/UrlImportButton.tsx';
 import { gifPresetEntries, GIF_ACCEPT } from '@/config/presets.ts';
+import { useEditorKeyboardShortcuts } from '@/hooks/useEditorKeyboardShortcuts.ts';
 import { useEditorLayoutPrefs } from '@/hooks/useEditorLayoutPrefs.ts';
+import { useEditorUnsavedState } from '@/hooks/useEditorUnsavedState.ts';
 import { useFrameStepController } from '@/hooks/useFrameStepController.ts';
 import { useGifDecoder } from '@/hooks/useGifDecoder.ts';
 import { useLongTaskObserver } from '@/hooks/useLongTaskObserver.ts';
 import { useObjectUrlState } from '@/hooks/useObjectUrlState.ts';
 import { usePanZoom } from '@/hooks/usePanZoom.ts';
 import { usePendingActionConfirmation } from '@/hooks/usePendingActionConfirmation.ts';
-import { usePreventUnload } from '@/hooks/usePreventUnload.ts';
 import { useSingleFileDrop } from '@/hooks/useSingleFileDrop.ts';
 import { useTimelineScrubController } from '@/hooks/useTimelineScrubController.ts';
 import { useVideoProcessor } from '@/hooks/useVideoProcessor.ts';
 import { filtersAreDefault } from '@/modules/shared-core/types/filters.ts';
-import { useEditorSessionStore } from '@/stores/editorSession.ts';
 import { useGifEditorStore, type GifMode } from '@/stores/gifEditor.ts';
 import { buildExportFilename } from '@/utils/exportFilename.ts';
 import { formatFileSize } from '@/utils/format.ts';
-
-/* ── SEO Landing Data ── */
-
-const GIF_LANDING_FEATURES = [
-	{
-		icon: Zap,
-		title: 'Optimize & Compress',
-		description:
-			'Reduce GIF file size dramatically while preserving visual quality. Perfect for sharing on Discord and social media.',
-	},
-	{
-		icon: Scissors,
-		title: 'Trim & Cut',
-		description: 'Remove unwanted frames, trim start and end points, and keep only the best parts of your GIF.',
-	},
-	{
-		icon: Palette,
-		title: 'Colors & Filters',
-		description: 'Adjust brightness, contrast, saturation, and apply creative filters with real-time preview.',
-	},
-	{
-		icon: ShieldCheck,
-		title: 'Privacy First',
-		description:
-			'Your GIFs never leave your device. All processing runs locally in your browser using native WebCodecs, WebGL2 and the Mediabunny library.',
-	},
-] as const;
-
-const GIF_LANDING_FORMATS = ['GIF', 'APNG', 'WebP (animated)', 'MP4 (to GIF)'] as const;
-
-const GIF_LANDING_FAQS = [
-	{
-		question: 'How do I reduce GIF file size?',
-		answer: 'Use the Optimize panel to reduce colors, resize dimensions, adjust frame rate, and apply lossy compression. Vixely can often reduce GIF file sizes by 50-80% while maintaining good visual quality.',
-	},
-	{
-		question: 'Can I trim a GIF?',
-		answer: 'Yes. Use the timeline to set trim start and end points, then export to keep only the frames you want. You can also convert a video clip to GIF with custom timing.',
-	},
-	{
-		question: 'What GIF formats are supported?',
-		answer: 'Vixely supports GIF, APNG, and animated WebP. You can also convert video files (MP4, WebM, etc.) to GIF format with full control over quality and frame rate.',
-	},
-	{
-		question: 'Is my GIF uploaded to a server?',
-		answer: 'No. All GIF processing happens entirely in your browser using native WebCodecs, WebGL2 and the Mediabunny library. Your files never leave your device — completely private.',
-	},
-] as const;
-
-const GIF_CROSS_LINKS = [
-	{
-		title: 'Video Editor',
-		subtitle: 'Trim, resize & export videos',
-		href: '/tools/video' as const,
-		icon: Video,
-		accentBg: 'bg-blue-500/10',
-		accentText: 'text-blue-400',
-		borderTop: 'border-t-blue-500',
-	},
-	{
-		title: 'Image Editor',
-		subtitle: 'Crop, adjust & export images',
-		href: '/tools/image' as const,
-		icon: ImageIcon,
-		accentBg: 'bg-amber-500/10',
-		accentText: 'text-amber-400',
-		borderTop: 'border-t-amber-500',
-	},
-] as const;
+import { GIF_CROSS_LINKS, GIF_LANDING_FAQS, GIF_LANDING_FEATURES, GIF_LANDING_FORMATS } from './gif.landing.ts';
 
 export const Route = createFileRoute('/tools/gif')({ component: GifFoundry });
 
@@ -236,7 +164,6 @@ function GifFoundry() {
 	const { isConfirmOpen, requestAction, confirmPendingAction, cancelPendingAction } = usePendingActionConfirmation(
 		file !== null,
 	);
-	const setEditorUnsaved = useEditorSessionStore((s) => s.setUnsaved);
 
 	const videoRef = useRef<HTMLVideoElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -387,14 +314,7 @@ function GifFoundry() {
 	}, [store.filters, store.rotation, store.flipH, store.flipV]);
 
 	const isDirty = file !== null;
-	usePreventUnload(isDirty || processing);
-
-	useEffect(() => {
-		setEditorUnsaved('gif', isDirty);
-		return () => {
-			setEditorUnsaved('gif', false);
-		};
-	}, [isDirty, setEditorUnsaved]);
+	useEditorUnsavedState('gif', isDirty || processing);
 	const videoFps = Math.max(1, fps);
 	const frameDuration = 1 / videoFps;
 	const minTrimDuration = frameDuration;
@@ -544,40 +464,20 @@ function GifFoundry() {
 		video.pause();
 	}, [frameDuration, isGifSource, processing, trimEnd, trimStart]);
 
-	/* ── Keyboard shortcuts ── */
-	useEffect(() => {
-		const onKeyDown = (e: KeyboardEvent) => {
-			if (
-				e.target instanceof HTMLInputElement ||
-				e.target instanceof HTMLTextAreaElement ||
-				e.target instanceof HTMLSelectElement ||
-				(e.target instanceof HTMLElement && e.target.isContentEditable)
-			) {
-				return;
-			}
-			if (e.key === ' ') {
-				e.preventDefault();
-				if (isGifSource && hasDecodedFrames) {
-					handleToggleGifPause();
-				} else {
-					togglePlaybackInTrim();
-				}
-			}
-			if (isGifSource && hasDecodedFrames) {
-				if (e.key === 'ArrowLeft') {
-					e.preventDefault();
+	const gifFrameStepEnabled = isGifSource && hasDecodedFrames;
+	useEditorKeyboardShortcuts({
+		onTogglePlayback: gifFrameStepEnabled ? handleToggleGifPause : togglePlaybackInTrim,
+		onArrowLeft: gifFrameStepEnabled
+			? () => {
 					handleGifStepFrame(-1);
-				} else if (e.key === 'ArrowRight') {
-					e.preventDefault();
+				}
+			: undefined,
+		onArrowRight: gifFrameStepEnabled
+			? () => {
 					handleGifStepFrame(1);
 				}
-			}
-		};
-		window.addEventListener('keydown', onKeyDown);
-		return () => {
-			window.removeEventListener('keydown', onKeyDown);
-		};
-	}, [togglePlaybackInTrim, isGifSource, hasDecodedFrames, handleToggleGifPause, handleGifStepFrame]);
+			: undefined,
+	});
 
 	/* ── Resize Handlers ── */
 	const handleWidthChange = useCallback(
