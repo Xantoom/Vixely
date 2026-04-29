@@ -14,8 +14,8 @@ import {
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { formatPlayerTime } from '@/components/ui/Timeline.tsx';
+import { composeFilters } from '@/config/looks.ts';
 import { FilterPipeline } from '@/modules/shared-core/filter-pipeline.ts';
-import { filtersAreDefault } from '@/modules/shared-core/types/filters.ts';
 import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
 import { useVideoEditorStore, type StreamInfo } from '@/stores/videoEditor.ts';
 import { formatChannels, getLanguageName } from '@/utils/languageUtils.ts';
@@ -31,6 +31,7 @@ interface VideoPlayerProps {
 	timelineScrubbing?: boolean;
 	scrubPreviewTime?: number | null;
 	videoRef: RefObject<HTMLVideoElement | null>;
+	captureCanvasRef?: RefObject<HTMLCanvasElement | null>;
 	metadataLoading?: boolean;
 	assSubtitleContent?: string | null;
 	embeddedFonts?: EmbeddedFont[];
@@ -157,11 +158,9 @@ type TrackSelectorButtonProps = {
 };
 
 function CompareOverlay({
-	combinedFilter,
 	comparePosition,
 	setComparePosition,
 }: {
-	combinedFilter: string;
 	comparePosition: number;
 	setComparePosition: (pos: number) => void;
 }) {
@@ -206,18 +205,6 @@ function CompareOverlay({
 
 	return (
 		<div ref={containerRef} className="absolute inset-0 z-15 pointer-events-none" style={{ touchAction: 'none' }}>
-			{/* Filtered overlay on the right side */}
-			{combinedFilter && (
-				<div
-					className="absolute inset-0"
-					style={{
-						clipPath: `inset(0 0 0 ${pct})`,
-						backdropFilter: combinedFilter,
-						WebkitBackdropFilter: combinedFilter,
-					}}
-				/>
-			)}
-
 			{/* Labels */}
 			<div
 				className="absolute rounded-md bg-bg/70 px-2 py-0.5 text-[11px] font-medium backdrop-blur-sm text-text-secondary"
@@ -352,7 +339,8 @@ function VideoPlayerImpl({
 	timelineScrubbing = false,
 	scrubPreviewTime = null,
 	videoRef,
-	metadataLoading = false,
+	captureCanvasRef,
+	metadataLoading: _metadataLoading = false,
 	assSubtitleContent,
 	embeddedFonts = [],
 	compareMode: compareModeFromProp = false,
@@ -421,6 +409,8 @@ function VideoPlayerImpl({
 		setTracks,
 		setResize,
 		filters,
+		lookId,
+		lookIntensity,
 		resizeWidth,
 		resizeHeight,
 		resizeOriginalWidth,
@@ -441,6 +431,8 @@ function VideoPlayerImpl({
 			setTracks: s.setTracks,
 			setResize: s.setResize,
 			filters: s.filters,
+			lookId: s.lookId,
+			lookIntensity: s.lookIntensity,
 			resizeWidth: s.resize.width,
 			resizeHeight: s.resize.height,
 			resizeOriginalWidth: s.resize.originalWidth,
@@ -486,35 +478,24 @@ function VideoPlayerImpl({
 			return { label, details, isDefault: s.isDefault, isForced: s.isForced };
 		});
 	}, [subtitleStreams]);
-	const combinedFilter = useMemo(() => {
-		const parts: string[] = [];
-		if (filters.brightness !== 0) parts.push(`brightness(${1 + filters.brightness})`);
-		if (filters.contrast !== 1) parts.push(`contrast(${filters.contrast})`);
-		if (filters.saturation !== 1) parts.push(`saturate(${filters.saturation})`);
-		if (filters.hue !== 0) parts.push(`hue-rotate(${filters.hue}deg)`);
-		if (filters.sepia > 0) parts.push(`sepia(${filters.sepia})`);
-		if (filters.blur > 0) parts.push(`blur(${filters.blur}px)`);
-		if (metadataLoading) parts.push('blur(2px)');
-		return parts.length > 0 ? parts.join(' ') : undefined;
-	}, [filters, metadataLoading]);
+	// Compose the user's base filters with any active Look — this is the single
+	// source of truth that drives both preview and export rendering.
+	const composedFilters = useMemo(
+		() => composeFilters(filters, lookId, lookIntensity),
+		[filters, lookId, lookIntensity],
+	);
 
-	// Keep a mutable ref of filters for the WebGL render loop
-	webglFiltersRef.current = filters;
-	const hasFilters = !filtersAreDefault(filters);
+	// Keep a mutable ref of composed filters for the WebGL render loop
+	webglFiltersRef.current = composedFilters;
 
-	// WebGL FilterPipeline: renders video frames through GPU shaders for all 13 filters
+	// WebGL FilterPipeline always runs — its identity fast-path keeps the cost
+	// at one draw call when the user has applied no edits. Activating
+	// unconditionally avoids the create/destroy churn that used to happen on
+	// every first slider tweak.
 	useEffect(() => {
 		const canvas = webglCanvasRef.current;
 		const video = videoRef.current;
 		if (!canvas || !video) return;
-
-		// Only activate WebGL when filters are applied
-		if (!hasFilters) {
-			setWebglActive(false);
-			webglPipelineRef.current?.destroy();
-			webglPipelineRef.current = null;
-			return;
-		}
 
 		let pipeline: FilterPipeline;
 		try {
@@ -523,7 +504,6 @@ function VideoPlayerImpl({
 			}
 			pipeline = webglPipelineRef.current;
 		} catch {
-			// WebGL unavailable — fall back to CSS filters
 			setWebglActive(false);
 			return;
 		}
@@ -536,7 +516,6 @@ function VideoPlayerImpl({
 			if (video.readyState < 2) return;
 
 			try {
-				// Create a VideoFrame from the current video element
 				const frame = new VideoFrame(video);
 				pipeline.uploadVideoFrame(frame);
 				pipeline.render(webglFiltersRef.current!);
@@ -546,7 +525,6 @@ function VideoPlayerImpl({
 			}
 		};
 
-		// Use requestVideoFrameCallback for frame-accurate sync (if available)
 		const hasRvfc = 'requestVideoFrameCallback' in video;
 		let rvfcId = 0;
 
@@ -567,7 +545,6 @@ function VideoPlayerImpl({
 			}
 		};
 
-		// Initial render for paused state
 		renderFrame();
 		scheduleNext();
 
@@ -583,9 +560,9 @@ function VideoPlayerImpl({
 				webglRafRef.current = 0;
 			}
 		};
-	}, [videoRef, hasFilters]);
+	}, [videoRef]);
 
-	// Re-render WebGL when filters change while paused
+	// Re-render the current frame when filters change while paused.
 	useEffect(() => {
 		if (!webglActive || !webglPipelineRef.current) return;
 		const video = videoRef.current;
@@ -594,12 +571,12 @@ function VideoPlayerImpl({
 		try {
 			const frame = new VideoFrame(video);
 			webglPipelineRef.current.uploadVideoFrame(frame);
-			webglPipelineRef.current.render(filters);
+			webglPipelineRef.current.render(composedFilters);
 			frame.close();
 		} catch {
 			// Ignore
 		}
-	}, [filters, webglActive, videoRef]);
+	}, [composedFilters, webglActive, videoRef]);
 
 	// Cleanup pipeline on unmount
 	useEffect(() => {
@@ -1817,19 +1794,22 @@ function VideoPlayerImpl({
 					onClick={togglePlay}
 					draggable={false}
 					onDragStart={handleVideoDragStart}
-					className="w-full h-full object-contain cursor-pointer transition-[filter] duration-200"
-					style={{
-						...(webglActive && !compareModeFromProp ? { opacity: 0 } : {}),
-						...(!webglActive && combinedFilter && !compareModeFromProp ? { filter: combinedFilter } : {}),
-					}}
+					className="w-full h-full object-contain cursor-pointer"
+					style={webglActive && !compareModeFromProp ? { opacity: 0 } : undefined}
 				/>
-				{/* WebGL filter canvas — overlays video when filters are active */}
+				{/* WebGL filter canvas — always rendered (identity fast-path when no
+				    edits). In compare mode it is clipped to the right of the divider
+				    so the raw <video> element shows through on the left. */}
 				<canvas
-					ref={webglCanvasRef}
+					ref={(node) => {
+						webglCanvasRef.current = node;
+						if (captureCanvasRef) captureCanvasRef.current = node;
+					}}
 					onClick={togglePlay}
 					className={`absolute inset-0 z-5 h-full w-full object-contain cursor-pointer transition-opacity duration-150 ${
-						webglActive && !compareModeFromProp ? 'opacity-100' : 'opacity-0 pointer-events-none'
+						webglActive ? 'opacity-100' : 'opacity-0 pointer-events-none'
 					}`}
+					style={compareModeFromProp ? { clipPath: `inset(0 0 0 ${comparePosition * 100}%)` } : undefined}
 					aria-hidden={!webglActive}
 				/>
 				<canvas
@@ -1837,9 +1817,6 @@ function VideoPlayerImpl({
 					className={`pointer-events-none absolute inset-0 z-10 h-full w-full object-contain transition-opacity duration-100 ${
 						timelineScrubbing && showScrubPreviewFrame ? 'opacity-100' : 'opacity-0'
 					}`}
-					style={
-						!webglActive && combinedFilter && !compareModeFromProp ? { filter: combinedFilter } : undefined
-					}
 					aria-hidden="true"
 				/>
 				{hasResizeSelectionZone && resizeZoneRect && (
@@ -1983,11 +1960,7 @@ function VideoPlayerImpl({
 
 				{/* Compare mode overlay */}
 				{compareModeFromProp && (
-					<CompareOverlay
-						combinedFilter={combinedFilter ?? ''}
-						comparePosition={comparePosition}
-						setComparePosition={setComparePosition}
-					/>
+					<CompareOverlay comparePosition={comparePosition} setComparePosition={setComparePosition} />
 				)}
 
 				<div

@@ -26,18 +26,21 @@ const accentStyles = {
 		iconColor: 'text-blue-400',
 		cta: 'bg-blue-500 hover:bg-blue-500/90',
 		topBorder: 'border-t-blue-500',
+		poweredBy: 'WebCodecs, WebGL2 & Mediabunny',
 	},
 	amber: {
 		iconBg: 'bg-amber-500/10',
 		iconColor: 'text-amber-400',
 		cta: 'bg-amber-500 hover:bg-amber-500/90',
 		topBorder: 'border-t-amber-500',
+		poweredBy: 'Canvas & WebGL2',
 	},
 	emerald: {
 		iconBg: 'bg-emerald-500/10',
 		iconColor: 'text-emerald-400',
 		cta: 'bg-emerald-500 hover:bg-emerald-500/90',
 		topBorder: 'border-t-emerald-500',
+		poweredBy: 'WebCodecs, WebGL2 & Mediabunny',
 	},
 } as const;
 
@@ -155,7 +158,7 @@ export function FeatureLanding({
 			{/* Footer note */}
 			<div className="px-4 py-8 text-center border-t border-border">
 				<p className="text-[12px] text-text-tertiary">
-					100% client-side &middot; No uploads &middot; Powered by WebCodecs &amp; WebGL2
+					100% client-side &middot; No uploads &middot; Powered by {styles.poweredBy}
 				</p>
 			</div>
 		</div>

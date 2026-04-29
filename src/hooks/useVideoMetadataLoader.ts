@@ -15,7 +15,7 @@ interface UseVideoMetadataLoaderParams {
 	probeDetails: (file: File) => Promise<DetailedProbeResultData>;
 	preBurnedAssInputRef: RefObject<HTMLInputElement | null>;
 	subtitleCacheRef: MutableRefObject<Map<string, SubtitlePreviewData>>;
-	setFile: (value: File | null) => void;
+	setSourceFile: (value: File | null) => void;
 	setResultUrl: (value: string | null) => void;
 	setResultExt: (value: string | null) => void;
 	setStreamInfoPending: (value: boolean) => void;
@@ -35,7 +35,6 @@ interface UseVideoMetadataLoaderParams {
 	setPreBurnedAssSourceFile: (value: File | null) => void;
 	setVideoNoReencode: (value: boolean) => void;
 	setAudioNoReencode: (value: boolean) => void;
-	setVideoUrl: (value: string | null) => void;
 	setEmbeddedFonts: (value: FontData[]) => void;
 	setProbeResult: (value: ProbeResult | null) => void;
 	setTracks: (value: Partial<TrackSelection>) => void;
@@ -83,7 +82,7 @@ export function useVideoMetadataLoader({
 	probeDetails,
 	preBurnedAssInputRef,
 	subtitleCacheRef,
-	setFile,
+	setSourceFile,
 	setResultUrl,
 	setResultExt,
 	setStreamInfoPending,
@@ -103,7 +102,6 @@ export function useVideoMetadataLoader({
 	setPreBurnedAssSourceFile,
 	setVideoNoReencode,
 	setAudioNoReencode,
-	setVideoUrl,
 	setEmbeddedFonts,
 	setProbeResult,
 	setTracks,
@@ -117,7 +115,7 @@ export function useVideoMetadataLoader({
 			const probeRequestId = ++probeRequestIdRef.current;
 			const detailedProbeRequestId = ++detailedProbeRequestIdRef.current;
 
-			setFile(file);
+			setSourceFile(file);
 			setResultUrl(null);
 			setResultExt(null);
 			setStreamInfoPending(true);
@@ -137,7 +135,6 @@ export function useVideoMetadataLoader({
 			setPreBurnedAssSourceFile(null);
 			setVideoNoReencode(false);
 			setAudioNoReencode(true);
-			setVideoUrl(URL.createObjectURL(file));
 			if (preBurnedAssInputRef.current) preBurnedAssInputRef.current.value = '';
 			toast.success('Video loaded', { description: file.name });
 
@@ -230,7 +227,7 @@ export function useVideoMetadataLoader({
 			probeDetails,
 			preBurnedAssInputRef,
 			subtitleCacheRef,
-			setFile,
+			setSourceFile,
 			setResultUrl,
 			setResultExt,
 			setStreamInfoPending,
@@ -250,7 +247,6 @@ export function useVideoMetadataLoader({
 			setPreBurnedAssSourceFile,
 			setVideoNoReencode,
 			setAudioNoReencode,
-			setVideoUrl,
 			setEmbeddedFonts,
 			setProbeResult,
 			setTracks,

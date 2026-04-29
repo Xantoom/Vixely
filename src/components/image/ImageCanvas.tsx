@@ -1,6 +1,7 @@
 import { useRef, useEffect, useMemo, useState, type RefObject } from 'react';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
+import { composeFilters } from '@/config/looks.ts';
 import { usePanZoom } from '@/hooks/usePanZoom.ts';
 import { buildFallbackFilterString } from '@/modules/photo-editor/render/fallback-filters.ts';
 import { PhotoWebGLRenderer } from '@/modules/photo-editor/render/webgl-renderer.ts';
@@ -60,6 +61,8 @@ export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 	const {
 		originalData,
 		filters,
+		lookId,
+		lookIntensity,
 		showOriginal,
 		view,
 		setView,
@@ -74,6 +77,8 @@ export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 		useShallow((s) => ({
 			originalData: s.originalData,
 			filters: s.filters,
+			lookId: s.lookId,
+			lookIntensity: s.lookIntensity,
 			showOriginal: s.showOriginal,
 			view: s.view,
 			setView: s.setView,
@@ -87,10 +92,15 @@ export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 		})),
 	);
 
+	const composedFilters = useMemo(
+		() => composeFilters(filters, lookId, lookIntensity),
+		[filters, lookId, lookIntensity],
+	);
+
 	const filteredCanvasRef = useRef<HTMLCanvasElement>(null);
 	const originalCanvasRef = useRef<HTMLCanvasElement>(null);
 	const rendererRef = useRef<PhotoWebGLRenderer | null>(null);
-	const filtersRef = useRef(filters);
+	const filtersRef = useRef(composedFilters);
 	const [rendererReadyToken, setRendererReadyToken] = useState(0);
 	const webglErrorNotifiedRef = useRef(false);
 	const [webglUnavailable, setWebglUnavailable] = useState(false);
@@ -184,8 +194,8 @@ export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 	const needsOriginalPreview = showOriginal || compareMode;
 
 	useEffect(() => {
-		filtersRef.current = filters;
-	}, [filters]);
+		filtersRef.current = composedFilters;
+	}, [composedFilters]);
 
 	// Upload source image when it changes
 	useEffect(() => {
@@ -223,7 +233,7 @@ export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 		}
 	}, [originalData, webglUnavailable, needsOriginalPreview, rendererReadyToken]);
 
-	// Render filtered image on every filter change
+	// Render filtered image on every filter / look change
 	useEffect(() => {
 		const renderer = rendererRef.current;
 		if (!originalData || !renderer || webglUnavailable) return;
@@ -233,13 +243,13 @@ export function ImageCanvas({ containerRef }: ImageCanvasProps) {
 			sharedSourceData = originalData;
 		}
 
-		renderer.render(filters);
+		renderer.render(composedFilters);
 		drawImageSourceToCanvas(filteredCanvasRef.current, renderer.canvas, renderer.width, renderer.height);
-	}, [originalData, filters, webglUnavailable]);
+	}, [originalData, composedFilters, webglUnavailable]);
 
 	const fallbackFilter = useMemo(
-		() => (webglUnavailable ? buildFallbackFilterString(filters) : undefined),
-		[webglUnavailable, filters],
+		() => (webglUnavailable ? buildFallbackFilterString(composedFilters) : undefined),
+		[webglUnavailable, composedFilters],
 	);
 
 	const imgW = originalData?.width ?? 0;

@@ -3,14 +3,12 @@ import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import { resolve } from "node:path";
 import { defineConfig } from "vite";
-import wasm from "vite-plugin-wasm";
 
 export default defineConfig({
 	plugins: [
 		tanstackRouter({ target: "react", autoCodeSplitting: true }),
 		react(),
 		tailwindcss(),
-		wasm(),
 	],
 
 	resolve: { alias: { "@": resolve(import.meta.dirname, "./src") } },

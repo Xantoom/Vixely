@@ -15,6 +15,7 @@ import {
 	type ConversionVideoOptions,
 	type InputTrack,
 	type MetadataTags,
+	type TrackDisposition,
 } from 'mediabunny';
 import { encodeGif } from '@/modules/gif-editor/encode/gif-encoder.ts';
 import {
@@ -591,8 +592,19 @@ function parseTrackMapToken(value: string): { wildcardType?: 'audio' | 'subtitle
 	return {};
 }
 
-function toDispositionRecord(track: InputTrack): Record<string, number> {
-	const disposition = track.disposition;
+async function probeDuration(input: Input): Promise<number> {
+	const fromMeta = await input.getDurationFromMetadata().catch(() => null);
+	if (fromMeta != null && Number.isFinite(fromMeta)) return fromMeta;
+	return input.computeDuration();
+}
+
+async function probeTrackDuration(track: InputTrack): Promise<number | undefined> {
+	const fromMeta = await track.getDurationFromMetadata().catch(() => null);
+	if (fromMeta != null && Number.isFinite(fromMeta)) return fromMeta;
+	return track.computeDuration().catch(() => undefined);
+}
+
+function dispositionToRecord(disposition: TrackDisposition): Record<string, number> {
 	return {
 		default: disposition.default ? 1 : 0,
 		forced: disposition.forced ? 1 : 0,
@@ -603,21 +615,23 @@ function toDispositionRecord(track: InputTrack): Record<string, number> {
 	};
 }
 
-function maybeTrackLanguage(track: InputTrack): string | undefined {
-	const language = track.languageCode?.trim();
+async function maybeTrackLanguage(track: InputTrack): Promise<string | undefined> {
+	const language = (await track.getLanguageCode())?.trim();
 	if (!language || language.toLowerCase() === 'und') return undefined;
 	return language;
 }
 
-function maybeTrackTitle(track: InputTrack): string | undefined {
-	const title = track.name?.trim();
+async function maybeTrackTitle(track: InputTrack): Promise<string | undefined> {
+	const title = (await track.getName())?.trim();
 	return title || undefined;
 }
 
-function codecLabel(track: InputTrack): string {
-	if (track.codec) return track.codec;
-	if (typeof track.internalCodecId === 'string' && track.internalCodecId.trim()) return track.internalCodecId;
-	if (typeof track.internalCodecId === 'number') return String(track.internalCodecId);
+async function codecLabel(track: InputTrack): Promise<string> {
+	const codec = await track.getCodec();
+	if (codec) return codec;
+	const internal = await track.getInternalCodecId();
+	if (typeof internal === 'string' && internal.trim()) return internal;
+	if (typeof internal === 'number') return String(internal);
 	return 'unknown';
 }
 
@@ -956,25 +970,33 @@ function buildVideoProcess(context: BuildVideoProcessContext): ConversionVideoOp
 	};
 }
 
-function makeProbeStreamInfo(track: InputTrack): ProbeStreamInfo {
+async function makeProbeStreamInfo(track: InputTrack): Promise<ProbeStreamInfo> {
+	const [codec, language, title, disposition] = await Promise.all([
+		codecLabel(track),
+		maybeTrackLanguage(track),
+		maybeTrackTitle(track),
+		track.getDisposition(),
+	]);
 	const base: ProbeStreamInfo = {
 		index: track.id,
 		type: track.type,
-		codec: codecLabel(track),
-		language: maybeTrackLanguage(track),
-		title: maybeTrackTitle(track),
-		isDefault: track.disposition.default,
-		isForced: track.disposition.forced,
-		disposition: toDispositionRecord(track),
+		codec,
+		language,
+		title,
+		isDefault: disposition.default,
+		isForced: disposition.forced,
+		disposition: dispositionToRecord(disposition),
 	};
 
 	if (track.isVideoTrack()) {
-		base.width = track.displayWidth;
-		base.height = track.displayHeight;
+		const [width, height] = await Promise.all([track.getDisplayWidth(), track.getDisplayHeight()]);
+		base.width = width;
+		base.height = height;
 	}
 	if (track.isAudioTrack()) {
-		base.sampleRate = track.sampleRate;
-		base.channels = track.numberOfChannels;
+		const [sampleRate, channels] = await Promise.all([track.getSampleRate(), track.getNumberOfChannels()]);
+		base.sampleRate = sampleRate;
+		base.channels = channels;
 	}
 
 	return base;
@@ -1041,7 +1063,7 @@ async function handleProbe(msg: ProbeMessage): Promise<void> {
 		ensureJobNotCancelled(msg.jobId);
 		const [format, duration, tracks, tags] = await Promise.all([
 			input.getFormat(),
-			input.computeDuration(),
+			probeDuration(input),
 			input.getTracks(),
 			input.getMetadataTags(),
 		]);
@@ -1051,8 +1073,7 @@ async function handleProbe(msg: ProbeMessage): Promise<void> {
 		const streamEntries = await mapInBatches(
 			mediaTracks,
 			async (track) => {
-				const stream = makeProbeStreamInfo(track);
-				const stats = await computeQuickTrackStats(track);
+				const [stream, stats] = await Promise.all([makeProbeStreamInfo(track), computeQuickTrackStats(track)]);
 				if (stats.fps != null) stream.fps = stats.fps;
 				if (stats.bitrate != null) stream.bitrate = stats.bitrate;
 				return stream;
@@ -1117,7 +1138,7 @@ async function handleProbeDetails(msg: ProbeDetailsMessage): Promise<void> {
 		ensureJobNotCancelled(msg.jobId);
 		const [format, duration, tracks, tags, mimeType] = await Promise.all([
 			input.getFormat(),
-			input.computeDuration(),
+			probeDuration(input),
 			input.getTracks(),
 			input.getMetadataTags(),
 			input.getMimeType(),
@@ -1128,11 +1149,17 @@ async function handleProbeDetails(msg: ProbeDetailsMessage): Promise<void> {
 		const streams = await mapInBatches(
 			mediaTracks,
 			async (track) => {
-				const [packetStats, trackDuration, startTime] = await Promise.all([
-					track.computePacketStats().catch(() => null),
-					track.computeDuration().catch(() => undefined),
-					track.getFirstTimestamp().catch(() => undefined),
-				]);
+				const [packetStats, trackDuration, startTime, language, title, codec, internalCodecId, disposition] =
+					await Promise.all([
+						track.computePacketStats().catch(() => null),
+						probeTrackDuration(track),
+						track.getFirstTimestamp().catch(() => undefined),
+						maybeTrackLanguage(track),
+						maybeTrackTitle(track),
+						codecLabel(track),
+						track.getInternalCodecId(),
+						track.getDisposition(),
+					]);
 				const fps =
 					track.type === 'video' && packetStats && Number.isFinite(packetStats.averagePacketRate)
 						? packetStats.averagePacketRate
@@ -1142,43 +1169,40 @@ async function handleProbeDetails(msg: ProbeDetailsMessage): Promise<void> {
 						? packetStats.averageBitrate
 						: undefined;
 
-				const language = maybeTrackLanguage(track);
-				const title = maybeTrackTitle(track);
 				const detail: DetailedProbeStreamInfo = {
 					index: track.id,
 					codec_type: track.type,
-					codec_name: codecLabel(track),
-					codec_long_name: codecLabel(track),
+					codec_name: codec,
+					codec_long_name: codec,
 					codec_tag_string:
-						typeof track.internalCodecId === 'string' && track.internalCodecId.trim()
-							? track.internalCodecId
-							: undefined,
+						typeof internalCodecId === 'string' && internalCodecId.trim() ? internalCodecId : undefined,
 					avg_frame_rate: toFpsFraction(fps),
 					r_frame_rate: toFpsFraction(fps),
 					bit_rate: bitrateBps != null ? String(Math.round(bitrateBps)) : undefined,
 					duration:
 						trackDuration != null && Number.isFinite(trackDuration) ? String(trackDuration) : undefined,
 					start_time: startTime != null && Number.isFinite(startTime) ? String(startTime) : undefined,
-					disposition: toDispositionRecord(track),
+					disposition: dispositionToRecord(disposition),
 					tags: { ...(language ? { language } : {}), ...(title ? { title } : {}) },
 				};
 
 				if (track.isVideoTrack()) {
-					detail.width = track.displayWidth;
-					detail.height = track.displayHeight;
-					detail.display_aspect_ratio = `${track.displayWidth}:${track.displayHeight}`;
+					const [width, height] = await Promise.all([track.getDisplayWidth(), track.getDisplayHeight()]);
+					detail.width = width;
+					detail.height = height;
+					detail.display_aspect_ratio = `${width}:${height}`;
 					detail.sample_aspect_ratio = '1:1';
 				}
 
 				if (track.isAudioTrack()) {
-					detail.sample_rate = String(track.sampleRate);
-					detail.channels = track.numberOfChannels;
+					const [sampleRate, channels] = await Promise.all([
+						track.getSampleRate(),
+						track.getNumberOfChannels(),
+					]);
+					detail.sample_rate = String(sampleRate);
+					detail.channels = channels;
 					detail.channel_layout =
-						track.numberOfChannels === 1
-							? 'mono'
-							: track.numberOfChannels === 2
-								? 'stereo'
-								: `${track.numberOfChannels} channels`;
+						channels === 1 ? 'mono' : channels === 2 ? 'stereo' : `${channels} channels`;
 				}
 
 				return detail;
@@ -1348,8 +1372,12 @@ async function handleExtractGifFrames(msg: ExtractGifFramesMessage): Promise<voi
 		const videoTrack = await input.getPrimaryVideoTrack();
 		if (!videoTrack) throw new Error('No video track found');
 
-		const trackStart = await videoTrack.getFirstTimestamp();
-		const trackDuration = await videoTrack.computeDuration();
+		const [trackStart, trackDuration, sourceWidth, sourceHeight] = await Promise.all([
+			videoTrack.getFirstTimestamp(),
+			videoTrack.computeDuration(),
+			videoTrack.getDisplayWidth(),
+			videoTrack.getDisplayHeight(),
+		]);
 		const clipStart = clamp(msg.startTime ?? trackStart, trackStart, Math.max(trackStart, trackDuration));
 		const clipDuration = Math.max(0.1, msg.duration ?? Math.max(0.1, trackDuration - clipStart));
 		const speed = clamp(msg.speed ?? 1, 0.1, 8);
@@ -1358,8 +1386,7 @@ async function handleExtractGifFrames(msg: ExtractGifFramesMessage): Promise<voi
 		const sourceStep = speed / fps;
 		const thumbW = msg.thumbWidth ?? 120;
 
-		const height =
-			msg.height ?? Math.max(1, Math.round((msg.width / videoTrack.displayWidth) * videoTrack.displayHeight));
+		const height = msg.height ?? Math.max(1, Math.round((msg.width / sourceWidth) * sourceHeight));
 		const thumbH = Math.round(thumbW * (height / msg.width));
 
 		const sink = new CanvasSink(videoTrack, {
@@ -1447,8 +1474,12 @@ async function handleGif(msg: GifMessage): Promise<void> {
 		const videoTrack = await input.getPrimaryVideoTrack();
 		if (!videoTrack) throw new Error('No video track found');
 
-		const trackStart = await videoTrack.getFirstTimestamp();
-		const trackDuration = await videoTrack.computeDuration();
+		const [trackStart, trackDuration, sourceWidth, sourceHeight] = await Promise.all([
+			videoTrack.getFirstTimestamp(),
+			videoTrack.computeDuration(),
+			videoTrack.getDisplayWidth(),
+			videoTrack.getDisplayHeight(),
+		]);
 		const clipStart = clamp(msg.startTime ?? trackStart, trackStart, Math.max(trackStart, trackDuration));
 		const clipDuration = Math.max(0.1, msg.duration ?? Math.max(0.1, trackDuration - clipStart));
 		const speed = clamp(msg.speed ?? 1, 0.1, 8);
@@ -1473,18 +1504,11 @@ async function handleGif(msg: GifMessage): Promise<void> {
 		const sourceW = hasCrop ? Math.max(1, Math.round(msg.cropW!)) : Math.max(1, msg.width);
 		const sourceH = hasCrop
 			? Math.max(1, Math.round(msg.cropH!))
-			: Math.max(
-					1,
-					msg.height ??
-						Math.max(1, Math.round((msg.width / videoTrack.displayWidth) * videoTrack.displayHeight)),
-				);
+			: Math.max(1, msg.height ?? Math.max(1, Math.round((msg.width / sourceWidth) * sourceHeight)));
 
 		// Sink reads at original resolution (before crop), crop applied during frame compositing
 		const sinkW = Math.max(1, msg.width);
-		const sinkH = Math.max(
-			1,
-			msg.height ?? Math.max(1, Math.round((msg.width / videoTrack.displayWidth) * videoTrack.displayHeight)),
-		);
+		const sinkH = Math.max(1, msg.height ?? Math.max(1, Math.round((msg.width / sourceWidth) * sourceHeight)));
 
 		// Output dimensions (swap W/H for 90/270 rotation)
 		const outputW = rotation === 90 || rotation === 270 ? sourceH : sourceW;
@@ -1532,28 +1556,23 @@ async function handleGif(msg: GifMessage): Promise<void> {
 		if (!finalCtx) throw new Error('Failed to create final frame context');
 
 		const frameIndices = Array.from({ length: outputFrameCount }, (_, index) => index);
-		const decodeStartedAtMs = performance.now();
-		const wrappedFrames = await mapInBatches(
+		const renderedFrames: Array<Uint8Array | null> = Array.from({ length: outputFrameCount }, () => null);
+
+		// Decode + render in a single pass. With CanvasSink's poolSize:1 the same
+		// canvas instance is reused for every getCanvas() call, so we MUST capture
+		// each frame's pixels before requesting the next sample — otherwise every
+		// captured frame ends up showing whatever was decoded last.
+		const pipelineStartedAtMs = performance.now();
+		await mapInBatches(
 			frameIndices,
-			async (i) => {
+			async (i, frameIndex) => {
 				await maybeYieldAndCheckCancellation(msg.jobId, i);
 				const offset = i * sourceStep;
 				const sourceTime = msg.reverse ? clipStart + Math.max(clipDuration - offset, 0) : clipStart + offset;
 				const wrapped = await sink.getCanvas(sourceTime);
 				ensureJobNotCancelled(msg.jobId);
-				return { i, wrapped };
-			},
-			1,
-		);
-		decodeDurationMs = performance.now() - decodeStartedAtMs;
-
-		const renderedFrames: Array<Uint8Array | null> = Array.from({ length: wrappedFrames.length }, () => null);
-		const renderStartedAtMs = performance.now();
-		await mapInBatches(
-			wrappedFrames,
-			async ({ i, wrapped }, frameIndex) => {
-				await maybeYieldAndCheckCancellation(msg.jobId, i);
 				if (!wrapped) return null;
+
 				frameCtx.clearRect(0, 0, frameCanvas.width, frameCanvas.height);
 
 				// Apply CSS filter
@@ -1626,7 +1645,8 @@ async function handleGif(msg: GifMessage): Promise<void> {
 			},
 			1,
 		);
-		renderDurationMs = performance.now() - renderStartedAtMs;
+		decodeDurationMs = performance.now() - pipelineStartedAtMs;
+		renderDurationMs = 0;
 		const frames = renderedFrames.filter((frame): frame is Uint8Array => frame != null);
 
 		overlayBitmap?.close();
@@ -1947,7 +1967,7 @@ async function handleTranscode(msg: TranscodeMessage): Promise<void> {
 			output,
 			trim: trimStart != null || trimEnd != null ? { start: trimStart, end: trimEnd } : undefined,
 			video: (track) => {
-				const options: ConversionVideoOptions = {};
+				const options: ConversionVideoOptions = { keyFrameInterval: 5 };
 				if (track.number > 1) {
 					options.discard = true;
 					return options;

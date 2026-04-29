@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
+import { memo, useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef, type RefObject } from 'react';
 import type { DecodedGifFrame } from '@/hooks/useGifDecoder.ts';
 import { FilterPipeline } from '@/modules/shared-core/filter-pipeline.ts';
 import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
@@ -34,6 +34,8 @@ interface GifCanvasPlayerProps {
 	/** CSS style applied to the canvas (transforms only — filters handled by WebGL) */
 	style?: React.CSSProperties;
 	className?: string;
+	/** Optional external ref for capturing the rendered WebGL frame (note: rendered upside-down). */
+	captureCanvasRef?: RefObject<HTMLCanvasElement | null>;
 }
 
 /**
@@ -58,6 +60,7 @@ export const GifCanvasPlayer = memo(
 			onFrameChange,
 			style,
 			className,
+			captureCanvasRef,
 		},
 		ref,
 	) {
@@ -70,6 +73,7 @@ export const GifCanvasPlayer = memo(
 		const [fadeOpacity, setFadeOpacity] = useState(1);
 		const hasFade = fadeInDuration > 0 || fadeOutDuration > 0;
 		const lastRenderedIndexRef = useRef(-1);
+		const uploadedBitmapRef = useRef<ImageBitmap | null>(null);
 
 		// Ensure pipeline exists
 		const ensurePipeline = useCallback(() => {
@@ -88,7 +92,10 @@ export const GifCanvasPlayer = memo(
 				const idx = Math.max(0, Math.min(index, frames.length - 1));
 				const frame = frames[idx];
 				if (!frame) return;
-				pipeline.uploadImageBitmap(frame.bitmap);
+				if (uploadedBitmapRef.current !== frame.bitmap) {
+					pipeline.uploadImageBitmap(frame.bitmap);
+					uploadedBitmapRef.current = frame.bitmap;
+				}
 				pipeline.render(filtersRef.current);
 				if (lastRenderedIndexRef.current !== idx) {
 					lastRenderedIndexRef.current = idx;
@@ -194,7 +201,10 @@ export const GifCanvasPlayer = memo(
 
 				const frame = frames[idx];
 				if (frame) {
-					pipeline.uploadImageBitmap(frame.bitmap);
+					if (uploadedBitmapRef.current !== frame.bitmap) {
+						pipeline.uploadImageBitmap(frame.bitmap);
+						uploadedBitmapRef.current = frame.bitmap;
+					}
 					pipeline.render(filtersRef.current);
 					if (lastRenderedIndexRef.current !== idx) {
 						lastRenderedIndexRef.current = idx;
@@ -246,6 +256,17 @@ export const GifCanvasPlayer = memo(
 			...(hasFade ? { opacity: fadeOpacity } : {}),
 		};
 
-		return <canvas ref={canvasRef} width={width} height={height} style={finalStyle} className={className} />;
+		return (
+			<canvas
+				ref={(node) => {
+					canvasRef.current = node;
+					if (captureCanvasRef) captureCanvasRef.current = node;
+				}}
+				width={width}
+				height={height}
+				style={finalStyle}
+				className={className}
+			/>
+		);
 	}),
 );

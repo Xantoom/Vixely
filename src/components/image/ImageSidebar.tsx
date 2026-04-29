@@ -1,30 +1,22 @@
-import { Lock, Unlock, Maximize2, SlidersHorizontal, Palette, Download } from 'lucide-react';
-import { startTransition, useCallback, useId, useMemo, useRef, useState } from 'react';
+import { Lock, Unlock, Maximize2, SlidersHorizontal, Download } from 'lucide-react';
+import { useCallback, useId, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
+import { AdjustmentPanel, type AdjustmentBindings } from '@/components/shared/AdjustmentPanel.tsx';
 import { SharedPresetsPanel, type PresetEntry } from '@/components/shared/PresetsPanel.tsx';
 import { Button } from '@/components/ui/Button.tsx';
-import { CollapsibleSection } from '@/components/ui/CollapsibleSection.tsx';
 import { Slider } from '@/components/ui/Slider.tsx';
 import { ToolRail, type ToolRailItem } from '@/components/ui/ToolRail.tsx';
-import {
-	LIGHT_SLIDERS,
-	COLOR_SLIDERS,
-	EFFECT_SLIDERS as EFFECTS_SLIDERS,
-	type FilterSliderDef,
-} from '@/config/filterSliders.ts';
-import { filterPresetEntries, imagePresetEntries } from '@/config/presets.ts';
+import { composeFilters } from '@/config/looks.ts';
+import { imagePresetEntries } from '@/config/presets.ts';
 import { buildFallbackFilterString } from '@/modules/photo-editor/render/fallback-filters.ts';
 import { PhotoWebGLRenderer } from '@/modules/photo-editor/render/webgl-renderer.ts';
-import { DEFAULT_FILTER_PARAMS } from '@/modules/shared-core/types/filters.ts';
-import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
 import { filtersAreDefault } from '@/modules/shared-core/types/filters.ts';
 import { useImageEditorStore, type ExportFormat } from '@/stores/imageEditor.ts';
 import { buildExportFilename } from '@/utils/exportFilename.ts';
 import { formatFileSize, estimateImageSize } from '@/utils/format.ts';
 import { ImageInfoModal } from './ImageInfoModal.tsx';
 
-const FILTER_PRESETS = filterPresetEntries();
 const IMAGE_PRESETS = imagePresetEntries();
 
 const FORMAT_OPTIONS: { value: ExportFormat; label: string }[] = [
@@ -33,20 +25,11 @@ const FORMAT_OPTIONS: { value: ExportFormat; label: string }[] = [
 	{ value: 'webp', label: 'WebP' },
 ];
 
-type ImageMode = 'resize' | 'adjust' | 'presets' | 'export';
-
-function countSliderChanges(sliders: FilterSliderDef[], filters: FilterParams): number {
-	let count = 0;
-	for (const s of sliders) {
-		if (filters[s.key] !== DEFAULT_FILTER_PARAMS[s.key]) count++;
-	}
-	return count;
-}
+type ImageMode = 'resize' | 'adjust' | 'export';
 
 const IMAGE_TOOLS: ToolRailItem<ImageMode>[] = [
 	{ id: 'resize', label: 'Resize', icon: Maximize2 },
 	{ id: 'adjust', label: 'Adjust', icon: SlidersHorizontal },
-	{ id: 'presets', label: 'Presets', icon: Palette },
 	{ id: 'export', label: 'Export', icon: Download },
 ];
 
@@ -60,14 +43,17 @@ export function ImageSidebar({ showInfo, onShowInfoChange }: ImageSidebarProps) 
 		file,
 		originalData,
 		filters,
+		lookId,
+		lookIntensity,
 		exportFormat,
 		exportQuality,
 		resizeWidth,
 		resizeHeight,
 		resizeLockAspect,
 		setFilter,
+		setLook,
+		setLookIntensity,
 		commitFilters,
-		applyFilterPreset,
 		resetFilters,
 		setExportFormat,
 		setExportQuality,
@@ -81,14 +67,17 @@ export function ImageSidebar({ showInfo, onShowInfoChange }: ImageSidebarProps) 
 			file: s.file,
 			originalData: s.originalData,
 			filters: s.filters,
+			lookId: s.lookId,
+			lookIntensity: s.lookIntensity,
 			exportFormat: s.exportFormat,
 			exportQuality: s.exportQuality,
 			resizeWidth: s.resizeWidth,
 			resizeHeight: s.resizeHeight,
 			resizeLockAspect: s.resizeLockAspect,
 			setFilter: s.setFilter,
+			setLook: s.setLook,
+			setLookIntensity: s.setLookIntensity,
 			commitFilters: s.commitFilters,
-			applyFilterPreset: s.applyFilterPreset,
 			resetFilters: s.resetFilters,
 			setExportFormat: s.setExportFormat,
 			setExportQuality: s.setExportQuality,
@@ -128,6 +117,8 @@ export function ImageSidebar({ showInfo, onShowInfoChange }: ImageSidebarProps) 
 		const quality = exportFormat === 'png' ? undefined : exportQuality / 100;
 		let blob: Blob | null = null;
 
+		const composed = composeFilters(filters, lookId, lookIntensity);
+
 		try {
 			// Create an offscreen WebGL renderer for export
 			const offscreen = new OffscreenCanvas(originalData.width, originalData.height);
@@ -136,7 +127,7 @@ export function ImageSidebar({ showInfo, onShowInfoChange }: ImageSidebarProps) 
 			}
 			const renderer = exportRendererRef.current;
 			renderer.loadImageData(originalData);
-			renderer.render(filters);
+			renderer.render(composed);
 
 			// Read from the WebGL canvas
 			const canvas = renderer.canvas;
@@ -156,7 +147,7 @@ export function ImageSidebar({ showInfo, onShowInfoChange }: ImageSidebarProps) 
 			const bitmap = await createImageBitmap(originalData);
 			try {
 				ctx.clearRect(0, 0, fallbackCanvas.width, fallbackCanvas.height);
-				ctx.filter = buildFallbackFilterString(filters);
+				ctx.filter = buildFallbackFilterString(composed);
 				ctx.drawImage(bitmap, 0, 0);
 				ctx.filter = 'none';
 			} finally {
@@ -173,7 +164,7 @@ export function ImageSidebar({ showInfo, onShowInfoChange }: ImageSidebarProps) 
 		a.click();
 		URL.revokeObjectURL(a.href);
 		toast.success('Image exported', { description: formatFileSize(blob.size) });
-	}, [file, originalData, exportFormat, exportQuality, filters]);
+	}, [file, originalData, exportFormat, exportQuality, filters, lookId, lookIntensity]);
 
 	const handleApplyResize = useCallback(() => {
 		applyResize();
@@ -198,28 +189,17 @@ export function ImageSidebar({ showInfo, onShowInfoChange }: ImageSidebarProps) 
 		[setResizeWidth, setResizeHeight, setExportFormat, setExportQuality],
 	);
 
-	const renderSliders = (sliders: FilterSliderDef[]) => (
-		<div className="flex flex-col gap-3">
-			{sliders.map((s) => (
-				<Slider
-					key={s.key}
-					label={s.label}
-					displayValue={s.format(filters[s.key])}
-					min={s.min}
-					max={s.max}
-					step={s.step}
-					value={filters[s.key]}
-					onChange={(e) => {
-						const next = Number((e.target as HTMLInputElement).value);
-						startTransition(() => {
-							setFilter(s.key, next);
-						});
-					}}
-					onCommit={handleSliderCommit}
-				/>
-			))}
-		</div>
-	);
+	const adjustBindings: AdjustmentBindings = {
+		filters,
+		lookId,
+		lookIntensity,
+		hasChanges: !filtersAreDefault(filters) || lookId !== null,
+		setFilter,
+		setLook,
+		setLookIntensity,
+		resetFilters,
+		onCommit: handleSliderCommit,
+	};
 
 	const estSize = originalData
 		? estimateImageSize(
@@ -234,11 +214,10 @@ export function ImageSidebar({ showInfo, onShowInfoChange }: ImageSidebarProps) 
 		resizeWidth != null &&
 		resizeHeight != null &&
 		(resizeWidth !== originalData.width || resizeHeight !== originalData.height);
-	const hasAdjustChanges = !filtersAreDefault(filters);
+	const hasAdjustChanges = adjustBindings.hasChanges;
 	const modeActivity: Record<ImageMode, boolean> = {
 		resize: hasResizeChanges,
 		adjust: hasAdjustChanges,
-		presets: hasAdjustChanges || hasResizeChanges,
 		export: false,
 	};
 	const toolItems: ToolRailItem<ImageMode>[] = useMemo(
@@ -350,52 +329,7 @@ export function ImageSidebar({ showInfo, onShowInfoChange }: ImageSidebarProps) 
 					</>
 				)}
 
-				{mode === 'adjust' && (
-					<>
-						<div className="flex items-center justify-end">
-							<button
-								onClick={resetFilters}
-								className="text-[12px] text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
-							>
-								Reset
-							</button>
-						</div>
-						<CollapsibleSection title="Light" changeCount={countSliderChanges(LIGHT_SLIDERS, filters)}>
-							{renderSliders(LIGHT_SLIDERS)}
-						</CollapsibleSection>
-						<CollapsibleSection title="Color" changeCount={countSliderChanges(COLOR_SLIDERS, filters)}>
-							{renderSliders(COLOR_SLIDERS)}
-						</CollapsibleSection>
-						<CollapsibleSection
-							title="Effects"
-							changeCount={countSliderChanges(EFFECTS_SLIDERS, filters)}
-							defaultCollapsed
-						>
-							{renderSliders(EFFECTS_SLIDERS)}
-						</CollapsibleSection>
-					</>
-				)}
-
-				{mode === 'presets' && (
-					<>
-						<h3 className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">
-							Color Presets
-						</h3>
-						<div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
-							{FILTER_PRESETS.map(([key, preset]) => (
-								<button
-									key={key}
-									onClick={() => {
-										applyFilterPreset(preset);
-									}}
-									className="rounded-md bg-surface-raised/60 py-2 text-[14px] font-medium text-text-tertiary hover:bg-surface-raised hover:text-text transition-all cursor-pointer"
-								>
-									{preset.name}
-								</button>
-							))}
-						</div>
-					</>
-				)}
+				{mode === 'adjust' && <AdjustmentPanel bindings={adjustBindings} />}
 
 				{mode === 'export' && (
 					<>

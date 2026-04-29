@@ -30,6 +30,7 @@ interface GifToolbarProps {
 	onZoomIn: () => void;
 	onZoomOut: () => void;
 	onFitToScreen: () => void;
+	captureMenu?: React.ReactNode;
 }
 
 export function GifToolbar({
@@ -57,6 +58,7 @@ export function GifToolbar({
 	onZoomIn,
 	onZoomOut,
 	onFitToScreen,
+	captureMenu,
 }: GifToolbarProps) {
 	if (!file) return null;
 
@@ -118,6 +120,14 @@ export function GifToolbar({
 			</span>
 
 			<ToolbarSeparator />
+
+			{/* Capture frame */}
+			{captureMenu && (
+				<>
+					<div className="relative">{captureMenu}</div>
+					<ToolbarSeparator />
+				</>
+			)}
 
 			{/* Compare toggle */}
 			<IconButton onClick={onToggleCompare} active={compareMode} disabled={!hasChanges} title="Split compare">

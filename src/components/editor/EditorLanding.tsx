@@ -46,6 +46,7 @@ interface EditorLandingProps {
 	formatColor: string;
 	faqs: FAQ[];
 	crossLinks: CrossLink[];
+	poweredBy?: string;
 }
 
 /* ── Main Component ── */
@@ -64,6 +65,7 @@ export function EditorLanding({
 	formatColor,
 	faqs,
 	crossLinks,
+	poweredBy = 'WebCodecs, WebGL2 & Mediabunny',
 }: EditorLandingProps) {
 	if (hasFile) {
 		return null;
@@ -176,7 +178,7 @@ export function EditorLanding({
 			{/* Minimal footer line */}
 			<div className="px-4 py-6 text-center">
 				<p className="text-[12px] text-text-tertiary">
-					100% client-side &middot; No uploads &middot; Powered by WebCodecs &amp; WebGL2
+					100% client-side &middot; No uploads &middot; Powered by {poweredBy}
 				</p>
 			</div>
 		</div>

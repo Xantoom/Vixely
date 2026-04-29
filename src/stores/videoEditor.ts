@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { composeFilters } from '@/config/looks.ts';
 import type { FilterParams } from '@/modules/shared-core/types/filters.ts';
 import { DEFAULT_FILTER_PARAMS, filtersAreDefault } from '@/modules/shared-core/types/filters.ts';
 import { withUpdatedKey } from '@/stores/storeHelpers.ts';
@@ -142,6 +143,8 @@ function splitMediaStreamsByType(streams: StreamInfo[]): { audio: StreamInfo[]; 
 export interface VideoEditorState {
 	mode: VideoMode;
 	filters: FilterParams;
+	lookId: string | null;
+	lookIntensity: number;
 	cropAspectRatio: string | null;
 	probeResult: ProbeResult | null;
 	tracks: TrackSelection;
@@ -151,8 +154,19 @@ export interface VideoEditorState {
 	comparePosition: number;
 	transform: VideoTransform;
 
+	// Source file & timeline (persisted across editor navigation)
+	file: File | null;
+	videoUrl: string | null;
+	duration: number;
+	currentTime: number;
+	trimStart: number;
+	trimEnd: number;
+	selectedPreset: string | null;
+
 	setMode: (mode: VideoMode) => void;
 	setFilter: <K extends keyof FilterParams>(key: K, value: FilterParams[K]) => void;
+	setLook: (id: string | null) => void;
+	setLookIntensity: (intensity: number) => void;
 	resetFilters: () => void;
 	hasFilterChanges: () => boolean;
 	setCropAspectRatio: (ratio: string | null) => void;
@@ -166,6 +180,14 @@ export interface VideoEditorState {
 	resetTransform: () => void;
 	resetAll: () => void;
 
+	setSourceFile: (file: File | null) => void;
+	clearSource: () => void;
+	setDuration: (duration: number) => void;
+	setCurrentTime: (time: number) => void;
+	setTrimStart: (time: number) => void;
+	setTrimEnd: (time: number) => void;
+	setSelectedPreset: (id: string | null) => void;
+
 	encoderFilterArgs: () => string[];
 	resizeFilterArgs: () => string[];
 	trackArgs: () => string[];
@@ -174,6 +196,8 @@ export interface VideoEditorState {
 export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
 	mode: 'presets',
 	filters: { ...DEFAULT_FILTER_PARAMS },
+	lookId: null,
+	lookIntensity: 1,
 	cropAspectRatio: null,
 	probeResult: null,
 	tracks: { ...DEFAULT_TRACK_SELECTION },
@@ -183,6 +207,14 @@ export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
 	comparePosition: 0.5,
 	transform: { ...DEFAULT_TRANSFORM },
 
+	file: null,
+	videoUrl: null,
+	duration: 0,
+	currentTime: 0,
+	trimStart: 0,
+	trimEnd: 0,
+	selectedPreset: null,
+
 	setMode: (mode) => {
 		set({ mode });
 	},
@@ -191,12 +223,21 @@ export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
 		set((s) => ({ filters: withUpdatedKey(s.filters, key, value) }));
 	},
 
+	setLook: (id) => {
+		set((s) => ({ lookId: id, lookIntensity: id === null ? 1 : s.lookIntensity }));
+	},
+
+	setLookIntensity: (intensity) => {
+		set({ lookIntensity: Math.max(0, Math.min(1, intensity)) });
+	},
+
 	resetFilters: () => {
-		set({ filters: { ...DEFAULT_FILTER_PARAMS } });
+		set({ filters: { ...DEFAULT_FILTER_PARAMS }, lookId: null, lookIntensity: 1 });
 	},
 
 	hasFilterChanges: () => {
-		return !filtersAreDefault(get().filters);
+		const s = get();
+		return !filtersAreDefault(s.filters) || s.lookId !== null;
 	},
 
 	setCropAspectRatio: (ratio) => {
@@ -259,9 +300,13 @@ export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
 	},
 
 	resetAll: () => {
+		const prevUrl = get().videoUrl;
+		if (prevUrl) URL.revokeObjectURL(prevUrl);
 		set({
 			mode: 'presets',
 			filters: { ...DEFAULT_FILTER_PARAMS },
+			lookId: null,
+			lookIntensity: 1,
 			cropAspectRatio: null,
 			probeResult: null,
 			tracks: { ...DEFAULT_TRACK_SELECTION },
@@ -270,11 +315,56 @@ export const useVideoEditorStore = create<VideoEditorState>((set, get) => ({
 			advancedSettings: { ...DEFAULT_ADVANCED_SETTINGS },
 			comparePosition: 0.5,
 			transform: { ...DEFAULT_TRANSFORM },
+			file: null,
+			videoUrl: null,
+			duration: 0,
+			currentTime: 0,
+			trimStart: 0,
+			trimEnd: 0,
+			selectedPreset: null,
 		});
 	},
 
+	setSourceFile: (file) => {
+		const prevUrl = get().videoUrl;
+		if (prevUrl) URL.revokeObjectURL(prevUrl);
+		const nextUrl = file ? URL.createObjectURL(file) : null;
+		set({ file, videoUrl: nextUrl });
+	},
+
+	clearSource: () => {
+		const prevUrl = get().videoUrl;
+		if (prevUrl) URL.revokeObjectURL(prevUrl);
+		set({
+			file: null,
+			videoUrl: null,
+			duration: 0,
+			currentTime: 0,
+			trimStart: 0,
+			trimEnd: 0,
+			selectedPreset: null,
+		});
+	},
+
+	setDuration: (duration) => {
+		set({ duration });
+	},
+	setCurrentTime: (currentTime) => {
+		set({ currentTime });
+	},
+	setTrimStart: (trimStart) => {
+		set({ trimStart });
+	},
+	setTrimEnd: (trimEnd) => {
+		set({ trimEnd });
+	},
+	setSelectedPreset: (selectedPreset) => {
+		set({ selectedPreset });
+	},
+
 	encoderFilterArgs: () => {
-		const f = get().filters;
+		const s = get();
+		const f = composeFilters(s.filters, s.lookId, s.lookIntensity);
 		const parts: string[] = [];
 
 		// eq filter: brightness, contrast, saturation

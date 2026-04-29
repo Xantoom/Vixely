@@ -22,10 +22,6 @@ logs/
 src/routeTree.gen.ts
 public/ffmpeg/
 public/jassub/
-wasm/
-
-# --- RUST ---
-vixely-core/target/
 
 # --- BUN ---
 .bun-cache/

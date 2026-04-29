@@ -91,6 +91,8 @@ export interface ImageEditorState {
 	initialData: ImageData | null;
 
 	filters: FilterParams;
+	lookId: string | null;
+	lookIntensity: number;
 	view: ViewTransform;
 	activeTool: ActiveTool;
 	crop: CropRect | null;
@@ -110,6 +112,8 @@ export interface ImageEditorState {
 	setFilter: <K extends keyof FilterParams>(key: K, value: FilterParams[K]) => void;
 	commitFilters: () => void;
 	applyFilterPreset: (preset: Partial<FilterParams>) => void;
+	setLook: (id: string | null) => void;
+	setLookIntensity: (intensity: number) => void;
 	resetFilters: () => void;
 	setView: (v: Partial<ViewTransform>) => void;
 	zoomTo: (zoom: number, anchorX: number, anchorY: number) => void;
@@ -145,6 +149,8 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 	originalData: null,
 	initialData: null,
 	filters: { ...DEFAULT_FILTER_PARAMS },
+	lookId: null,
+	lookIntensity: 1,
 	view: { panX: 0, panY: 0, zoom: 1 },
 	activeTool: 'pointer',
 	crop: null,
@@ -176,6 +182,8 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 			originalData: imageData,
 			initialData: imageData,
 			filters: { ...DEFAULT_FILTER_PARAMS },
+			lookId: null,
+			lookIntensity: 1,
 			view: { panX: 0, panY: 0, zoom: 1 },
 			activeTool: 'pointer',
 			crop: null,
@@ -214,9 +222,19 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 		const newFilters = { ...DEFAULT_FILTER_PARAMS, ...preset };
 		set({
 			filters: newFilters,
+			lookId: null,
+			lookIntensity: 1,
 			undoStack: entry ? trimStack([...state.undoStack, entry], MAX_HISTORY, MAX_HISTORY_BYTES) : state.undoStack,
 			redoStack: [],
 		});
+	},
+
+	setLook: (id) => {
+		set((s) => ({ lookId: id, lookIntensity: id === null ? 1 : s.lookIntensity }));
+	},
+
+	setLookIntensity: (intensity) => {
+		set({ lookIntensity: Math.max(0, Math.min(1, intensity)) });
 	},
 
 	resetFilters: () => {
@@ -225,6 +243,8 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 		const entry = currentEntry(state);
 		set({
 			filters: { ...DEFAULT_FILTER_PARAMS },
+			lookId: null,
+			lookIntensity: 1,
 			undoStack: entry ? trimStack([...state.undoStack, entry], MAX_HISTORY, MAX_HISTORY_BYTES) : state.undoStack,
 			redoStack: [],
 		});
@@ -285,6 +305,8 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 		set({
 			originalData: croppedData,
 			filters: { ...DEFAULT_FILTER_PARAMS },
+			lookId: null,
+			lookIntensity: 1,
 			crop: null,
 			activeTool: 'pointer',
 			resizeWidth: cw,
@@ -345,6 +367,8 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 		set({
 			originalData: resizedData,
 			filters: { ...DEFAULT_FILTER_PARAMS },
+			lookId: null,
+			lookIntensity: 1,
 			resizeWidth: w,
 			resizeHeight: h,
 			undoStack: entry ? trimStack([...s.undoStack, entry], MAX_HISTORY, MAX_HISTORY_BYTES) : s.undoStack,
@@ -405,6 +429,8 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 		set({
 			originalData: s.initialData,
 			filters: { ...DEFAULT_FILTER_PARAMS },
+			lookId: null,
+			lookIntensity: 1,
 			view: { panX: 0, panY: 0, zoom: 1 },
 			activeTool: 'pointer',
 			crop: null,
@@ -428,6 +454,8 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 			originalData: null,
 			initialData: null,
 			filters: { ...DEFAULT_FILTER_PARAMS },
+			lookId: null,
+			lookIntensity: 1,
 			view: { panX: 0, panY: 0, zoom: 1 },
 			activeTool: 'pointer',
 			crop: null,
@@ -448,6 +476,6 @@ export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
 	isDirty: () => {
 		const s = get();
 		if (!s.originalData || !s.initialData) return false;
-		return s.originalData !== s.initialData || !filtersAreDefault(s.filters);
+		return s.originalData !== s.initialData || !filtersAreDefault(s.filters) || s.lookId !== null;
 	},
 }));

@@ -21,9 +21,18 @@ export function isPerfTelemetryEnabled(): boolean {
 	return isDevBuild() || readStorageFlag(PERF_TELEMETRY_STORAGE_KEY);
 }
 
+function formatLogTimestamp(date: Date): string {
+	const hh = date.getHours().toString().padStart(2, '0');
+	const mm = date.getMinutes().toString().padStart(2, '0');
+	const ss = date.getSeconds().toString().padStart(2, '0');
+	const ms = date.getMilliseconds().toString().padStart(3, '0');
+	return `${hh}:${mm}:${ss}.${ms}`;
+}
+
 export function emitTelemetry(event: string, payload: TelemetryPayload = {}): void {
 	if (!isPerfTelemetryEnabled()) return;
-	const entry = { event, payload, timestampMs: Date.now() };
+	const now = Date.now();
+	const entry = { event, payload, timestampMs: now };
 	if (typeof window !== 'undefined') {
 		const target = window as Window & {
 			__VIXELY_TELEMETRY__?: Array<{ event: string; payload: TelemetryPayload; timestampMs: number }>;
@@ -31,5 +40,5 @@ export function emitTelemetry(event: string, payload: TelemetryPayload = {}): vo
 		if (!target.__VIXELY_TELEMETRY__) target.__VIXELY_TELEMETRY__ = [];
 		target.__VIXELY_TELEMETRY__.push(entry);
 	}
-	console.debug('[telemetry]', event, payload);
+	console.debug(`[telemetry ${formatLogTimestamp(new Date(now))}]`, event, payload);
 }

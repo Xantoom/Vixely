@@ -20,7 +20,7 @@ export function createWebGL2Context(
 		depth: false,
 		stencil: false,
 		premultipliedAlpha: false,
-		preserveDrawingBuffer: false,
+		preserveDrawingBuffer: true,
 		powerPreference: 'high-performance',
 		...options,
 	});

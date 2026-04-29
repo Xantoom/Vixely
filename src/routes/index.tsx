@@ -57,7 +57,7 @@ const features = [
 		icon: Cpu,
 		title: 'Hardware-Accelerated',
 		description:
-			'Native WebCodecs + WebGL2 pipeline delivers near-native performance directly in your browser with real-time preview.',
+			'Native WebCodecs, WebGL2 and Mediabunny pipeline delivers near-native performance directly in your browser with real-time preview.',
 	},
 	{ icon: Zap, title: 'Instant Export', description: 'Export in any format without waiting for server processing.' },
 	{
@@ -135,12 +135,12 @@ function HomePage() {
 		<>
 			<Seo
 				title="Vixely — Free Online Video, Image & GIF Editor"
-				description="Free online video, image and GIF editor. Trim, crop, resize, color-correct, add filters and export MP4, WebM, PNG, GIF and more — directly in your browser. No upload, 100% private, powered by native WebCodecs and WebGL2."
+				description="Free online video, image and GIF editor. Trim, crop, resize, color-correct, add filters and export MP4, WebM, PNG, GIF and more — directly in your browser. No upload, 100% private, powered by native WebCodecs, WebGL2 and the Mediabunny library."
 				path="/"
 				jsonLd={[
 					buildWebAppSchema(
 						'Vixely',
-						'Free online video, image and GIF editor. Trim, crop, resize, color-correct and export directly in your browser. No upload, 100% private, powered by native WebCodecs and WebGL2.',
+						'Free online video, image and GIF editor. Trim, crop, resize, color-correct and export directly in your browser. No upload, 100% private, powered by native WebCodecs, WebGL2 and the Mediabunny library.',
 						'https://vixely.app',
 					),
 					buildFAQSchema(faqs.map((f) => ({ question: f.question, answer: f.answer }))),
@@ -193,7 +193,7 @@ function HeroSection() {
 					style={{ animationDelay: '120ms' }}
 				>
 					Powerful media editing that runs entirely in your browser. No uploads, no servers, no sign-up —
-					powered by native WebCodecs &amp; WebGL2.
+					powered by native WebCodecs, WebGL2 and Mediabunny.
 				</p>
 
 				{/* Editor Cards */}
@@ -442,7 +442,7 @@ function FooterSection() {
 							>
 								About Vixely
 							</Link>
-							<span className="text-[13px] text-text-tertiary">Made with WebCodecs</span>
+							<span className="text-[13px] text-text-tertiary">Made with WebCodecs &amp; Mediabunny</span>
 							<span className="text-[13px] text-text-tertiary">GDPR compliant</span>
 						</nav>
 					</div>

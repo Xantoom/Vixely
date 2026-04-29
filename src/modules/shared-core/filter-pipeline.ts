@@ -1,3 +1,4 @@
+import { DEFAULT_FILTER_PARAMS, filtersAreDefault } from './types/filters.ts';
 import type { FilterParams } from './types/filters.ts';
 import type { TextureHandle } from './types/pipeline.ts';
 import { type GLContext, createWebGL2Context, destroyGLContext, drawQuad } from './webgl/context.ts';
@@ -16,7 +17,7 @@ import {
 } from './webgl/framebuffer.ts';
 import type { UniformLocations } from './webgl/programs.ts';
 import { linkProgram, getUniformLocations, setUniform1f, setUniform2f, setUniform1i } from './webgl/programs.ts';
-import { FULLSCREEN_VERTEX, COLOR_CORRECTION_FRAGMENT, BLUR_FRAGMENT, GRAIN_FRAGMENT } from './webgl/shaders.ts';
+import { FULLSCREEN_VERTEX, COLOR_FRAGMENT, BLUR_FRAGMENT, PASSTHROUGH_FRAGMENT } from './webgl/shaders.ts';
 import { uploadImageBitmap, uploadVideoFrame, uploadImageData, bindTexture, deleteTexture } from './webgl/textures.ts';
 
 interface Programs {
@@ -24,8 +25,8 @@ interface Programs {
 	colorUniforms: UniformLocations;
 	blur: WebGLProgram;
 	blurUniforms: UniformLocations;
-	grain: WebGLProgram;
-	grainUniforms: UniformLocations;
+	passthrough: WebGLProgram;
+	passthroughUniforms: UniformLocations;
 }
 
 const COLOR_UNIFORMS = [
@@ -41,20 +42,27 @@ const COLOR_UNIFORMS = [
 	'u_hue',
 	'u_sepia',
 	'u_vignette',
+	'u_grain',
 	'u_resolution',
 ];
 
 const BLUR_UNIFORMS = ['u_texture', 'u_direction', 'u_radius'];
-const GRAIN_UNIFORMS = ['u_texture', 'u_grain', 'u_time'];
+const PASSTHROUGH_UNIFORMS = ['u_texture'];
 
 /**
  * Shared filter rendering pipeline.
  *
- * Rendering chain:
- *   Source texture → Color correction → FBO A
- *   FBO A → Blur H → FBO B (if blur > 0)
- *   FBO B → Blur V → FBO A (if blur > 0)
- *   Last FBO → Grain → Canvas (if grain > 0), else blit to canvas
+ * Render strategy is decided per-call from the FilterParams:
+ *   • Identity (everything default)        → 1 draw  (passthrough → canvas)
+ *   • Color-only (no blur)                 → 1 draw  (mega-color → canvas)
+ *   • Color + blur                         → 4 draws (color → FBO, H, V, blit)
+ *
+ * The mega-color shader handles exposure / tonal / sat / temp / tint / hue /
+ * sepia / vignette / grain in one fragment pass — avoids the previous chain
+ * of color → grain blit programs that cost 2 draws even for the no-op case.
+ *
+ * scheduleRender(params) coalesces multiple synchronous calls in the same
+ * frame into a single rAF — slider drag events no longer DOS the GPU.
  */
 export class FilterPipeline {
 	private ctx: GLContext;
@@ -64,7 +72,8 @@ export class FilterPipeline {
 	private sourceTexture: TextureHandle | null = null;
 	private currentWidth = 0;
 	private currentHeight = 0;
-	private frameCount = 0;
+	private rafId = 0;
+	private pendingParams: FilterParams | null = null;
 
 	constructor(canvas: HTMLCanvasElement | OffscreenCanvas) {
 		this.ctx = createWebGL2Context(canvas);
@@ -82,35 +91,42 @@ export class FilterPipeline {
 	private createPrograms(): Programs {
 		const { gl } = this.ctx;
 
-		const color = linkProgram(gl, FULLSCREEN_VERTEX, COLOR_CORRECTION_FRAGMENT);
+		const color = linkProgram(gl, FULLSCREEN_VERTEX, COLOR_FRAGMENT);
 		const colorUniforms = getUniformLocations(gl, color, COLOR_UNIFORMS);
 
 		const blur = linkProgram(gl, FULLSCREEN_VERTEX, BLUR_FRAGMENT);
 		const blurUniforms = getUniformLocations(gl, blur, BLUR_UNIFORMS);
 
-		const grain = linkProgram(gl, FULLSCREEN_VERTEX, GRAIN_FRAGMENT);
-		const grainUniforms = getUniformLocations(gl, grain, GRAIN_UNIFORMS);
+		const passthrough = linkProgram(gl, FULLSCREEN_VERTEX, PASSTHROUGH_FRAGMENT);
+		const passthroughUniforms = getUniformLocations(gl, passthrough, PASSTHROUGH_UNIFORMS);
 
-		return { color, colorUniforms, blur, blurUniforms, grain, grainUniforms };
+		return { color, colorUniforms, blur, blurUniforms, passthrough, passthroughUniforms };
 	}
 
-	private ensureFBOs(width: number, height: number): void {
-		if (this.currentWidth === width && this.currentHeight === height) return;
-
+	private ensureColorFBO(width: number, height: number): void {
 		const { gl } = this.ctx;
-
 		if (this.fboA) {
 			resizeFramebuffer(gl, this.fboA, width, height);
 		} else {
 			this.fboA = createFramebuffer(gl, width, height);
 		}
+	}
 
+	private ensurePingPong(width: number, height: number): void {
+		const { gl } = this.ctx;
 		if (this.pingPong) {
 			resizePingPongBuffers(gl, this.pingPong, width, height);
 		} else {
 			this.pingPong = createPingPongBuffers(gl, width, height);
 		}
+	}
 
+	private ensureCanvasSize(width: number, height: number): void {
+		const canvas = this.ctx.canvas;
+		if (canvas.width !== width || canvas.height !== height) {
+			canvas.width = width;
+			canvas.height = height;
+		}
 		this.currentWidth = width;
 		this.currentHeight = height;
 	}
@@ -133,24 +149,60 @@ export class FilterPipeline {
 		return this.sourceTexture;
 	}
 
+	/**
+	 * Coalesce multiple render calls in the same frame into one.
+	 * Use this from React effects driven by slider events — render() is fine
+	 * for one-shot calls (export, frame stepping).
+	 */
+	scheduleRender(params: FilterParams, source?: TextureHandle): void {
+		this.pendingParams = params;
+		if (this.rafId !== 0) return;
+		const tex = source;
+		this.rafId = requestAnimationFrame(() => {
+			this.rafId = 0;
+			const next = this.pendingParams;
+			if (!next) return;
+			this.pendingParams = null;
+			this.render(next, tex);
+		});
+	}
+
 	render(params: FilterParams, source?: TextureHandle): void {
 		const tex = source ?? this.sourceTexture;
 		if (!tex) return;
 
 		const { gl } = this.ctx;
 		const { width, height } = tex;
-		this.ensureFBOs(width, height);
-
-		const canvas = this.ctx.canvas;
-		if (canvas.width !== width || canvas.height !== height) {
-			canvas.width = width;
-			canvas.height = height;
-		}
+		this.ensureCanvasSize(width, height);
 
 		const needsBlur = params.blur > 0;
-		const needsGrain = params.grain > 0;
+		const isIdentity = filtersAreDefault(params);
 
-		// Pass 1: Color correction → FBO A
+		// Fast-path: nothing to do — passthrough source to canvas in one draw.
+		if (isIdentity) {
+			unbindFramebuffer(gl, width, height);
+			gl.useProgram(this.programs.passthrough);
+			bindTexture(gl, tex, 0);
+			setUniform1i(gl, this.programs.passthroughUniforms['u_texture']!, 0);
+			drawQuad(this.ctx);
+			return;
+		}
+
+		// Color-only path: mega-shader straight to canvas.
+		if (!needsBlur) {
+			unbindFramebuffer(gl, width, height);
+			gl.useProgram(this.programs.color);
+			this.setColorUniforms(params, width, height);
+			bindTexture(gl, tex, 0);
+			setUniform1i(gl, this.programs.colorUniforms['u_texture']!, 0);
+			drawQuad(this.ctx);
+			return;
+		}
+
+		// Blur path: color → FBO A → blur H → ping-pong A → blur V → ping-pong B → canvas blit.
+		this.ensureColorFBO(width, height);
+		this.ensurePingPong(width, height);
+
 		bindFramebuffer(gl, this.fboA!);
 		gl.useProgram(this.programs.color);
 		this.setColorUniforms(params, width, height);
@@ -158,49 +210,26 @@ export class FilterPipeline {
 		setUniform1i(gl, this.programs.colorUniforms['u_texture']!, 0);
 		drawQuad(this.ctx);
 
-		let lastFBO = this.fboA!;
+		const pp = this.pingPong!;
+		gl.useProgram(this.programs.blur);
 
-		// Pass 2-3: Blur ping-pong (if needed)
-		if (needsBlur) {
-			const pp = this.pingPong!;
-			gl.useProgram(this.programs.blur);
+		bindFramebuffer(gl, pp.a);
+		bindTexture(gl, this.fboA!.texture, 0);
+		setUniform1i(gl, this.programs.blurUniforms['u_texture']!, 0);
+		setUniform2f(gl, this.programs.blurUniforms['u_direction']!, 1 / width, 0);
+		setUniform1f(gl, this.programs.blurUniforms['u_radius']!, params.blur);
+		drawQuad(this.ctx);
 
-			// Horizontal blur: FBO A → ping-pong A
-			bindFramebuffer(gl, pp.a);
-			bindTexture(gl, lastFBO.texture, 0);
-			setUniform1i(gl, this.programs.blurUniforms['u_texture']!, 0);
-			setUniform2f(gl, this.programs.blurUniforms['u_direction']!, 1 / width, 0);
-			setUniform1f(gl, this.programs.blurUniforms['u_radius']!, params.blur);
-			drawQuad(this.ctx);
+		bindFramebuffer(gl, pp.b);
+		bindTexture(gl, pp.a.texture, 0);
+		setUniform2f(gl, this.programs.blurUniforms['u_direction']!, 0, 1 / height);
+		drawQuad(this.ctx);
 
-			// Vertical blur: ping-pong A → ping-pong B
-			bindFramebuffer(gl, pp.b);
-			bindTexture(gl, pp.a.texture, 0);
-			setUniform2f(gl, this.programs.blurUniforms['u_direction']!, 0, 1 / height);
-			drawQuad(this.ctx);
-
-			lastFBO = pp.b;
-		}
-
-		// Pass 4: Grain → canvas (or just blit)
 		unbindFramebuffer(gl, width, height);
-
-		if (needsGrain) {
-			gl.useProgram(this.programs.grain);
-			bindTexture(gl, lastFBO.texture, 0);
-			setUniform1i(gl, this.programs.grainUniforms['u_texture']!, 0);
-			setUniform1f(gl, this.programs.grainUniforms['u_grain']!, params.grain);
-			setUniform1f(gl, this.programs.grainUniforms['u_time']!, this.frameCount++ * 0.01);
-			drawQuad(this.ctx);
-		} else {
-			// Blit last FBO to canvas
-			gl.useProgram(this.programs.grain);
-			bindTexture(gl, lastFBO.texture, 0);
-			setUniform1i(gl, this.programs.grainUniforms['u_texture']!, 0);
-			setUniform1f(gl, this.programs.grainUniforms['u_grain']!, 0);
-			setUniform1f(gl, this.programs.grainUniforms['u_time']!, 0);
-			drawQuad(this.ctx);
-		}
+		gl.useProgram(this.programs.passthrough);
+		bindTexture(gl, pp.b.texture, 0);
+		setUniform1i(gl, this.programs.passthroughUniforms['u_texture']!, 0);
+		drawQuad(this.ctx);
 	}
 
 	readPixels(): Uint8Array {
@@ -219,13 +248,25 @@ export class FilterPipeline {
 	destroy(): void {
 		const { gl } = this.ctx;
 
+		if (this.rafId !== 0) {
+			cancelAnimationFrame(this.rafId);
+			this.rafId = 0;
+		}
+		this.pendingParams = null;
+
 		gl.deleteProgram(this.programs.color);
 		gl.deleteProgram(this.programs.blur);
-		gl.deleteProgram(this.programs.grain);
+		gl.deleteProgram(this.programs.passthrough);
 
 		if (this.fboA) deleteFramebuffer(gl, this.fboA);
 		if (this.pingPong) deletePingPongBuffers(gl, this.pingPong);
 		if (this.sourceTexture) deleteTexture(gl, this.sourceTexture);
+
+		this.fboA = null;
+		this.pingPong = null;
+		this.sourceTexture = null;
+		this.currentWidth = 0;
+		this.currentHeight = 0;
 
 		destroyGLContext(this.ctx);
 	}
@@ -244,6 +285,11 @@ export class FilterPipeline {
 		setUniform1f(gl, u['u_hue']!, params.hue);
 		setUniform1f(gl, u['u_sepia']!, params.sepia);
 		setUniform1f(gl, u['u_vignette']!, params.vignette);
+		setUniform1f(gl, u['u_grain']!, params.grain);
 		setUniform2f(gl, u['u_resolution']!, width, height);
 	}
 }
+
+// Re-export DEFAULT_FILTER_PARAMS for convenience to consumers that already
+// import from this module.
+export { DEFAULT_FILTER_PARAMS };

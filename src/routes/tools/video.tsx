@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { Camera, Download, Video, Layers, Palette, Scissors, Scaling, Volume2, Subtitles } from 'lucide-react';
-import { lazy, Suspense, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { lazy, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
 import { EditorEmptyState } from '@/components/editor/EditorEmptyState.tsx';
@@ -9,14 +8,15 @@ import { EditorLanding } from '@/components/editor/EditorLanding.tsx';
 import { EditorQuickActions } from '@/components/editor/EditorQuickActions.tsx';
 import { EditorShell } from '@/components/editor/EditorShell.tsx';
 import { Seo, buildWebAppSchema, buildFAQSchema } from '@/components/Seo.tsx';
+import { CaptureMenu, type CaptureFormat } from '@/components/shared/CaptureMenu.tsx';
 import { SharedPresetsPanel, type PresetEntry } from '@/components/shared/PresetsPanel.tsx';
 import { Button } from '@/components/ui/Button.tsx';
 import { Slider } from '@/components/ui/Slider.tsx';
 import { Timeline, formatTimecode, formatCompactTime } from '@/components/ui/Timeline.tsx';
 import { Toggle } from '@/components/ui/Toggle.tsx';
 import { ToolRail, type ToolRailItem } from '@/components/ui/ToolRail.tsx';
-import { UrlImportButton } from '@/components/ui/UrlImportButton.tsx';
 import { AdjustPanel } from '@/components/video/AdjustPanel.tsx';
+import { ExportResultCard } from '@/components/video/ExportResultCard.tsx';
 import { ResizePanel } from '@/components/video/ResizePanel.tsx';
 import { VideoPlayer } from '@/components/video/VideoPlayer.tsx';
 import { VideoToolbar } from '@/components/video/VideoToolbar.tsx';
@@ -25,7 +25,7 @@ import {
 	VIDEO_LANDING_FAQS,
 	VIDEO_LANDING_FEATURES,
 	VIDEO_LANDING_FORMATS,
-} from './video.landing.ts';
+} from './-video.landing.ts';
 
 const VideoInfoModal = lazy(async () => {
 	const m = await import('@/components/video/VideoInfoModal.tsx');
@@ -58,7 +58,7 @@ import { convertPngToFormat, pickEncodeThreads } from '@/modules/video-editor/fr
 import type { AdvancedVideoSettings } from '@/stores/videoEditor.ts';
 import { useVideoEditorStore, type VideoMode } from '@/stores/videoEditor.ts';
 import type { StreamInfo } from '@/stores/videoEditor.ts';
-import { setPendingImageTransfer } from '@/utils/crossEditorTransfer.ts';
+import { setPendingGifTransfer, setPendingImageTransfer } from '@/utils/crossEditorTransfer.ts';
 import { buildExportFilename } from '@/utils/exportFilename.ts';
 import { formatFileSize, formatNumber, estimateVideoSize } from '@/utils/format.ts';
 import { formatChannels, getLanguageName } from '@/utils/languageUtils.ts';
@@ -123,6 +123,19 @@ function VideoStudio() {
 		setAdvancedSettings,
 		encoderFilterArgs,
 		resizeFilterArgs,
+		file,
+		videoUrl,
+		duration,
+		currentTime,
+		trimStart,
+		trimEnd,
+		selectedPreset,
+		setSourceFile,
+		setDuration,
+		setCurrentTime,
+		setTrimStart,
+		setTrimEnd,
+		setSelectedPreset,
 	} = useVideoEditorStore(
 		useShallow((s) => ({
 			videoMode: s.mode,
@@ -140,6 +153,19 @@ function VideoStudio() {
 			setAdvancedSettings: s.setAdvancedSettings,
 			encoderFilterArgs: s.encoderFilterArgs,
 			resizeFilterArgs: s.resizeFilterArgs,
+			file: s.file,
+			videoUrl: s.videoUrl,
+			duration: s.duration,
+			currentTime: s.currentTime,
+			trimStart: s.trimStart,
+			trimEnd: s.trimEnd,
+			selectedPreset: s.selectedPreset,
+			setSourceFile: s.setSourceFile,
+			setDuration: s.setDuration,
+			setCurrentTime: s.setCurrentTime,
+			setTrimStart: s.setTrimStart,
+			setTrimEnd: s.setTrimEnd,
+			setSelectedPreset: s.setSelectedPreset,
 		})),
 	);
 
@@ -151,15 +177,28 @@ function VideoStudio() {
 		[setAdvancedSettings],
 	);
 
-	const [file, setFile] = useState<File | null>(null);
-	const [videoUrl, setVideoUrl] = useObjectUrlState();
-	const [duration, setDuration] = useState(0);
-	const [currentTime, setCurrentTime] = useState(0);
-	const [trimStart, setTrimStart] = useState(0);
-	const [trimEnd, setTrimEnd] = useState(0);
-	const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
 	const [resultUrl, setResultUrl] = useObjectUrlState();
 	const [resultExt, setResultExt] = useState<string | null>(null);
+	const [resultBlob, setResultBlob] = useState<Blob | null>(null);
+	const [autoDownload, setAutoDownloadState] = useState(() => {
+		if (typeof window === 'undefined') return false;
+		try {
+			return window.localStorage.getItem('vixely.video.autoDownload') === '1';
+		} catch {
+			return false;
+		}
+	});
+	const setAutoDownload = useCallback((next: boolean) => {
+		setAutoDownloadState(next);
+		try {
+			window.localStorage.setItem('vixely.video.autoDownload', next ? '1' : '0');
+		} catch {
+			// ignore storage failures
+		}
+	}, []);
+	useEffect(() => {
+		if (!resultUrl) setResultBlob(null);
+	}, [resultUrl]);
 	const [audioExportMode, setAudioExportMode] = useState<'all' | 'single'>('all');
 	const [subtitleExportMode, setSubtitleExportMode] = useState<'all' | 'single'>('all');
 	const [burnSubtitles, setBurnSubtitles] = useState(false);
@@ -175,7 +214,7 @@ function VideoStudio() {
 	const [detailedProbeError, setDetailedProbeError] = useState<string | null>(null);
 	const [captureMenuOpen, setCaptureMenuOpen] = useState(false);
 	const [compareMode, setCompareMode] = useState(false);
-	const [captureFormat, setCaptureFormat] = useState<'png' | 'jpeg' | 'webp'>('png');
+	const [captureFormat, setCaptureFormat] = useState<CaptureFormat>('png');
 	const [embeddedFonts, setEmbeddedFonts] = useState<Array<{ name: string; data: Uint8Array }>>([]);
 	const [showInfo, setShowInfo] = useState(false);
 	const [exportError, setExportError] = useState<string | null>(null);
@@ -183,6 +222,7 @@ function VideoStudio() {
 	const trimEndFrameInputId = useId();
 
 	const videoRef = useRef<HTMLVideoElement>(null);
+	const captureCanvasRef = useRef<HTMLCanvasElement | null>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const captureButtonRef = useRef<HTMLButtonElement>(null);
 	const preBurnedAssInputRef = useRef<HTMLInputElement>(null);
@@ -322,7 +362,7 @@ function VideoStudio() {
 		probeDetails,
 		preBurnedAssInputRef,
 		subtitleCacheRef,
-		setFile,
+		setSourceFile,
 		setResultUrl,
 		setResultExt,
 		setStreamInfoPending,
@@ -342,7 +382,6 @@ function VideoStudio() {
 		setPreBurnedAssSourceFile,
 		setVideoNoReencode,
 		setAudioNoReencode,
-		setVideoUrl,
 		setEmbeddedFonts,
 		setProbeResult,
 		setTracks,
@@ -377,11 +416,22 @@ function VideoStudio() {
 		const video = videoRef.current;
 		if (!video) return;
 		const dur = video.duration;
-		setDuration(dur);
-		setTrimEnd(dur);
-		setTrimStart(0);
-		setCurrentTime(0);
-	}, []);
+		const state = useVideoEditorStore.getState();
+		// Fresh file load (loader resets duration to 0): initialize trim window.
+		// Remount with persisted state (duration > 0): keep stored trim & restore playback position.
+		if (state.duration === 0) {
+			setDuration(dur);
+			setTrimEnd(dur);
+			setTrimStart(0);
+			setCurrentTime(0);
+			return;
+		}
+		if (state.duration !== dur) setDuration(dur);
+		const target = state.currentTime;
+		if (target > 0 && target <= dur && Math.abs(video.currentTime - target) > 0.05) {
+			video.currentTime = target;
+		}
+	}, [setDuration, setTrimEnd, setTrimStart, setCurrentTime]);
 
 	const {
 		timelineScrubbing,
@@ -434,6 +484,15 @@ function VideoStudio() {
 		[navigate],
 	);
 
+	const handleEditAsGif = useCallback(
+		(gifSourceFile: File) => {
+			setPendingGifTransfer(gifSourceFile);
+			toast.success('Opening in GIF editor…');
+			void navigate({ to: '/tools/gif' });
+		},
+		[navigate],
+	);
+
 	const handleCaptureAction = useCallback(
 		async (format: 'png' | 'jpeg' | 'webp', action: 'download' | 'image-editor') => {
 			setCaptureMenuOpen(false);
@@ -444,13 +503,48 @@ function VideoStudio() {
 			}
 			toast('Capturing frame...');
 			try {
-				const pngData = await captureFrame({ file, timestamp: currentTime });
-				let blob: Blob;
-				if (format === 'png') {
-					blob = new Blob([new Uint8Array(pngData)], { type: 'image/png' });
-				} else {
-					blob = await convertPngToFormat(pngData, format);
+				let blob: Blob | null = null;
+
+				// Prefer the WebGL preview canvas so filters/look are baked in.
+				// Falls back to the worker's raw decode if the canvas isn't ready.
+				const webglCanvas = captureCanvasRef.current;
+				const video = videoRef.current;
+				if (
+					webglCanvas &&
+					webglCanvas.width > 0 &&
+					webglCanvas.height > 0 &&
+					video &&
+					video.readyState >= 2 &&
+					!compareMode
+				) {
+					const out = document.createElement('canvas');
+					out.width = webglCanvas.width;
+					out.height = webglCanvas.height;
+					const ctx = out.getContext('2d', { alpha: format === 'png' || format === 'webp' });
+					if (ctx) {
+						ctx.drawImage(webglCanvas, 0, 0);
+						const mime = format === 'png' ? 'image/png' : format === 'jpeg' ? 'image/jpeg' : 'image/webp';
+						blob = await new Promise<Blob | null>((resolve) => {
+							out.toBlob(
+								(b) => {
+									resolve(b);
+								},
+								mime,
+								0.92,
+							);
+						});
+					}
 				}
+
+				if (!blob) {
+					const pngData = await captureFrame({ file, timestamp: currentTime });
+					if (format === 'png') {
+						blob = new Blob([new Uint8Array(pngData)], { type: 'image/png' });
+					} else {
+						blob = await convertPngToFormat(pngData, format);
+					}
+				}
+
 				const ext = format === 'jpeg' ? 'jpg' : format;
 				const ts = formatTimecode(currentTime).replace(/:/g, '.');
 				if (action === 'download') {
@@ -469,7 +563,7 @@ function VideoStudio() {
 				toast.error('Failed to capture frame');
 			}
 		},
-		[file, currentTime, captureFrame, handleExportFrameToImageEditor, processing],
+		[file, currentTime, captureFrame, handleExportFrameToImageEditor, processing, compareMode],
 	);
 
 	const exportStartRef = useRef<number>(0);
@@ -492,6 +586,7 @@ function VideoStudio() {
 
 		setResultUrl(null);
 		setResultExt(null);
+		setResultBlob(null);
 		progressRef.current = 0;
 		exportStartRef.current = Date.now();
 		const {
@@ -643,13 +738,15 @@ function VideoStudio() {
 			const downloadName = buildExportFilename(sourceFile.name, ext);
 			setResultUrl(url);
 			setResultExt(ext);
+			setResultBlob(blob);
 			toast.success('Export complete', { description: downloadName });
 
-			// Auto-download
-			const a = document.createElement('a');
-			a.href = url;
-			a.download = downloadName;
-			a.click();
+			if (autoDownload) {
+				const a = document.createElement('a');
+				a.href = url;
+				a.download = downloadName;
+				a.click();
+			}
 		} catch (err) {
 			clearTimeout(timeoutId);
 			if (timeoutError) return;
@@ -691,6 +788,7 @@ function VideoStudio() {
 		minTrimDuration,
 		videoStreamInfo,
 		videoFps,
+		autoDownload,
 	]);
 
 	const handleDownload = useCallback(() => {
@@ -2067,12 +2165,17 @@ function VideoStudio() {
 								)}
 							</div>
 
-							{resultUrl && (
-								<div className="rounded-lg border border-success/25 bg-success/5 px-4 py-3">
-									<p className="text-sm font-medium text-success">
-										Export complete — ready to download
-									</p>
-								</div>
+							{resultUrl && resultBlob && (
+								<ExportResultCard
+									resultUrl={resultUrl}
+									resultBlob={resultBlob}
+									resultFileName={buildExportFilename(file?.name, resultExt ?? 'mp4')}
+									sourceFps={videoFps}
+									onDownloadVideo={handleDownload}
+									onEditAsGif={handleEditAsGif}
+									autoDownload={autoDownload}
+									onAutoDownloadChange={setAutoDownload}
+								/>
 							)}
 						</div>
 					</>
@@ -2132,19 +2235,6 @@ function VideoStudio() {
 						)}
 					</div>
 				}
-				secondaryAction={
-					resultUrl ? (
-						<Button
-							variant="secondary"
-							className="w-full"
-							onClick={() => {
-								handleDownload();
-							}}
-						>
-							Download
-						</Button>
-					) : undefined
-				}
 			/>
 		</>
 	);
@@ -2158,7 +2248,7 @@ function VideoStudio() {
 				jsonLd={[
 					buildWebAppSchema(
 						'Vixely Video Editor',
-						'Trim, cut, resize, crop, color-correct and export videos locally in your browser. No upload, 100% private, powered by native WebCodecs and WebGL2.',
+						'Trim, cut, resize, crop, color-correct and export videos locally in your browser. No upload, 100% private, powered by native WebCodecs, WebGL2 and the Mediabunny library.',
 						'https://vixely.app/tools/video',
 					),
 					buildFAQSchema(VIDEO_LANDING_FAQS.map((f) => ({ question: f.question, answer: f.answer }))),
@@ -2270,6 +2360,7 @@ function VideoStudio() {
 									src={videoUrl}
 									previewFile={file}
 									videoRef={videoRef}
+									captureCanvasRef={captureCanvasRef}
 									assSubtitleContent={assSubtitleContent}
 									embeddedFonts={embeddedFonts}
 									compareMode={compareMode}
@@ -2307,19 +2398,12 @@ function VideoStudio() {
 										formatHints={['MP4', 'WebM', 'MKV', 'AVI', 'MOV']}
 									/>
 								}
-								extraActions={
-									<UrlImportButton
-										onFile={handleFile}
-										acceptFile={isVideoFileLike}
-										placeholder="https://example.com/video.mp4"
-									/>
-								}
 								dropHandlers={dropHandlers}
 								isDragging={isDragging}
 								hasFile={false}
 								replaceLabel="Drop your video here"
 								heading="Free Online Video Editor — Trim, Crop & Export in Browser"
-								tagline="Trim, cut, resize, color-correct and export MP4, WebM, MKV and more — directly in your browser. No upload, 100% private, powered by native WebCodecs and WebGL2."
+								tagline="Trim, cut, resize, color-correct and export MP4, WebM, MKV and more — directly in your browser. No upload, 100% private, powered by native WebCodecs, WebGL2 and the Mediabunny library."
 								features={[...VIDEO_LANDING_FEATURES]}
 								formats={VIDEO_LANDING_FORMATS}
 								formatColor="bg-blue-400"
@@ -2370,133 +2454,5 @@ function VideoStudio() {
 				}
 			/>
 		</>
-	);
-}
-
-const CAPTURE_FORMATS = [
-	{ value: 'png' as const, label: 'PNG', group: 'Lossless', description: 'Exact pixels, best for edits' },
-	{ value: 'webp' as const, label: 'WebP', group: 'Lossy', description: 'Smaller size with strong visual quality' },
-	{ value: 'jpeg' as const, label: 'JPEG', group: 'Lossy', description: 'Compatible almost everywhere' },
-];
-
-function CaptureMenu({
-	format,
-	onFormatChange,
-	onAction,
-	onClose,
-	anchorRef,
-}: {
-	format: 'png' | 'jpeg' | 'webp';
-	onFormatChange: (f: 'png' | 'jpeg' | 'webp') => void;
-	onAction: (action: 'download' | 'image-editor') => void;
-	onClose: () => void;
-	anchorRef: React.RefObject<HTMLButtonElement | null>;
-}) {
-	const menuRef = useRef<HTMLDivElement>(null);
-	const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-
-	useLayoutEffect(() => {
-		const anchor = anchorRef.current;
-		if (!anchor) return;
-		const rect = anchor.getBoundingClientRect();
-		const menuWidth = 320;
-		let left = rect.right - menuWidth;
-		if (left < 8) left = 8;
-		setPos({ top: rect.bottom + 8, left });
-	}, [anchorRef]);
-
-	useEffect(() => {
-		const handler = (e: PointerEvent) => {
-			if (!(e.target instanceof Element)) return;
-			if (menuRef.current?.contains(e.target)) return;
-			if (anchorRef.current?.contains(e.target)) return;
-			onClose();
-		};
-		document.addEventListener('pointerdown', handler);
-		return () => {
-			document.removeEventListener('pointerdown', handler);
-		};
-	}, [onClose, anchorRef]);
-
-	const groupedFormats = [
-		{ label: 'Lossless', items: CAPTURE_FORMATS.filter((item) => item.group === 'Lossless') },
-		{ label: 'Lossy', items: CAPTURE_FORMATS.filter((item) => item.group === 'Lossy') },
-	];
-
-	if (!pos) return null;
-
-	return createPortal(
-		<div
-			ref={menuRef}
-			data-capture-menu
-			style={{ top: pos.top, left: pos.left }}
-			className="fixed z-50 w-80 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-border bg-surface shadow-xl animate-fade-in"
-		>
-			<div className="space-y-2 p-2">
-				{groupedFormats.map((section) => (
-					<div key={section.label} className="space-y-1">
-						<p className="px-1 text-[13px] font-semibold uppercase tracking-wider text-text-tertiary">
-							{section.label}
-						</p>
-						{section.items.map((option) => {
-							const isSelected = option.value === format;
-							return (
-								<button
-									key={option.value}
-									onClick={() => {
-										onFormatChange(option.value);
-									}}
-									className={`w-full rounded-lg border px-2.5 py-2 text-left transition-colors cursor-pointer ${
-										isSelected
-											? 'border-accent/35 bg-accent/10'
-											: 'border-border/60 bg-surface-raised/35 hover:bg-surface-raised/60'
-									}`}
-								>
-									<div className="flex items-center gap-2">
-										<div
-											className={`h-3.5 w-3.5 shrink-0 rounded-full border-[1.5px] flex items-center justify-center ${
-												isSelected ? 'border-accent bg-accent' : 'border-border'
-											}`}
-										>
-											{isSelected && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
-										</div>
-										<div className="min-w-0">
-											<p
-												className={`text-[13px] font-medium ${isSelected ? 'text-text' : 'text-text-secondary'}`}
-											>
-												{option.label}
-											</p>
-											<p className="text-[13px] text-text-tertiary">{option.description}</p>
-										</div>
-									</div>
-								</button>
-							);
-						})}
-					</div>
-				))}
-			</div>
-
-			<div className="border-t border-border p-1.5 flex gap-1.5">
-				<button
-					onClick={() => {
-						onAction('download');
-					}}
-					className="flex-1 flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-[13px] font-medium bg-surface-raised/50 text-text-secondary hover:bg-surface-raised hover:text-text transition-colors cursor-pointer whitespace-nowrap"
-				>
-					<Download size={14} />
-					Download
-				</button>
-				<button
-					onClick={() => {
-						onAction('image-editor');
-					}}
-					className="flex-1 flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-[13px] font-medium bg-accent/12 text-accent hover:bg-accent/20 transition-colors cursor-pointer whitespace-nowrap"
-				>
-					<Palette size={14} />
-					Image Editor
-				</button>
-			</div>
-		</div>,
-		document.body,
 	);
 }

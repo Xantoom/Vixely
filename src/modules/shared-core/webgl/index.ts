@@ -1,13 +1,7 @@
 export { createWebGL2Context, setupContextLossHandling, destroyGLContext, drawQuad } from './context.ts';
 export type { GLContext } from './context.ts';
 
-export {
-	FULLSCREEN_VERTEX,
-	COLOR_CORRECTION_FRAGMENT,
-	BLUR_FRAGMENT,
-	GRAIN_FRAGMENT,
-	COMPARE_FRAGMENT,
-} from './shaders.ts';
+export { FULLSCREEN_VERTEX, COLOR_FRAGMENT, BLUR_FRAGMENT, PASSTHROUGH_FRAGMENT, COMPARE_FRAGMENT } from './shaders.ts';
 
 export {
 	compileShader,

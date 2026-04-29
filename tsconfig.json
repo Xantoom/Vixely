@@ -24,5 +24,5 @@
 
 		"paths": { "@/*": ["./src/*"] }
 	},
-	"include": ["src", "vite-env.d.ts", "wasm"]
+	"include": ["src", "vite-env.d.ts"]
 }

@@ -79,6 +79,8 @@ export interface GifEditorState {
 
 	// Filters
 	filters: FilterParams;
+	lookId: string | null;
+	lookIntensity: number;
 
 	// Optimize
 	compressionSpeed: number;
@@ -113,6 +115,24 @@ export interface GifEditorState {
 	panX: number;
 	panY: number;
 
+	// Source file & timeline (persisted across editor navigation)
+	file: File | null;
+	videoUrl: string | null;
+	isGifSource: boolean;
+	duration: number;
+	currentTime: number;
+	trimStart: number;
+	trimEnd: number;
+	fps: number;
+	width: number;
+	height: number | null;
+	lockAspect: boolean;
+	sourceAspect: number;
+	sourceWidth: number | null;
+	sourceHeight: number | null;
+	loop: boolean;
+	selectedPreset: string | null;
+
 	// Actions
 	setMode: (mode: GifMode) => void;
 	setSpeed: (speed: number) => void;
@@ -126,6 +146,8 @@ export interface GifEditorState {
 	setFlipH: (flip: boolean) => void;
 	setFlipV: (flip: boolean) => void;
 	setFilter: <K extends keyof FilterParams>(key: K, value: FilterParams[K]) => void;
+	setLook: (id: string | null) => void;
+	setLookIntensity: (intensity: number) => void;
 	resetFilters: () => void;
 	setCompressionSpeed: (speed: number) => void;
 	setFrameSkip: (skip: FrameSkipMode) => void;
@@ -174,6 +196,23 @@ export interface GifEditorState {
 	fitToView: (containerW: number, containerH: number, mediaW: number, mediaH: number) => void;
 	resetView: () => void;
 
+	// Source file & timeline actions
+	setSourceFile: (file: File | null, isGif: boolean) => void;
+	clearSource: () => void;
+	setDuration: (d: number) => void;
+	setCurrentTime: (t: number) => void;
+	setTrimStart: (t: number) => void;
+	setTrimEnd: (t: number) => void;
+	setFps: (fps: number) => void;
+	setWidth: (w: number) => void;
+	setHeight: (h: number | null) => void;
+	setLockAspect: (locked: boolean) => void;
+	setSourceAspect: (aspect: number) => void;
+	setSourceWidth: (w: number | null) => void;
+	setSourceHeight: (h: number | null) => void;
+	setLoop: (loop: boolean) => void;
+	setSelectedPreset: (id: string | null) => void;
+
 	resetAll: () => void;
 	hasFilterChanges: () => boolean;
 }
@@ -206,6 +245,8 @@ export const useGifEditorStore = create<GifEditorState>((set, get) => ({
 	flipV: false,
 
 	filters: { ...DEFAULT_FILTER_PARAMS },
+	lookId: null,
+	lookIntensity: 1,
 
 	compressionSpeed: 10,
 	frameSkip: 'none',
@@ -231,6 +272,85 @@ export const useGifEditorStore = create<GifEditorState>((set, get) => ({
 	zoom: 1,
 	panX: 0,
 	panY: 0,
+
+	file: null,
+	videoUrl: null,
+	isGifSource: false,
+	duration: 0,
+	currentTime: 0,
+	trimStart: 0,
+	trimEnd: 5,
+	fps: 15,
+	width: 480,
+	height: null,
+	lockAspect: true,
+	sourceAspect: 16 / 9,
+	sourceWidth: null,
+	sourceHeight: null,
+	loop: true,
+	selectedPreset: null,
+
+	setSourceFile: (file, isGif) => {
+		const prevUrl = get().videoUrl;
+		if (prevUrl) URL.revokeObjectURL(prevUrl);
+		const nextUrl = file ? URL.createObjectURL(file) : null;
+		set({ file, videoUrl: nextUrl, isGifSource: isGif });
+	},
+	clearSource: () => {
+		const prevUrl = get().videoUrl;
+		if (prevUrl) URL.revokeObjectURL(prevUrl);
+		set({
+			file: null,
+			videoUrl: null,
+			isGifSource: false,
+			duration: 0,
+			currentTime: 0,
+			trimStart: 0,
+			trimEnd: 5,
+			sourceWidth: null,
+			sourceHeight: null,
+			selectedPreset: null,
+		});
+	},
+	setDuration: (duration) => {
+		set({ duration });
+	},
+	setCurrentTime: (currentTime) => {
+		set({ currentTime });
+	},
+	setTrimStart: (trimStart) => {
+		set({ trimStart });
+	},
+	setTrimEnd: (trimEnd) => {
+		set({ trimEnd });
+	},
+	setFps: (fps) => {
+		set({ fps });
+	},
+	setWidth: (width) => {
+		set({ width });
+	},
+	setHeight: (height) => {
+		set({ height });
+	},
+	setLockAspect: (lockAspect) => {
+		set({ lockAspect });
+	},
+	setSourceAspect: (sourceAspect) => {
+		set({ sourceAspect });
+	},
+	setSourceWidth: (sourceWidth) => {
+		set({ sourceWidth });
+	},
+	setSourceHeight: (sourceHeight) => {
+		set({ sourceHeight });
+	},
+	setLoop: (loop) => {
+		set({ loop });
+	},
+	setSelectedPreset: (selectedPreset) => {
+		set({ selectedPreset });
+	},
 
 	setMode: (mode) => {
 		set({ mode });
@@ -268,8 +388,14 @@ export const useGifEditorStore = create<GifEditorState>((set, get) => ({
 	setFilter: (key, value) => {
 		set((s) => ({ filters: { ...s.filters, [key]: value } }));
 	},
+	setLook: (id) => {
+		set((s) => ({ lookId: id, lookIntensity: id === null ? 1 : s.lookIntensity }));
+	},
+	setLookIntensity: (intensity) => {
+		set({ lookIntensity: Math.max(0, Math.min(1, intensity)) });
+	},
 	resetFilters: () => {
-		set({ filters: { ...DEFAULT_FILTER_PARAMS } });
+		set({ filters: { ...DEFAULT_FILTER_PARAMS }, lookId: null, lookIntensity: 1 });
 	},
 	setCompressionSpeed: (compressionSpeed) => {
 		set({ compressionSpeed });
@@ -415,11 +541,12 @@ export const useGifEditorStore = create<GifEditorState>((set, get) => ({
 	},
 
 	resetAll: () => {
-		const { extractedFrames, imageOverlay } = get();
+		const { extractedFrames, imageOverlay, videoUrl } = get();
 		for (const frame of extractedFrames) {
 			URL.revokeObjectURL(frame.url);
 		}
 		if (imageOverlay.url) URL.revokeObjectURL(imageOverlay.url);
+		if (videoUrl) URL.revokeObjectURL(videoUrl);
 		set({
 			mode: 'settings',
 			speed: 1,
@@ -435,6 +562,8 @@ export const useGifEditorStore = create<GifEditorState>((set, get) => ({
 			flipH: false,
 			flipV: false,
 			filters: { ...DEFAULT_FILTER_PARAMS },
+			lookId: null,
+			lookIntensity: 1,
 			compressionSpeed: 10,
 			frameSkip: 'none',
 			dithering: true,
@@ -452,10 +581,27 @@ export const useGifEditorStore = create<GifEditorState>((set, get) => ({
 			zoom: 1,
 			panX: 0,
 			panY: 0,
+			file: null,
+			videoUrl: null,
+			isGifSource: false,
+			duration: 0,
+			currentTime: 0,
+			trimStart: 0,
+			trimEnd: 5,
+			fps: 15,
+			width: 480,
+			height: null,
+			lockAspect: true,
+			sourceAspect: 16 / 9,
+			sourceWidth: null,
+			sourceHeight: null,
+			loop: true,
+			selectedPreset: null,
 		});
 	},
 
 	hasFilterChanges: () => {
-		return !filtersAreDefault(get().filters);
+		const s = get();
+		return !filtersAreDefault(s.filters) || s.lookId !== null;
 	},
 }));

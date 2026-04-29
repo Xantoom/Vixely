@@ -117,6 +117,7 @@ export function buildWebAppSchema(name: string, description: string, url: string
 			'No file uploads required',
 			'Hardware-accelerated WebCodecs pipeline',
 			'WebGL2 real-time filters',
+			'Mediabunny container I/O for video and GIF',
 		],
 	};
 }

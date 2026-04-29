@@ -33,7 +33,7 @@ export function PrivacyModal() {
 				<p className="mt-3 text-center text-sm text-text-secondary leading-relaxed">
 					Vixely is a <strong className="text-text">local-first</strong> tool. Your files{' '}
 					<strong className="text-text">never</strong> leave your device. All processing happens right here in
-					your browser using native WebCodecs and WebGL2.
+					your browser using native WebCodecs, WebGL2 and the Mediabunny library.
 				</p>
 
 				<ul className="mt-5 flex flex-col gap-2">

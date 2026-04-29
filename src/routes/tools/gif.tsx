@@ -1,5 +1,6 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import {
+	Camera,
 	Clapperboard,
 	Crop,
 	Download,
@@ -38,11 +39,12 @@ import { GifSettingsPanel } from '@/components/gif/GifSettingsPanel.tsx';
 import { GifTextOverlayPanel } from '@/components/gif/GifTextOverlayPanel.tsx';
 import { GifToolbar } from '@/components/gif/GifToolbar.tsx';
 import { Seo, buildWebAppSchema, buildFAQSchema } from '@/components/Seo.tsx';
+import { CaptureMenu, type CaptureFormat } from '@/components/shared/CaptureMenu.tsx';
 import { Button } from '@/components/ui/Button.tsx';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection.tsx';
 import { Timeline } from '@/components/ui/Timeline.tsx';
 import { ToolRail, type ToolRailItem } from '@/components/ui/ToolRail.tsx';
-import { UrlImportButton } from '@/components/ui/UrlImportButton.tsx';
+import { composeFilters } from '@/config/looks.ts';
 import { gifPresetEntries, GIF_ACCEPT } from '@/config/presets.ts';
 import { useEditorKeyboardShortcuts } from '@/hooks/useEditorKeyboardShortcuts.ts';
 import { useEditorLayoutPrefs } from '@/hooks/useEditorLayoutPrefs.ts';
@@ -57,10 +59,12 @@ import { useSingleFileDrop } from '@/hooks/useSingleFileDrop.ts';
 import { useTimelineScrubController } from '@/hooks/useTimelineScrubController.ts';
 import { useVideoProcessor } from '@/hooks/useVideoProcessor.ts';
 import { filtersAreDefault } from '@/modules/shared-core/types/filters.ts';
+import { convertPngToFormat } from '@/modules/video-editor/frameCapture.ts';
 import { useGifEditorStore, type GifMode } from '@/stores/gifEditor.ts';
+import { consumePendingGifTransfer, setPendingImageTransfer } from '@/utils/crossEditorTransfer.ts';
 import { buildExportFilename } from '@/utils/exportFilename.ts';
 import { formatFileSize } from '@/utils/format.ts';
-import { GIF_CROSS_LINKS, GIF_LANDING_FAQS, GIF_LANDING_FEATURES, GIF_LANDING_FORMATS } from './gif.landing.ts';
+import { GIF_CROSS_LINKS, GIF_LANDING_FAQS, GIF_LANDING_FEATURES, GIF_LANDING_FORMATS } from './-gif.landing.ts';
 
 export const Route = createFileRoute('/tools/gif')({ component: GifFoundry });
 
@@ -82,6 +86,11 @@ function isGifFileLike(file: File): boolean {
 	return file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif');
 }
 
+const GIF_VIDEO_FILENAME_RE = /\.(mp4|mkv|webm|mov|m4v|avi|mts|m2ts|ts|flv)$/i;
+function isGifOrVideoFileLike(file: File): boolean {
+	return isGifFileLike(file) || file.type.startsWith('video/') || GIF_VIDEO_FILENAME_RE.test(file.name);
+}
+
 /** Flat tool list for the GIF editor ToolRail */
 const GIF_TOOLS: ToolRailItem<GifMode>[] = [
 	{ id: 'settings', label: 'Settings', icon: Settings2 },
@@ -96,7 +105,8 @@ const GIF_TOOLS: ToolRailItem<GifMode>[] = [
 function GifFoundry() {
 	useLongTaskObserver('gif-route');
 	const { tier, setSidebarOpen } = useEditorLayoutPrefs({ editor: 'gif' });
-	const { ready, processing, progress, error, createGif, extractGifFrames } = useVideoProcessor();
+	const { ready, processing, progress, error, createGif, extractGifFrames, captureFrame } = useVideoProcessor();
+	const navigate = useNavigate();
 	const store = useGifEditorStore(
 		useShallow((s) => ({
 			mode: s.mode,
@@ -109,6 +119,8 @@ function GifFoundry() {
 			flipH: s.flipH,
 			flipV: s.flipV,
 			filters: s.filters,
+			lookId: s.lookId,
+			lookIntensity: s.lookIntensity,
 			compressionSpeed: s.compressionSpeed,
 			frameSkip: s.frameSkip,
 			dithering: s.dithering,
@@ -135,26 +147,76 @@ function GifFoundry() {
 		})),
 	);
 
-	const [file, setFile] = useState<File | null>(null);
-	const [videoUrl, setVideoUrl] = useObjectUrlState();
-	const [isGifSource, setIsGifSource] = useState(false);
-	const [duration, setDuration] = useState(0);
-	const [currentTime, setCurrentTime] = useState(0);
-	const [trimStart, setTrimStart] = useState(0);
-	const [trimEnd, setTrimEnd] = useState(5);
-	const [fps, setFps] = useState(15);
-	const [width, setWidth] = useState(480);
-	const [height, setHeight] = useState<number | null>(null);
-	const [lockAspect, setLockAspect] = useState(true);
-	const [sourceAspect, setSourceAspect] = useState(16 / 9);
-	const [sourceWidth, setSourceWidth] = useState<number | null>(null);
-	const [sourceHeight, setSourceHeight] = useState<number | null>(null);
-	const [loop, setLoop] = useState(true);
+	const {
+		file,
+		videoUrl,
+		isGifSource,
+		duration,
+		currentTime,
+		trimStart,
+		trimEnd,
+		fps,
+		width,
+		height,
+		lockAspect,
+		sourceAspect,
+		sourceWidth,
+		sourceHeight,
+		loop,
+		selectedPreset,
+		setSourceFile,
+		setDuration,
+		setCurrentTime,
+		setTrimStart,
+		setTrimEnd,
+		setFps,
+		setWidth,
+		setHeight,
+		setLockAspect,
+		setSourceAspect,
+		setSourceWidth,
+		setSourceHeight,
+		setLoop,
+		setSelectedPreset,
+	} = useGifEditorStore(
+		useShallow((s) => ({
+			file: s.file,
+			videoUrl: s.videoUrl,
+			isGifSource: s.isGifSource,
+			duration: s.duration,
+			currentTime: s.currentTime,
+			trimStart: s.trimStart,
+			trimEnd: s.trimEnd,
+			fps: s.fps,
+			width: s.width,
+			height: s.height,
+			lockAspect: s.lockAspect,
+			sourceAspect: s.sourceAspect,
+			sourceWidth: s.sourceWidth,
+			sourceHeight: s.sourceHeight,
+			loop: s.loop,
+			selectedPreset: s.selectedPreset,
+			setSourceFile: s.setSourceFile,
+			setDuration: s.setDuration,
+			setCurrentTime: s.setCurrentTime,
+			setTrimStart: s.setTrimStart,
+			setTrimEnd: s.setTrimEnd,
+			setFps: s.setFps,
+			setWidth: s.setWidth,
+			setHeight: s.setHeight,
+			setLockAspect: s.setLockAspect,
+			setSourceAspect: s.setSourceAspect,
+			setSourceWidth: s.setSourceWidth,
+			setSourceHeight: s.setSourceHeight,
+			setLoop: s.setLoop,
+			setSelectedPreset: s.setSelectedPreset,
+		})),
+	);
+
 	const [resultUrl, setResultUrl] = useObjectUrlState();
 	const [resultSize, setResultSize] = useState(0);
 	const [resultFileName, setResultFileName] = useState<string | null>(null);
 	const [activePreview, setActivePreview] = useState<'source' | 'result'>('source');
-	const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
 
 	const [showInfo, setShowInfo] = useState(false);
 	const [compareMode, setCompareMode] = useState(false);
@@ -168,6 +230,10 @@ function GifFoundry() {
 	const videoRef = useRef<HTMLVideoElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const previewContainerRef = useRef<HTMLDivElement>(null);
+	const captureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+	const captureButtonRef = useRef<HTMLButtonElement>(null);
+	const [captureMenuOpen, setCaptureMenuOpen] = useState(false);
+	const [captureFormat, setCaptureFormat] = useState<CaptureFormat>('png');
 
 	// Decode GIF frames for canvas-based preview (speed, reverse, filters in real-time)
 	const gifBlobUrl = isGifSource ? videoUrl : null;
@@ -289,29 +355,23 @@ function GifFoundry() {
 		};
 	}, [sourceWidth, sourceHeight]);
 
-	// Live CSS preview for filters + rotation/flip
+	// The WebGL canvas inside GifCanvasPlayer renders all colour adjustments —
+	// only rotation / flip transforms belong here. Stacking a CSS filter on
+	// top would double-apply the look.
 	const previewStyle = useMemo((): React.CSSProperties => {
-		const f = store.filters;
-		const parts: string[] = [];
-		const brightness = (f.exposure ?? 1) * (1 + (f.brightness ?? 0));
-		if (Math.abs(brightness - 1) > 0.01) parts.push(`brightness(${brightness.toFixed(3)})`);
-		if (Math.abs((f.contrast ?? 1) - 1) > 0.01) parts.push(`contrast(${(f.contrast ?? 1).toFixed(3)})`);
-		if (Math.abs((f.saturation ?? 1) - 1) > 0.01) parts.push(`saturate(${(f.saturation ?? 1).toFixed(3)})`);
-		if (Math.abs(f.hue ?? 0) > 0.5) parts.push(`hue-rotate(${(f.hue ?? 0).toFixed(1)}deg)`);
-		if ((f.sepia ?? 0) > 0.01) parts.push(`sepia(${(f.sepia ?? 0).toFixed(3)})`);
-		if ((f.blur ?? 0) > 0.1) parts.push(`blur(${(f.blur ?? 0).toFixed(2)}px)`);
-
 		const transforms: string[] = [];
 		if (store.rotation !== 0) transforms.push(`rotate(${store.rotation}deg)`);
 		if (store.flipH) transforms.push('scaleX(-1)');
 		if (store.flipV) transforms.push('scaleY(-1)');
 
-		return {
-			filter: parts.length > 0 ? parts.join(' ') : undefined,
-			transform: transforms.length > 0 ? transforms.join(' ') : undefined,
-			transition: 'filter 0.15s, transform 0.15s',
-		};
-	}, [store.filters, store.rotation, store.flipH, store.flipV]);
+		return { transform: transforms.length > 0 ? transforms.join(' ') : undefined, transition: 'transform 0.15s' };
+	}, [store.rotation, store.flipH, store.flipV]);
+
+	// Composed filters drive both preview and export — single source of truth.
+	const composedFilters = useMemo(
+		() => composeFilters(store.filters, store.lookId, store.lookIntensity),
+		[store.filters, store.lookId, store.lookIntensity],
+	);
 
 	const isDirty = file !== null;
 	useEditorUnsavedState('gif', isDirty || processing);
@@ -346,38 +406,22 @@ function GifFoundry() {
 
 	const handleNew = useCallback(() => {
 		requestAction(() => {
-			setFile(null);
-			setVideoUrl(null);
-			setIsGifSource(false);
-			setDuration(0);
-			setCurrentTime(0);
-			setTrimStart(0);
-			setTrimEnd(5);
-			setFps(15);
-			setWidth(480);
-			setHeight(null);
-			setLockAspect(true);
-			setSourceAspect(16 / 9);
-			setSourceWidth(null);
-			setSourceHeight(null);
-			setLoop(true);
 			setResultUrl(null);
 			setResultSize(0);
 			setResultFileName(null);
 			setActivePreview('source');
 			store.resetAll();
 		});
-	}, [requestAction, store, setResultUrl, setVideoUrl]);
+	}, [requestAction, store, setResultUrl]);
 
 	/* ── File Handling ── */
 	const handleFile = useCallback(
 		(f: File) => {
-			if (!isGifFileLike(f)) {
-				toast.error('Invalid file type', { description: 'Choose a GIF file (.gif)' });
+			if (!isGifOrVideoFileLike(f)) {
+				toast.error('Invalid file type', { description: 'Choose a GIF or video file' });
 				return;
 			}
 
-			setFile(f);
 			setResultUrl(null);
 			setResultSize(0);
 			setResultFileName(null);
@@ -385,9 +429,8 @@ function GifFoundry() {
 			setSourceWidth(null);
 			setSourceHeight(null);
 
-			const gifSource = f.type === 'image/gif' || f.name.toLowerCase().endsWith('.gif');
-			setIsGifSource(gifSource);
-			setVideoUrl(URL.createObjectURL(f));
+			const gifSource = isGifFileLike(f);
+			setSourceFile(f, gifSource);
 
 			if (gifSource) {
 				const probeUrl = URL.createObjectURL(f);
@@ -412,25 +455,55 @@ function GifFoundry() {
 				setTrimEnd(5);
 			}
 
-			toast.success('GIF loaded', { description: f.name });
+			toast.success(gifSource ? 'GIF loaded' : 'Video loaded', { description: f.name });
 		},
-		[setResultUrl, setVideoUrl],
+		[
+			setResultUrl,
+			setSourceFile,
+			setSourceWidth,
+			setSourceHeight,
+			setSourceAspect,
+			setDuration,
+			setTrimStart,
+			setTrimEnd,
+		],
 	);
+
+	// Hold the consumed file in a ref so we can re-run handleFile after StrictMode's
+	// dev-only mount/unmount/remount cycle — otherwise useObjectUrlState's cleanup
+	// revokes the videoUrl created on first mount and we can't get it back.
+	const pendingGifFileRef = useRef<File | null | undefined>(undefined);
+	useEffect(() => {
+		if (pendingGifFileRef.current === undefined) {
+			pendingGifFileRef.current = consumePendingGifTransfer();
+		}
+		if (pendingGifFileRef.current) handleFile(pendingGifFileRef.current);
+	}, [handleFile]);
 
 	const handleVideoLoaded = useCallback(() => {
 		const video = videoRef.current;
 		if (!video) return;
 		const dur = video.duration;
-		setDuration(dur);
-		setTrimStart(0);
-		setTrimEnd(Math.min(5, dur));
-		setCurrentTime(0);
+		const state = useGifEditorStore.getState();
+		const freshLoad = state.duration === 0;
+		if (freshLoad) {
+			setDuration(dur);
+			setTrimStart(0);
+			setTrimEnd(Math.min(5, dur));
+			setCurrentTime(0);
+		} else {
+			if (state.duration !== dur) setDuration(dur);
+			const target = state.currentTime;
+			if (target > 0 && target <= dur && Math.abs(video.currentTime - target) > 0.05) {
+				video.currentTime = target;
+			}
+		}
 		if (video.videoWidth > 0 && video.videoHeight > 0) {
 			setSourceAspect(video.videoWidth / video.videoHeight);
 			setSourceWidth(video.videoWidth);
 			setSourceHeight(video.videoHeight);
 		}
-	}, []);
+	}, [setDuration, setTrimStart, setTrimEnd, setCurrentTime, setSourceAspect, setSourceWidth, setSourceHeight]);
 	const { clampToTrim, handleSeek, handleTimelineScrubStart, handleTimelineScrubEnd, handleTimeUpdate } =
 		useTimelineScrubController({ videoRef, trimStart, trimEnd, processing, setCurrentTime });
 	const { stepCurrentFrame, startFrameHold, stopFrameHold } = useFrameStepController({
@@ -449,6 +522,80 @@ function GifFoundry() {
 			toast.error('Invalid file type', { description: 'Drop a GIF file (.gif)' });
 		},
 	});
+
+	const handleCaptureAction = useCallback(
+		async (format: CaptureFormat, action: 'download' | 'image-editor') => {
+			setCaptureMenuOpen(false);
+			if (!file || processing) return;
+			toast('Capturing frame...');
+			try {
+				let blob: Blob | null = null;
+
+				const gifCanvas = captureCanvasRef.current;
+				if (
+					gifCanvas &&
+					gifCanvas.width > 0 &&
+					gifCanvas.height > 0 &&
+					isGifSource &&
+					hasDecodedFrames &&
+					!compareMode
+				) {
+					const out = document.createElement('canvas');
+					out.width = gifCanvas.width;
+					out.height = gifCanvas.height;
+					const ctx = out.getContext('2d', { alpha: format === 'png' || format === 'webp' });
+					if (ctx) {
+						// Flip Y because GifCanvasPlayer renders upside-down and relies on a CSS scaleY(-1).
+						ctx.translate(0, gifCanvas.height);
+						ctx.scale(1, -1);
+						ctx.drawImage(gifCanvas, 0, 0);
+						const mime = format === 'png' ? 'image/png' : format === 'jpeg' ? 'image/jpeg' : 'image/webp';
+						blob = await new Promise<Blob | null>((resolve) => {
+							out.toBlob(
+								(b) => {
+									resolve(b);
+								},
+								mime,
+								0.92,
+							);
+						});
+					}
+				}
+
+				if (!blob && !isGifSource) {
+					const pngData = await captureFrame({ file, timestamp: currentTime });
+					if (format === 'png') {
+						blob = new Blob([new Uint8Array(pngData)], { type: 'image/png' });
+					} else {
+						blob = await convertPngToFormat(pngData, format);
+					}
+				}
+
+				if (!blob) throw new Error('No capture path available');
+
+				const ext = format === 'jpeg' ? 'jpg' : format;
+				const stamp = currentTime > 0 ? Math.round(currentTime * 1000) : Date.now();
+				const name = `gif-frame-${stamp}.${ext}`;
+				if (action === 'download') {
+					const url = URL.createObjectURL(blob);
+					const a = document.createElement('a');
+					a.href = url;
+					a.download = name;
+					a.click();
+					URL.revokeObjectURL(url);
+				} else {
+					const mime = format === 'jpeg' ? 'image/jpeg' : `image/${format}`;
+					const frameFile = new File([blob], name, { type: mime });
+					setPendingImageTransfer(frameFile);
+					toast.success('Frame ready in Image editor');
+					void navigate({ to: '/tools/image' });
+				}
+			} catch {
+				toast.error('Failed to capture frame');
+			}
+		},
+		[file, processing, isGifSource, hasDecodedFrames, compareMode, captureFrame, currentTime, navigate],
+	);
 
 	const togglePlaybackInTrim = useCallback(() => {
 		const video = videoRef.current;
@@ -575,8 +722,8 @@ function GifFoundry() {
 				}
 			: {};
 
-		// Filter params
-		const f = store.filters;
+		// Filter params — must reflect the composed (base + look) state.
+		const f = composeFilters(store.filters, store.lookId, store.lookIntensity);
 		const filterParams = {
 			filterExposure: f.exposure !== 1 ? f.exposure : undefined,
 			filterBrightness: f.brightness !== 0 ? f.brightness : undefined,
@@ -714,7 +861,7 @@ function GifFoundry() {
 			store.flipH ||
 			store.flipV ||
 			store.aspectPreset !== 'free',
-		filters: !filtersAreDefault(store.filters),
+		filters: !filtersAreDefault(store.filters) || store.lookId !== null,
 		overlays: store.textOverlays.length > 0 || store.imageOverlay.file != null,
 		effects: store.fadeInDuration > 0 || store.fadeOutDuration > 0,
 		frames: store.extractedFrames.length > 0,
@@ -963,7 +1110,7 @@ function GifFoundry() {
 				jsonLd={[
 					buildWebAppSchema(
 						'Vixely GIF Editor',
-						'Trim, crop, resize, optimize and convert GIF, APNG and animated WebP — directly in your browser. No upload, 100% private, powered by native WebCodecs and WebGL2.',
+						'Trim, crop, resize, optimize and convert GIF, APNG and animated WebP — directly in your browser. No upload, 100% private, powered by native WebCodecs, WebGL2 and the Mediabunny library.',
 						'https://vixely.app/tools/gif',
 					),
 					buildFAQSchema(GIF_LANDING_FAQS.map((f) => ({ question: f.question, answer: f.answer }))),
@@ -1022,6 +1169,38 @@ function GifFoundry() {
 								onZoomIn={handleZoomIn}
 								onZoomOut={handleZoomOut}
 								onFitToScreen={handleFitToScreen}
+								captureMenu={
+									<>
+										<button
+											ref={captureButtonRef}
+											onClick={() => {
+												setCaptureMenuOpen((prev) => !prev);
+											}}
+											disabled={!file || processing}
+											title="Capture current frame"
+											type="button"
+											aria-label="Capture current frame"
+											className={`h-8 w-8 flex items-center justify-center rounded-md transition-all cursor-pointer
+												${captureMenuOpen ? 'bg-accent/15 text-accent' : 'text-text-tertiary hover:text-text hover:bg-surface-raised/60'}
+												${!file || processing ? 'opacity-30 pointer-events-none' : ''}`}
+										>
+											<Camera size={16} />
+										</button>
+										{captureMenuOpen && (
+											<CaptureMenu
+												format={captureFormat}
+												onFormatChange={setCaptureFormat}
+												onAction={(action) => {
+													void handleCaptureAction(captureFormat, action);
+												}}
+												onClose={() => {
+													setCaptureMenuOpen(false);
+												}}
+												anchorRef={captureButtonRef}
+											/>
+										)}
+									</>
+								}
 							/>
 						)}
 						{videoUrl ? (
@@ -1085,7 +1264,7 @@ function GifFoundry() {
 										<GifCanvasPlayer
 											ref={gifPlayerRef}
 											frames={previewFrames}
-											filters={store.filters}
+											filters={composedFilters}
 											fps={fps}
 											speed={store.speed}
 											reverse={store.reverse}
@@ -1097,6 +1276,7 @@ function GifFoundry() {
 											fadeOutDuration={store.fadeOutDuration}
 											style={previewStyle}
 											className="rounded-lg bg-black"
+											captureCanvasRef={captureCanvasRef}
 										/>
 									) : isGifSource ? (
 										<img
@@ -1210,19 +1390,12 @@ function GifFoundry() {
 										formatHints={['GIF', 'APNG', 'WebP']}
 									/>
 								}
-								extraActions={
-									<UrlImportButton
-										onFile={handleFile}
-										acceptFile={isGifFileLike}
-										placeholder="https://example.com/loop.gif"
-									/>
-								}
 								dropHandlers={dropHandlers}
 								isDragging={isDragging}
 								hasFile={false}
 								replaceLabel="Drop your GIF here"
 								heading="Free Online GIF Editor — Optimize, Trim & Convert in Browser"
-								tagline="Trim, crop, resize, optimize and convert GIF, APNG and animated WebP in real time. No upload, no servers — powered by native WebCodecs and WebGL2."
+								tagline="Trim, crop, resize, optimize and convert GIF, APNG and animated WebP in real time. No upload, no servers — powered by native WebCodecs, WebGL2 and the Mediabunny library."
 								features={[...GIF_LANDING_FEATURES]}
 								formats={GIF_LANDING_FORMATS}
 								formatColor="bg-emerald-400"

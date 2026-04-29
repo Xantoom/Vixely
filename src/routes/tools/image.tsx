@@ -11,7 +11,6 @@ import { ImageCanvas } from '@/components/image/ImageCanvas.tsx';
 import { ImageSidebar } from '@/components/image/ImageSidebar.tsx';
 import { ImageToolbar } from '@/components/image/ImageToolbar.tsx';
 import { Seo, buildWebAppSchema, buildFAQSchema } from '@/components/Seo.tsx';
-import { UrlImportButton } from '@/components/ui/UrlImportButton.tsx';
 import { IMAGE_ACCEPT } from '@/config/presets.ts';
 import { useEditorKeyboardShortcuts } from '@/hooks/useEditorKeyboardShortcuts.ts';
 import { useEditorLayoutPrefs } from '@/hooks/useEditorLayoutPrefs.ts';
@@ -26,7 +25,7 @@ import {
 	IMAGE_LANDING_FAQS,
 	IMAGE_LANDING_FEATURES,
 	IMAGE_LANDING_FORMATS,
-} from './image.landing.ts';
+} from './-image.landing.ts';
 
 const ACCEPTED_IMAGE_EXTENSIONS = IMAGE_ACCEPT.split(',').map((ext) => ext.trim().toLowerCase());
 const ACCEPTED_IMAGE_TYPES = new Set(
@@ -207,13 +206,6 @@ function ImageLab() {
 										formatHints={['PNG', 'JPG', 'WebP', 'AVIF', 'BMP']}
 									/>
 								}
-								extraActions={
-									<UrlImportButton
-										onFile={(f) => void handleLoadFile(f)}
-										acceptFile={isAcceptedImageFileLike}
-										placeholder="https://example.com/photo.png"
-									/>
-								}
 								dropHandlers={dropHandlers}
 								isDragging={isDragging}
 								hasFile={false}
@@ -225,6 +217,7 @@ function ImageLab() {
 								formatColor="bg-amber-400"
 								faqs={[...IMAGE_LANDING_FAQS]}
 								crossLinks={[...IMAGE_CROSS_LINKS]}
+								poweredBy="Canvas & WebGL2"
 							/>
 						)}
 					</>

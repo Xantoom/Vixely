@@ -23,7 +23,7 @@ export const IMAGE_LANDING_FEATURES = [
 		icon: ShieldCheck,
 		title: 'Privacy First',
 		description:
-			'Your images never leave your device. All processing runs locally in your browser using native Canvas, WebGL2 and the Mediabunny library.',
+			'Your images never leave your device. All processing runs locally in your browser using native Canvas 2D and WebGL2 shaders.',
 	},
 ] as const;
 
@@ -40,7 +40,7 @@ export const IMAGE_LANDING_FAQS = [
 	},
 	{
 		question: 'Is my image uploaded to a server?',
-		answer: 'No. All image processing happens entirely in your browser using native Canvas 2D, WebGL2 shaders and the Mediabunny library. Your files never leave your device — completely private.',
+		answer: 'No. All image processing happens entirely in your browser using native Canvas 2D and WebGL2 shaders. Your files never leave your device — completely private.',
 	},
 	{
 		question: 'Can I convert between image formats?',
