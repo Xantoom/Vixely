@@ -34,8 +34,19 @@ export default defineConfig({
 		target: "es2023",
 		rollupOptions: {
 			output: {
-				// Codec extensions and editors must never land in the entry chunk.
-				manualChunks: undefined,
+				// Mediabunny is ~300 kB and is shared by four editors: giving it
+				// its own chunk keeps it out of every editor's budget and out of
+				// the marketing pages entirely.
+				manualChunks: (id: string) => {
+					if (id.includes("node_modules/mediabunny")) return "mediabunny";
+					if (id.includes("node_modules/@mediabunny/")) {
+						// One chunk per codec extension, so opening the audio
+						// editor does not pull down the DTS encoder.
+						const match = /node_modules\/@mediabunny\/([^/]+)/u.exec(id);
+						return `mediabunny-${match?.[1] ?? "extension"}`;
+					}
+					return undefined;
+				},
 			},
 		},
 	},

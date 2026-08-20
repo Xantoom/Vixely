@@ -32,6 +32,18 @@ const BUDGETS: readonly Budget[] = [
 		matches: (name) => /^(en|fr|es|it|de|zh|ja)-/.test(name),
 		maxKb: 12,
 	},
+	{
+		label: "the shared Mediabunny chunk",
+		matches: (name) => /^mediabunny-[A-Za-z0-9_-]+\.js$/u.test(name),
+		// The whole demux/mux/codec surface for four editors, loaded only when
+		// one of them opens.
+		maxKb: 160,
+	},
+	{
+		label: "each codec extension",
+		matches: (name) => /^mediabunny-[a-z0-9-]+-[A-Za-z0-9_-]+\.js$/u.test(name),
+		maxKb: 200,
+	},
 	{ label: "stylesheet", matches: (name) => name.endsWith(".css"), maxKb: 40 },
 ];
 
@@ -71,6 +83,18 @@ async function main(): Promise<void> {
 				failures.push(
 					`${name} is ${kb.toFixed(1)} kB gz, over the ${budget.maxKb} kB budget for ${budget.label}`,
 				);
+			}
+		}
+	}
+
+	// The budget that matters most: arriving on a marketing page must not pull
+	// in Mediabunny, WebGL or jassub.
+	const entry = [...sizes.keys()].find((name) => /^index-.*\.js$/u.test(name));
+	if (entry !== undefined) {
+		const source = await Bun.file(new URL(entry, assets)).text();
+		for (const forbidden of ["MatroskaOutputFormat", "EncodedPacketSink", "jassub"]) {
+			if (source.includes(forbidden)) {
+				failures.push(`the entry chunk pulls in ${forbidden}; it must stay out of it`);
 			}
 		}
 	}

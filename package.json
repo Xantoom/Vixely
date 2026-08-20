@@ -20,6 +20,12 @@
 		"fixtures": "bun scripts/make-fixtures.ts"
 	},
 	"dependencies": {
+		"@mediabunny/aac-encoder": "1.55.1",
+		"@mediabunny/ac3": "1.55.1",
+		"@mediabunny/dts": "1.55.1",
+		"@mediabunny/flac-encoder": "1.55.1",
+		"@mediabunny/mp3-encoder": "1.55.1",
+		"@mediabunny/prores": "1.55.1",
 		"@tanstack/react-router": "1.170.31",
 		"@tanstack/react-start": "1.168.48",
 		"@tanstack/react-virtual": "3.14.10",
