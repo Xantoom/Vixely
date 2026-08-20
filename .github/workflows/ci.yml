@@ -64,6 +64,9 @@ jobs:
             - run: bun install --frozen-lockfile
             - run: bun x playwright install --with-deps chromium firefox
             - run: bun run test:browser
+            # The e2e suite serves dist/client and reads the generated CSP, so
+            # it needs a build first.
+            - run: bun run build
             - run: bun run test:e2e
             - uses: actions/upload-artifact@v4
               if: failure()

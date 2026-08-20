@@ -10,9 +10,17 @@
 	root * /srv
 
 	# Substitutes the per-request nonce the build stamped onto the inline
-	# scripts. Only HTML is templated; nothing else contains a placeholder.
-	@html_files path *.html /
-	templates @html_files
+	# scripts. Matched on the response's content type rather than on the request
+	# path: an editor route like /tools/image is served the shell through
+	# try_files, and a path matcher would leave its placeholder unsubstituted —
+	# which blocks every inline script on exactly the routes that need them.
+	# Scoped by response MIME type, not by request path: an editor route like
+	# /tools/image is served the shell through try_files, and a path matcher
+	# leaves its placeholder unsubstituted — which blocks every inline script on
+	# exactly the routes that need them.
+	templates {
+		mime text/html
+	}
 	# Brotli needs a custom Caddy build; the stock image ships zstd and gzip.
 	# Cloudflare re-compresses with Brotli at the edge anyway (05-deploy §5).
 	encode zstd gzip
