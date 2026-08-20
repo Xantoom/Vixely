@@ -4,37 +4,71 @@ import type { AudioCodec, VideoCodec } from "../document/types.ts";
  * Codec → extension registry.
  *
  * Extensions are dynamic imports so a user cropping an image never downloads
- * the DTS encoder. The registry is declarative on purpose: adding a codec is a
- * table entry, not a new code path.
+ * the DTS encoder, and each one exports a `register*` function that has to be
+ * *called*: importing the module alone leaves the codec unavailable, and the
+ * failure surfaces as a cryptic "configuration not supported".
  */
 export type CodecExtension = {
 	readonly package: string;
-	readonly load: () => Promise<unknown>;
+	readonly register: () => Promise<void>;
 };
 
-/** Only the encoders need an extension; decoding is built in. */
+/** Only encoders need an extension; decoding is built in, bar AC-3 and DTS. */
 const AUDIO_ENCODER_EXTENSIONS: Partial<Record<AudioCodec, CodecExtension>> = {
 	aac: {
 		package: "@mediabunny/aac-encoder",
-		load: () => import(/* @vite-ignore */ "@mediabunny/aac-encoder"),
+		register: async () => {
+			const { registerAacEncoder } = await import("@mediabunny/aac-encoder");
+			registerAacEncoder();
+		},
 	},
 	mp3: {
 		package: "@mediabunny/mp3-encoder",
-		load: () => import(/* @vite-ignore */ "@mediabunny/mp3-encoder"),
+		register: async () => {
+			const { registerMp3Encoder } = await import("@mediabunny/mp3-encoder");
+			registerMp3Encoder();
+		},
 	},
 	flac: {
 		package: "@mediabunny/flac-encoder",
-		load: () => import(/* @vite-ignore */ "@mediabunny/flac-encoder"),
+		register: async () => {
+			const { registerFlacEncoder } = await import("@mediabunny/flac-encoder");
+			registerFlacEncoder();
+		},
 	},
-	ac3: { package: "@mediabunny/ac3", load: () => import(/* @vite-ignore */ "@mediabunny/ac3") },
-	eac3: { package: "@mediabunny/ac3", load: () => import(/* @vite-ignore */ "@mediabunny/ac3") },
-	dts: { package: "@mediabunny/dts", load: () => import(/* @vite-ignore */ "@mediabunny/dts") },
+	ac3: {
+		package: "@mediabunny/ac3",
+		register: async () => {
+			const { registerAc3Decoder, registerAc3Encoder } = await import("@mediabunny/ac3");
+			registerAc3Decoder();
+			registerAc3Encoder();
+		},
+	},
+	eac3: {
+		package: "@mediabunny/ac3",
+		register: async () => {
+			const { registerAc3Decoder, registerAc3Encoder } = await import("@mediabunny/ac3");
+			registerAc3Decoder();
+			registerAc3Encoder();
+		},
+	},
+	dts: {
+		package: "@mediabunny/dts",
+		register: async () => {
+			const { registerDtsDecoder, registerDtsEncoder } = await import("@mediabunny/dts");
+			registerDtsDecoder();
+			registerDtsEncoder();
+		},
+	},
 };
 
 const VIDEO_ENCODER_EXTENSIONS: Partial<Record<VideoCodec, CodecExtension>> = {
 	prores: {
 		package: "@mediabunny/prores",
-		load: () => import(/* @vite-ignore */ "@mediabunny/prores"),
+		register: async () => {
+			const { registerProresDecoder } = await import("@mediabunny/prores");
+			registerProresDecoder();
+		},
 	},
 };
 
@@ -48,10 +82,10 @@ export function videoExtensionFor(codec: VideoCodec): CodecExtension | undefined
 
 const loaded = new Set<string>();
 
-/** Idempotent: a codec used twice loads its extension once. */
+/** Idempotent: a codec used twice registers its extension once. */
 export async function ensureExtension(extension: CodecExtension | undefined): Promise<void> {
 	if (extension === undefined || loaded.has(extension.package)) return;
-	await extension.load();
+	await extension.register();
 	loaded.add(extension.package);
 }
 

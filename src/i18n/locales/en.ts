@@ -174,6 +174,8 @@ export const en = {
 	"audio.noAudioTrack": "{name} carries no audio track.",
 	"audio.channels": "Channels",
 	"audio.sampleRate": "Sample rate",
+	"audio.tooLongToProcess":
+		"This file is too long to process in memory. Remuxing still works; trimming, gain and normalisation do not.",
 	"audio.remuxOnly": "No re-encoding needed: the audio is copied as it is.",
 
 	"status.loading": "Loading",

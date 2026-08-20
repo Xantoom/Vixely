@@ -11,6 +11,9 @@ const alias = { "~": fileURLToPath(new URL("./src", import.meta.url)) };
  */
 export default defineConfig({
 	resolve: { alias },
+	// Fixtures are fetched by the browser tier; serving the repo root is what
+	// makes `/tests/fixtures/...` resolvable from a test page.
+	server: { fs: { allow: [".."] } },
 	test: {
 		projects: [
 			{

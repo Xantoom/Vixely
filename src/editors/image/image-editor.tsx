@@ -9,6 +9,7 @@ import {
 	type ImageFormat,
 } from "~/core/document";
 import { decodeImage, encodeImage, IMAGE_INPUT_EXTENSIONS, outputFileName } from "~/core/image";
+import { exportExceedsCeiling } from "~/core/environment";
 import { clampCrop, fitAspect } from "~/core/render";
 
 import { AppShell } from "~/ui/app-shell.tsx";
@@ -168,6 +169,8 @@ export function ImageEditor() {
 			</AppShell>
 		);
 	}
+
+	const estimatedBytes = estimateSize(doc, outputSize);
 
 	return (
 		<AppShell
@@ -431,9 +434,18 @@ export function ImageEditor() {
 							</Button>
 							<p className="tabular text-2xs text-[var(--text-subtle)]">
 								{t("export.estimatedSize", {
-									size: formatBytes(locale, estimateSize(doc, outputSize)),
+									size: formatBytes(locale, estimatedBytes),
 								})}
 							</p>
+
+							{/* Stated before the export starts, not after it fails. */}
+							{exportExceedsCeiling(environment, estimatedBytes) && (
+								<p className="text-xs text-[var(--warning)]">
+									{t("environment.exportTooLarge", {
+										size: formatBytes(locale, estimatedBytes),
+									})}
+								</p>
+							)}
 						</CollapsibleSection>
 
 						<div className="border-t border-[var(--border)] p-3">

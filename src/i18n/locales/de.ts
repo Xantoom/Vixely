@@ -179,6 +179,8 @@ export const de: LocaleModule = {
 	"audio.noAudioTrack": "{name} enthält keine Audiospur.",
 	"audio.channels": "Kanäle",
 	"audio.sampleRate": "Abtastrate",
+	"audio.tooLongToProcess":
+		"Diese Datei ist zu lang, um sie im Arbeitsspeicher zu verarbeiten. Remuxen geht weiterhin; Schneiden, Verstärkung und Normalisierung nicht.",
 	"audio.remuxOnly": "Keine Neukodierung nötig: das Audio wird unverändert kopiert.",
 
 	"status.loading": "Wird geladen",

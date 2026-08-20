@@ -171,6 +171,8 @@ export const ja: LocaleModule = {
 	"audio.noAudioTrack": "{name} には音声トラックがありません。",
 	"audio.channels": "チャンネル数",
 	"audio.sampleRate": "サンプリング周波数",
+	"audio.tooLongToProcess":
+		"このファイルはメモリ上で処理するには長すぎます。リマックスは可能ですが、トリミング・ゲイン・正規化はできません。",
 	"audio.remuxOnly": "再エンコードは不要です。音声はそのままコピーされます。",
 
 	"status.loading": "読み込み中",

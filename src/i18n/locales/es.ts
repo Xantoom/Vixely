@@ -176,6 +176,8 @@ export const es: LocaleModule = {
 	"audio.noAudioTrack": "{name} no contiene ninguna pista de audio.",
 	"audio.channels": "Canales",
 	"audio.sampleRate": "Frecuencia de muestreo",
+	"audio.tooLongToProcess":
+		"Este archivo es demasiado largo para procesarlo en memoria. El remux sigue funcionando; el recorte, la ganancia y la normalización no.",
 	"audio.remuxOnly": "No hace falta recodificar: el audio se copia tal cual.",
 
 	"status.loading": "Cargando",

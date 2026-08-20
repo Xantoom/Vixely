@@ -34,20 +34,33 @@ const BUDGETS: readonly Budget[] = [
 	},
 	{
 		label: "the shared Mediabunny chunk",
-		matches: (name) => /^mediabunny-[A-Za-z0-9_-]+\.js$/u.test(name),
-		// The whole demux/mux/codec surface for four editors, loaded only when
-		// one of them opens.
+		// The core library, told apart from the extensions by name.
+		matches: (name) => /^mediabunny-[A-Za-z0-9_-]{8}\.js$/u.test(name),
 		maxKb: 160,
 	},
 	{
 		label: "each codec extension",
-		matches: (name) => /^mediabunny-[a-z0-9-]+-[A-Za-z0-9_-]+\.js$/u.test(name),
-		maxKb: 200,
+		// These carry WASM codecs and are large by nature. What matters is that
+		// they are separate chunks: opening the audio editor must not download
+		// the DTS encoder, and nothing here may reach a marketing page.
+		matches: (name) =>
+			/^mediabunny-(aac-encoder|mp3-encoder|flac-encoder|ac3|dts|prores)-/u.test(name),
+		maxKb: 450,
 	},
 	{ label: "stylesheet", matches: (name) => name.endsWith(".css"), maxKb: 40 },
 ];
 
+/**
+ * The ceiling on what a session actually downloads.
+ *
+ * Codec extensions are excluded: they carry WASM, they are separate chunks, and
+ * nobody downloads all six — a user who never touches DTS never fetches it.
+ * Counting them here would measure a session that cannot happen.
+ */
 const TOTAL_JS_BUDGET_KB = 700;
+
+const isCodecExtension = (name: string) =>
+	/^mediabunny-(aac-encoder|mp3-encoder|flac-encoder|ac3|dts|prores)-/u.test(name);
 
 async function main(): Promise<void> {
 	const assets = new URL("../dist/client/assets/", import.meta.url);
@@ -66,7 +79,7 @@ async function main(): Promise<void> {
 		const file = Bun.file(new URL(name, assets));
 		const bytes = gzipSync(new Uint8Array(await file.arrayBuffer())).byteLength;
 		sizes.set(name, bytes);
-		if (name.endsWith(".js")) totalJs += bytes;
+		if (name.endsWith(".js") && !isCodecExtension(name)) totalJs += bytes;
 	}
 
 	const failures: string[] = [];
@@ -100,7 +113,9 @@ async function main(): Promise<void> {
 	}
 
 	const totalKb = totalJs / 1024;
-	console.log(`\n  total JS: ${totalKb.toFixed(1)} kB gz / ${TOTAL_JS_BUDGET_KB} kB`);
+	console.log(
+		`\n  total JS excluding codec extensions: ${totalKb.toFixed(1)} kB gz / ${TOTAL_JS_BUDGET_KB} kB`,
+	);
 	if (totalKb > TOTAL_JS_BUDGET_KB) {
 		failures.push(
 			`total JS is ${totalKb.toFixed(1)} kB gz, over the ${TOTAL_JS_BUDGET_KB} kB budget`,

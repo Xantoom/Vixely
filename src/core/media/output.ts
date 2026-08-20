@@ -167,8 +167,9 @@ export async function runConversion(request: ConversionRequest): Promise<ExportR
 			: {
 					video: {
 						codec: toMediabunnyVideoCodec(request.video.codec),
-						// `quality` rather than a bitrate field: v1.52 deprecated those.
-						bitrate: qualityFrom(request.video.quality),
+						// `quality`, never `bitrate`: v1.52 deprecated the latter
+						// and ADR 007 locks the choice.
+						quality: qualityFrom(request.video.quality),
 						...(request.video.width === undefined ? {} : { width: request.video.width }),
 						...(request.video.height === undefined ? {} : { height: request.video.height }),
 						...(request.video.frameRate === undefined
@@ -181,7 +182,7 @@ export async function runConversion(request: ConversionRequest): Promise<ExportR
 			: {
 					audio: {
 						codec: toMediabunnyAudioCodec(request.audio.codec),
-						bitrate: qualityFrom(request.audio.quality),
+						quality: qualityFrom(request.audio.quality),
 						...(request.audio.sampleRate === undefined
 							? {}
 							: { sampleRate: request.audio.sampleRate }),

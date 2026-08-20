@@ -168,6 +168,8 @@ export const zh: LocaleModule = {
 	"audio.noAudioTrack": "{name} 不包含任何音频轨道。",
 	"audio.channels": "声道数",
 	"audio.sampleRate": "采样率",
+	"audio.tooLongToProcess":
+		"该文件过长，无法在内存中处理。重封装仍然可用，剪辑、增益与响度归一化则不可用。",
 	"audio.remuxOnly": "无需重新编码：音频将被原样复制。",
 
 	"status.loading": "加载中",

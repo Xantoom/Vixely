@@ -175,6 +175,8 @@ export const fr: LocaleModule = {
 	"audio.noAudioTrack": "{name} ne contient aucune piste audio.",
 	"audio.channels": "Canaux",
 	"audio.sampleRate": "Fréquence d’échantillonnage",
+	"audio.tooLongToProcess":
+		"Ce fichier est trop long pour être traité en mémoire. Le remux reste possible ; la découpe, le gain et la normalisation non.",
 	"audio.remuxOnly": "Aucun réencodage nécessaire : l’audio est copié tel quel.",
 
 	"status.loading": "Chargement",

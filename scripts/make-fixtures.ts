@@ -102,6 +102,78 @@ function cp1252Srt(): Uint8Array {
 	return new Uint8Array(bytes);
 }
 
+/**
+ * WAV fixtures, authored byte by byte.
+ *
+ * A 44-byte RIFF header plus PCM samples is the one media format that can be
+ * produced without an encoder, and Mediabunny reads WAVE natively — which makes
+ * these the fixtures that let the media tests run at all in a toolchain with no
+ * ffmpeg. Everything encoded (H.264, AAC, DTS…) is committed instead.
+ */
+function wav(channels: readonly Float32Array[], sampleRate: number): Uint8Array {
+	const channelCount = channels.length;
+	const frames = channels[0]?.length ?? 0;
+	const bytesPerSample = 2;
+	const dataBytes = frames * channelCount * bytesPerSample;
+	const buffer = new ArrayBuffer(44 + dataBytes);
+	const view = new DataView(buffer);
+
+	const ascii = (offset: number, text: string) => {
+		for (let index = 0; index < text.length; index++) {
+			view.setUint8(offset + index, text.codePointAt(index) ?? 0);
+		}
+	};
+
+	ascii(0, "RIFF");
+	view.setUint32(4, 36 + dataBytes, true);
+	ascii(8, "WAVE");
+	ascii(12, "fmt ");
+	view.setUint32(16, 16, true);
+	view.setUint16(20, 1, true);
+	view.setUint16(22, channelCount, true);
+	view.setUint32(24, sampleRate, true);
+	view.setUint32(28, sampleRate * channelCount * bytesPerSample, true);
+	view.setUint16(32, channelCount * bytesPerSample, true);
+	view.setUint16(34, 8 * bytesPerSample, true);
+	ascii(36, "data");
+	view.setUint32(40, dataBytes, true);
+
+	let offset = 44;
+	for (let frame = 0; frame < frames; frame++) {
+		for (const channel of channels) {
+			const sample = Math.max(-1, Math.min(1, channel[frame] ?? 0));
+			view.setInt16(offset, Math.round(sample * 32_767), true);
+			offset += bytesPerSample;
+		}
+	}
+
+	return new Uint8Array(buffer);
+}
+
+function tone(frequency: number, seconds: number, sampleRate: number, amplitude: number) {
+	const samples = new Float32Array(Math.round(seconds * sampleRate));
+	for (let index = 0; index < samples.length; index++) {
+		samples[index] = amplitude * Math.sin((2 * Math.PI * frequency * index) / sampleRate);
+	}
+	return samples;
+}
+
+async function writeAudioFixtures(): Promise<number> {
+	await mkdir(new URL("audio/", ROOT), { recursive: true });
+
+	// Two channels carrying different tones, so a channel mix-up is visible.
+	await Bun.write(
+		new URL("audio/stereo-44k.wav", ROOT),
+		wav([tone(440, 1, 44_100, 0.5), tone(880, 1, 44_100, 0.5)], 44_100),
+	);
+	await Bun.write(new URL("audio/mono-48k.wav", ROOT), wav([tone(1000, 1, 48_000, 0.5)], 48_000));
+	// Deliberately at full scale: this is the one that exercises normalisation.
+	await Bun.write(new URL("audio/clipping.wav", ROOT), wav([tone(220, 1, 44_100, 1)], 44_100));
+	await Bun.write(new URL("audio/silence.wav", ROOT), wav([new Float32Array(44_100)], 44_100));
+
+	return 4;
+}
+
 async function main(): Promise<void> {
 	await mkdir(new URL("subtitles/", ROOT), { recursive: true });
 
@@ -112,6 +184,7 @@ async function main(): Promise<void> {
 	await Bun.write(new URL("subtitles/cp1252.srt", ROOT), cp1252Srt());
 
 	console.log(`wrote ${Object.keys(SUBTITLES).length + 2} subtitle fixtures`);
+	console.log(`wrote ${await writeAudioFixtures()} audio fixtures`);
 	console.log("Encoded media fixtures are committed, not generated — see the header.");
 }
 

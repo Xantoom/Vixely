@@ -1,8 +1,10 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+	chainIsPassthrough,
 	defaultEqualizer,
 	limitGainToPeak,
 	measureLoudness,
+	renderAudioDocument,
 	totalDuration,
 	type LoudnessMeasurement,
 } from "~/core/audio";
@@ -12,9 +14,12 @@ import {
 	type AudioDocument,
 	type AudioExportSpec,
 } from "~/core/document";
+import { exportExceedsCeiling } from "~/core/environment";
+import { createAnalysisWorker, spawn, type AnalysisWorkerApi } from "~/core/workers";
 import {
 	channelsOf,
 	CONTAINER_AUDIO_CODECS,
+	encodeAudioBuffer,
 	outputName,
 	planExportPath,
 	pickSaveDestination,
@@ -89,7 +94,7 @@ export function AudioEditor() {
 	const [measurement, setMeasurement] = useState<LoudnessMeasurement | null>(null);
 
 	const source = useAudioSource(file);
-	const playback = useAudioPlayback(source.buffer);
+	const playback = useAudioPlayback(source.buffer, source.reader, source.probe?.durationSec ?? 0);
 	const history = useDocumentHistory<AudioDocument>(ready ?? createAudioDocument(EMPTY_SOURCE, 0));
 	const doc = ready === null ? null : history.document;
 
@@ -100,8 +105,11 @@ export function AudioEditor() {
 		setReady(null);
 	}, []);
 
-	// The document can only be built once the probe knows the duration.
-	if (ready === null && source.probe !== null && source.buffer !== null && file !== null) {
+	// Built in an effect, not in the body: `crypto.randomUUID` would make the
+	// render impure and StrictMode's double render would produce two documents.
+	const reset = history.reset;
+	useEffect(() => {
+		if (file === null || source.probe === null || source.loading) return;
 		const created: AudioDocument = {
 			...createAudioDocument(
 				{
@@ -126,24 +134,45 @@ export function AudioEditor() {
 			equalizer: defaultEqualizer((index) => `band-${index}`),
 			selectedTrackId: source.probe.audioTracks[0]?.id ?? 0,
 		};
-		setReady(created);
-		history.reset(created);
-	}
+		// Queued rather than set synchronously: this runs once per file, and a
+		// synchronous pair of setStates inside an effect costs an extra render.
+		const handle = setTimeout(() => {
+			setReady(created);
+			reset(created);
+		}, 0);
+		return () => clearTimeout(handle);
+	}, [file, source.probe, source.loading, reset]);
 
-	const measure = useCallback(() => {
+	const measure = useCallback(async () => {
 		const buffer = source.buffer;
 		if (buffer === null) return;
-		setMeasurement(
-			measureLoudness(channelsOf(buffer), buffer.sampleRate, doc?.loudness.targetLufs ?? -14),
-		);
+		const target = doc?.loudness.targetLufs ?? -14;
+
+		// R128 over an hour of samples is exactly the work that must not sit on
+		// the thread drawing the preview (I5).
+		try {
+			const handle = await spawn<AnalysisWorkerApi>(createAnalysisWorker);
+			try {
+				// Copies, because the views belong to the live AudioBuffer and
+				// transferring them would detach it mid-playback.
+				const channels = channelsOf(buffer).map((channel) => new Float32Array(channel));
+				setMeasurement(await handle.proxy.measureLoudness(channels, buffer.sampleRate, target));
+			} finally {
+				handle.terminate();
+			}
+		} catch {
+			// A blocked worker must not cost the feature; the main thread can do it.
+			setMeasurement(measureLoudness(channelsOf(buffer), buffer.sampleRate, target));
+		}
 	}, [source.buffer, doc?.loudness.targetLufs]);
 
 	const exportAudio = useCallback(async () => {
 		if (doc === null || source.opened === null) return;
 		setExportError(null);
 		setExporting(0);
+
 		try {
-			const container = doc.export.container as ContainerFormat;
+			const container = doc.export.container;
 			const name = outputName(doc.source.name, container);
 			const destination = await pickSaveDestination(name, "application/octet-stream", container);
 			if (destination === null) {
@@ -151,13 +180,23 @@ export function AudioEditor() {
 				return;
 			}
 
-			const result = await runConversion({
-				source: source.opened,
-				container,
-				destination,
-				audio: { codec: doc.export.codec, quality: doc.export.quality },
-				onProgress: ({ ratio }) => setExporting(ratio),
-			});
+			const plan = planExportPath(doc);
+			const passthrough =
+				plan.kind === "conversion" && chainIsPassthrough(doc, source.probe?.durationSec ?? 0);
+
+			const result = passthrough
+				? // Nothing touches the samples: remux instead of re-encoding, so the
+					// export costs no generation of quality.
+					await runConversion({
+						source: source.opened,
+						container,
+						destination,
+						audio: { codec: doc.export.codec, quality: doc.export.quality },
+						onProgress: ({ ratio }) => setExporting(ratio),
+					})
+				: // The document changes the samples, so the very chain the preview
+					// plays is rendered offline and encoded (I1 applied to audio).
+					await encodeProcessed(doc, source.buffer, container, destination, setExporting);
 
 			if (result.blob !== null) downloadBlob(result.blob, name);
 		} catch (cause) {
@@ -165,7 +204,7 @@ export function AudioEditor() {
 		} finally {
 			setExporting(null);
 		}
-	}, [doc, source.opened]);
+	}, [doc, source.opened, source.buffer, source.probe]);
 
 	const availableCodecs = useMemo(
 		() =>
@@ -217,6 +256,7 @@ export function AudioEditor() {
 
 	const duration = totalDuration(doc.segments);
 	const path = planExportPath(doc);
+	const estimatedBytes = estimateAudioBytes(doc, duration);
 
 	return (
 		<AppShell
@@ -389,7 +429,7 @@ export function AudioEditor() {
 								isSelected={doc.loudness.enabled}
 								onChange={(enabled) => {
 									history.run(commands.setLoudness({ enabled }));
-									if (enabled) measure();
+									if (enabled) void measure();
 								}}
 							/>
 							{doc.loudness.enabled && (
@@ -404,7 +444,7 @@ export function AudioEditor() {
 										onChange={(targetLufs) => history.run(commands.setLoudness({ targetLufs }))}
 										onChangeEnd={() => {
 											history.seal();
-											measure();
+											void measure();
 										}}
 									/>
 									{measurement !== null && (
@@ -459,9 +499,15 @@ export function AudioEditor() {
 								<p className="text-xs text-[var(--success)]">{t("audio.remuxOnly")}</p>
 							)}
 
+							{/* Processing needs the whole track in memory; remuxing
+							    does not, so only the manual path is blocked. */}
+							{source.windowed && path.kind === "manual" && (
+								<p className="text-xs text-[var(--warning)]">{t("audio.tooLongToProcess")}</p>
+							)}
+
 							<Button
 								variant="primary"
-								isDisabled={exporting !== null}
+								isDisabled={exporting !== null || (source.windowed && path.kind === "manual")}
 								onPress={() => {
 									void exportAudio();
 								}}
@@ -478,9 +524,19 @@ export function AudioEditor() {
 
 							<p className="tabular text-2xs text-[var(--text-subtle)]">
 								{t("export.estimatedSize", {
-									size: formatBytes(locale, estimateAudioBytes(doc, duration)),
+									size: formatBytes(locale, estimatedBytes),
 								})}
 							</p>
+
+							{/* The warning has to arrive before the work, never after
+							    forty minutes of encoding (plan §10). */}
+							{exportExceedsCeiling(environment, estimatedBytes) && (
+								<p className="text-xs text-[var(--warning)]">
+									{t("environment.exportTooLarge", {
+										size: formatBytes(locale, estimatedBytes),
+									})}
+								</p>
+							)}
 
 							{exportError !== null && (
 								<p role="alert" className="text-xs text-[var(--danger)]">
@@ -525,6 +581,36 @@ function LoudnessReadout({
 			)}
 		</div>
 	);
+}
+
+/**
+ * Renders the document's chain offline, then encodes the result.
+ *
+ * Split out so the export path reads as the two steps it is: process, then
+ * write. The processing is the same code the preview uses.
+ */
+async function encodeProcessed(
+	document_: AudioDocument,
+	buffer: AudioBuffer | null,
+	container: AudioContainer,
+	destination: Awaited<ReturnType<typeof pickSaveDestination>>,
+	onProgress: (ratio: number) => void,
+) {
+	if (buffer === null) throw new Error("the audio has not finished decoding");
+	if (destination === null) throw new Error("no destination");
+
+	onProgress(0.1);
+	const rendered = await renderAudioDocument(document_, buffer);
+	onProgress(0.6);
+
+	return encodeAudioBuffer({
+		buffer: rendered.buffer,
+		container,
+		codec: document_.export.codec,
+		quality: document_.export.quality,
+		destination,
+		onProgress: (ratio) => onProgress(0.6 + ratio * 0.4),
+	});
 }
 
 /** Rough size, enough to warn before the work rather than after it. */
