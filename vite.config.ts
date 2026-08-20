@@ -1,4 +1,5 @@
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
@@ -29,6 +30,10 @@ export default defineConfig({
 			pages: [{ path: "/", prerender: { enabled: true } }],
 			sitemap: { enabled: true, host: "https://vixely.app" },
 		}),
+		// After the TanStack plugins, which transform routes before JSX is
+		// transformed. Only dev needs it — it supplies the React Refresh
+		// runtime — which is why a green build never revealed it was missing.
+		react(),
 	],
 	build: {
 		target: "es2023",

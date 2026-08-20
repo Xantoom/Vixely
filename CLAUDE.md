@@ -108,6 +108,10 @@ Never add jsdom or happy-dom to work around tier 1's limits: move the logic into
 ## Things that will waste your time if you do not know them
 
 - The router export must be named `getRouter`. Anything else fails cryptically.
+- `@vitejs/plugin-react` must sit **after** `tanstackStart()` in the plugin
+  list. Only `vite dev` needs it — it supplies the React Refresh runtime — so a
+  green `bun run build` says nothing about whether the dev server starts. Run
+  `bun run dev` after touching `vite.config.ts`.
 - `tsconfig.json` needs `"types": ["vite/client"]` or the first
   `import "./app.css"` fails with TS2882.
 - oxfmt 0.64 takes no style options: tabs and double quotes are imposed. Do not
