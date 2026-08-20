@@ -15,10 +15,17 @@ import {
 	outputName,
 	pickSaveDestination,
 	planExportPath,
+	renderAndEncodeVideo,
 	runConversion,
 	type ContainerFormat,
 } from "~/core/media";
-import { codecIdFor } from "~/core/subtitles";
+import {
+	codecIdFor,
+	cuesAt,
+	parseSubtitles,
+	renderCues,
+	serialiseSubtitles,
+} from "~/core/subtitles";
 import { formatBytes, formatTimecode } from "~/i18n/format.ts";
 import { AppShell } from "~/ui/app-shell.tsx";
 import { useLocale, useTranslate } from "~/ui/hooks/use-translate.ts";
@@ -140,8 +147,8 @@ export function VideoEditor() {
 		setExporting(0);
 
 		try {
-			const container = doc.export.container;
-			const name = outputName(doc.source.name, container as ContainerFormat);
+			const container = doc.export.container as ContainerFormat;
+			const name = outputName(doc.source.name, container);
 			const destination = await pickSaveDestination(name, "video/mp4", container);
 			if (destination === null) {
 				setExporting(null);
@@ -149,38 +156,48 @@ export function VideoEditor() {
 			}
 
 			const plan = planExportPath(doc);
-			const wantsSubtitles =
+			const embedding =
 				doc.export.subtitleMode === "embed" && doc.subtitleTracks.some((track) => track.enabled);
 
-			if (plan.kind === "conversion" && wantsSubtitles && container === "mkv") {
-				// The path that makes the whole container layer worthwhile: the
-				// picture and the sound are copied byte for byte and the subtitle
-				// tracks are written alongside them.
-				const blob = await muxWithSubtitles(doc, source.opened, file, setExporting);
-				download(blob, name);
-				return;
+			let result;
+			if (plan.kind === "manual") {
+				// Pixels change, so the export goes decode → graph → encode, which
+				// is the same path the preview draws with (I1).
+				const burnIn =
+					doc.export.subtitleMode === "burn-in" && file !== null
+						? await loadBurnInSubtitles(doc, file)
+						: null;
+
+				result = await renderAndEncodeVideo({
+					document: doc,
+					source: source.opened,
+					container,
+					destination,
+					...(burnIn === null ? {} : { subtitleOverlayAt: burnIn }),
+					onProgress: setExporting,
+				});
+			} else if (embedding && container === "mkv") {
+				// Nothing touches the picture and subtitles have to be embedded:
+				// our muxer copies video and audio byte for byte and writes the
+				// subtitle tracks alongside them.
+				result = await muxWithSubtitles(doc, source.opened, file, destination, setExporting);
+			} else {
+				result = await runConversion({
+					source: source.opened,
+					container,
+					destination,
+					trim: { startSec: doc.trimStartSec, endSec: doc.trimEndSec },
+					onProgress: ({ ratio }) => setExporting(ratio),
+				});
 			}
 
-			const result = await runConversion({
-				source: source.opened,
-				container: container as ContainerFormat,
-				destination,
-				...(plan.kind === "manual"
-					? {
-							video: {
-								codec: doc.export.codec,
-								quality: doc.export.quality,
-								...(doc.export.width === null ? {} : { width: doc.export.width }),
-								...(doc.export.height === null ? {} : { height: doc.export.height }),
-								...(doc.export.frameRate === null ? {} : { frameRate: doc.export.frameRate }),
-							},
-						}
-					: {}),
-				trim: { startSec: doc.trimStartSec, endSec: doc.trimEndSec },
-				onProgress: ({ ratio }) => setExporting(ratio),
-			});
-
+			// A stream target already wrote to the file the user picked; only a
+			// buffer target has anything left to hand over.
 			if (result.blob !== null) download(result.blob, name);
+
+			if (doc.export.subtitleMode === "sidecar" && file !== null) {
+				await exportSidecarSubtitles(doc, file);
+			}
 		} catch (cause) {
 			setExportError(cause instanceof Error ? cause.message : String(cause));
 		} finally {
@@ -411,6 +428,19 @@ export function VideoEditor() {
 								<p className="text-xs text-[var(--success)]">{t("video.remuxOnly")}</p>
 							)}
 
+							{/* Embedding only works in MKV; MP4 standardises neither
+							    ASS nor PGS (ADR 004d), so the alternative is named
+							    rather than the tracks being dropped quietly. */}
+							{doc.export.subtitleMode === "embed" &&
+								doc.export.container !== "mkv" &&
+								doc.subtitleTracks.some((track) => track.enabled) && (
+									<p className="text-xs text-[var(--warning)]">
+										{t("video.embedNeedsMkv", {
+											container: doc.export.container.toUpperCase(),
+										})}
+									</p>
+								)}
+
 							<Button
 								variant="primary"
 								isDisabled={exporting !== null}
@@ -497,14 +527,37 @@ function toSelection(track: { id: number; name: string | null; languageCode: str
  * the picture or the sound.
  */
 async function muxWithSubtitles(
-	document_: VideoDocument,
+	edit: VideoDocument,
 	opened: Parameters<typeof extractPassthroughTracks>[0],
 	file: File | null,
+	destination: Awaited<ReturnType<typeof pickSaveDestination>>,
 	onProgress: (ratio: number) => void,
-): Promise<Blob> {
+): Promise<{ blob: Blob | null; bytes: number }> {
 	onProgress(0.1);
 	const passthrough = await extractPassthroughTracks(opened);
 	onProgress(0.5);
+
+	const startMs = edit.trimStartSec * 1000;
+	const endMs = edit.trimEndSec * 1000;
+
+	// The document's track switches decide what is written, and the trim decides
+	// what survives: writing every packet would ignore both.
+	const keptTracks = passthrough.tracks.filter((track) => {
+		const selections = track.kind === "video" ? edit.videoTracks : edit.audioTracks;
+		const selection = selections.find((candidate) => candidate.trackId === track.number);
+		return selection === undefined ? true : selection.enabled && selection.action !== "drop";
+	});
+	const keptNumbers = new Set(keptTracks.map((track) => track.number));
+
+	const packets = passthrough.packets
+		.filter(
+			(packet) =>
+				keptNumbers.has(packet.trackNumber) &&
+				packet.timestampMs >= startMs &&
+				packet.timestampMs <= endMs,
+		)
+		// Rebased so the output starts at zero rather than at the in point.
+		.map((packet) => ({ ...packet, timestampMs: packet.timestampMs - startMs }));
 
 	const backend = createContainerBackend();
 	const subtitlePackets = [];
@@ -512,9 +565,9 @@ async function muxWithSubtitles(
 
 	if (file !== null) {
 		const bytes = new Uint8Array(await file.arrayBuffer());
-		let number = passthrough.tracks.length + 1;
+		let number = Math.max(0, ...keptTracks.map((track) => track.number)) + 1;
 
-		for (const selection of document_.subtitleTracks) {
+		for (const selection of edit.subtitleTracks) {
 			if (!selection.enabled) continue;
 			const payload = await backend.readSubtitlePayload(bytes, selection.trackId);
 			subtitleTracks.push({
@@ -527,9 +580,11 @@ async function muxWithSubtitles(
 			});
 
 			for (const entry of payload.entries) {
+				if (entry.timestampMs < startMs || entry.timestampMs > endMs) continue;
+				// Shifted by the same amount as the picture, or they desync.
 				subtitlePackets.push({
 					trackNumber: number,
-					timestampMs: entry.timestampMs,
+					timestampMs: entry.timestampMs - startMs,
 					durationMs: entry.durationMs ?? 2000,
 					isKeyframe: true,
 					data: entry.payload,
@@ -540,11 +595,139 @@ async function muxWithSubtitles(
 	}
 
 	onProgress(0.8);
-	return backend.write({
-		tracks: [...passthrough.tracks, ...subtitleTracks],
-		packets: [...passthrough.packets, ...subtitlePackets],
-		durationMs: passthrough.durationMs,
+	const blob = await backend.write({
+		tracks: [...keptTracks, ...subtitleTracks],
+		packets: [...packets, ...subtitlePackets],
+		durationMs: endMs - startMs,
 	});
+
+	// Our muxer builds the file in memory, so a stream destination is written
+	// here rather than by the muxer itself.
+	if (destination !== null && destination.kind === "stream") {
+		const writable = await destination.handle.createWritable();
+		await writable.write(blob);
+		await writable.close();
+		return { blob: null, bytes: blob.size };
+	}
+
+	return { blob, bytes: blob.size };
+}
+
+/**
+ * Prepares the burn-in renderer.
+ *
+ * Cues are loaded once and drawn per frame into the same texture the preview
+ * composites, so what is burnt in is what was on screen.
+ */
+async function loadBurnInSubtitles(
+	edit: VideoDocument,
+	file: File,
+): Promise<((timeSec: number) => OffscreenCanvas | null) | null> {
+	const backend = createContainerBackend();
+	const bytes = new Uint8Array(await file.arrayBuffer());
+	if (!backend.canRead(bytes)) return null;
+
+	const selection = edit.subtitleTracks.find((track) => track.enabled);
+	if (selection === undefined) return null;
+
+	const payload = await backend.readSubtitlePayload(bytes, selection.trackId);
+	// PGS would need its display sets composited rather than laid out as text.
+	if (payload.track.format === null || payload.track.format === "pgs") return null;
+
+	const decoder = new TextDecoder();
+	const cues = payload.entries.map((entry, index) => ({
+		id: `burn-${index}`,
+		startMs: entry.timestampMs,
+		endMs: entry.timestampMs + (entry.durationMs ?? 2000),
+		text: decoder.decode(entry.payload),
+		styleName: null,
+		layer: 0,
+		marginLeft: null,
+		marginRight: null,
+		marginVertical: null,
+		effect: null,
+	}));
+
+	const header =
+		payload.header === null || payload.track.format !== "ass"
+			? null
+			: parseSubtitles(decoder.decode(payload.header), "ass");
+
+	const cache: { canvas: OffscreenCanvas | null } = { canvas: null };
+
+	return (timeSec: number) => {
+		const active = cuesAt(cues, timeSec * 1000);
+		const rendered = renderCues(
+			active,
+			{
+				width: edit.sourceWidth,
+				height: edit.sourceHeight,
+				playResX: Number(header?.scriptInfo["PlayResX"] ?? edit.sourceWidth),
+				playResY: Number(header?.scriptInfo["PlayResY"] ?? edit.sourceHeight),
+				styles: header?.styles ?? [],
+			},
+			cache.canvas ?? undefined,
+		);
+		if (rendered !== null) cache.canvas = rendered;
+		return rendered;
+	};
+}
+
+/**
+ * Writes the subtitle tracks as separate files.
+ *
+ * The way to keep ASS styling when the container is MP4, which standardises
+ * neither ASS nor PGS.
+ */
+async function exportSidecarSubtitles(edit: VideoDocument, file: File): Promise<void> {
+	const backend = createContainerBackend();
+	const bytes = new Uint8Array(await file.arrayBuffer());
+	if (!backend.canRead(bytes)) return;
+
+	const stem = edit.source.name.replace(/\.[^.]+$/u, "");
+	const decoder = new TextDecoder();
+
+	for (const selection of edit.subtitleTracks) {
+		if (!selection.enabled) continue;
+		const payload = await backend.readSubtitlePayload(bytes, selection.trackId);
+		const format = payload.track.format;
+		// PGS is images: there is no text file to write.
+		if (format === null || format === "pgs") continue;
+
+		const cues = payload.entries
+			.filter((entry) => entry.timestampMs >= edit.trimStartSec * 1000)
+			.map((entry, index) => ({
+				id: `sidecar-${index}`,
+				startMs: entry.timestampMs - edit.trimStartSec * 1000,
+				endMs: entry.timestampMs - edit.trimStartSec * 1000 + (entry.durationMs ?? 2000),
+				text: decoder.decode(entry.payload),
+				styleName: null,
+				layer: 0,
+				marginLeft: null,
+				marginRight: null,
+				marginVertical: null,
+				effect: null,
+			}));
+
+		const header =
+			payload.header === null || format !== "ass"
+				? null
+				: parseSubtitles(decoder.decode(payload.header), "ass");
+
+		const text = serialiseSubtitles(
+			{
+				format,
+				cues,
+				styles: header?.styles ?? [],
+				scriptInfo: header?.scriptInfo ?? {},
+				rawHeader: null,
+			},
+			format,
+		);
+
+		const suffix = payload.track.language === null ? "" : `.${payload.track.language}`;
+		download(new Blob([text], { type: "text/plain;charset=utf-8" }), `${stem}${suffix}.${format}`);
+	}
 }
 
 function download(blob: Blob, name: string): void {

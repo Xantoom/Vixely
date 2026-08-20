@@ -252,6 +252,8 @@ export const en = {
 	"video.keyframeInterval": "Keyframe interval",
 	"video.rateControl": "Rate control",
 	"video.noVideoTrack": "{name} carries no video track.",
+	"video.embedNeedsMkv":
+		"{container} cannot carry ASS or PGS subtitle tracks. Choose MKV to embed them, or save them as separate files.",
 	"video.remuxOnly": "No re-encoding needed: the picture is copied untouched.",
 	"video.reencodeBecause": "Re-encoding because: {reasons}",
 	"video.fourKWarning": "Preview on 4K material runs at reduced quality to stay responsive.",

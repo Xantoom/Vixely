@@ -257,6 +257,8 @@ export const de: LocaleModule = {
 	"video.keyframeInterval": "Keyframe-Abstand",
 	"video.rateControl": "Ratensteuerung",
 	"video.noVideoTrack": "{name} enthält keine Videospur.",
+	"video.embedNeedsMkv":
+		"{container} kann keine ASS- oder PGS-Untertitelspuren tragen. Wählen Sie MKV zum Einbetten, oder speichern Sie sie separat.",
 	"video.remuxOnly": "Keine Neukodierung nötig: das Bild wird unverändert kopiert.",
 	"video.reencodeBecause": "Neu kodiert wird wegen: {reasons}",
 	"video.fourKWarning":

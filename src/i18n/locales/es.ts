@@ -254,6 +254,8 @@ export const es: LocaleModule = {
 	"video.keyframeInterval": "Intervalo entre fotogramas clave",
 	"video.rateControl": "Control de tasa",
 	"video.noVideoTrack": "{name} no contiene ninguna pista de vídeo.",
+	"video.embedNeedsMkv":
+		"{container} no puede transportar pistas ASS ni PGS. Elige MKV para incrustarlas, o guárdalas como archivos aparte.",
 	"video.remuxOnly": "No hace falta recodificar: la imagen se copia intacta.",
 	"video.reencodeBecause": "Se recodifica porque: {reasons}",
 	"video.fourKWarning":

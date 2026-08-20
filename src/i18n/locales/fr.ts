@@ -253,6 +253,8 @@ export const fr: LocaleModule = {
 	"video.keyframeInterval": "Intervalle entre keyframes",
 	"video.rateControl": "Contrôle du débit",
 	"video.noVideoTrack": "{name} ne contient aucune piste vidéo.",
+	"video.embedNeedsMkv":
+		"Le {container} ne peut pas transporter de pistes ASS ou PGS. Choisissez MKV pour les intégrer, ou enregistrez-les à part.",
 	"video.remuxOnly": "Aucun réencodage nécessaire : l’image est copiée telle quelle.",
 	"video.reencodeBecause": "Réencodage nécessaire : {reasons}",
 	"video.fourKWarning": "En 4K, la preview tourne à qualité réduite pour rester réactive.",

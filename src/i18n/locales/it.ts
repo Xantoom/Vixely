@@ -256,6 +256,8 @@ export const it: LocaleModule = {
 	"video.keyframeInterval": "Intervallo tra fotogrammi chiave",
 	"video.rateControl": "Controllo del bitrate",
 	"video.noVideoTrack": "{name} non contiene alcuna traccia video.",
+	"video.embedNeedsMkv":
+		"Il {container} non può trasportare tracce ASS o PGS. Scegli MKV per incorporarle, oppure salvale come file separati.",
 	"video.remuxOnly": "Nessuna ricodifica necessaria: l’immagine viene copiata intatta.",
 	"video.reencodeBecause": "Ricodifica necessaria: {reasons}",
 	"video.fourKWarning": "Su materiale 4K l’anteprima gira a qualità ridotta per restare fluida.",

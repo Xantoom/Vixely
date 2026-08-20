@@ -249,6 +249,8 @@ export const ja: LocaleModule = {
 	"video.keyframeInterval": "キーフレーム間隔",
 	"video.rateControl": "レート制御",
 	"video.noVideoTrack": "{name} には映像トラックがありません。",
+	"video.embedNeedsMkv":
+		"{container} は ASS や PGS の字幕トラックを格納できません。埋め込むには MKV を選ぶか、別ファイルとして保存してください。",
 	"video.remuxOnly": "再エンコードは不要です。映像はそのままコピーされます。",
 	"video.reencodeBecause": "再エンコードの理由：{reasons}",
 	"video.fourKWarning": "4K 素材ではプレビューを低品質で描画し、操作の反応を保ちます。",

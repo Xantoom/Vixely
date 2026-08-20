@@ -245,6 +245,8 @@ export const zh: LocaleModule = {
 	"video.keyframeInterval": "关键帧间隔",
 	"video.rateControl": "码率控制",
 	"video.noVideoTrack": "{name} 不包含任何视频轨道。",
+	"video.embedNeedsMkv":
+		"{container} 无法承载 ASS 或 PGS 字幕轨道。请选择 MKV 内嵌，或另存为独立文件。",
 	"video.remuxOnly": "无需重新编码：画面将被原样复制。",
 	"video.reencodeBecause": "需要重新编码，原因：{reasons}",
 	"video.fourKWarning": "4K 素材的预览会降低质量以保持流畅。",

@@ -6,6 +6,7 @@ import {
 	extractPassthroughTracks,
 	openMedia,
 	planExportPath,
+	renderAndEncodeVideo,
 } from "~/core/media";
 import { createContainerBackend } from "~/core/container";
 import { codecIdFor } from "~/core/subtitles";
@@ -29,16 +30,21 @@ function frameColour(index: number): [number, number, number] {
 	return [Math.round((index / FRAME_COUNT) * 255), 40, 200];
 }
 
+let encodableCodec: "avc" | "vp9" | null = null;
+
 async function encodeFixture(): Promise<File | null> {
 	const { BufferTarget, CanvasSource, Mp4OutputFormat, Output, Quality, canEncodeVideo } =
 		await import("mediabunny");
 
+	// Probed rather than assumed: Firefox headless encodes VP9 but not H.264,
+	// which is exactly the variability the environment layer exists for.
 	const codec = (await canEncodeVideo("avc", { width: WIDTH, height: HEIGHT }))
 		? ("avc" as const)
 		: (await canEncodeVideo("vp9", { width: WIDTH, height: HEIGHT }))
 			? ("vp9" as const)
 			: null;
 	if (codec === null) return null;
+	encodableCodec = codec;
 
 	const canvas = new OffscreenCanvas(WIDTH, HEIGHT);
 	const context = canvas.getContext("2d");
@@ -65,12 +71,20 @@ async function encodeFixture(): Promise<File | null> {
 }
 
 function documentFor(file: File, durationSec: number): VideoDocument {
-	return createVideoDocument(
+	const base = createVideoDocument(
 		{ id: "fixture", name: file.name, byteLength: file.size, mimeType: file.type },
 		durationSec,
 		WIDTH,
 		HEIGHT,
 	);
+	// The export codec follows what this browser can actually encode, and the
+	// container follows the codec: WebM carries VP9, MP4 does not carry it here.
+	return encodableCodec === "vp9"
+		? {
+				...base,
+				export: { ...base.export, codec: "vp9", container: "webm" },
+			}
+		: base;
 }
 
 let fixture: File | null = null;
@@ -289,6 +303,170 @@ describe("export planning on a real file", () => {
 		expect(tracks[0]?.format).toBe("ass");
 	});
 });
+
+describe("preview and export are the same pipeline for video (I1)", () => {
+	it("encodes the frames the preview drew, filters included", async () => {
+		if (fixture === null) return;
+
+		const opened = await openMedia(fixture, fixture.name);
+		const edit: VideoDocument = {
+			...documentFor(fixture, opened.probe.durationSec),
+			filters: { ...NEUTRAL_FILTERS, contrast: 0.35, saturation: -0.2, brightness: 0.1 },
+			trimStartSec: 0,
+			trimEndSec: 0.5,
+		};
+
+		// The export path: decode → graph → encode.
+		const exported = await renderAndEncodeVideo({
+			document: edit,
+			source: opened,
+			container: documentContainer(),
+			destination: { kind: "buffer" },
+		});
+		expect(exported.blob).not.toBeNull();
+
+		// The preview path: decode → graph → screen, on the same source frame.
+		const reader = await createVideoReader(opened);
+		const previewFrame = await reader.frameAt(0.25);
+		expect(previewFrame).not.toBeNull();
+
+		const graph = new RenderGraph(new OffscreenCanvas(1, 1));
+		let previewPixels: Uint8ClampedArray;
+		try {
+			const size = graph.render({
+				source: { kind: "frame", frame: previewFrame! },
+				sourceWidth: WIDTH,
+				sourceHeight: HEIGHT,
+				crop: null,
+				rotation: 0,
+				flipHorizontal: false,
+				flipVertical: false,
+				resize: null,
+				filters: edit.filters,
+				textLayers: [],
+				overlay: null,
+				bypassFilters: false,
+			});
+			previewPixels = graph.readPixels(size);
+		} finally {
+			graph.dispose();
+			closeFrame(previewFrame);
+			opened.dispose();
+		}
+
+		// Decode the exported file back and take the corresponding frame.
+		const reopened = await openMedia(exported.blob!, "exported.mp4");
+		try {
+			const exportReader = await createVideoReader(reopened);
+			const exportedFrame = await exportReader.frameAt(0.25);
+			expect(exportedFrame).not.toBeNull();
+
+			const [previewR, previewG, previewB] = centrePixel(previewPixels, WIDTH, HEIGHT);
+			const [exportR, exportG, exportB] = await centreOfFrame(exportedFrame!);
+			closeFrame(exportedFrame);
+
+			// Lossy encoding moves values a little; a filter applied twice — or
+			// not at all — moves them by an order of magnitude more.
+			expect(Math.abs(previewR - exportR)).toBeLessThanOrEqual(24);
+			expect(Math.abs(previewG - exportG)).toBeLessThanOrEqual(24);
+			expect(Math.abs(previewB - exportB)).toBeLessThanOrEqual(24);
+		} finally {
+			reopened.dispose();
+		}
+	}, 60_000);
+
+	it("would fail if the export ignored the filters", async () => {
+		if (fixture === null) return;
+
+		const opened = await openMedia(fixture, fixture.name);
+		const neutral: VideoDocument = {
+			...documentFor(fixture, opened.probe.durationSec),
+			trimEndSec: 0.4,
+		};
+		const filtered: VideoDocument = {
+			...neutral,
+			filters: { ...NEUTRAL_FILTERS, brightness: 0.4 },
+		};
+
+		const withoutFilters = await renderAndEncodeVideo({
+			document: neutral,
+			source: opened,
+			container: documentContainer(),
+			destination: { kind: "buffer" },
+		});
+		const withFilters = await renderAndEncodeVideo({
+			document: filtered,
+			source: opened,
+			container: documentContainer(),
+			destination: { kind: "buffer" },
+		});
+		opened.dispose();
+
+		const plain = await openMedia(withoutFilters.blob!, "plain.mp4");
+		const bright = await openMedia(withFilters.blob!, "bright.mp4");
+		try {
+			const plainFrame = await (await createVideoReader(plain)).frameAt(0.2);
+			const brightFrame = await (await createVideoReader(bright)).frameAt(0.2);
+			const [, plainG] = await centreOfFrame(plainFrame!);
+			const [, brightG] = await centreOfFrame(brightFrame!);
+			closeFrame(plainFrame);
+			closeFrame(brightFrame);
+
+			// The green channel starts at 40; +0.4 lands near 142.
+			expect(brightG - plainG).toBeGreaterThan(60);
+		} finally {
+			plain.dispose();
+			bright.dispose();
+		}
+	}, 60_000);
+
+	it("honours the trim, so the output is genuinely shorter", async () => {
+		if (fixture === null) return;
+
+		const opened = await openMedia(fixture, fixture.name);
+		const edit: VideoDocument = {
+			...documentFor(fixture, opened.probe.durationSec),
+			filters: { ...NEUTRAL_FILTERS, contrast: 0.2 },
+			trimStartSec: 0.2,
+			trimEndSec: 0.6,
+		};
+
+		const exported = await renderAndEncodeVideo({
+			document: edit,
+			source: opened,
+			container: documentContainer(),
+			destination: { kind: "buffer" },
+		});
+		opened.dispose();
+
+		const reopened = await openMedia(exported.blob!, "trimmed.mp4");
+		try {
+			expect(reopened.probe.durationSec).toBeGreaterThan(0.2);
+			expect(reopened.probe.durationSec).toBeLessThan(0.55);
+		} finally {
+			reopened.dispose();
+		}
+	}, 60_000);
+});
+
+/** The container the probed codec belongs in. */
+function documentContainer(): "mp4" | "webm" {
+	return encodableCodec === "vp9" ? "webm" : "mp4";
+}
+
+function centrePixel(
+	pixels: Uint8ClampedArray,
+	width: number,
+	height: number,
+): [number, number, number] {
+	// readPixels is bottom-up, but the centre pixel is the centre either way.
+	const offset = (Math.floor(height / 2) * width + Math.floor(width / 2)) * 4;
+	return [pixels[offset]!, pixels[offset + 1]!, pixels[offset + 2]!];
+}
+
+async function centreOfFrame(frame: VideoFrame): Promise<[number, number, number]> {
+	return firstPixel(frame);
+}
 
 async function firstPixel(frame: VideoFrame): Promise<[number, number, number]> {
 	const canvas = new OffscreenCanvas(frame.displayWidth, frame.displayHeight);
