@@ -3,6 +3,7 @@ export * from "./codecs.ts";
 export * from "./input.ts";
 export * from "./probe.ts";
 export * from "./decode-audio.ts";
+export * from "./decode-video.ts";
 export * from "./output.ts";
 export * from "./encode-audio.ts";
 export * from "./passthrough.ts";
