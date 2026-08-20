@@ -92,7 +92,8 @@
 				"handlers": ["onClick", "onMouseDown", "onMouseUp", "onKeyPress", "onKeyUp"]
 			}
 		],
-		"eslint/max-classes-per-file": "off"
+		"eslint/max-classes-per-file": "off",
+		"react/incompatible-library": "off"
 	},
 	"overrides": [
 		{
