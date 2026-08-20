@@ -1,0 +1,94 @@
+name: CI
+
+on:
+    push:
+        branches: [main, develop]
+    pull_request:
+        branches: [main, develop]
+
+concurrency:
+    group: ci-${{ github.ref }}
+    cancel-in-progress: true
+
+env:
+    # Pinned exactly, never a range: the Dockerfile builds with the same binary,
+    # without which the documented rollback means nothing.
+    BUN_VERSION: 1.4.0
+
+jobs:
+    checks:
+        name: Typecheck, lint, format, unit tests
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: ${{ env.BUN_VERSION }}
+            - run: bun install --frozen-lockfile
+            # The four fast checks run in parallel: failure feedback goes from their
+            # sum to their maximum.
+            - run: bun run checks
+
+    build:
+        name: Build and bundle budget
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: ${{ env.BUN_VERSION }}
+            - run: bun install --frozen-lockfile
+            - run: bun run build
+            - name: Verify the static output shape
+              run: |
+                  test -f dist/client/index.html || { echo "missing prerendered home page"; exit 1; }
+                  test -f dist/client/_shell.html || { echo "missing SPA shell"; exit 1; }
+                  test -f dist/client/sitemap.xml || { echo "missing sitemap"; exit 1; }
+            - run: bun run bundle-budget
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: dist-client
+                  path: dist/client
+                  retention-days: 7
+
+    browser:
+        name: Browser tests
+        runs-on: ubuntu-latest
+        # Tiers 2 and 3 take minutes; they gate main, not every push to a branch.
+        if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
+        steps:
+            - uses: actions/checkout@v4
+            - uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: ${{ env.BUN_VERSION }}
+            - run: bun install --frozen-lockfile
+            - run: bun x playwright install --with-deps chromium firefox
+            - run: bun run test:browser
+            - uses: actions/upload-artifact@v4
+              if: failure()
+              with:
+                  name: browser-failures
+                  path: tests/output
+                  retention-days: 7
+
+    dependencies:
+        name: Dependency hygiene
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: ${{ env.BUN_VERSION }}
+            - run: bun install --frozen-lockfile
+            # Reports only; `bun audit fix` is run by hand and reviewed.
+            - run: bun audit
+              continue-on-error: true
+            - name: Fail on duplicated versions in bun.lock
+              run: bun dedupe --check
+            - name: Archive the production licence inventory
+              run: bun pm licenses --prod --json > licenses.json
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: licenses
+                  path: licenses.json
+                  retention-days: 90

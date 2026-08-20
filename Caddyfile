@@ -1,0 +1,59 @@
+{
+	admin off
+	auto_https off
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+:8080 {
+	root * /srv
+	# Brotli needs a custom Caddy build; the stock image ships zstd and gzip.
+	# Cloudflare re-compresses with Brotli at the edge anyway (05-deploy §5).
+	encode zstd gzip
+
+	# WASM must be served as application/wasm or streaming instantiation fails.
+	@wasm path *.wasm
+	header @wasm Content-Type application/wasm
+
+	header {
+		# See docs/plan/05-deploy-security.md §3. `wasm-unsafe-eval` is what
+		# jassub and Mediabunny need; `connect-src 'self'` is the guarantee that
+		# no media can leave the browser even through an XSS.
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; worker-src 'self' blob:; connect-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests"
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+		Cross-Origin-Opener-Policy "same-origin"
+		Cross-Origin-Resource-Policy "same-origin"
+		# COEP is deliberately absent: SharedArrayBuffer is not used (ADR 008).
+		-Server
+	}
+
+	# Fingerprinted assets are immutable for a year; HTML never is, so a deploy
+	# is visible immediately.
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+
+	@html path *.html /
+	header @html Cache-Control "no-cache"
+
+	@fonts path /fonts/*
+	header @fonts Cache-Control "public, max-age=31536000, immutable"
+
+	# Prerendered pages are served as they are — rewriting them to the shell
+	# would throw away the SEO that D1 exists for. Only genuinely unknown paths
+	# fall through to the SPA shell.
+	handle {
+		try_files {path} {path}/index.html {path}.html /_shell.html
+		file_server
+	}
+
+	log {
+		output stderr
+		format console
+		# No client IP is recorded: the site collects nothing.
+		level ERROR
+	}
+}

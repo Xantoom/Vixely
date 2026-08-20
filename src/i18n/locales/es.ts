@@ -1,0 +1,179 @@
+import type { LocaleModule } from "../types.ts";
+
+export const es: LocaleModule = {
+	"app.name": "Vixely",
+	"app.tagline": "Edita tus archivos en el navegador. Nada se sube.",
+	"app.description":
+		"Convierte, recorta, filtra y recodifica imágenes, vídeo, GIF, audio y subtítulos. Cada byte se queda en tu equipo.",
+
+	"nav.home": "Inicio",
+	"nav.tools": "Herramientas",
+	"nav.features": "Funciones",
+	"nav.about": "Acerca de",
+	"nav.skipToContent": "Ir al contenido",
+	"nav.openMenu": "Abrir el menú",
+	"nav.closeMenu": "Cerrar el menú",
+
+	"editor.image": "Imagen",
+	"editor.video": "Vídeo",
+	"editor.gif": "GIF",
+	"editor.audio": "Audio",
+	"editor.subtitles": "Subtítulos",
+	"editor.image.description":
+		"Convierte, recorta, redimensiona, corrige el color y añade texto a las imágenes.",
+	"editor.video.description":
+		"Corta al fotograma exacto, gestiona cada pista, aplica filtros y recodifica.",
+	"editor.gif.description":
+		"Reordena los fotogramas, ajusta los retardos, optimiza la paleta o convierte.",
+	"editor.audio.description": "Corta, reorganiza, normaliza, ecualiza y convierte audio.",
+	"editor.subtitles.description": "Edita diálogos, estilos y cabeceras en SRT, WebVTT, ASS y PGS.",
+
+	"theme.label": "Tema",
+	"theme.system": "Sistema",
+	"theme.light": "Claro",
+	"theme.dark": "Oscuro",
+
+	"language.label": "Idioma",
+
+	"action.undo": "Deshacer",
+	"action.redo": "Rehacer",
+	"action.undoAction": "Deshacer {action}",
+	"action.redoAction": "Rehacer {action}",
+	"action.cancel": "Cancelar",
+	"action.confirm": "Confirmar",
+	"action.close": "Cerrar",
+	"action.reset": "Restablecer",
+	"action.resetToDefault": "Volver al valor predeterminado",
+	"action.export": "Exportar",
+	"action.openFile": "Abrir archivo",
+	"action.retry": "Reintentar",
+	"action.compare": "Comparar con el original",
+	"action.compareHint": "Neutraliza la pasada de color: ambos lados salen de la misma cadena.",
+	"export.formatUnavailable": "Este navegador no puede codificar {format}.",
+
+	"command.crop": "Recorte",
+	"command.resize": "Redimensionado",
+	"command.rotate": "Rotación",
+	"command.flip": "Volteo",
+	"command.filter": "Ajuste de {name}",
+	"command.addText": "Añadir texto",
+	"command.editText": "Editar texto",
+	"command.removeText": "Eliminar texto",
+	"command.reorderFrames": "Reordenar fotogramas",
+	"command.removeFrame": "Eliminar fotograma",
+	"command.frameDelay": "Cambiar el retardo",
+	"command.trim": "Corte",
+	"command.trackChange": "Cambio de pista",
+	"command.editCue": "Editar diálogo",
+	"command.exportSettings": "Cambiar los ajustes de exportación",
+
+	"filter.brightness": "Brillo",
+	"filter.contrast": "Contraste",
+	"filter.saturation": "Saturación",
+	"filter.exposure": "Exposición",
+	"filter.temperature": "Temperatura",
+	"filter.tint": "Matiz",
+	"filter.gamma": "Gamma",
+	"filter.highlights": "Luces altas",
+	"filter.shadows": "Sombras",
+	"filter.vibrance": "Intensidad",
+	"filter.hueRotate": "Tono",
+	"filter.sharpen": "Nitidez",
+	"filter.blur": "Desenfoque",
+	"filter.vignette": "Viñeteado",
+	"filter.grayscale": "Escala de grises",
+	"filter.sepia": "Sepia",
+	"filter.invert": "Invertir",
+	"filter.opacity": "Opacidad",
+
+	"dropzone.prompt": "Suelta un archivo aquí o explora",
+	"dropzone.browse": "Explorar archivos",
+	"dropzone.accepts": "Formatos admitidos: {formats}",
+	"dropzone.rejected": "{name} no es un formato que este editor pueda abrir.",
+
+	"canvas.zoomIn": "Acercar",
+	"canvas.zoomOut": "Alejar",
+	"canvas.fit": "Ajustar a la pantalla",
+	"canvas.actualSize": "Tamaño real",
+	"canvas.zoomLevel": "Zoom {percent} %",
+	"canvas.description": "Lienzo de trabajo de {width} por {height} píxeles",
+
+	"player.play": "Reproducir",
+	"player.pause": "Pausa",
+	"player.mute": "Silenciar",
+	"player.unmute": "Activar el sonido",
+	"player.volume": "Volumen",
+	"player.fullscreen": "Pantalla completa",
+	"player.exitFullscreen": "Salir de pantalla completa",
+	"player.speed": "Velocidad",
+	"player.previousFrame": "Fotograma anterior",
+	"player.nextFrame": "Fotograma siguiente",
+	"player.previousKeyframe": "Fotograma clave anterior",
+	"player.nextKeyframe": "Fotograma clave siguiente",
+	"player.precision": "Precisión de navegación",
+	"player.precision.time": "Tiempo",
+	"player.precision.keyframe": "Fotograma clave",
+	"player.precision.frame": "Fotograma",
+	"player.trackSelection": "Pista",
+
+	"export.title": "Exportar",
+	"export.format": "Formato",
+	"export.container": "Contenedor",
+	"export.codec": "Códec",
+	"export.quality": "Calidad",
+	"export.rateControl": "Control de tasa",
+	"export.rateControl.quality": "Calidad constante",
+	"export.rateControl.bitrate": "Tasa de bits objetivo",
+	"export.estimatedSize": "Tamaño estimado: {size}",
+	"export.keepMetadata": "Conservar los metadatos",
+	"export.keepMetadataHint":
+		"Los datos EXIF se eliminan de forma predeterminada, incluidas las coordenadas GPS.",
+	"export.progress": "Exportando: {percent} %",
+	"export.done": "Exportación terminada",
+	"export.failed": "La exportación ha fallado: {reason}",
+	"export.cancelled": "Exportación cancelada",
+	"export.codecUnavailable": "{codec} no está disponible aquí: {reason}",
+	"export.gifSuggestion":
+		"Un contenedor de vídeo sería entre cinco y veinte veces más ligero con la misma calidad.",
+	"export.subtitleLoss": "Convertir a {format} hace perder: {losses}",
+
+	"environment.noWebCodecsVideo":
+		"Este navegador no admite WebCodecs de vídeo, así que la edición de vídeo, GIF e imagen no puede ejecutarse aquí.",
+	"environment.noWebCodecsAudio":
+		"Este navegador no admite WebCodecs de audio, así que el audio no puede decodificarse ni recodificarse.",
+	"environment.audioPassthroughOnly":
+		"Este navegador no puede recodificar audio. Las pistas de audio se copian sin cambios, por lo que se conservan intactas.",
+	"environment.noStreamingExport":
+		"Este navegador monta el archivo entero en memoria antes de guardarlo. Una exportación de más de unos 2 GB puede fallar.",
+	"environment.noWebGL2":
+		"Este navegador no tiene WebGL2, así que la cadena de renderizado no puede ejecutarse.",
+	"environment.noOffscreenCanvas":
+		"Este navegador no tiene OffscreenCanvas, así que la exportación corre en el hilo principal y la interfaz puede entrecortarse.",
+	"environment.exportTooLarge":
+		"La salida estimada es de {size}, cerca de lo que este navegador puede mantener en memoria. Baja la calidad, divide la exportación o usa un navegador Chromium.",
+	"environment.checkTitle": "Lo que este navegador puede hacer",
+
+	"error.decodeFailed": "No se ha podido decodificar {name}: {reason}",
+	"error.unsupportedFormat": "{format} no está admitido aquí.",
+	"error.fileTooLarge":
+		"{name} pesa {size}, por encima de lo que se puede procesar en este navegador.",
+	"error.generic": "Algo ha salido mal: {reason}",
+
+	"status.loading": "Cargando",
+	"status.decoding": "Decodificando: {percent} %",
+	"status.ready": "Listo",
+	"status.working": "Procesando",
+
+	"home.hero.title": "Edición de archivos que nunca sale de tu equipo",
+	"home.hero.body":
+		"Vixely convierte, corta, filtra y recodifica imágenes, vídeo, GIF, audio y subtítulos íntegramente en tu navegador. Sin subidas, sin cuenta, sin servidor.",
+	"home.hero.cta": "Abrir un editor",
+	"home.privacy.title": "Nada se sube",
+	"home.privacy.body":
+		"Cada operación pasa por WebCodecs y WebGL en tu propio equipo. No hay backend al que enviar archivos, ni base de datos detrás de este sitio.",
+	"home.formats.title": "Formatos",
+	"home.openSource.title": "Código abierto",
+
+	"footer.privacy": "Tus archivos nunca salen de tu dispositivo.",
+	"footer.source": "Código fuente",
+};

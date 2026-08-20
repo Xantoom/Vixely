@@ -1,0 +1,178 @@
+import type { LocaleModule } from "../types.ts";
+
+export const fr: LocaleModule = {
+	"app.name": "Vixely",
+	"app.tagline": "Éditez vos médias dans le navigateur. Rien n’est envoyé.",
+	"app.description":
+		"Convertissez, recadrez, filtrez et réencodez images, vidéos, GIF, audios et sous-titres. Chaque octet reste sur votre machine.",
+
+	"nav.home": "Accueil",
+	"nav.tools": "Outils",
+	"nav.features": "Fonctionnalités",
+	"nav.about": "À propos",
+	"nav.skipToContent": "Aller au contenu",
+	"nav.openMenu": "Ouvrir le menu",
+	"nav.closeMenu": "Fermer le menu",
+
+	"editor.image": "Image",
+	"editor.video": "Vidéo",
+	"editor.gif": "GIF",
+	"editor.audio": "Audio",
+	"editor.subtitles": "Sous-titres",
+	"editor.image.description":
+		"Convertissez, recadrez, redimensionnez, corrigez les couleurs et ajoutez du texte.",
+	"editor.video.description":
+		"Découpez à la frame près, gérez chaque piste, appliquez des filtres et réencodez.",
+	"editor.gif.description":
+		"Réorganisez les images, ajustez les délais, optimisez la palette ou convertissez.",
+	"editor.audio.description": "Coupez, réarrangez, normalisez, égalisez et convertissez.",
+	"editor.subtitles.description":
+		"Éditez les répliques, les styles et les en-têtes en SRT, WebVTT, ASS et PGS.",
+
+	"theme.label": "Thème",
+	"theme.system": "Système",
+	"theme.light": "Clair",
+	"theme.dark": "Sombre",
+
+	"language.label": "Langue",
+
+	"action.undo": "Annuler",
+	"action.redo": "Rétablir",
+	"action.undoAction": "Annuler {action}",
+	"action.redoAction": "Rétablir {action}",
+	"action.cancel": "Annuler",
+	"action.confirm": "Confirmer",
+	"action.close": "Fermer",
+	"action.reset": "Réinitialiser",
+	"action.resetToDefault": "Revenir à la valeur par défaut",
+	"action.export": "Exporter",
+	"action.openFile": "Ouvrir un fichier",
+	"action.retry": "Réessayer",
+	"action.compare": "Comparer à l’original",
+	"action.compareHint": "Neutralise la passe couleur : les deux côtés viennent du même pipeline.",
+	"export.formatUnavailable": "Ce navigateur ne sait pas encoder le {format}.",
+
+	"command.crop": "Recadrage",
+	"command.resize": "Redimensionnement",
+	"command.rotate": "Rotation",
+	"command.flip": "Miroir",
+	"command.filter": "Réglage de {name}",
+	"command.addText": "Ajout de texte",
+	"command.editText": "Modification du texte",
+	"command.removeText": "Suppression du texte",
+	"command.reorderFrames": "Réorganisation des images",
+	"command.removeFrame": "Suppression d’une image",
+	"command.frameDelay": "Changement de délai",
+	"command.trim": "Découpe",
+	"command.trackChange": "Changement de piste",
+	"command.editCue": "Modification d’une réplique",
+	"command.exportSettings": "Changement des réglages d’export",
+
+	"filter.brightness": "Luminosité",
+	"filter.contrast": "Contraste",
+	"filter.saturation": "Saturation",
+	"filter.exposure": "Exposition",
+	"filter.temperature": "Température",
+	"filter.tint": "Teinte",
+	"filter.gamma": "Gamma",
+	"filter.highlights": "Hautes lumières",
+	"filter.shadows": "Ombres",
+	"filter.vibrance": "Vibrance",
+	"filter.hueRotate": "Nuance",
+	"filter.sharpen": "Netteté",
+	"filter.blur": "Flou",
+	"filter.vignette": "Vignettage",
+	"filter.grayscale": "Niveaux de gris",
+	"filter.sepia": "Sépia",
+	"filter.invert": "Inversion",
+	"filter.opacity": "Opacité",
+
+	"dropzone.prompt": "Déposez un fichier ici, ou parcourez",
+	"dropzone.browse": "Parcourir les fichiers",
+	"dropzone.accepts": "Formats acceptés : {formats}",
+	"dropzone.rejected": "{name} n’est pas un format que cet éditeur sait ouvrir.",
+
+	"canvas.zoomIn": "Zoom avant",
+	"canvas.zoomOut": "Zoom arrière",
+	"canvas.fit": "Ajuster à l’écran",
+	"canvas.actualSize": "Taille réelle",
+	"canvas.zoomLevel": "Zoom {percent} %",
+	"canvas.description": "Canvas de travail de {width} sur {height} pixels",
+
+	"player.play": "Lecture",
+	"player.pause": "Pause",
+	"player.mute": "Couper le son",
+	"player.unmute": "Rétablir le son",
+	"player.volume": "Volume",
+	"player.fullscreen": "Plein écran",
+	"player.exitFullscreen": "Quitter le plein écran",
+	"player.speed": "Vitesse",
+	"player.previousFrame": "Image précédente",
+	"player.nextFrame": "Image suivante",
+	"player.previousKeyframe": "Keyframe précédente",
+	"player.nextKeyframe": "Keyframe suivante",
+	"player.precision": "Précision de navigation",
+	"player.precision.time": "Temps",
+	"player.precision.keyframe": "Keyframe",
+	"player.precision.frame": "Image",
+	"player.trackSelection": "Piste",
+
+	"export.title": "Export",
+	"export.format": "Format",
+	"export.container": "Conteneur",
+	"export.codec": "Codec",
+	"export.quality": "Qualité",
+	"export.rateControl": "Contrôle du débit",
+	"export.rateControl.quality": "Qualité constante",
+	"export.rateControl.bitrate": "Débit cible",
+	"export.estimatedSize": "Taille estimée : {size}",
+	"export.keepMetadata": "Conserver les métadonnées",
+	"export.keepMetadataHint": "L’EXIF est supprimé par défaut, y compris les coordonnées GPS.",
+	"export.progress": "Export : {percent} %",
+	"export.done": "Export terminé",
+	"export.failed": "Échec de l’export : {reason}",
+	"export.cancelled": "Export annulé",
+	"export.codecUnavailable": "{codec} est indisponible ici : {reason}",
+	"export.gifSuggestion": "Un conteneur vidéo serait cinq à vingt fois plus léger à qualité égale.",
+	"export.subtitleLoss": "La conversion vers {format} fait perdre : {losses}",
+
+	"environment.noWebCodecsVideo":
+		"Ce navigateur ne prend pas en charge WebCodecs vidéo : l’édition vidéo, GIF et image ne peut pas s’exécuter ici.",
+	"environment.noWebCodecsAudio":
+		"Ce navigateur ne prend pas en charge WebCodecs audio : l’audio ne peut être ni décodé ni réencodé.",
+	"environment.audioPassthroughOnly":
+		"Ce navigateur ne sait pas réencoder l’audio. Les pistes audio sont copiées telles quelles, donc conservées intactes.",
+	"environment.noStreamingExport":
+		"Ce navigateur assemble tout le fichier en mémoire avant de l’enregistrer. Un export au-delà d’environ 2 Go peut échouer.",
+	"environment.noWebGL2":
+		"Ce navigateur ne dispose pas de WebGL2 : le pipeline de rendu ne peut pas s’exécuter.",
+	"environment.noOffscreenCanvas":
+		"Ce navigateur ne dispose pas d’OffscreenCanvas : les exports s’exécutent sur le thread principal et l’interface peut saccader.",
+	"environment.exportTooLarge":
+		"La sortie estimée est de {size}, proche de ce que ce navigateur peut tenir en mémoire. Baissez la qualité, découpez l’export, ou utilisez un navigateur Chromium.",
+	"environment.checkTitle": "Ce que ce navigateur sait faire",
+
+	"error.decodeFailed": "Impossible de décoder {name} : {reason}",
+	"error.unsupportedFormat": "{format} n’est pas pris en charge ici.",
+	"error.fileTooLarge":
+		"{name} pèse {size}, au-delà de ce qui peut être traité dans ce navigateur.",
+	"error.generic": "Une erreur est survenue : {reason}",
+
+	"status.loading": "Chargement",
+	"status.decoding": "Décodage : {percent} %",
+	"status.ready": "Prêt",
+	"status.working": "Traitement",
+
+	"home.hero.title": "L’édition média qui ne quitte jamais votre machine",
+	"home.hero.body":
+		"Vixely convertit, découpe, filtre et réencode images, vidéos, GIF, audios et sous-titres entièrement dans votre navigateur. Aucun envoi, aucun compte, aucun serveur.",
+	"home.hero.cta": "Ouvrir un éditeur",
+	"home.privacy.title": "Rien n’est envoyé",
+	"home.privacy.body":
+		"Chaque opération passe par WebCodecs et WebGL sur votre propre matériel. Il n’y a pas de backend où envoyer les fichiers, ni de base de données derrière ce site.",
+	"home.formats.title": "Formats",
+	"home.openSource.title": "Open source",
+
+	"footer.privacy": "Vos fichiers ne quittent jamais votre appareil.",
+	"footer.source": "Code source",
+};

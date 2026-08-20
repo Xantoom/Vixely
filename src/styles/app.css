@@ -1,0 +1,202 @@
+@import "tailwindcss";
+@import "./tokens.css";
+
+/* Self-hosted, so no request ever leaves for a third party — which serves both
+   privacy and the `font-src 'self'` directive. */
+@font-face {
+	font-family: "Inter Variable";
+	font-style: normal;
+	font-weight: 100 900;
+	font-display: swap;
+	src: url("/fonts/inter-latin.woff2") format("woff2");
+	unicode-range:
+		U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+		U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+	font-family: "Inter Variable";
+	font-style: normal;
+	font-weight: 100 900;
+	font-display: swap;
+	src: url("/fonts/inter-latin-ext.woff2") format("woff2");
+	unicode-range:
+		U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F,
+		U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+	font-family: "JetBrains Mono";
+	font-style: normal;
+	font-weight: 100 800;
+	font-display: swap;
+	src: url("/fonts/jetbrains-mono-latin.woff2") format("woff2");
+	unicode-range:
+		U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+		U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* Semantic tokens are exposed to Tailwind by reference, so a theme switch is a
+   CSS variable swap and never a class swap. */
+@theme inline {
+	--color-bg: var(--bg);
+	--color-bg-sunken: var(--bg-sunken);
+	--color-bg-deep: var(--bg-deep);
+	--color-bg-raised: var(--bg-raised);
+	--color-bg-overlay: var(--bg-overlay);
+	--color-bg-hover: var(--bg-hover);
+	--color-bg-active: var(--bg-active);
+	--color-border: var(--border);
+	--color-border-strong: var(--border-strong);
+	--color-text: var(--text);
+	--color-text-muted: var(--text-muted);
+	--color-text-subtle: var(--text-subtle);
+	--color-accent: var(--accent);
+	--color-accent-solid: var(--accent-solid);
+	--color-accent-on: var(--accent-on);
+	--color-accent-surface: var(--accent-surface);
+	--color-danger: var(--danger);
+	--color-danger-solid: var(--danger-solid);
+	--color-danger-on: var(--danger-on);
+	--color-danger-surface: var(--danger-surface);
+	--color-warning: var(--warning);
+	--color-warning-solid: var(--warning-solid);
+	--color-warning-on: var(--warning-on);
+	--color-warning-surface: var(--warning-surface);
+	--color-success: var(--success);
+	--color-success-solid: var(--success-solid);
+	--color-success-on: var(--success-on);
+	--color-success-surface: var(--success-surface);
+	--color-info: var(--info);
+	--color-info-solid: var(--info-solid);
+	--color-info-on: var(--info-on);
+	--color-info-surface: var(--info-surface);
+
+	--font-sans: "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+	--font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", "Menlo", monospace;
+
+	/* Tool UI lives between 12 and 14px; larger steps are for marketing pages. */
+	--text-2xs: 0.6875rem;
+	--text-xs: 0.75rem;
+	--text-sm: 0.8125rem;
+	--text-base: 0.875rem;
+	--text-md: 1rem;
+	--text-lg: 1.25rem;
+	--text-xl: 1.5rem;
+	--text-2xl: 2rem;
+
+	--radius-control: 4px;
+	--radius-container: 8px;
+
+	--ease-out-quint: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@layer base {
+	:root {
+		--duration-micro: 100ms;
+		--duration-panel: 200ms;
+		--duration-dialog: 260ms;
+		--shadow-overlay: 0 8px 28px -8px rgb(0 0 0 / 0.28), 0 2px 6px -2px rgb(0 0 0 / 0.16);
+		color-scheme: light;
+	}
+
+	[data-theme="dark"] {
+		color-scheme: dark;
+	}
+
+	@media (prefers-color-scheme: dark) {
+		:root:not([data-theme="light"]) {
+			color-scheme: dark;
+		}
+	}
+
+	* {
+		border-color: var(--border);
+		min-width: 0;
+	}
+
+	html {
+		background-color: var(--bg);
+		-webkit-text-size-adjust: 100%;
+		text-rendering: optimizeLegibility;
+	}
+
+	body {
+		background-color: var(--bg);
+		color: var(--text);
+		font-family: var(--font-sans);
+		font-size: var(--text-base);
+		line-height: 1.5;
+		margin: 0;
+		min-height: 100dvh;
+		/* No native scrollbars anywhere (design system §4). */
+		scrollbar-width: thin;
+		scrollbar-color: var(--border-strong) transparent;
+	}
+
+	::-webkit-scrollbar {
+		width: 10px;
+		height: 10px;
+	}
+
+	::-webkit-scrollbar-track {
+		background: transparent;
+	}
+
+	::-webkit-scrollbar-thumb {
+		background: var(--border-strong);
+		border: 3px solid transparent;
+		background-clip: content-box;
+		border-radius: 999px;
+	}
+
+	::-webkit-scrollbar-thumb:hover {
+		background: var(--text-subtle);
+		background-clip: content-box;
+	}
+
+	:focus-visible {
+		outline: 2px solid var(--focus-ring);
+		outline-offset: 2px;
+		border-radius: var(--radius-control);
+	}
+
+	:focus:not(:focus-visible) {
+		outline: none;
+	}
+
+	::selection {
+		background: var(--accent-surface);
+		color: var(--text);
+	}
+
+	/* Numbers that must not jitter while playback runs. */
+	.tabular {
+		font-family: var(--font-mono);
+		font-variant-numeric: tabular-nums;
+		font-feature-settings: "tnum";
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		:root {
+			--duration-micro: 0ms;
+			--duration-panel: 0ms;
+			--duration-dialog: 0ms;
+		}
+
+		*,
+		*::before,
+		*::after {
+			animation-duration: 0.01ms !important;
+			animation-iteration-count: 1 !important;
+			transition-duration: 0.01ms !important;
+			scroll-behavior: auto !important;
+		}
+	}
+}
+
+@utility surface {
+	background-color: var(--bg-raised);
+	border: 1px solid var(--border);
+	border-radius: var(--radius-container);
+}

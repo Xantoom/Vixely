@@ -1,0 +1,188 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"plugins": ["typescript", "unicorn", "react", "react-perf", "jsx-a11y", "import", "promise"],
+	"categories": {
+		"correctness": "error",
+		"suspicious": "error",
+		"pedantic": "warn",
+		"perf": "warn"
+	},
+	"env": {
+		"browser": true,
+		"es2024": true
+	},
+	"ignorePatterns": ["dist", "node_modules", "src/routeTree.gen.ts", "public", "tests/fixtures"],
+	"rules": {
+		"eqeqeq": ["error", "always"],
+		"no-console": [
+			"error",
+			{
+				"allow": ["warn", "error"]
+			}
+		],
+		"no-debugger": "error",
+		"typescript/consistent-type-imports": [
+			"error",
+			{
+				"prefer": "type-imports"
+			}
+		],
+		"typescript/no-explicit-any": "error",
+		"typescript/no-non-null-assertion": "error",
+		"unicorn/filename-case": [
+			"error",
+			{
+				"case": "kebabCase"
+			}
+		],
+		"unicorn/prefer-node-protocol": "off",
+		"unicorn/no-null": "off",
+		"unicorn/no-array-reduce": "off",
+		"unicorn/prefer-query-selector": "off",
+		"unicorn/number-literal-case": "off",
+		"unicorn/no-useless-undefined": "off",
+		"react/jsx-key": "error",
+		"react-perf/jsx-no-new-object-as-prop": "off",
+		"react-perf/jsx-no-new-array-as-prop": "off",
+		"react-perf/jsx-no-new-function-as-prop": "off",
+		"jsx-a11y/anchor-is-valid": "off",
+		"import/no-cycle": "error",
+		"no-restricted-imports": [
+			"error",
+			{
+				"patterns": [
+					{
+						"group": ["mediabunny", "mediabunny/*", "@mediabunny/*"],
+						"message": "I3: Mediabunny is reached only through src/core/media."
+					},
+					{
+						"group": ["~/core/container/*", "!~/core/container/index"],
+						"message": "ADR 004e: core/container is reachable only through its ContainerBackend interface."
+					}
+				]
+			}
+		],
+		"react/react-in-jsx-scope": "off",
+		"eslint/max-lines-per-function": "off",
+		"eslint/require-unicode-regexp": "off",
+		"eslint/sort-imports": "off",
+		"eslint/max-depth": "off",
+		"eslint/max-params": "off",
+		"jsx-a11y/prefer-tag-over-role": "off",
+		"eslint/max-lines": "off",
+		"import/max-dependencies": "off",
+		"react-perf/jsx-no-jsx-as-prop": "off",
+		"eslint/no-negated-condition": "off",
+		"unicorn/no-negated-condition": "off",
+		"eslint/no-await-in-loop": "off",
+		"eslint/require-await": "off",
+		"unicorn/prefer-dom-node-dataset": "off",
+		"jsx-a11y/no-noninteractive-tabindex": [
+			"error",
+			{
+				"tags": [],
+				"roles": ["tabpanel", "application"],
+				"allowExpressionValues": true
+			}
+		],
+		"eslint/no-inline-comments": "off",
+		"jsx-a11y/no-noninteractive-element-interactions": [
+			"error",
+			{
+				"handlers": ["onClick", "onMouseDown", "onMouseUp", "onKeyPress", "onKeyUp"]
+			}
+		]
+	},
+	"overrides": [
+		{
+			"files": ["src/core/**"],
+			"rules": {
+				"no-restricted-imports": [
+					"error",
+					{
+						"patterns": [
+							{
+								"group": [
+									"react",
+									"react/*",
+									"react-dom",
+									"react-dom/*",
+									"react-aria-components",
+									"zustand",
+									"zustand/*",
+									"@tanstack/react-router",
+									"@tanstack/react-start",
+									"@tanstack/react-virtual",
+									"~/ui/*",
+									"~/editors/*",
+									"~/stores/*",
+									"~/routes/*"
+								],
+								"message": "Architecture rule 1: core/ knows nothing about React, Zustand or TanStack."
+							},
+							{
+								"group": ["mediabunny", "mediabunny/*", "@mediabunny/*"],
+								"message": "I3: Mediabunny is reached only through src/core/media."
+							}
+						]
+					}
+				]
+			}
+		},
+		{
+			"files": ["src/core/media/**"],
+			"rules": {
+				"no-restricted-imports": [
+					"error",
+					{
+						"patterns": [
+							{
+								"group": [
+									"react",
+									"react/*",
+									"react-dom",
+									"zustand",
+									"@tanstack/react-router",
+									"@tanstack/react-start",
+									"~/ui/*",
+									"~/editors/*",
+									"~/routes/*"
+								],
+								"message": "Architecture rule 1: core/ knows nothing about React, Zustand or TanStack."
+							}
+						]
+					}
+				]
+			}
+		},
+		{
+			"files": ["src/ui/**"],
+			"rules": {
+				"no-restricted-imports": [
+					"error",
+					{
+						"patterns": [
+							{
+								"group": ["~/core/*", "~/editors/*", "mediabunny", "@mediabunny/*"],
+								"message": "Architecture rule 2: ui/ knows nothing about the domain."
+							}
+						]
+					}
+				]
+			}
+		},
+		{
+			"files": ["tests/**", "scripts/**"],
+			"rules": {
+				"no-console": "off",
+				"no-restricted-imports": "off",
+				"typescript/no-non-null-assertion": "off"
+			}
+		}
+	],
+	"settings": {
+		"react": {
+			"version": "19.2.8"
+		}
+	}
+}

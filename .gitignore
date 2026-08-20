@@ -13,19 +13,11 @@ coverage/
 logs/
 *.log
 .env
-*.env.local
-*.env.development
-*.env.test
-*.env.production
+.env.*
+!.env.example
 
-# --- GENERATED ---
-src/routeTree.gen.ts
-public/ffmpeg/
-public/jassub/
-
-# --- BUN ---
-.bun-cache/
-.bun-install/
-.bun-tmp/
-.tanstack/
-.claude
+# --- TEST OUTPUT ---
+tests/browser/__screenshots__/
+tests/output/
+.vitest-attachments/
+licenses.json

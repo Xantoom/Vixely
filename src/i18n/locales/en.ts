@@ -1,0 +1,180 @@
+/**
+ * English is the source locale. Its shape defines the `TranslationKey` union,
+ * so a key missing from another locale — or an interpolation variable that
+ * does not exist — is a typecheck error rather than an `undefined` in
+ * production.
+ */
+export const en = {
+	"app.name": "Vixely",
+	"app.tagline": "Edit media in your browser. Nothing is uploaded.",
+	"app.description":
+		"Convert, crop, filter and re-encode images, video, GIFs, audio and subtitles. Every byte stays on your machine.",
+
+	"nav.home": "Home",
+	"nav.tools": "Tools",
+	"nav.features": "Features",
+	"nav.about": "About",
+	"nav.skipToContent": "Skip to content",
+	"nav.openMenu": "Open menu",
+	"nav.closeMenu": "Close menu",
+
+	"editor.image": "Image",
+	"editor.video": "Video",
+	"editor.gif": "GIF",
+	"editor.audio": "Audio",
+	"editor.subtitles": "Subtitles",
+	"editor.image.description": "Convert, crop, resize, colour-correct and add text to images.",
+	"editor.video.description": "Trim to the frame, manage every track, apply filters and re-encode.",
+	"editor.gif.description": "Reorder frames, tune delays, optimise the palette or convert away.",
+	"editor.audio.description": "Cut, rearrange, normalise, equalise and convert audio.",
+	"editor.subtitles.description": "Edit cues, styles and headers for SRT, WebVTT, ASS and PGS.",
+
+	"theme.label": "Theme",
+	"theme.system": "System",
+	"theme.light": "Light",
+	"theme.dark": "Dark",
+
+	"language.label": "Language",
+
+	"action.undo": "Undo",
+	"action.redo": "Redo",
+	"action.undoAction": "Undo {action}",
+	"action.redoAction": "Redo {action}",
+	"action.cancel": "Cancel",
+	"action.confirm": "Confirm",
+	"action.close": "Close",
+	"action.reset": "Reset",
+	"action.resetToDefault": "Reset to default",
+	"action.export": "Export",
+	"action.openFile": "Open file",
+	"action.retry": "Try again",
+	"action.compare": "Compare with original",
+	"action.compareHint": "Neutralises the colour pass so both sides come from the same pipeline.",
+	"export.formatUnavailable": "This browser cannot encode {format}.",
+
+	"command.crop": "Crop",
+	"command.resize": "Resize",
+	"command.rotate": "Rotate",
+	"command.flip": "Flip",
+	"command.filter": "Adjust {name}",
+	"command.addText": "Add text",
+	"command.editText": "Edit text",
+	"command.removeText": "Remove text",
+	"command.reorderFrames": "Reorder frames",
+	"command.removeFrame": "Remove frame",
+	"command.frameDelay": "Change frame delay",
+	"command.trim": "Trim",
+	"command.trackChange": "Change track",
+	"command.editCue": "Edit cue",
+	"command.exportSettings": "Change export settings",
+
+	"filter.brightness": "Brightness",
+	"filter.contrast": "Contrast",
+	"filter.saturation": "Saturation",
+	"filter.exposure": "Exposure",
+	"filter.temperature": "Temperature",
+	"filter.tint": "Tint",
+	"filter.gamma": "Gamma",
+	"filter.highlights": "Highlights",
+	"filter.shadows": "Shadows",
+	"filter.vibrance": "Vibrance",
+	"filter.hueRotate": "Hue",
+	"filter.sharpen": "Sharpen",
+	"filter.blur": "Blur",
+	"filter.vignette": "Vignette",
+	"filter.grayscale": "Grayscale",
+	"filter.sepia": "Sepia",
+	"filter.invert": "Invert",
+	"filter.opacity": "Opacity",
+
+	"dropzone.prompt": "Drop a file here, or browse",
+	"dropzone.browse": "Browse files",
+	"dropzone.accepts": "Accepts {formats}",
+	"dropzone.rejected": "{name} is not a format this editor can open.",
+
+	"canvas.zoomIn": "Zoom in",
+	"canvas.zoomOut": "Zoom out",
+	"canvas.fit": "Fit to screen",
+	"canvas.actualSize": "Actual size",
+	"canvas.zoomLevel": "Zoom {percent}%",
+	"canvas.description": "{width} by {height} pixel working canvas",
+
+	"player.play": "Play",
+	"player.pause": "Pause",
+	"player.mute": "Mute",
+	"player.unmute": "Unmute",
+	"player.volume": "Volume",
+	"player.fullscreen": "Full screen",
+	"player.exitFullscreen": "Exit full screen",
+	"player.speed": "Speed",
+	"player.previousFrame": "Previous frame",
+	"player.nextFrame": "Next frame",
+	"player.previousKeyframe": "Previous keyframe",
+	"player.nextKeyframe": "Next keyframe",
+	"player.precision": "Seek precision",
+	"player.precision.time": "Time",
+	"player.precision.keyframe": "Keyframe",
+	"player.precision.frame": "Frame",
+	"player.trackSelection": "Track",
+
+	"export.title": "Export",
+	"export.format": "Format",
+	"export.container": "Container",
+	"export.codec": "Codec",
+	"export.quality": "Quality",
+	"export.rateControl": "Rate control",
+	"export.rateControl.quality": "Constant quality",
+	"export.rateControl.bitrate": "Target bitrate",
+	"export.estimatedSize": "Estimated size: {size}",
+	"export.keepMetadata": "Keep metadata",
+	"export.keepMetadataHint": "EXIF is removed by default, including GPS coordinates.",
+	"export.progress": "Exporting: {percent}%",
+	"export.done": "Export finished",
+	"export.failed": "Export failed: {reason}",
+	"export.cancelled": "Export cancelled",
+	"export.codecUnavailable": "{codec} is unavailable here: {reason}",
+	"export.gifSuggestion":
+		"A video container would be five to twenty times smaller at the same quality.",
+	"export.subtitleLoss": "Converting to {format} loses: {losses}",
+
+	"environment.noWebCodecsVideo":
+		"This browser has no WebCodecs video support, so video, GIF and image editing cannot run here.",
+	"environment.noWebCodecsAudio":
+		"This browser has no WebCodecs audio support, so audio cannot be decoded or re-encoded.",
+	"environment.audioPassthroughOnly":
+		"This browser cannot re-encode audio. Audio tracks are copied unchanged, which keeps them intact.",
+	"environment.noStreamingExport":
+		"This browser assembles the whole file in memory before saving. Exports above roughly 2 GB may fail.",
+	"environment.noWebGL2": "This browser has no WebGL2, so the render pipeline cannot run.",
+	"environment.noOffscreenCanvas":
+		"This browser has no OffscreenCanvas, so exports run on the main thread and the interface may stutter.",
+	"environment.exportTooLarge":
+		"The estimated output is {size}, close to what this browser can hold in memory. Lower the quality, split the export, or use a Chromium browser.",
+	"environment.checkTitle": "What this browser can do",
+
+	"error.decodeFailed": "Could not decode {name}: {reason}",
+	"error.unsupportedFormat": "{format} is not supported here.",
+	"error.fileTooLarge": "{name} is {size}, above what can be processed in this browser.",
+	"error.generic": "Something went wrong: {reason}",
+
+	"status.loading": "Loading",
+	"status.decoding": "Decoding: {percent}%",
+	"status.ready": "Ready",
+	"status.working": "Working",
+
+	"home.hero.title": "Media editing that never leaves your machine",
+	"home.hero.body":
+		"Vixely converts, trims, filters and re-encodes images, video, GIFs, audio and subtitles entirely in your browser. No upload, no account, no server.",
+	"home.hero.cta": "Open an editor",
+	"home.privacy.title": "Nothing is uploaded",
+	"home.privacy.body":
+		"Every operation runs through WebCodecs and WebGL on your own hardware. There is no backend to send files to, and no database behind this site.",
+	"home.formats.title": "Formats",
+	"home.openSource.title": "Open source",
+
+	"footer.privacy": "Files never leave your device.",
+	"footer.source": "Source code",
+} as const;
+
+export type Translations = typeof en;
+export type TranslationKey = keyof Translations;

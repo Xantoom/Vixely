@@ -1,0 +1,8 @@
+﻿1
+00:00:01,000 --> 00:00:03,500
+The first line.
+
+2
+00:00:04,000 --> 00:00:06,000
+A second line,
+split across two rows.

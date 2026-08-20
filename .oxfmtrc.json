@@ -1,0 +1,11 @@
+{
+	"ignorePatterns": [
+		"dist",
+		"src/routeTree.gen.ts",
+		"tests/fixtures",
+		"public",
+		"bun.lock",
+		"**/*.md",
+		"src/styles/tokens.css"
+	]
+}

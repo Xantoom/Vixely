@@ -1,0 +1,38 @@
+# Vixely
+
+> A browser-based editor for images, video, GIFs, audio and subtitles. Every
+> operation runs locally through WebCodecs and WebGL; no file is ever uploaded,
+> there is no backend and no database.
+
+Vixely replaces several desktop tools with one web interface. It serves both the
+person converting a PNG to WebP in three seconds and the person re-encoding a
+film to HEVC across four audio tracks and two styled subtitle tracks.
+
+## Routes
+
+- /: overview of the five editors.
+- /tools/image: convert, crop, resize, colour-correct, add text layers.
+- /tools/video: frame-accurate trimming, track management, filters, re-encoding.
+- /tools/gif: frame timeline, delays, palette quantisation, conversion.
+- /tools/audio: cut, rearrange, normalise (EBU R128), equalise, convert.
+- /tools/subtitles: edit cues, styles and headers for SRT, WebVTT, ASS and PGS.
+
+## Formats
+
+- Images in: PNG, JPEG, WebP, AVIF, GIF, BMP, SVG, ICO. Out: PNG, JPEG, WebP, AVIF.
+- Video containers: MP4, MOV, MKV, WebM, MPEG-TS. Codecs: H.264, HEVC, VP8, VP9, AV1, ProRes.
+- Audio codecs: AAC, Opus, MP3, Vorbis, FLAC, AC-3, E-AC-3, DTS, PCM.
+- Subtitles: SRT, WebVTT, ASS/SSA and PGS, embedded in Matroska or as sidecar files.
+
+## Constraints worth knowing
+
+- Nothing is uploaded. There is no API to call and no account to create.
+- Streaming writes to disk require a Chromium browser; elsewhere the output file
+  is assembled in memory and very large exports are refused up front.
+- Firefox on Android has no WebCodecs support and is told so explicitly.
+- ASS and PGS subtitles can only be embedded in Matroska: MP4 standardises
+  neither.
+
+## Licence
+
+MIT. Source: https://github.com/Xantoom/Vixely

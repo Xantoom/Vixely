@@ -1,0 +1,8 @@
+# Vixely is fully client-side and holds no user data. There is nothing here to
+# keep a crawler away from, AI agents included.
+
+User-agent: *
+Allow: /
+Crawl-delay: 1
+
+Sitemap: https://vixely.app/sitemap.xml
