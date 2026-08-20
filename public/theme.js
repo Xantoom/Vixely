@@ -1,0 +1,1 @@
+(()=>{try{const s=localStorage.getItem("vixely.preferences");if(!s)return;const p=JSON.parse(s)?.state;if(p?.theme==="light"||p?.theme==="dark")document.documentElement.setAttribute("data-theme",p.theme);if(p?.locale)document.documentElement.setAttribute("lang",p.locale);}catch{}})()

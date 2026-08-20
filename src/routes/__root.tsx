@@ -1,7 +1,7 @@
 import { HeadContent, Outlet, Scripts, createRootRoute } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { en } from "~/i18n/locales/en.ts";
-import { THEME_BOOTSTRAP_SCRIPT, usePreferences } from "~/stores/preferences.ts";
+import { THEME_BOOTSTRAP_SRC, usePreferences } from "~/stores/preferences.ts";
 import appCss from "~/styles/app.css?url";
 
 export const Route = createRootRoute({
@@ -33,7 +33,9 @@ export const Route = createRootRoute({
 			},
 			{ rel: "canonical", href: "https://vixely.app" },
 		],
-		scripts: [{ children: THEME_BOOTSTRAP_SCRIPT }],
+		// Loaded from a file, not inlined: React re-creates head scripts on
+		// hydration and a re-created inline script loses its nonce.
+		scripts: [{ src: THEME_BOOTSTRAP_SRC }],
 	}),
 	shellComponent: RootDocument,
 });

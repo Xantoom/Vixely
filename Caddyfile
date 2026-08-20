@@ -8,6 +8,11 @@
 
 :8080 {
 	root * /srv
+
+	# Substitutes the per-request nonce the build stamped onto the inline
+	# scripts. Only HTML is templated; nothing else contains a placeholder.
+	@html_files path *.html /
+	templates @html_files
 	# Brotli needs a custom Caddy build; the stock image ships zstd and gzip.
 	# Cloudflare re-compresses with Brotli at the edge anyway (05-deploy §5).
 	encode zstd gzip
@@ -17,10 +22,13 @@
 	header @wasm Content-Type application/wasm
 
 	header {
-		# See docs/plan/05-deploy-security.md §3. `wasm-unsafe-eval` is what
-		# jassub and Mediabunny need; `connect-src 'self'` is the guarantee that
-		# no media can leave the browser even through an XSS.
-		Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; worker-src 'self' blob:; connect-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests"
+		# One of the inline scripts carries per-request state, so its content
+		# changes between loads and no hash can authorise it. A nonce can, and
+		# `'unsafe-inline'` would give away most of what the policy is for.
+		# The value below is the same placeholder the templates directive
+		# substitutes into the HTML, so header and body always agree.
+		# See docs/plan/05-deploy-security.md §3.
+		import /srv/csp.caddy
 		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "no-referrer"

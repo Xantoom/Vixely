@@ -11,7 +11,15 @@
 		"browser": true,
 		"es2024": true
 	},
-	"ignorePatterns": ["dist", "node_modules", "src/routeTree.gen.ts", "public", "tests/fixtures"],
+	"ignorePatterns": [
+		"dist",
+		"node_modules",
+		"src/routeTree.gen.ts",
+		"public",
+		"tests/fixtures",
+		"test-results",
+		"playwright-report"
+	],
 	"rules": {
 		"eqeqeq": ["error", "always"],
 		"no-console": [

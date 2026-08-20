@@ -20,10 +20,11 @@ Supported formats are listed in [`public/llms.txt`](public/llms.txt).
 
 ## Status
 
-Under construction. The shared core (documents, undo/redo, environment
-detection, render graph, design system, i18n) and the image editor are in place;
-the audio, GIF, subtitle and video editors are not yet implemented.
-[`PLAN.md`](PLAN.md) describes the phases and their exit criteria.
+Under construction, with all five editors implemented and the shared core in
+place. What is not done: the site is not deployed, so nothing here has been
+exercised on real hardware at scale, and the visual identity beyond the
+monogram is unfinished. [`PLAN.md`](PLAN.md) describes the phases and their
+exit criteria.
 
 ## How it works
 
@@ -61,15 +62,24 @@ Node is not part of the toolchain.
 bun install
 bun run dev          # http://localhost:3000
 bun run ci           # typecheck, lint, format, unit tests, build, bundle budget
-bun run test:browser # component and media tests in Chromium and Firefox
+bun run test:browser # components and media, in Chromium and Firefox
+bun run test:e2e     # accessibility and the production CSP, against the build
 ```
 
 Browser tests need Playwright browsers: `bun x playwright install chromium firefox`.
 
+Three tiers, because WebCodecs, WebGL and Web Audio exist in no simulated DOM:
+pure logic runs under Bun, components and media run in real browsers, and the
+end-to-end suite runs against the built static output with the production
+security headers applied.
+
 ## Deployment
 
 The build produces static files only. The Docker image is a Caddy container
-serving `dist/client`; no JavaScript process runs in production.
+serving `dist/client`; no JavaScript process runs in production. The
+Content-Security-Policy allows no inline script except by per-request nonce,
+and `connect-src` stays closed — which is what guarantees no media can leave
+the browser even through an XSS.
 
 ```bash
 docker build -t vixely .

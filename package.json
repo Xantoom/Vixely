@@ -5,7 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",
-		"build": "vite build",
+		"build": "bun scripts/theme-bootstrap.ts && vite build && bun scripts/csp.ts",
 		"preview": "vite preview",
 		"typecheck": "tsc --noEmit",
 		"lint": "oxlint --max-warnings=0",
@@ -17,7 +17,9 @@
 		"checks": "bun run --parallel typecheck lint format test:unit",
 		"ci": "bun run checks && bun run build && bun run bundle-budget",
 		"bundle-budget": "bun scripts/bundle-budget.ts",
-		"fixtures": "bun scripts/make-fixtures.ts"
+		"fixtures": "bun scripts/make-fixtures.ts",
+		"test:e2e": "playwright test",
+		"serve": "bun scripts/serve-static.ts"
 	},
 	"dependencies": {
 		"@mediabunny/aac-encoder": "1.55.1",
@@ -38,6 +40,7 @@
 	},
 	"devDependencies": {
 		"@axe-core/playwright": "4.13.0",
+		"@playwright/test": "1.62.1",
 		"@tailwindcss/vite": "4.3.3",
 		"@tanstack/router-plugin": "1.168.34",
 		"@types/bun": "^1.3.14",

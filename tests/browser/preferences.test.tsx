@@ -8,7 +8,7 @@ import { loadLocale } from "~/i18n/config.ts";
 import {
 	applyTheme,
 	resolveTheme,
-	THEME_BOOTSTRAP_SCRIPT,
+	THEME_BOOTSTRAP_SOURCE,
 	usePreferences,
 } from "~/stores/preferences.ts";
 import { LanguageMenu, ThemeMenu } from "~/ui/preferences-controls.tsx";
@@ -16,12 +16,12 @@ import { LanguageMenu, ThemeMenu } from "~/ui/preferences-controls.tsx";
 const STORAGE_KEY = "vixely.preferences";
 
 /**
- * Runs the inline head script the way the browser does, via a real <script>
- * element rather than `eval` — which is also what the CSP would allow.
+ * Runs the bootstrap the way the browser does, from a script element rather
+ * than through `eval` — which is also what the CSP allows.
  */
 function runBootstrap(): void {
 	const script = document.createElement("script");
-	script.textContent = THEME_BOOTSTRAP_SCRIPT;
+	script.textContent = THEME_BOOTSTRAP_SOURCE;
 	document.head.append(script);
 	script.remove();
 }

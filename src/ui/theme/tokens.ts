@@ -48,8 +48,10 @@ export function buildThemeTokens(theme: ThemeName): ThemeTokens {
 
 	tokens["--text"] = against(tokens["--text"] as string, WCAG_AAA_NORMAL);
 	tokens["--text-muted"] = against(tokens["--text-muted"] as string, WCAG_AA_NORMAL);
-	// Disabled text is exempt from SC 1.4.3; it still clears the non-text bar.
-	tokens["--text-subtle"] = against(tokens["--text-subtle"] as string, WCAG_NON_TEXT);
+	// AA, not the non-text bar: this token carries real content — timecodes,
+	// sizes, format badges — and axe was right to flag it. Genuinely disabled
+	// text is dimmed with opacity on top, which is the exempt case.
+	tokens["--text-subtle"] = against(tokens["--text-subtle"] as string, WCAG_AA_NORMAL);
 	// A separator is decoration, not information: a visible hairline is enough.
 	tokens["--border-strong"] = against(tokens["--border-strong"] as string, WCAG_NON_TEXT);
 

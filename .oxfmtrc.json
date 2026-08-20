@@ -6,6 +6,8 @@
 		"public",
 		"bun.lock",
 		"**/*.md",
-		"src/styles/tokens.css"
+		"src/styles/tokens.css",
+		"test-results",
+		"playwright-report"
 	]
 }
