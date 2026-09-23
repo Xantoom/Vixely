@@ -36,6 +36,31 @@ export function formatClock(seconds: number): string {
 	return h > 0 ? `${h}:${String(mm).padStart(2, '0')}:${ss}` : `${mm}:${ss}`;
 }
 
+/**
+ * Millisecond time, for audio where there are no frames: `0:04.250`, `12:30.000`, `1:02:10.500`.
+ * Rounded to the millisecond first, so 59.9996 reads `1:00.000` rather than `0:60.000`.
+ */
+export function formatPreciseTime(seconds: number): string {
+	const ms = Math.round(Math.max(0, seconds) * 1000);
+	const whole = Math.floor(ms / 1000);
+	const h = Math.floor(whole / 3600);
+	const mm = Math.floor(whole / 60) % 60;
+	const ss = `${String(whole % 60).padStart(2, '0')}.${String(ms % 1000).padStart(3, '0')}`;
+	return h > 0 ? `${h}:${String(mm).padStart(2, '0')}:${ss}` : `${mm}:${ss}`;
+}
+
+/**
+ * Reads a time typed by the user: `1:04.25`, `64.25`, `64,25`, `1:02:03`. Returns null when the
+ * text is not a time.
+ */
+export function parseTime(text: string): number | null {
+	const parts = text.trim().replace(',', '.').split(':');
+	if (parts.length > 3 || parts.some((part) => !/^\d*\.?\d*$/.test(part) || part === '' || part === '.')) {
+		return null;
+	}
+	return parts.reduce((total, part) => total * 60 + Number(part), 0);
+}
+
 /** Common broadcast rates are shown the way editors write them: 29.97, 23.976, 60. */
 export function formatFrameRate(fps: number): string {
 	const known = [23.976, 24, 25, 29.97, 30, 48, 50, 59.94, 60, 120];

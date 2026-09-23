@@ -12,6 +12,7 @@ import {
 	Scissors,
 	SlidersHorizontal,
 	Video,
+	Volume2,
 } from 'lucide-react';
 import type { MediaKind, ToolId } from '@/editors/registry';
 
@@ -52,6 +53,7 @@ export const TOOL_ICONS: Record<ToolId, LucideIcon> = {
 	trim: Scissors,
 	crop: Crop,
 	adjust: SlidersHorizontal,
+	volume: Volume2,
 	audio: AudioLines,
 	subtitles: Captions,
 	speed: Gauge,

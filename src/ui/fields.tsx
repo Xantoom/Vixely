@@ -1,4 +1,5 @@
 import { type ReactNode, useId, useLayoutEffect, useRef, useState } from 'react';
+import { formatPreciseTime, parseTime } from '@/lib/format';
 
 const FIELD =
 	'h-8 w-full rounded-xs border border-line-2 bg-bg font-mono text-[12.5px] text-ink transition-colors hover:border-muted';
@@ -106,6 +107,50 @@ export function NumberField({
 				</span>
 			)}
 		</span>
+	);
+}
+
+/**
+ * Time input in minutes, seconds and milliseconds. Accepts what people type: `1:04.25`, `64.25`,
+ * `64,25`. Applied on Enter or when leaving the field; anything that isn't a time is discarded.
+ */
+export function TimeField({
+	id,
+	value,
+	min,
+	max,
+	onCommit,
+}: {
+	id?: string;
+	value: number;
+	min: number;
+	max: number;
+	onCommit: (value: number) => void;
+}) {
+	const [draft, setDraft] = useState<string | null>(null);
+	const commitDraft = () => {
+		if (draft === null) return;
+		const parsed = parseTime(draft);
+		setDraft(null);
+		if (parsed !== null) onCommit(Math.min(max, Math.max(min, parsed)));
+	};
+	return (
+		<input
+			id={id}
+			type="text"
+			inputMode="decimal"
+			spellCheck={false}
+			value={draft ?? formatPreciseTime(value)}
+			onChange={(event) => {
+				setDraft(event.target.value);
+			}}
+			onBlur={commitDraft}
+			onKeyDown={(event) => {
+				if (event.key === 'Enter') commitDraft();
+				if (event.key === 'Escape') setDraft(null);
+			}}
+			className={`${FIELD} tabular cursor-text px-2.5`}
+		/>
 	);
 }
 

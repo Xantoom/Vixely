@@ -8,9 +8,11 @@ import {
 	formatExifDate,
 	formatFocalLength,
 	formatFrameRate,
+	formatPreciseTime,
 	formatShutter,
 	formatTimecode,
 	groupDigits,
+	parseTime,
 } from './format';
 
 describe('format', () => {
@@ -37,6 +39,19 @@ describe('format', () => {
 	it('formats ruler clocks', () => {
 		expect(formatClock(64)).toBe('1:04');
 		expect(formatClock(3730)).toBe('1:02:10');
+	});
+
+	it('formats and reads millisecond times', () => {
+		expect(formatPreciseTime(4.25)).toBe('0:04.250');
+		expect(formatPreciseTime(59.9996)).toBe('1:00.000');
+		expect(formatPreciseTime(3730.5)).toBe('1:02:10.500');
+		expect(parseTime('1:04.25')).toBe(64.25);
+		expect(parseTime('64,5')).toBe(64.5);
+		expect(parseTime('1:02:03')).toBe(3723);
+		expect(parseTime(' 12 ')).toBe(12);
+		expect(parseTime('1:x')).toBeNull();
+		expect(parseTime('')).toBeNull();
+		expect(parseTime('1::2')).toBeNull();
 	});
 
 	it('names frame rates like editors do', () => {

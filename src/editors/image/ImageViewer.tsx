@@ -1,13 +1,7 @@
 import { Eye } from 'lucide-react';
-import {
-	type PointerEvent as ReactPointerEvent,
-	type RefObject,
-	useEffect,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from 'react';
+import { type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from 'react';
 import { m } from '@/paraglide/messages.js';
+import { useBoxSize } from '@/ui/use-box-size';
 import { dragCrop, type Handle } from './crop';
 import { effectiveCrop, orientedSize, type Rect, type Size } from './document';
 import { ImageRenderer } from './renderer';
@@ -23,22 +17,6 @@ const HANDLES: { handle: Handle; className: string; cursor: string }[] = [
 	{ handle: 'sw', className: '-bottom-3 -left-3', cursor: 'nesw-resize' },
 	{ handle: 'w', className: 'top-1/2 -left-3 -translate-y-1/2', cursor: 'ew-resize' },
 ];
-
-function useBoxSize(ref: RefObject<HTMLElement | null>): Size {
-	const [size, setSize] = useState<Size>({ width: 0, height: 0 });
-	useLayoutEffect(() => {
-		const element = ref.current;
-		if (!element) return;
-		const observer = new ResizeObserver(([entry]) => {
-			if (entry) setSize({ width: entry.contentRect.width, height: entry.contentRect.height });
-		});
-		observer.observe(element);
-		return () => {
-			observer.disconnect();
-		};
-	}, [ref]);
-	return size;
-}
 
 /** Crop frame drawn over the full oriented image, in screen pixels. */
 function CropOverlay({ crop, scale, bounds }: { crop: Rect; scale: number; bounds: Size }) {

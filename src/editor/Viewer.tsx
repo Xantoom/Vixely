@@ -1,10 +1,10 @@
+import { AudioLines } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { DropZone } from '@/app/DropZone';
 import type { MediaKind } from '@/editors/registry';
 import { formatTimecode } from '@/lib/format';
 import type { OpenedFile } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
-import { Tile } from '@/ui/Tile';
 
 function PosterCanvas({ bitmap }: { bitmap: ImageBitmap }) {
 	const ref = useRef<HTMLCanvasElement>(null);
@@ -38,7 +38,17 @@ export function Viewer({ kind, opened }: { kind: MediaKind; opened: OpenedFile |
 		return (
 			<div className="grid h-full max-h-[560px] w-full grid-rows-[minmax(0,1fr)_auto] justify-items-center gap-6 text-center">
 				<div className="flex min-h-0 w-full items-center justify-center">
-					{opened.poster ? <PosterCanvas bitmap={opened.poster} /> : <Tile kind="audio" size="lg" />}
+					{opened.poster ? (
+						<PosterCanvas bitmap={opened.poster} />
+					) : (
+						// Stands in for cover art: the same place and proportions, without pretending to be one.
+						<div
+							className="bg-ed-soft text-ed-text grid aspect-square h-full max-h-60 place-items-center rounded-[20px]"
+							aria-hidden="true"
+						>
+							<AudioLines size={64} strokeWidth={1.4} />
+						</div>
+					)}
 				</div>
 				<div className="grid gap-1.5">
 					<p className="text-title font-bold tracking-[-0.03em]">{tags?.title ?? opened.file.name}</p>
