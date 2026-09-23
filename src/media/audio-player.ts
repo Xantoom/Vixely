@@ -1,6 +1,7 @@
 import { ALL_FORMATS, AudioBufferSink, BlobSource, Input } from 'mediabunny';
 import { type GainPoint, gainAt } from '@/document/gain-curve';
 import { type Range, sameRanges, toOutput, toSource, totalLength } from '@/document/timemap';
+import { DECODER_PREROLL } from './decoder';
 
 /** What to play: the source ranges in order, and the volume curve over output time. */
 export interface PlaybackPlan {
@@ -174,7 +175,10 @@ export class AudioPlayer {
 			const rangeOutput = toOutput(ranges, start);
 			// Ranges play one after the other: each waits for the previous one to be scheduled.
 			// oxlint-disable-next-line no-await-in-loop
-			for await (const { buffer, timestamp, duration } of sink.buffers(start, range.end)) {
+			for await (const { buffer, timestamp, duration } of sink.buffers(
+				Math.max(0, start - DECODER_PREROLL),
+				range.end,
+			)) {
 				if (run !== this.run) return;
 				const clipStart = Math.max(timestamp, start);
 				const clipEnd = Math.min(timestamp + duration, range.end);

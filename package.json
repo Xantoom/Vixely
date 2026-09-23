@@ -20,6 +20,9 @@
 	},
 	"dependencies": {
 		"@fontsource-variable/jetbrains-mono": "^5.3.0",
+		"@mediabunny/aac-encoder": "1.59.0",
+		"@mediabunny/flac-encoder": "1.59.0",
+		"@mediabunny/mp3-encoder": "1.59.0",
 		"@tanstack/react-router": "^1.170.39",
 		"fflate": "^0.8.3",
 		"libheif-js": "^1.23.2",

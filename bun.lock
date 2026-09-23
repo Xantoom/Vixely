@@ -6,6 +6,9 @@
       "name": "vixely",
       "dependencies": {
         "@fontsource-variable/jetbrains-mono": "^5.3.0",
+        "@mediabunny/aac-encoder": "1.59.0",
+        "@mediabunny/flac-encoder": "1.59.0",
+        "@mediabunny/mp3-encoder": "1.59.0",
         "@tanstack/react-router": "^1.170.39",
         "fflate": "^0.8.3",
         "libheif-js": "^1.23.2",
@@ -123,6 +126,12 @@
     "@lix-js/sdk-linux-x64": ["@lix-js/sdk-linux-x64@0.17.0", "", { "os": "linux", "cpu": "x64" }, "sha512-968kHRX0waV5UoR4i0HZkqNr5KDOWPd4he3miLImCMGsQDWLViYde613Bf4hxas/SouCSfmnvlAnl87oSAZc8w=="],
 
     "@lix-js/sdk-win32-x64": ["@lix-js/sdk-win32-x64@0.17.0", "", { "os": "win32", "cpu": "x64" }, "sha512-/uYvg0c5R9+BtQ1aJqBE9VCwNSYSaZORUjo5u6ukAFkH7XuN1ZnpTzoI9K6HE82/dxlCymMsP3Ga/rQVpQn4hA=="],
+
+    "@mediabunny/aac-encoder": ["@mediabunny/aac-encoder@1.59.0", "", { "peerDependencies": { "mediabunny": "^1.0.0" } }, "sha512-qeVtQ9qhUdwQPY49aeONTug1P8gS2IFeR09ZaVTr+88EfpFESRfrN7PGovJM6/Tsku8V0aZcvXClF/KCT2pfVw=="],
+
+    "@mediabunny/flac-encoder": ["@mediabunny/flac-encoder@1.59.0", "", { "peerDependencies": { "mediabunny": "^1.0.0" } }, "sha512-ughx09ELWf3tyLKYPD58H3Vs8nm7akf5sMJ/+nvDfPtlimtRyOCKPI3pkfJzndV9/Ea1OmdWVHEa0NMPZgnUlg=="],
+
+    "@mediabunny/mp3-encoder": ["@mediabunny/mp3-encoder@1.59.0", "", { "peerDependencies": { "mediabunny": "^1.0.0" } }, "sha512-r37dKBjn902UmHTrdHXApIJepOeODFlPCpUT1tcxSXQ7QI+VMvfRDrr0rDEpOohzZ+ZOKDzB+gg+uiWmg2uOiQ=="],
 
     "@napi-rs/wasm-runtime": ["@napi-rs/wasm-runtime@1.2.4", "", { "dependencies": { "@tybys/wasm-util": "^0.10.3" }, "peerDependencies": { "@emnapi/core": "^1.7.1 || ^2.0.0-alpha.4", "@emnapi/runtime": "^1.7.1 || ^2.0.0-alpha.4" } }, "sha512-AJxoUD2/15ESHbvpcyjU274nsAPLuOtPHCk0vKJM5pj//Fg/B1FXNWjPnXTT9PymCYYiHo4zPj0ZomXBKhoy7g=="],
 

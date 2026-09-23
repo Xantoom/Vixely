@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { EditorLayout } from '@/editor/EditorLayout';
 import { FilePanel, ToolLater } from '@/editor/Inspector';
 import { useEditorShortcuts } from '@/editor/shortcuts';
@@ -8,6 +8,7 @@ import { useSession } from '@/media/session';
 import { AudioTimeline } from './AudioTimeline';
 import { cut, setTrim } from './document';
 import { type AudioEngine, useAudioEngine } from './engine';
+import { ExportFooter, ExportPanel } from './ExportPanel';
 import { TrimPanel, VolumePanel } from './panels';
 import { useAudioEditor, useAudioUndoState } from './store';
 
@@ -116,9 +117,16 @@ export function AudioEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	const { canUndo, canRedo } = useAudioUndoState();
 	const [tool, setTool] = useState<ToolId>(initialTool ?? 'info');
 	const engine = useAudioEngine(editable ? opened.file : null, duration);
+	const audio = opened?.info?.audio;
+	const sourceFormat = useMemo(
+		() => (audio ? { sampleRate: audio.sampleRate, channels: audio.channels } : null),
+		[audio],
+	);
 
 	useEffect(() => {
-		if (opened && editable) load(opened.file, duration);
+		if (!opened || !editable) return;
+		const tags = opened.info?.tags;
+		load(opened.file, duration, { title: tags?.title ?? '', artist: tags?.artist ?? '', album: tags?.album ?? '' });
 	}, [opened, editable, duration, load]);
 
 	useEditorShortcuts({ undo, redo });
@@ -128,6 +136,8 @@ export function AudioEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 		if (tool === 'info' || !editable) return <FilePanel opened={opened} />;
 		if (tool === 'trim') return <TrimPanel />;
 		if (tool === 'volume') return <VolumePanel engine={engine} />;
+		if (tool === 'export' && sourceFormat)
+			return <ExportPanel source={sourceFormat} cover={opened?.poster ?? null} />;
 		return <ToolLater kind="audio" tool={tool} />;
 	};
 
@@ -137,10 +147,27 @@ export function AudioEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 			fileName={opened?.file.name}
 			tool={tool}
 			onTool={setTool}
-			actions={{ canUndo, canRedo, onUndo: undo, onRedo: redo }}
+			actions={{
+				canUndo,
+				canRedo,
+				onUndo: undo,
+				onRedo: redo,
+				onExport:
+					editable && sourceFormat
+						? () => {
+								setTool('export');
+							}
+						: undefined,
+				exportActive: tool === 'export',
+			}}
 			viewer={<Viewer kind="audio" opened={opened} />}
 			timeline={editable ? <AudioTimeline engine={engine} /> : undefined}
 			inspector={inspector()}
+			inspectorFooter={
+				tool === 'export' && editable && sourceFormat ? (
+					<ExportFooter file={opened.file} source={sourceFormat} />
+				) : undefined
+			}
 		/>
 	);
 }

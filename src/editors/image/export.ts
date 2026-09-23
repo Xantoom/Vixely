@@ -1,5 +1,6 @@
 import { encodeImage } from '@/media/image-codec';
 import type { PhotoMetadata } from '@/media/probe';
+import { download, isPickerCancel, outputName } from '@/media/save';
 import { effectiveCrop, fitWithin, type ImageDoc, type Size } from './document';
 import { ImageRenderer } from './renderer';
 import type { ExportSettings, ImageFormat } from './store';
@@ -92,12 +93,7 @@ export async function exportImage(
 }
 
 export function exportName(original: string, format: ImageFormat): string {
-	const dot = original.lastIndexOf('.');
-	const base = dot > 0 ? original.slice(0, dot) : original;
-	const extension = FORMAT_INFO[format].extension;
-	const current = original.slice(dot + 1).toLowerCase();
-	const sameExtension = current === extension || (extension === 'jpg' && current === 'jpeg');
-	return `${base}${sameExtension ? '-edited' : ''}.${extension}`;
+	return outputName(original, FORMAT_INFO[format].extension, format === 'jpeg' ? ['jpeg', 'jpg'] : []);
 }
 
 /**
@@ -116,17 +112,10 @@ export async function saveFile(blob: Blob, name: string): Promise<boolean> {
 			await writable.close();
 			return true;
 		} catch (error) {
-			if (error instanceof DOMException && error.name === 'AbortError') return false;
+			if (isPickerCancel(error)) return false;
 			// Other failures (permissions, policy) fall back to a regular download.
 		}
 	}
-	const url = URL.createObjectURL(blob);
-	const link = document.createElement('a');
-	link.href = url;
-	link.download = name;
-	link.click();
-	setTimeout(() => {
-		URL.revokeObjectURL(url);
-	}, 10_000);
+	download(blob, name);
 	return true;
 }

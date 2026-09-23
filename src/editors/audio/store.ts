@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import { canRedo, canUndo, commit, createHistory, type History, redo, replace, undo } from '@/document/history';
 import type { Range } from '@/document/timemap';
 import { type AudioDoc, createAudioDoc } from './document';
+import { AUDIO_FORMATS, type AudioExportSettings } from './export';
+
+export type AudioTags = AudioExportSettings['tags'];
 
 /** Shortest span the timeline zooms to, in seconds. */
 export const MIN_VIEW = 1;
@@ -20,8 +23,9 @@ interface AudioEditorState {
 	selection: Range | null;
 	/** Visible part of the timeline, in source seconds. */
 	view: Range;
+	exportSettings: AudioExportSettings;
 
-	load: (owner: object, duration: number) => void;
+	load: (owner: object, duration: number, tags: AudioTags) => void;
 	apply: (change: (doc: AudioDoc) => AudioDoc) => void;
 	preview: (change: (doc: AudioDoc) => AudioDoc) => void;
 	settle: () => void;
@@ -31,6 +35,19 @@ interface AudioEditorState {
 	setPlaying: (playing: boolean) => void;
 	setSelection: (selection: Range | null) => void;
 	setView: (view: Range) => void;
+	setExport: (settings: Partial<AudioExportSettings>) => void;
+}
+
+function defaultExport(tags: AudioTags): AudioExportSettings {
+	return {
+		format: 'mp3',
+		bitrate: AUDIO_FORMATS.mp3.defaultBitrate,
+		sampleRate: null,
+		channels: 'keep',
+		bitDepth: 16,
+		tags,
+		cover: 'keep',
+	};
 }
 
 /** Keeps a view within the source and at least MIN_VIEW long, preserving its length when possible. */
@@ -48,8 +65,9 @@ export const useAudioEditor = create<AudioEditorState>((set, get) => ({
 	playing: false,
 	selection: null,
 	view: { start: 0, end: 0 },
+	exportSettings: defaultExport({ title: '', artist: '', album: '' }),
 
-	load(owner, duration) {
+	load(owner, duration, tags) {
 		if (get().owner === owner) return;
 		set({
 			owner,
@@ -59,6 +77,7 @@ export const useAudioEditor = create<AudioEditorState>((set, get) => ({
 			playing: false,
 			selection: null,
 			view: { start: 0, end: duration },
+			exportSettings: defaultExport(tags),
 		});
 	},
 
@@ -102,6 +121,10 @@ export const useAudioEditor = create<AudioEditorState>((set, get) => ({
 
 	setView(view) {
 		set({ view: clampView(view, get().history.present.duration) });
+	},
+
+	setExport(settings) {
+		set({ exportSettings: { ...get().exportSettings, ...settings } });
 	},
 }));
 

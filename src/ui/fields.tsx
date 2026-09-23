@@ -110,6 +110,38 @@ export function NumberField({
 	);
 }
 
+/** Free text with its label above, for names and titles that need the full width. */
+export function TextField({
+	label,
+	value,
+	placeholder,
+	onChange,
+}: {
+	label: string;
+	value: string;
+	placeholder?: string;
+	onChange: (value: string) => void;
+}) {
+	const id = useId();
+	return (
+		<div className="grid gap-1.5">
+			<label htmlFor={id} className="text-ui text-ink-2">
+				{label}
+			</label>
+			<input
+				id={id}
+				type="text"
+				value={value}
+				placeholder={placeholder}
+				onChange={(event) => {
+					onChange(event.target.value);
+				}}
+				className="border-line-2 bg-bg text-ui text-ink hover:border-muted placeholder:text-muted h-8 w-full cursor-text rounded-xs border px-2.5 transition-colors"
+			/>
+		</div>
+	);
+}
+
 /**
  * Time input in minutes, seconds and milliseconds. Accepts what people type: `1:04.25`, `64.25`,
  * `64,25`. Applied on Enter or when leaving the field; anything that isn't a time is discarded.

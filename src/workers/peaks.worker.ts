@@ -2,6 +2,7 @@
  * Reads the waveform of part of an audio track off the main thread. See `readPeaks`.
  */
 import { ALL_FORMATS, AudioSampleSink, BlobSource, Input } from 'mediabunny';
+import { DECODER_PREROLL } from '@/media/decoder';
 import { PEAK_CHUNK, PEAK_FRAMES, type PeaksLimit, type PeaksMessage, type PeaksRequest } from '@/media/peaks-protocol';
 
 function post(message: PeaksMessage) {
@@ -11,12 +12,6 @@ function post(message: PeaksMessage) {
 function toByte(value: number): number {
 	return Math.max(-127, Math.min(127, Math.round(value * 127)));
 }
-
-/**
- * Decoding starts this much before a part so the decoder settles first: Opus, AAC and MP3 all
- * need some audio before a cut point to rebuild their state. Frames before the part are dropped.
- */
-const PREROLL = 0.5;
 
 /** Frame at which to stop. The page can bring it forward while decoding runs. */
 let limit = Number.POSITIVE_INFINITY;
@@ -63,7 +58,7 @@ async function read(request: PeaksRequest) {
 		}
 		let origin = request.origin;
 		const from = origin
-			? Math.max(origin.start, origin.start + request.fromFrame / origin.rate - PREROLL)
+			? Math.max(origin.start, origin.start + request.fromFrame / origin.rate - DECODER_PREROLL)
 			: undefined;
 		const writer = new ChunkWriter();
 		let peak = -1;
