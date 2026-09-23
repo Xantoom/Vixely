@@ -7,13 +7,24 @@ import { LogoMark } from '@/ui/Logo';
 import { EditorSwitcher } from './EditorSwitcher';
 import { useTheme } from './theme';
 
+export interface EditorActions {
+	canUndo: boolean;
+	canRedo: boolean;
+	onUndo: () => void;
+	onRedo: () => void;
+	/** Opens the export settings. Absent while the editor has no export yet. */
+	onExport?: () => void;
+	exportActive?: boolean;
+}
+
 interface AppBarProps {
 	/** Set inside an editor: shows the switcher, the file name and the editing actions. */
 	editor?: MediaKind;
 	fileName?: string;
+	actions?: EditorActions;
 }
 
-export function AppBar({ editor, fileName }: AppBarProps) {
+export function AppBar({ editor, fileName, actions }: AppBarProps) {
 	const [theme, toggleTheme] = useTheme();
 
 	return (
@@ -42,10 +53,10 @@ export function AppBar({ editor, fileName }: AppBarProps) {
 
 			{editor && (
 				<div className="mr-1.5 flex gap-0.5 max-md:hidden">
-					<IconButton label={m.undo()} disabled>
+					<IconButton label={m.undo()} disabled={!actions?.canUndo} onClick={actions?.onUndo}>
 						<Undo2 size={18} />
 					</IconButton>
-					<IconButton label={m.redo()} disabled>
+					<IconButton label={m.redo()} disabled={!actions?.canRedo} onClick={actions?.onRedo}>
 						<Redo2 size={18} />
 					</IconButton>
 				</div>
@@ -56,7 +67,14 @@ export function AppBar({ editor, fileName }: AppBarProps) {
 			</IconButton>
 
 			{editor && (
-				<Button variant="primary" className="ml-1" disabled title={m.export_later()}>
+				<Button
+					variant="primary"
+					className="ml-1"
+					disabled={!actions?.onExport}
+					title={actions?.onExport ? undefined : m.export_later()}
+					aria-pressed={actions?.exportActive}
+					onClick={actions?.onExport}
+				>
 					{m.export()}
 				</Button>
 			)}

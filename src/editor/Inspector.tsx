@@ -2,6 +2,7 @@ import { EDITORS, type MediaKind, TOOL_LABELS, type ToolId } from '@/editors/reg
 import { codecName, formatBytes, formatFrameRate, formatSampleRate, formatTimecode } from '@/lib/format';
 import type { OpenedFile } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
+import { PanelTitle } from './EditorLayout';
 
 function Row({ label, value }: { label: string; value: string }) {
 	return (
@@ -33,7 +34,7 @@ function SupportRow({ label, supported }: { label: string; supported: boolean })
 	);
 }
 
-function InfoPanel({ opened }: { opened: OpenedFile | null }) {
+export function InfoPanel({ opened }: { opened: OpenedFile | null }) {
 	if (!opened) return null;
 	const info = opened.info;
 	if (!info) {
@@ -88,17 +89,21 @@ function InfoPanel({ opened }: { opened: OpenedFile | null }) {
 	);
 }
 
-export function Inspector({ kind, tool, opened }: { kind: MediaKind; tool: ToolId; opened: OpenedFile | null }) {
+/** Placeholder for tools that are planned but not built yet. */
+export function ToolLater({ kind, tool }: { kind: MediaKind; tool: ToolId }) {
 	return (
-		<aside aria-label={m.inspector()} className="grid h-full content-start gap-6 overflow-auto px-5 py-6">
-			<h2 className="text-title font-bold tracking-[-0.03em]">
-				{tool === 'info' ? m.info_file() : TOOL_LABELS[tool]()}
-			</h2>
-			{tool === 'info' ? (
-				<InfoPanel opened={opened} />
-			) : (
-				<p className="text-ui text-muted -mt-3">{m.tool_later({ editor: EDITORS[kind].label() })}</p>
-			)}
-		</aside>
+		<>
+			<PanelTitle>{TOOL_LABELS[tool]()}</PanelTitle>
+			<p className="text-ui text-muted -mt-3">{m.tool_later({ editor: EDITORS[kind].label() })}</p>
+		</>
+	);
+}
+
+export function FilePanel({ opened }: { opened: OpenedFile | null }) {
+	return (
+		<>
+			<PanelTitle>{m.info_file()}</PanelTitle>
+			<InfoPanel opened={opened} />
+		</>
 	);
 }

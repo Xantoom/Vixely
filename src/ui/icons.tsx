@@ -2,6 +2,7 @@ import {
 	AudioLines,
 	Captions,
 	Crop,
+	Download,
 	Gauge,
 	Image,
 	Info,
@@ -54,4 +55,5 @@ export const TOOL_ICONS: Record<ToolId, LucideIcon> = {
 	audio: AudioLines,
 	subtitles: Captions,
 	speed: Gauge,
+	export: Download,
 };

@@ -217,3 +217,40 @@
 		animation-duration: 0.01ms !important;
 	}
 }
+
+/* Range slider: the filled part takes the editor colour. */
+.slider::-webkit-slider-runnable-track {
+	height: 4px;
+	border-radius: 2px;
+	background: linear-gradient(90deg, var(--ed) 0 var(--fill), var(--surface-2) var(--fill) 100%);
+}
+
+.slider::-moz-range-track {
+	height: 4px;
+	border-radius: 2px;
+	background: linear-gradient(90deg, var(--ed) 0 var(--fill), var(--surface-2) var(--fill) 100%);
+}
+
+.slider::-webkit-slider-thumb {
+	appearance: none;
+	width: 18px;
+	height: 18px;
+	margin-top: -7px;
+	border-radius: 50%;
+	background: var(--bg);
+	border: 2px solid var(--ed);
+	box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+	transition: transform 0.12s ease;
+}
+
+.slider::-moz-range-thumb {
+	width: 14px;
+	height: 14px;
+	border-radius: 50%;
+	background: var(--bg);
+	border: 2px solid var(--ed);
+}
+
+.slider:active::-webkit-slider-thumb {
+	transform: scale(1.12);
+}
