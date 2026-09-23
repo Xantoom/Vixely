@@ -17,9 +17,10 @@ coverage/
 src/routeTree.gen.ts
 src/paraglide/
 src/wasm/vixely-core/
+src/wasm/vixely-image/
 project.inlang/cache/
 project.inlang/.gitignore
-vixely-core/target/
+target/
 .tanstack/
 
 # Local assistant settings

@@ -15,7 +15,7 @@ import {
 	type Rect,
 	rotate,
 } from './document';
-import { canEncode, FORMAT_INFO, outputSize } from './export';
+import { canEncodeWebp, outputSize, usesQuality } from './export';
 import {
 	ASPECTS,
 	type AspectId,
@@ -322,17 +322,20 @@ export function ExportPanel({ source }: { source: ImageBitmap }) {
 	const [webp, setWebp] = useState(false);
 
 	useEffect(() => {
-		void canEncode('webp').then(setWebp);
+		void canEncodeWebp().then(setWebp);
 	}, []);
 
 	const crop = effectiveCrop(doc, source);
 	const longest = Math.max(crop.width, crop.height);
 	const current = outputSize(doc, source, settings);
+	const lossless = settings.format === 'jxl' && settings.quality >= 100;
 
 	const formats: SelectOption<ImageFormat>[] = [
 		{ value: 'jpeg', label: 'JPEG' },
 		{ value: 'png', label: 'PNG' },
 		{ value: 'webp', label: 'WebP', disabled: !webp },
+		{ value: 'avif', label: 'AVIF' },
+		{ value: 'jxl', label: 'JPEG XL' },
 	];
 	const sizes: SelectOption<string>[] = [
 		{ value: 'original', label: m.size_original() },
@@ -356,6 +359,36 @@ export function ExportPanel({ source }: { source: ImageBitmap }) {
 						}}
 					/>
 				</FieldRow>
+				{settings.format === 'png' && (
+					<FieldRow label={m.png_compression()} htmlFor="export-png">
+						<Select
+							id="export-png"
+							value={settings.pngLossy ? 'lossy' : 'lossless'}
+							options={[
+								{ value: 'lossless', label: m.png_lossless() },
+								{ value: 'lossy', label: m.png_lossy() },
+							]}
+							onChange={(value) => {
+								setExport({ pngLossy: value === 'lossy' });
+							}}
+						/>
+					</FieldRow>
+				)}
+				{settings.format === 'avif' && (
+					<FieldRow label={m.avif_encoding()} htmlFor="export-avif">
+						<Select
+							id="export-avif"
+							value={settings.avifEffort}
+							options={[
+								{ value: 'fast', label: m.avif_fast() },
+								{ value: 'best', label: m.avif_best() },
+							]}
+							onChange={(avifEffort) => {
+								setExport({ avifEffort });
+							}}
+						/>
+					</FieldRow>
+				)}
 				<FieldRow label={m.export_size()} htmlFor="export-size">
 					<Select
 						id="export-size"
@@ -367,7 +400,7 @@ export function ExportPanel({ source }: { source: ImageBitmap }) {
 					/>
 				</FieldRow>
 			</div>
-			{FORMAT_INFO[settings.format].lossy && (
+			{usesQuality(settings) && (
 				<Slider
 					label={m.export_quality()}
 					value={settings.quality}
@@ -375,7 +408,16 @@ export function ExportPanel({ source }: { source: ImageBitmap }) {
 					max={100}
 					defaultValue={85}
 					format={String}
-					hint={qualityHint(settings.quality)}
+					hint={
+						lossless ? (
+							<>
+								<b className="text-ed-text font-semibold">{m.quality_lossless()}</b>{' '}
+								{m.quality_lossless_note()}
+							</>
+						) : (
+							qualityHint(settings.quality)
+						)
+					}
 					onChange={(quality) => {
 						setExport({ quality });
 					}}

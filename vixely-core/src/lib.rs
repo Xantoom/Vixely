@@ -1,6 +1,6 @@
-//! Media routines that are too slow or too low-level for JavaScript.
+//! Small routines Vixely needs as soon as a file is dropped, such as recognising its type.
 //!
-//! Everything exported here is called from `src/wasm/core.ts`, never directly from the UI.
+//! Kept tiny on purpose: it loads on the first drop. Heavy codecs live in `vixely-image`.
 
 mod sniff;
 

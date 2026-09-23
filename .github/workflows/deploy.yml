@@ -26,6 +26,9 @@ jobs:
               with:
                   targets: wasm32-unknown-unknown
 
+            # The image codecs take minutes to compile; cache the Rust build between runs.
+            - uses: Swatinem/rust-cache@v2
+
             - name: Install wasm-pack
               run: curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
 

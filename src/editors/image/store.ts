@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { canRedo, canUndo, commit, createHistory, type History, redo, replace, undo } from '@/document/history';
 import { createImageDoc, type ImageDoc, type Size } from './document';
 
-export type ImageFormat = 'jpeg' | 'png' | 'webp';
+export type ImageFormat = 'jpeg' | 'png' | 'webp' | 'avif' | 'jxl';
 
 export type AspectId = 'free' | 'original' | '1:1' | '4:5' | '5:4' | '3:2' | '2:3' | '16:9' | '9:16';
 
@@ -29,6 +29,10 @@ export interface ExportSettings {
 	quality: number;
 	/** Longest side of the output, in pixels. Null keeps the cropped size. */
 	longestSide: number | null;
+	/** PNG only: reduce to a palette of 256 colours, much smaller and hard to tell apart. */
+	pngLossy: boolean;
+	/** AVIF only: `best` spends much longer searching for a smaller file. */
+	avifEffort: 'fast' | 'best';
 }
 
 interface ImageEditorState {
@@ -54,7 +58,13 @@ interface ImageEditorState {
 	setExport: (settings: Partial<ExportSettings>) => void;
 }
 
-const DEFAULT_EXPORT: ExportSettings = { format: 'jpeg', quality: 85, longestSide: null };
+const DEFAULT_EXPORT: ExportSettings = {
+	format: 'jpeg',
+	quality: 85,
+	longestSide: null,
+	pngLossy: false,
+	avifEffort: 'fast',
+};
 
 export const useImageEditor = create<ImageEditorState>((set, get) => ({
 	file: null,

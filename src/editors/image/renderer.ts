@@ -10,10 +10,13 @@ import {
 const VERTEX = `#version 300 es
 in vec2 aPosition;
 uniform mat3 uTransform;
+uniform bool uFlipY;
 out vec2 vUv;
 void main() {
-	// Output coordinates with a top left origin, mapped to the source texture.
-	vec2 uv = vec2((aPosition.x + 1.0) * 0.5, 1.0 - (aPosition.y + 1.0) * 0.5);
+	// Output coordinates with a top left origin, mapped to the source texture. Flipped when the
+	// pixels are read back, since readPixels returns rows from the bottom.
+	float v = (aPosition.y + 1.0) * 0.5;
+	vec2 uv = vec2((aPosition.x + 1.0) * 0.5, uFlipY ? v : 1.0 - v);
 	vUv = (uTransform * vec3(uv, 1.0)).xy;
 	gl_Position = vec4(aPosition, 0.0, 1.0);
 }`;
@@ -68,7 +71,8 @@ type Uniform =
 	| 'uTemperature'
 	| 'uTint'
 	| 'uDither'
-	| 'uOpaque';
+	| 'uOpaque'
+	| 'uFlipY';
 
 export interface RenderOptions {
 	/** Area of the oriented image to draw, in pixels. */
@@ -77,6 +81,8 @@ export interface RenderOptions {
 	original?: boolean;
 	/** Flatten transparency on white, for formats without an alpha channel. */
 	opaque?: boolean;
+	/** Draw upside down, so `readPixels` returns rows from the top. */
+	flipY?: boolean;
 }
 
 function compile(gl: WebGL2RenderingContext, type: number, code: string): WebGLShader {
@@ -129,6 +135,7 @@ export class ImageRenderer {
 			'uTint',
 			'uDither',
 			'uOpaque',
+			'uFlipY',
 		];
 		for (const name of names) this.uniforms.set(name, gl.getUniformLocation(program, name));
 
@@ -157,7 +164,7 @@ export class ImageRenderer {
 		this.sourceSize = { width: source.width, height: source.height };
 	}
 
-	render(doc: ImageDoc, { region, original = false, opaque = false }: RenderOptions): void {
+	render(doc: ImageDoc, { region, original = false, opaque = false, flipY = false }: RenderOptions): void {
 		const gl = this.gl;
 		if (!this.texture || !this.sourceSize) return;
 		const adjust: Adjustments = original ? NEUTRAL_ADJUSTMENTS : doc.adjust;
@@ -177,7 +184,16 @@ export class ImageRenderer {
 		gl.uniform1f(u('uTint'), adjust.tint / 100);
 		gl.uniform1i(u('uDither'), original ? 0 : 1);
 		gl.uniform1i(u('uOpaque'), opaque ? 1 : 0);
+		gl.uniform1i(u('uFlipY'), flipY ? 1 : 0);
 		gl.drawArrays(gl.TRIANGLES, 0, 6);
+	}
+
+	/** Straight RGBA pixels of the last render. Render with `flipY` to get rows from the top. */
+	readPixels(): Uint8Array {
+		const { width, height } = this.canvas;
+		const pixels = new Uint8Array(width * height * 4);
+		this.gl.readPixels(0, 0, width, height, this.gl.RGBA, this.gl.UNSIGNED_BYTE, pixels);
+		return pixels;
 	}
 
 	dispose(): void {

@@ -3,7 +3,8 @@ dist
 .git
 .github
 .env*
-vixely-core/target
+target
 src/paraglide
 src/wasm
 src/routeTree.gen.ts
+src/wasm/vixely-image

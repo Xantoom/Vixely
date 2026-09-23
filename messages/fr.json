@@ -133,5 +133,13 @@
 	"rotate_right_short": "+90°",
 	"flip_horizontal_short": "Horizontal",
 	"flip_vertical_short": "Vertical",
-	"saved": "Enregistré"
+	"saved": "Enregistré",
+	"png_compression": "Compression",
+	"png_lossless": "Sans perte",
+	"png_lossy": "Avec perte, plus léger",
+	"avif_encoding": "Encodage",
+	"avif_fast": "Rapide",
+	"avif_best": "Optimal, plus lent",
+	"quality_lossless": "Sans perte,",
+	"quality_lossless_note": "identique à l'original."
 }

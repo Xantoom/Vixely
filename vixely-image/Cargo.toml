@@ -1,0 +1,30 @@
+[package]
+name = "vixely-image"
+version = "0.1.0"
+edition = "2024"
+license = "AGPL-3.0-only"
+description = "Image encoders and decoders for Vixely, compiled to WebAssembly and run in a worker."
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+# JPEG: jpegli, ported to pure Rust.
+# Pinned: 0.8.4 needs a newer magetypes than jxl-encoder-simd 0.3 builds with on wasm32.
+zenjpeg = { version = "=0.8.3", default-features = false, features = ["trellis"] }
+# Palette quantisation for lossy PNG (libimagequant, pure Rust since v4).
+imagequant = { version = "4.4", default-features = false }
+png = "0.18"
+rgb = "0.8"
+# AVIF through rav1e; no assembly so it builds for WebAssembly.
+ravif = { version = "0.13", default-features = false }
+# JPEG XL encoder and decoder.
+jxl-encoder = { version = "0.3", default-features = false, features = ["std"] }
+jxl-oxide = { version = "0.12", default-features = false }
+# Decoding of formats browsers don't read: BMP, TIFF, ICO.
+image = { version = "0.25", default-features = false, features = ["bmp", "ico", "tiff"] }
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O3", "--enable-bulk-memory", "--enable-nontrapping-float-to-int", "--enable-sign-ext", "--enable-mutable-globals", "--enable-reference-types", "--enable-multivalue", "--enable-simd"]

@@ -8,7 +8,7 @@
 	"scripts": {
 		"dev": "bun run build:wasm && vite",
 		"build": "bun run build:wasm && vite build",
-		"build:wasm": "wasm-pack build vixely-core --target web --release --out-dir ../src/wasm/vixely-core --out-name vixely_core --no-pack",
+		"build:wasm": "bun scripts/build-wasm.ts",
 		"preview": "vite preview",
 		"typecheck": "tsc --noEmit",
 		"lint": "oxlint src --type-aware --type-check",
@@ -16,7 +16,7 @@
 		"fmt": "oxfmt src --write",
 		"fmt:check": "oxfmt src --check",
 		"test": "vitest run",
-		"test:rust": "cargo test --manifest-path vixely-core/Cargo.toml"
+		"test:rust": "cargo test --workspace --release"
 	},
 	"dependencies": {
 		"@fontsource-variable/jetbrains-mono": "^5.3.0",

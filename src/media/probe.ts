@@ -48,8 +48,23 @@ export interface Probe {
 	poster: ImageBitmap | null;
 }
 
-/** Formats that the browser can decode as a still image through createImageBitmap. */
-const BROWSER_IMAGE_FORMATS = new Set(['png', 'jpeg', 'webp', 'avif', 'gif', 'apng', 'bmp', 'ico']);
+/** Formats vixely-image can decode when the browser can't (Safari reads TIFF and JPEG XL itself). */
+const CODEC_IMAGE_FORMATS = new Set(['tiff', 'jxl', 'bmp', 'ico']);
+
+/** First frame of an image: the browser's decoder first, vixely-image as a fallback. */
+async function decodeStill(file: File, format: string): Promise<ImageBitmap | null> {
+	try {
+		return await createImageBitmap(file);
+	} catch {
+		if (!CODEC_IMAGE_FORMATS.has(format)) return null;
+	}
+	try {
+		const { decodeImage } = await import('./image-codec');
+		return await createImageBitmap(await decodeImage(new Uint8Array(await file.arrayBuffer()), format));
+	} catch {
+		return null;
+	}
+}
 
 /** Reads what the editors need to know about a file, without decoding more than the first frame. */
 export async function probe(file: File, kind: MediaKind, format: string): Promise<Probe> {
@@ -68,13 +83,9 @@ export async function probe(file: File, kind: MediaKind, format: string): Promis
 	if (kind === 'video' || kind === 'audio') return probeTimed(file, base);
 	if (kind === 'subtitles') return { info: { ...base, cues: await readCues(file, format) }, poster: null };
 
-	if (!BROWSER_IMAGE_FORMATS.has(format)) return { info: base, poster: null };
-	try {
-		const poster = await createImageBitmap(file);
-		return { info: { ...base, dimensions: { width: poster.width, height: poster.height } }, poster };
-	} catch {
-		return { info: base, poster: null };
-	}
+	const poster = await decodeStill(file, format);
+	if (!poster) return { info: base, poster: null };
+	return { info: { ...base, dimensions: { width: poster.width, height: poster.height } }, poster };
 }
 
 async function probeTimed(file: File, base: MediaInfo): Promise<Probe> {
