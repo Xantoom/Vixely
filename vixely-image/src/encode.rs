@@ -51,7 +51,8 @@ fn is_opaque(rgba: &[u8]) -> bool {
 }
 
 /// PNG. With `lossy_quality` set (1 to 100), colours are reduced to a palette of at most 256 by
-/// libimagequant, with dithering: typically 60 to 80 % smaller and hard to tell apart.
+/// libimagequant, with dithering: typically 60 to 80 % smaller and hard to tell apart. Either way
+/// oxipng then searches for the smallest lossless encoding of the result.
 pub fn png(rgba: &[u8], width: u32, height: u32, lossy_quality: Option<u8>) -> Result<Vec<u8>, EncodeError> {
 	check_size(rgba, width, height)?;
 	let mut out = Vec::new();
@@ -65,7 +66,7 @@ pub fn png(rgba: &[u8], width: u32, height: u32, lossy_quality: Option<u8>) -> R
 				png::ColorType::Rgba
 			});
 			encoder.set_depth(png::BitDepth::Eight);
-			encoder.set_compression(png::Compression::High);
+			encoder.set_compression(png::Compression::Fast);
 			encoder.set_filter(png::Filter::Adaptive);
 			let mut writer = encoder.write_header().map_err(fail)?;
 			if opaque {
@@ -95,14 +96,20 @@ pub fn png(rgba: &[u8], width: u32, height: u32, lossy_quality: Option<u8>) -> R
 			if palette.iter().any(|c| c.a < 255) {
 				encoder.set_trns(palette.iter().map(|c| c.a).collect::<Vec<u8>>());
 			}
-			encoder.set_compression(png::Compression::High);
+			encoder.set_compression(png::Compression::Fast);
 			encoder.set_filter(png::Filter::NoFilter);
 			let mut writer = encoder.write_header().map_err(fail)?;
 			writer.write_image_data(&indices).map_err(fail)?;
 			writer.finish().map_err(fail)?;
 		}
 	}
-	Ok(out)
+	optimize_png(&out)
+}
+
+/// oxipng preset 2: tries the filters and compression strategies that matter most, in about the
+/// time the encode itself takes. Higher presets gain little for much longer runs.
+fn optimize_png(png: &[u8]) -> Result<Vec<u8>, EncodeError> {
+	oxipng::optimize_from_memory(png, &oxipng::Options::from_preset(2)).map_err(fail)
 }
 
 /// AVIF with rav1e. `speed` goes from 1 (slowest, smallest) to 10 (fastest).

@@ -17,6 +17,8 @@ zenjpeg = { version = "=0.8.3", default-features = false, features = ["trellis"]
 # Palette quantisation for lossy PNG (libimagequant, pure Rust since v4).
 imagequant = { version = "4.4", default-features = false }
 png = "0.18"
+# Lossless PNG optimisation. Its libdeflate is C: building for wasm32 needs clang and llvm-ar.
+oxipng = { version = "10", default-features = false, features = ["freestanding"] }
 rgb = "0.8"
 # AVIF through rav1e; no assembly so it builds for WebAssembly.
 ravif = { version = "0.13", default-features = false }

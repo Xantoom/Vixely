@@ -14,6 +14,23 @@ const CRATES = [
 ];
 const force = process.argv.includes('--force') || process.env.CI === 'true';
 
+/**
+ * vixely-image compiles C (libdeflate, for oxipng) to wasm32, which needs clang and llvm-ar.
+ * Distributions often ship llvm-ar with a version suffix, so the first one found is used.
+ */
+function findTool(names: string[]): string | undefined {
+	return names.find((name) => spawnSync(name, ['--version'], { stdio: 'ignore' }).status === 0);
+}
+
+const versions = Array.from({ length: 12 }, (_, i) => 24 - i);
+const ar = findTool(['llvm-ar', ...versions.map((v) => `llvm-ar-${v}`)]);
+const cc = findTool(['clang', ...versions.map((v) => `clang-${v}`)]);
+if (!ar || !cc) {
+	console.error('clang and llvm-ar are required to build vixely-image (sudo apt-get install clang llvm).');
+	process.exit(1);
+}
+const env = { ...process.env, CC_wasm32_unknown_unknown: cc, AR_wasm32_unknown_unknown: ar };
+
 function newest(path: string): number {
 	const stat = statSync(path);
 	if (!stat.isDirectory()) return stat.mtimeMs;
@@ -31,7 +48,7 @@ for (const crate of CRATES) {
 	const result = spawnSync(
 		'wasm-pack',
 		['build', crate.dir, '--target', 'web', '--release', '--out-dir', `../${crate.out}`, '--out-name', crate.name, '--no-pack'],
-		{ stdio: 'inherit' },
+		{ stdio: 'inherit', env },
 	);
 	if (result.status !== 0) process.exit(result.status ?? 1);
 }

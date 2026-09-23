@@ -29,6 +29,9 @@ jobs:
             # The image codecs take minutes to compile; cache the Rust build between runs.
             - uses: Swatinem/rust-cache@v2
 
+            - name: Install clang and llvm
+              run: sudo apt-get update && sudo apt-get install -y clang llvm
+
             - name: Install wasm-pack
               run: curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
 
