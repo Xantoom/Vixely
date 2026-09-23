@@ -366,5 +366,13 @@
 	"batch_tags_kept": "Chaque fichier garde son titre, son artiste, son album et sa pochette.",
 	"batch_trim_hint": "La découpe se fait fichier par fichier : ouvre-le seul pour le couper.",
 	"audio_from_video": "Éditer l'audio",
-	"audio_from_video_hint": "Ouvre la bande-son dans l'éditeur audio, pour la couper, la normaliser ou l'enregistrer en MP3, FLAC…"
+	"audio_from_video_hint": "Ouvre la bande-son dans l'éditeur audio, pour la couper, la normaliser ou l'enregistrer en MP3, FLAC…",
+	"export_encoding": "Encodage",
+	"encoding_copy": "Original",
+	"encoding_convert": "Convertir",
+	"encoding_copy_hint": "Sans réencodage : l'audio est copié tel quel, sans perte, en quelques secondes.",
+	"encoding_copy_cuts": "Les coupes tombent sur la trame d'origine la plus proche, à environ 20 ms près.",
+	"encoding_copy_volume": "Le volume, les fondus et la normalisation modifient le son : ils demandent un réencodage.",
+	"encoding_copy_codec": "Cet audio ne peut pas être copié tel quel dans un fichier à part.",
+	"encoding_convert_hint": "Choisis le format et les réglages du nouveau fichier."
 }

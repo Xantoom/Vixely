@@ -264,7 +264,7 @@ export function OptionList<T extends string>({
 }: {
 	label: string;
 	value: T;
-	options: { value: T; label: string; detail?: string }[];
+	options: { value: T; label: string; detail?: string; disabled?: boolean }[];
 	onChange: (value: T) => void;
 }) {
 	return (
@@ -275,10 +275,11 @@ export function OptionList<T extends string>({
 					type="button"
 					role="radio"
 					aria-checked={option.value === value}
+					disabled={option.disabled}
 					onClick={() => {
 						onChange(option.value);
 					}}
-					className="hover:bg-surface group grid grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-3 rounded-xs px-2.5 py-2 text-left"
+					className="enabled:hover:bg-surface group grid grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-3 rounded-xs px-2.5 py-2 text-left disabled:opacity-45"
 				>
 					<span className="size-4 rounded-full shadow-[inset_0_0_0_1.5px_var(--line-2)] group-aria-checked:shadow-[inset_0_0_0_5px_var(--ed)]" />
 					<span className="text-body">{option.label}</span>

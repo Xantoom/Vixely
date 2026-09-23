@@ -1,7 +1,7 @@
 import { Check } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
-import { formatSampleRate, groupDigits } from '@/lib/format';
+import { codecName, formatSampleRate, groupDigits } from '@/lib/format';
 import { outputName } from '@/media/save';
 import { openBatchDestination, openSaveTarget } from '@/media/save-target';
 import type { BatchFile } from '@/media/session';
@@ -14,12 +14,12 @@ import {
 	AUDIO_FORMAT_ORDER,
 	AUDIO_FORMATS,
 	type AudioExportSettings,
-	availableBitrates,
-	outputBitrate,
 	outputChannels,
 	outputRate,
+	outputType,
 	type AudioFormat,
 	canExport,
+	copyBlocker,
 	exportAudio,
 	type SourceFormat,
 } from './export';
@@ -157,10 +157,13 @@ function CoverField({ source }: { source: ImageBitmap | null }) {
 
 export function ExportPanel({
 	source,
+	doc,
 	cover,
 	batch,
 }: {
 	source: SourceFormat;
+	/** The document as it sounds: whether the original encoding can be kept depends on it. */
+	doc: AudioDoc;
 	cover: ImageBitmap | null;
 	/** In a batch, every file keeps its own tags. */
 	batch: boolean;
@@ -184,8 +187,20 @@ export function ExportPanel({
 		...(keptChannels === 1 ? [] : [{ value: 'mono' as const, label: m.channels_mono() }]),
 	];
 	const rate = outputRate(settings, source);
-	const bitrates = availableBitrates(settings.format, rate);
-	const bitrate = outputBitrate(settings, rate);
+	const bitrate = settings.bitrate;
+	const blocker = copyBlocker(doc, source);
+	const copying = settings.mode === 'copy' && blocker === null;
+	const lossy = source.codec !== null && ['mp3', 'aac', 'opus', 'vorbis', 'ac3', 'eac3'].includes(source.codec);
+	const original = source.codec
+		? `${codecName(source.codec)}${lossy && source.bitrate ? ` ${source.bitrate} kb/s` : ''}`
+		: undefined;
+	const trimmed = doc.cuts.length > 0 || doc.trim.start > 0 || doc.trim.end < doc.duration;
+	const encodingHint = () => {
+		if (copying) return trimmed ? `${m.encoding_copy_hint()} ${m.encoding_copy_cuts()}` : m.encoding_copy_hint();
+		if (blocker === 'volume') return m.encoding_copy_volume();
+		if (blocker === 'codec') return m.encoding_copy_codec();
+		return m.encoding_convert_hint();
+	};
 
 	return (
 		<>
@@ -193,96 +208,117 @@ export function ExportPanel({
 
 			<div className="grid gap-2">
 				<OptionList
-					label={m.export_format()}
-					value={settings.format}
-					options={AUDIO_FORMAT_ORDER.filter((format) => format !== 'opus' || opus !== false).map(
-						(format) => ({
-							value: format,
-							label: AUDIO_FORMATS[format].label,
-							detail: `.${AUDIO_FORMATS[format].extension}`,
-						}),
-					)}
-					onChange={(format) => {
-						setExport({ format, bitrate: AUDIO_FORMATS[format].defaultBitrate });
+					label={m.export_encoding()}
+					value={copying ? 'copy' : 'encode'}
+					options={[
+						{ value: 'copy', label: m.encoding_copy(), detail: original, disabled: blocker !== null },
+						{ value: 'encode', label: m.encoding_convert() },
+					]}
+					onChange={(mode) => {
+						setExport({ mode });
 					}}
 				/>
-				<p className="text-small text-muted">{FORMAT_HINTS[settings.format]()}</p>
-				{opus === false && <p className="text-small text-muted">{m.opus_unavailable()}</p>}
+				<p className="text-small text-muted">{encodingHint()}</p>
 			</div>
 
-			<div className="grid gap-3.5">
-				{info.bitrates.length > 0 && (
-					<div className="grid gap-1.5">
-						<FieldRow label={m.export_bitrate()} htmlFor={bitrateId}>
-							<Select
-								id={bitrateId}
-								value={String(bitrate)}
-								options={bitrates.map((kbps) => ({ value: String(kbps), label: `${kbps} kb/s` }))}
-								onChange={(value) => {
-									setExport({ bitrate: Number(value) });
-								}}
-							/>
-						</FieldRow>
-						<p className="text-small text-muted">{bitrateHint(settings.format, bitrate)}</p>
-					</div>
-				)}
-
-				<div className="grid gap-1.5">
-					<FieldRow label={m.info_sample_rate()} htmlFor={rateId}>
-						{info.sampleRates.length === 1 ? (
-							<span className="tabular text-right font-mono text-[12.5px]">
-								{formatSampleRate(info.sampleRates[0] ?? 48_000)}
-							</span>
-						) : (
-							<Select
-								id={rateId}
-								value={String(rate)}
-								options={info.sampleRates.map((option) => ({
-									value: String(option),
-									label: `${groupDigits(option)} Hz`,
-								}))}
-								onChange={(value) => {
-									// The source's own rate is stored as "keep", so it follows another file.
-									const chosen = Number(value);
-									setExport({ sampleRate: chosen === source.sampleRate ? null : chosen });
-								}}
-							/>
+			{/* Kept visible but inactive while the original is kept: the values it has are the source's. */}
+			<div inert={copying} className={`grid gap-6 transition-opacity ${copying ? 'opacity-45' : ''}`}>
+				<div className="grid gap-2">
+					<OptionList
+						label={m.export_format()}
+						value={settings.format}
+						options={AUDIO_FORMAT_ORDER.filter((format) => format !== 'opus' || opus !== false).map(
+							(format) => ({
+								value: format,
+								label: AUDIO_FORMATS[format].label,
+								detail: `.${AUDIO_FORMATS[format].extension}`,
+							}),
 						)}
-					</FieldRow>
-					<p className="text-small text-muted">
-						{info.sampleRates.length === 1 ? m.sample_rate_opus() : m.sample_rate_hint()}
-					</p>
-				</div>
-
-				<FieldRow label={m.info_channels()} htmlFor={channelsId}>
-					<Select
-						id={channelsId}
-						value={channels === keptChannels ? 'keep' : settings.channels}
-						options={channelOptions}
-						onChange={(channels) => {
-							setExport({ channels });
+						onChange={(format) => {
+							setExport({ format, bitrate: AUDIO_FORMATS[format].defaultBitrate });
 						}}
 					/>
-				</FieldRow>
+					<p className="text-small text-muted">{FORMAT_HINTS[settings.format]()}</p>
+					{opus === false && <p className="text-small text-muted">{m.opus_unavailable()}</p>}
+				</div>
 
-				{info.bitDepth && (
+				<div className="grid gap-3.5">
+					{info.bitrates.length > 0 && (
+						<div className="grid gap-1.5">
+							<FieldRow label={m.export_bitrate()} htmlFor={bitrateId}>
+								<Select
+									id={bitrateId}
+									value={String(bitrate)}
+									options={info.bitrates.map((kbps) => ({
+										value: String(kbps),
+										label: `${kbps} kb/s`,
+									}))}
+									onChange={(value) => {
+										setExport({ bitrate: Number(value) });
+									}}
+								/>
+							</FieldRow>
+							<p className="text-small text-muted">{bitrateHint(settings.format, bitrate)}</p>
+						</div>
+					)}
+
 					<div className="grid gap-1.5">
-						<FieldRow label={m.export_bit_depth()} htmlFor={depthId}>
-							<Select
-								id={depthId}
-								value={String(settings.bitDepth)}
-								options={[
-									{ value: '16', label: m.bit_depth_value({ bits: 16 }) },
-									{ value: '24', label: m.bit_depth_value({ bits: 24 }) },
-								]}
-								onChange={(value) => {
-									setExport({ bitDepth: value === '24' ? 24 : 16 });
-								}}
-							/>
+						<FieldRow label={m.info_sample_rate()} htmlFor={rateId}>
+							{info.sampleRates.length === 1 ? (
+								<span className="tabular text-right font-mono text-[12.5px]">
+									{formatSampleRate(info.sampleRates[0] ?? 48_000)}
+								</span>
+							) : (
+								<Select
+									id={rateId}
+									value={String(rate)}
+									options={info.sampleRates.map((option) => ({
+										value: String(option),
+										label: `${groupDigits(option)} Hz`,
+									}))}
+									onChange={(value) => {
+										// The source's own rate is stored as "keep", so it follows another file.
+										const chosen = Number(value);
+										setExport({ sampleRate: chosen === source.sampleRate ? null : chosen });
+									}}
+								/>
+							)}
 						</FieldRow>
-						<p className="text-small text-muted">{m.bit_depth_hint()}</p>
+						<p className="text-small text-muted">
+							{info.sampleRates.length === 1 ? m.sample_rate_opus() : m.sample_rate_hint()}
+						</p>
 					</div>
-				)}
+
+					<FieldRow label={m.info_channels()} htmlFor={channelsId}>
+						<Select
+							id={channelsId}
+							value={channels === keptChannels ? 'keep' : settings.channels}
+							options={channelOptions}
+							onChange={(channels) => {
+								setExport({ channels });
+							}}
+						/>
+					</FieldRow>
+
+					{info.bitDepth && (
+						<div className="grid gap-1.5">
+							<FieldRow label={m.export_bit_depth()} htmlFor={depthId}>
+								<Select
+									id={depthId}
+									value={String(settings.bitDepth)}
+									options={[
+										{ value: '16', label: m.bit_depth_value({ bits: 16 }) },
+										{ value: '24', label: m.bit_depth_value({ bits: 24 }) },
+									]}
+									onChange={(value) => {
+										setExport({ bitDepth: value === '24' ? 24 : 16 });
+									}}
+								/>
+							</FieldRow>
+							<p className="text-small text-muted">{m.bit_depth_hint()}</p>
+						</div>
+					)}
+				</div>
 			</div>
 
 			<section className="grid gap-3.5">
@@ -384,12 +420,12 @@ export function ExportFooter({
 	};
 
 	const exportOne = async () => {
-		const info = AUDIO_FORMATS[settings.format];
+		const type = outputType(settings, source);
 		// The destination is asked first: the file picker only opens from the click itself.
-		const save = await openSaveTarget(outputName(file.name, info.extension), {
-			mime: info.mime,
-			extension: info.extension,
-			description: info.label,
+		const save = await openSaveTarget(outputName(file.name, type.extension), {
+			mime: type.mime,
+			extension: type.extension,
+			description: type.label,
 		});
 		if (!save) return;
 		const signal = start();

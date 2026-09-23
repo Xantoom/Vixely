@@ -6,9 +6,12 @@ import {
 	type AudioCodec,
 	BlobSource,
 	canEncodeAudio,
+	EncodedAudioPacketSource,
+	EncodedPacketSink,
 	FlacOutputFormat,
 	Input,
 	type MetadataTags,
+	MkvOutputFormat,
 	Mp3OutputFormat,
 	Mp4OutputFormat,
 	OggOutputFormat,
@@ -39,7 +42,8 @@ export interface AudioFormatInfo {
 	bitDepth: boolean;
 }
 
-const COMMON_RATES = [96_000, 88_200, 48_000, 44_100, 32_000, 24_000, 22_050, 16_000, 12_000, 11_025, 8000];
+/** 48 kHz is the video standard, 44.1 kHz the CD one: every player reads both, nothing else is needed. */
+const RATES = [48_000, 44_100];
 
 export const AUDIO_FORMATS: Record<AudioFormat, AudioFormatInfo> = {
 	mp3: {
@@ -49,7 +53,7 @@ export const AUDIO_FORMATS: Record<AudioFormat, AudioFormatInfo> = {
 		codec: 'mp3',
 		bitrates: [320, 256, 192, 160, 128, 96],
 		defaultBitrate: 192,
-		sampleRates: [48_000, 44_100, 32_000, 24_000, 22_050, 16_000, 12_000, 11_025, 8000],
+		sampleRates: RATES,
 		bitDepth: false,
 	},
 	aac: {
@@ -59,7 +63,7 @@ export const AUDIO_FORMATS: Record<AudioFormat, AudioFormatInfo> = {
 		codec: 'aac',
 		bitrates: [320, 256, 192, 160, 128, 96, 64],
 		defaultBitrate: 192,
-		sampleRates: [96_000, 88_200, 48_000, 44_100, 32_000, 24_000, 22_050, 16_000, 12_000, 11_025, 8000],
+		sampleRates: RATES,
 		bitDepth: false,
 	},
 	opus: {
@@ -80,7 +84,7 @@ export const AUDIO_FORMATS: Record<AudioFormat, AudioFormatInfo> = {
 		codec: 'flac',
 		bitrates: [],
 		defaultBitrate: 0,
-		sampleRates: COMMON_RATES,
+		sampleRates: RATES,
 		bitDepth: true,
 	},
 	wav: {
@@ -90,7 +94,7 @@ export const AUDIO_FORMATS: Record<AudioFormat, AudioFormatInfo> = {
 		codec: 'pcm-s16',
 		bitrates: [],
 		defaultBitrate: 0,
-		sampleRates: COMMON_RATES,
+		sampleRates: RATES,
 		bitDepth: true,
 	},
 };
@@ -98,6 +102,11 @@ export const AUDIO_FORMATS: Record<AudioFormat, AudioFormatInfo> = {
 export const AUDIO_FORMAT_ORDER: AudioFormat[] = ['mp3', 'aac', 'opus', 'flac', 'wav'];
 
 export interface AudioExportSettings {
+	/**
+	 * `copy` keeps the original encoding: the audio packets are copied as they are, without any
+	 * loss or wait. Only possible when the sound itself is unchanged (no gain, fades, normalization).
+	 */
+	mode: 'copy' | 'encode';
 	format: AudioFormat;
 	/** kb/s, for lossy formats. */
 	bitrate: number;
@@ -112,9 +121,141 @@ export interface AudioExportSettings {
 	cover: 'keep' | 'none' | { data: Uint8Array; mimeType: string };
 }
 
+/** What the source audio is, read once when a file opens. Export settings start from it. */
 export interface SourceFormat {
+	codec: AudioCodec | null;
 	sampleRate: number;
 	channels: number;
+	/** Average bitrate in kb/s, null when unknown. */
+	bitrate: number | null;
+	/** Bits per sample of lossless audio: 24 for high-resolution sources, 16 otherwise. */
+	bitDepth: 16 | 24;
+}
+
+/** Reads the STREAMINFO block of a FLAC decoder description for its bits per sample. */
+function flacBitDepth(description: AllowSharedBufferSource | undefined): 16 | 24 {
+	if (!description) return 16;
+	const bytes = ArrayBuffer.isView(description)
+		? new Uint8Array(description.buffer, description.byteOffset, description.byteLength)
+		: new Uint8Array(description);
+	// "fLaC", a 4-byte block header, then STREAMINFO; bits per sample − 1 sit across its bytes 12 and 13.
+	const info = bytes[0] === 0x66 ? 8 : 0;
+	const high = bytes[info + 12] ?? 0;
+	const low = bytes[info + 13] ?? 0;
+	const bits = (((high & 0x01) << 4) | (low >> 4)) + 1;
+	return bits > 16 ? 24 : 16;
+}
+
+export async function readSourceFormat(file: File): Promise<SourceFormat | null> {
+	const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
+	try {
+		const track = await input.getPrimaryAudioTrack();
+		if (!track) return null;
+		const codec = track.codec;
+		const [stats, config] = await Promise.all([
+			track.computePacketStats(200).catch(() => null),
+			codec === 'flac' ? track.getDecoderConfig().catch(() => null) : Promise.resolve(null),
+		]);
+		const wide = codec === 'pcm-s24' || codec === 'pcm-s24be' || codec === 'pcm-s32' || codec?.startsWith('pcm-f');
+		return {
+			codec,
+			sampleRate: track.sampleRate,
+			channels: track.numberOfChannels,
+			bitrate: stats && stats.averageBitrate > 0 ? Math.round(stats.averageBitrate / 1000) : null,
+			bitDepth: wide ? 24 : codec === 'flac' ? flacBitDepth(config?.description) : 16,
+		};
+	} catch {
+		return null;
+	} finally {
+		input.dispose();
+	}
+}
+
+/** The format that re-encodes a source most faithfully, when the user converts. */
+function formatFor(codec: AudioCodec | null): AudioFormat {
+	if (codec === 'mp3' || codec === 'aac' || codec === 'opus' || codec === 'flac') return codec;
+	if (codec?.startsWith('pcm-')) return 'wav';
+	// Vorbis has no encoder here; Opus is its successor.
+	return codec === 'vorbis' ? 'opus' : 'mp3';
+}
+
+/** Export settings that reproduce the source: same codec, bitrate, rate, channels and depth. */
+export function settingsFromSource(source: SourceFormat, current: AudioExportSettings): AudioExportSettings {
+	const format = formatFor(source.codec);
+	const info = AUDIO_FORMATS[format];
+	const bitrate =
+		source.bitrate === null || info.bitrates.length === 0
+			? info.defaultBitrate
+			: info.bitrates.reduce((best, kbps) =>
+					Math.abs(kbps - (source.bitrate ?? 0)) < Math.abs(best - (source.bitrate ?? 0)) ? kbps : best,
+				);
+	return { ...current, mode: 'copy', format, bitrate, sampleRate: null, channels: 'keep', bitDepth: source.bitDepth };
+}
+
+/** Where copied packets can go, by codec: the natural container of each, Matroska for the rest. */
+interface CopyTarget {
+	extension: string;
+	mime: string;
+	label: string;
+	create: () => OutputFormat;
+}
+
+function copyTarget(codec: AudioCodec): CopyTarget | null {
+	const candidates: CopyTarget[] = [];
+	if (codec === 'mp3')
+		candidates.push({ extension: 'mp3', mime: 'audio/mpeg', label: 'MP3', create: () => new Mp3OutputFormat() });
+	if (codec === 'aac')
+		candidates.push({
+			extension: 'm4a',
+			mime: 'audio/mp4',
+			label: 'AAC',
+			create: () => new Mp4OutputFormat({ fastStart: false }),
+		});
+	if (codec === 'opus' || codec === 'vorbis')
+		candidates.push({
+			extension: codec === 'opus' ? 'opus' : 'ogg',
+			mime: 'audio/ogg',
+			label: 'Ogg',
+			create: () => new OggOutputFormat(),
+		});
+	if (codec === 'flac')
+		candidates.push({ extension: 'flac', mime: 'audio/flac', label: 'FLAC', create: () => new FlacOutputFormat() });
+	if (codec.startsWith('pcm-'))
+		candidates.push({
+			extension: 'wav',
+			mime: 'audio/wav',
+			label: 'WAV',
+			create: () => new WavOutputFormat({ metadataFormat: 'id3' }),
+		});
+	candidates.push({
+		extension: 'mka',
+		mime: 'audio/x-matroska',
+		label: 'Matroska',
+		create: () => new MkvOutputFormat(),
+	});
+	return candidates.find((target) => target.create().getSupportedCodecs().includes(codec)) ?? null;
+}
+
+/** Name, type and extension of the file an export produces. */
+export function outputType(
+	settings: AudioExportSettings,
+	source: SourceFormat,
+): { extension: string; mime: string; label: string } {
+	if (settings.mode === 'copy' && source.codec) {
+		const target = copyTarget(source.codec);
+		if (target) return target;
+	}
+	return AUDIO_FORMATS[settings.format];
+}
+
+/**
+ * Why the original encoding can't be kept, or null when it can. Changing the sound itself (gain,
+ * fades, normalization) means decoding and encoding again; cutting doesn't.
+ */
+export function copyBlocker(doc: AudioDoc, source: SourceFormat | null): 'volume' | 'codec' | null {
+	if (!source?.codec || !copyTarget(source.codec)) return 'codec';
+	if (doc.gain !== 0 || doc.normalize !== null || doc.fadeIn > 0 || doc.fadeOut > 0) return 'volume';
+	return null;
 }
 
 /** The sample rate an export will have: the chosen one, or the source's if the encoder accepts it. */
@@ -131,24 +272,6 @@ export function outputChannels(settings: AudioExportSettings, source: SourceForm
 	if (settings.channels === 'stereo') return 2;
 	// Lossy encoders here handle mono and stereo; wider layouts are folded to stereo.
 	return AUDIO_FORMATS[settings.format].bitDepth ? source.channels : Math.min(2, source.channels);
-}
-
-/**
- * Bitrates the encoder can reach at a sample rate. MP3 below 32 kHz uses the MPEG-2 and 2.5
- * layers, which stop at 160 and 64 kb/s.
- */
-export function availableBitrates(format: AudioFormat, rate: number): number[] {
-	const all = AUDIO_FORMATS[format].bitrates;
-	if (format !== 'mp3' || rate >= 32_000) return all;
-	const limit = rate >= 16_000 ? 160 : 64;
-	const allowed = all.filter((kbps) => kbps <= limit);
-	return allowed.length > 0 ? allowed : [limit];
-}
-
-/** The bitrate an export will use: the chosen one, or the closest the encoder can reach. */
-export function outputBitrate(settings: AudioExportSettings, rate: number): number {
-	const allowed = availableBitrates(settings.format, rate);
-	return allowed.find((kbps) => kbps <= settings.bitrate) ?? allowed.at(-1) ?? settings.bitrate;
 }
 
 /** Size a lossless export will reach, in bytes, to choose a WAV layout that can hold it. */
@@ -246,13 +369,80 @@ export interface ExportAudioOptions {
 	onProgress: (fraction: number) => void;
 }
 
+/** Exports the audio as edited, copying the original encoding when the settings allow it. */
+export async function exportAudio(options: ExportAudioOptions) {
+	const { doc, settings, source } = options;
+	if (settings.mode === 'copy' && copyBlocker(doc, source) === null) {
+		await copyAudio(options);
+		return;
+	}
+	await encodeAudio(options);
+}
+
+/**
+ * Keeps the original encoding: the audio packets of the kept ranges are copied into a new file,
+ * with no decoding and no loss. Cuts fall on packet edges (about 20 ms for MP3, AAC and Opus); a
+ * packet belongs to a range when its middle does.
+ */
+async function copyAudio({ file, doc, settings, source, save, signal, onProgress }: ExportAudioOptions) {
+	const codec = source.codec;
+	const target = codec ? copyTarget(codec) : null;
+	if (!codec || !target) throw new Error('This audio cannot be copied as it is.');
+	const ranges = keptRanges(doc);
+	const total = totalLength(ranges);
+	const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
+	const output = new Output({ format: target.create(), target: save.target });
+	try {
+		const track = await input.getPrimaryAudioTrack();
+		if (!track) throw new Error('The file has no audio track.');
+		const packets = new EncodedAudioPacketSource(codec);
+		output.addAudioTrack(packets);
+		output.setMetadataTags(await outputTags(input, settings));
+		await output.start();
+		const decoderConfig = (await track.getDecoderConfig()) ?? undefined;
+		const sink = new EncodedPacketSink(track);
+		const firstPacket = await sink.getFirstPacket();
+		let written = 0;
+		// An untouched start keeps its original timestamps, encoder delay included.
+		let outputTime = firstPacket && (ranges[0]?.start ?? 0) <= 0 ? Math.min(0, firstPacket.timestamp) : 0;
+		const startTime = outputTime;
+		for (const range of ranges) {
+			// oxlint-disable-next-line no-await-in-loop
+			const start = (await sink.getPacket(range.start)) ?? firstPacket;
+			if (!start) continue;
+			// Ranges are copied in order, each after the previous one.
+			// oxlint-disable-next-line no-await-in-loop
+			for await (const packet of sink.packets(start)) {
+				if (signal.aborted) throw new DOMException('The export was stopped.', 'AbortError');
+				const middle = packet.timestamp + packet.duration / 2;
+				if (middle >= range.end) break;
+				if (middle < range.start) continue;
+				const copy = packet.clone({ timestamp: outputTime });
+				// oxlint-disable-next-line no-await-in-loop
+				await packets.add(copy, written === 0 ? { decoderConfig } : undefined);
+				written += 1;
+				outputTime += packet.duration;
+				onProgress(Math.min(1, (outputTime - startTime) / total));
+			}
+		}
+		await output.finalize();
+		await save.commit();
+	} catch (error) {
+		await output.cancel().catch(() => undefined);
+		await save.discard().catch(() => undefined);
+		throw error;
+	} finally {
+		input.dispose();
+	}
+}
+
 /**
  * Exports the audio as edited. The source is decoded in order, range by range, and every sample
  * is multiplied by the same volume curve playback uses; the result goes straight to the encoder
  * and to the destination, so memory stays flat whatever the length. Samples are laid end to end
  * by frame count, so the output has no gap and no overlap at cuts.
  */
-export async function exportAudio({ file, doc, settings, source, save, signal, onProgress }: ExportAudioOptions) {
+async function encodeAudio({ file, doc, settings, source, save, signal, onProgress }: ExportAudioOptions) {
 	const info = AUDIO_FORMATS[settings.format];
 	const ranges = keptRanges(doc);
 	const total = totalLength(ranges);
@@ -260,7 +450,7 @@ export async function exportAudio({ file, doc, settings, source, save, signal, o
 	const channels = outputChannels(settings, source);
 	const depth = info.bitDepth ? settings.bitDepth : 16;
 	const codec: AudioCodec = settings.format === 'wav' ? (depth === 24 ? 'pcm-s24' : 'pcm-s16') : info.codec;
-	const bitrate = info.bitrates.length > 0 ? outputBitrate(settings, rate) * 1000 : undefined;
+	const bitrate = info.bitrates.length > 0 ? settings.bitrate * 1000 : undefined;
 	await ensureEncoder(codec, { numberOfChannels: channels, sampleRate: rate, bitrate });
 
 	const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });

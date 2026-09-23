@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { canRedo, canUndo, commit, createHistory, type History, redo, replace, undo } from '@/document/history';
 import type { Range } from '@/document/timemap';
 import { type AudioDoc, createAudioDoc } from './document';
-import { AUDIO_FORMATS, type AudioExportSettings } from './export';
+import { AUDIO_FORMATS, type AudioExportSettings, settingsFromSource, type SourceFormat } from './export';
 
 export type AudioTags = NonNullable<AudioExportSettings['tags']>;
 
@@ -24,6 +24,8 @@ interface AudioEditorState {
 	/** Visible part of the timeline, in source seconds. */
 	view: Range;
 	exportSettings: AudioExportSettings;
+	/** Owner whose export settings were taken from its source file, so it happens once. */
+	adopted: object | null;
 
 	load: (owner: object, duration: number, tags: AudioTags) => void;
 	/** Moves the edits of a batch to another file: its own length, everything kept. */
@@ -38,10 +40,13 @@ interface AudioEditorState {
 	setSelection: (selection: Range | null) => void;
 	setView: (view: Range) => void;
 	setExport: (settings: Partial<AudioExportSettings>) => void;
+	/** Starts the export settings from the source's own format, once per file or batch. */
+	adoptSource: (source: SourceFormat) => void;
 }
 
 function defaultExport(tags: AudioTags): AudioExportSettings {
 	return {
+		mode: 'copy',
 		format: 'mp3',
 		bitrate: AUDIO_FORMATS.mp3.defaultBitrate,
 		sampleRate: null,
@@ -68,6 +73,7 @@ export const useAudioEditor = create<AudioEditorState>((set, get) => ({
 	selection: null,
 	view: { start: 0, end: 0 },
 	exportSettings: defaultExport({ title: '', artist: '', album: '' }),
+	adopted: null,
 
 	load(owner, duration, tags) {
 		if (get().owner === owner) return;
@@ -137,6 +143,12 @@ export const useAudioEditor = create<AudioEditorState>((set, get) => ({
 
 	setView(view) {
 		set({ view: clampView(view, get().history.present.duration) });
+	},
+
+	adoptSource(source) {
+		const { owner, adopted, exportSettings } = get();
+		if (!owner || adopted === owner) return;
+		set({ exportSettings: settingsFromSource(source, exportSettings), adopted: owner });
 	},
 
 	setExport(settings) {

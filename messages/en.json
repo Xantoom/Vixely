@@ -366,5 +366,13 @@
 	"batch_tags_kept": "Each file keeps its own title, artist, album and cover.",
 	"batch_trim_hint": "Cutting applies to one file at a time: open it on its own to trim it.",
 	"audio_from_video": "Edit the audio",
-	"audio_from_video_hint": "Opens the soundtrack in the audio editor, to cut it, normalize it or save it as MP3, FLAC…"
+	"audio_from_video_hint": "Opens the soundtrack in the audio editor, to cut it, normalize it or save it as MP3, FLAC…",
+	"export_encoding": "Encoding",
+	"encoding_copy": "Original",
+	"encoding_convert": "Convert",
+	"encoding_copy_hint": "No re-encoding: the audio is copied as it is, with no loss, in seconds.",
+	"encoding_copy_cuts": "Cuts land on the nearest frame of the original, within about 20 ms.",
+	"encoding_copy_volume": "Volume, fades and normalization change the sound: they need re-encoding.",
+	"encoding_copy_codec": "This audio can't be copied as it is into a file of its own.",
+	"encoding_convert_hint": "Choose the format and the settings of the new file."
 }

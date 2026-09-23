@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { EditorLayout } from '@/editor/EditorLayout';
 import { FilePanel, ToolLater } from '@/editor/Inspector';
 import { useEditorShortcuts } from '@/editor/shortcuts';
@@ -10,6 +10,7 @@ import { AudioTimeline } from './AudioTimeline';
 import type { ItemStatus } from './batch-export';
 import { cut, setTrim } from './document';
 import { type AudioEngine, useAudioEngine } from './engine';
+import { readSourceFormat, type SourceFormat } from './export';
 import { ExportFooter, ExportPanel } from './ExportPanel';
 import { TrimPanel, VolumePanel } from './panels';
 import { useAudioEditor, useAudioUndoState } from './store';
@@ -110,6 +111,22 @@ function useAudioShortcuts(engine: AudioEngine, trimmable: boolean) {
 	}, [engine, trimmable]);
 }
 
+/** Codec, bitrate and layout of the file's audio, read in the background once it opens. */
+function useSourceFormat(file: File | null): SourceFormat | null {
+	const [format, setFormat] = useState<{ file: File; format: SourceFormat | null } | null>(null);
+	useEffect(() => {
+		if (!file) return;
+		let active = true;
+		void readSourceFormat(file).then((result) => {
+			if (active) setFormat({ file, format: result });
+		});
+		return () => {
+			active = false;
+		};
+	}, [file]);
+	return format && format.file === file ? format.format : null;
+}
+
 export function AudioEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	const current = useSession((state) => state.current);
 	const opened = current?.kind === 'audio' ? current : null;
@@ -130,11 +147,8 @@ export function AudioEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	const tools: ToolId[] | undefined = batch ? ['info', 'volume'] : undefined;
 	const tool = batch && chosenTool === 'trim' ? 'info' : chosenTool;
 	const engine = useAudioEngine(editable ? opened.file : null, duration);
-	const audio = opened?.info?.audio;
-	const sourceFormat = useMemo(
-		() => (audio ? { sampleRate: audio.sampleRate, channels: audio.channels } : null),
-		[audio],
-	);
+	const sourceFormat = useSourceFormat(editable ? opened.file : null);
+	const adoptSource = useAudioEditor((state) => state.adoptSource);
 
 	useEffect(() => {
 		if (!opened || !editable) return;
@@ -148,6 +162,11 @@ export function AudioEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 		retarget(duration);
 	}, [opened, editable, duration, batchKey, load, retarget]);
 
+	// Once the source is read, export settings start from it: same format, bitrate and rate.
+	useEffect(() => {
+		if (sourceFormat) adoptSource(sourceFormat);
+	}, [sourceFormat, adoptSource]);
+
 	useEditorShortcuts({ undo, redo });
 	useAudioShortcuts(engine, !batch);
 
@@ -156,7 +175,14 @@ export function AudioEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 		if (tool === 'trim') return <TrimPanel />;
 		if (tool === 'volume') return <VolumePanel engine={engine} />;
 		if (tool === 'export' && sourceFormat)
-			return <ExportPanel source={sourceFormat} cover={opened?.poster ?? null} batch={batch !== null} />;
+			return (
+				<ExportPanel
+					source={sourceFormat}
+					doc={engine.resolved}
+					cover={opened?.poster ?? null}
+					batch={batch !== null}
+				/>
+			);
 		return <ToolLater kind="audio" tool={tool} />;
 	};
 

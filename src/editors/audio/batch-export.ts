@@ -4,7 +4,7 @@ import { outputName, uniqueName } from '@/media/save';
 import type { BatchDestination } from '@/media/save-target';
 import type { BatchFile } from '@/media/session';
 import { type AudioDoc, envelope, keptRanges, resolveGain } from './document';
-import { AUDIO_FORMATS, type AudioExportSettings, exportAudio, type SourceFormat } from './export';
+import { type AudioExportSettings, exportAudio, outputType, readSourceFormat, type SourceFormat } from './export';
 
 export type ItemStatus = 'working' | 'done' | 'failed';
 
@@ -23,10 +23,9 @@ export interface AudioBatchJob {
 async function describe(file: File): Promise<{ duration: number; source: SourceFormat }> {
 	const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
 	try {
-		const track = await input.getPrimaryAudioTrack();
-		if (!track) throw new Error('No audio track.');
-		const duration = await input.computeDuration();
-		return { duration, source: { sampleRate: track.sampleRate, channels: track.numberOfChannels } };
+		const [duration, source] = await Promise.all([input.computeDuration(), readSourceFormat(file)]);
+		if (!source) throw new Error('No audio track.');
+		return { duration, source };
 	} finally {
 		input.dispose();
 	}
@@ -40,7 +39,6 @@ async function describe(file: File): Promise<{ duration: number; source: SourceF
  */
 export async function exportAudioBatch(job: AudioBatchJob): Promise<number> {
 	const { items, settings, signal } = job;
-	const info = AUDIO_FORMATS[settings.format];
 	const taken = new Set<string>();
 	let exported = 0;
 	for (const [index, item] of items.entries()) {
@@ -73,12 +71,14 @@ export async function exportAudioBatch(job: AudioBatchJob): Promise<number> {
 				doc = resolveGain(doc, reader.loudness.measure(keptRanges(unity), envelope(unity)));
 			}
 			if (signal.aborted) break;
-			const name = uniqueName(outputName(item.file.name, info.extension), taken);
+			// Kept encodings differ from file to file: each file gets its own type.
+			const type = outputType(settings, source);
+			const name = uniqueName(outputName(item.file.name, type.extension), taken);
 			// oxlint-disable-next-line no-await-in-loop
 			const save = await job.destination(name, {
-				mime: info.mime,
-				extension: info.extension,
-				description: info.label,
+				mime: type.mime,
+				extension: type.extension,
+				description: type.label,
 			});
 			// oxlint-disable-next-line no-await-in-loop
 			await exportAudio({
