@@ -30,7 +30,7 @@ declare module 'libheif-js/libheif-wasm/libheif-bundle.mjs' {
 
 interface DirectoryPickerOptions {
 	mode?: 'read' | 'readwrite';
-	startIn?: 'desktop' | 'documents' | 'downloads' | 'pictures';
+	startIn?: 'desktop' | 'documents' | 'downloads' | 'music' | 'pictures' | 'videos';
 }
 
 interface Window {

@@ -1,5 +1,6 @@
 import { type GainPoint, gainAt } from '@/document/gain-curve';
 import { junctions, type Range, toOutput, totalLength } from '@/document/timemap';
+import type { LoudnessReading } from '@/media/loudness';
 
 export { type GainPoint, gainAt };
 
@@ -19,6 +20,8 @@ export interface AudioDoc {
 	/** Fade lengths, in seconds of the output. */
 	fadeIn: number;
 	fadeOut: number;
+	/** Target loudness in LUFS. When set, the gain is computed from the measured loudness instead. */
+	normalize: number | null;
 }
 
 /** Shortest output allowed: a trim or a cut never leaves less than this. */
@@ -30,7 +33,7 @@ export const DECLICK = 0.004;
 export const GAIN_RANGE = { min: -24, max: 24 } as const;
 
 export function createAudioDoc(duration: number): AudioDoc {
-	return { duration, trim: { start: 0, end: duration }, cuts: [], gain: 0, fadeIn: 0, fadeOut: 0 };
+	return { duration, trim: { start: 0, end: duration }, cuts: [], gain: 0, fadeIn: 0, fadeOut: 0, normalize: null };
 }
 
 /** The source ranges heard in the output, in order. */
@@ -120,6 +123,38 @@ export function setFades(doc: AudioDoc, fades: { fadeIn?: number; fadeOut?: numb
 		fadeIn: Math.max(0, fades.fadeIn ?? doc.fadeIn),
 		fadeOut: Math.max(0, fades.fadeOut ?? doc.fadeOut),
 	};
+}
+
+/** Normalization never lets true peaks above this, in dBTP: encoders need a little headroom. */
+export const TRUE_PEAK_CEILING = -1;
+
+export interface Normalization {
+	/** Gain applied, in dB. */
+	gain: number;
+	/** Whether the ceiling on true peaks stopped the gain short of the target. */
+	limited: boolean;
+}
+
+/**
+ * Gain that brings audio measured at `reading` (with no gain applied) to the target loudness,
+ * without true peaks above the ceiling. Raising a quiet recording would otherwise clip it.
+ */
+export function normalizationGain(target: number, reading: LoudnessReading): Normalization | null {
+	if (!Number.isFinite(reading.integrated)) return null;
+	const wanted = target - reading.integrated;
+	const allowed = Number.isFinite(reading.truePeak) ? TRUE_PEAK_CEILING - reading.truePeak : wanted;
+	const gain = Math.max(GAIN_RANGE.min, Math.min(GAIN_RANGE.max, wanted, allowed));
+	return { gain, limited: gain < wanted - 0.05 };
+}
+
+/**
+ * The document as it sounds: with normalization on, the gain is the one that reaches the target.
+ * `reading` is the loudness of the kept audio with fades but no gain; null until it is measured.
+ */
+export function resolveGain(doc: AudioDoc, reading: LoudnessReading | null): AudioDoc {
+	if (doc.normalize === null || !reading) return doc;
+	const normalization = normalizationGain(doc.normalize, reading);
+	return normalization ? { ...doc, gain: normalization.gain } : doc;
 }
 
 /** Points sampled along each fade. Enough for the curve to look and sound smooth. */

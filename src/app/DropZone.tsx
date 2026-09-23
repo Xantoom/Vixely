@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router';
 import { type DragEvent, useRef, useState } from 'react';
-import { EDITOR_ORDER, EDITORS } from '@/editors/registry';
+import { EDITOR_ORDER, EDITORS, type MediaKind } from '@/editors/registry';
 import { type OpenError, useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { Tile } from '@/ui/Tile';
@@ -17,7 +17,8 @@ function errorMessage(error: OpenError): string {
  * Where files come in. Identifies the dropped file and opens the editor made for it, so the user
  * never has to know in advance which editor to pick.
  */
-export function DropZone({ compact = false }: { compact?: boolean }) {
+/** `prefer` is the editor the zone sits in: files that fit it open there, a video's audio included. */
+export function DropZone({ compact = false, prefer }: { compact?: boolean; prefer?: MediaKind }) {
 	const open = useSession((state) => state.open);
 	const reading = useSession((state) => state.reading);
 	const error = useSession((state) => state.error);
@@ -26,7 +27,7 @@ export function DropZone({ compact = false }: { compact?: boolean }) {
 	const [over, setOver] = useState(false);
 
 	const openFiles = async (files: File[]) => {
-		const kind = await open(files);
+		const kind = await open(files, prefer);
 		if (kind) await navigate({ to: EDITORS[kind].path });
 	};
 

@@ -35,6 +35,55 @@ async function removeLeftovers(root: FileSystemDirectoryHandle) {
 	}
 }
 
+/** Writes to a file the user chose, in place. `remove` deletes it if the export is thrown away. */
+async function fileTarget(handle: FileSystemFileHandle, remove?: () => Promise<void>): Promise<SaveTarget> {
+	const writable = await handle.createWritable();
+	return {
+		target: new StreamTarget(forwardWrites(writable), { chunked: true, chunkSize: CHUNK_SIZE }),
+		commit: async () => writable.close(),
+		discard: async () => {
+			await writable.abort();
+			await remove?.();
+		},
+	};
+}
+
+/**
+ * A file that ends up in the downloads: written to the browser's private storage on disk first,
+ * or built in memory when there is none (private browsing in some browsers).
+ */
+async function downloadTarget(name: string, type: SaveType): Promise<SaveTarget> {
+	try {
+		const root = await navigator.storage.getDirectory();
+		await removeLeftovers(root);
+		const entry = `${TEMPORARY_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2)}`;
+		const handle = await root.getFileHandle(entry, { create: true });
+		const writable = await handle.createWritable();
+		return {
+			target: new StreamTarget(forwardWrites(writable), { chunked: true, chunkSize: CHUNK_SIZE }),
+			commit: async () => {
+				await writable.close();
+				download(await handle.getFile(), name);
+			},
+			discard: async () => {
+				await writable.abort();
+				await root.removeEntry(entry);
+			},
+		};
+	} catch {
+		// No private storage: build the file in memory.
+	}
+	const target = new BufferTarget();
+	return {
+		target,
+		commit: async () => {
+			if (target.buffer) download(new Blob([target.buffer], { type: type.mime }), name);
+			return Promise.resolve();
+		},
+		discard: async () => Promise.resolve(),
+	};
+}
+
 /**
  * Opens the destination of an export before encoding starts, so a file of several gigabytes is
  * written as it is produced and never held in memory:
@@ -53,46 +102,34 @@ export async function openSaveTarget(name: string, type: SaveType): Promise<Save
 				suggestedName: name,
 				types: [{ description: type.description, accept: { [type.mime]: [`.${type.extension}`] } }],
 			});
-			const writable = await handle.createWritable();
-			return {
-				target: new StreamTarget(forwardWrites(writable), { chunked: true, chunkSize: CHUNK_SIZE }),
-				commit: async () => writable.close(),
-				discard: async () => writable.abort(),
-			};
+			return await fileTarget(handle);
 		} catch (error) {
 			if (isPickerCancel(error)) return null;
 			// Other failures (permissions, policy) fall back to a download.
 		}
 	}
+	return downloadTarget(name, type);
+}
 
-	try {
-		const root = await navigator.storage.getDirectory();
-		await removeLeftovers(root);
-		const entry = `${TEMPORARY_PREFIX}${Date.now()}`;
-		const handle = await root.getFileHandle(entry, { create: true });
-		const writable = await handle.createWritable();
-		return {
-			target: new StreamTarget(forwardWrites(writable), { chunked: true, chunkSize: CHUNK_SIZE }),
-			commit: async () => {
-				await writable.close();
-				download(await handle.getFile(), name);
-			},
-			discard: async () => {
-				await writable.abort();
-				await root.removeEntry(entry);
-			},
-		};
-	} catch {
-		// No private storage (private browsing in some browsers): build the file in memory.
+/** Opens one destination per file of a batch. */
+export type BatchDestination = (name: string, type: SaveType) => Promise<SaveTarget>;
+
+/**
+ * Where a batch goes: a folder the user picks where the browser allows it, written file by file;
+ * otherwise every file is downloaded as it is ready. Must be called from the click that starts
+ * the export. Resolves with null when the user closes the picker.
+ */
+export async function openBatchDestination(startIn: 'music' | 'pictures'): Promise<BatchDestination | null> {
+	if (window.showDirectoryPicker) {
+		try {
+			const folder = await window.showDirectoryPicker({ mode: 'readwrite', startIn });
+			return async (name) => {
+				const handle = await folder.getFileHandle(name, { create: true });
+				return fileTarget(handle, async () => folder.removeEntry(name));
+			};
+		} catch (error) {
+			if (isPickerCancel(error)) return null;
+		}
 	}
-
-	const target = new BufferTarget();
-	return {
-		target,
-		commit: async () => {
-			if (target.buffer) download(new Blob([target.buffer], { type: type.mime }), name);
-			return Promise.resolve();
-		},
-		discard: async () => Promise.resolve(),
-	};
+	return downloadTarget;
 }

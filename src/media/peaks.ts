@@ -1,4 +1,5 @@
 import type { Range } from '@/document/timemap';
+import { Loudness } from './loudness';
 import { PEAK_FRAMES, type PeaksLimit, type PeaksMessage, type PeaksOrigin, type PeaksRequest } from './peaks-protocol';
 
 /** Each summary level groups this many peaks of the level below. */
@@ -158,6 +159,8 @@ export class Peaks {
 
 export interface PeaksReader {
 	peaks: Peaks;
+	/** Measured during the same pass, block by block. */
+	loudness: Loudness;
 	/** Resolves once the whole track is read, or rejects when it can't be decoded. */
 	done: Promise<void>;
 	cancel: () => void;
@@ -179,6 +182,7 @@ function workerCount(duration: number): number {
  */
 export function readPeaks(file: File, duration: number, onUpdate: () => void): PeaksReader {
 	const peaks = new Peaks();
+	const loudness = new Loudness();
 	const workers: Worker[] = [];
 	let running = 0;
 	let settle: { resolve: () => void; reject: (error: Error) => void } | null = null;
@@ -202,6 +206,8 @@ export function readPeaks(file: File, duration: number, onUpdate: () => void): P
 				part = onStart?.(message) ?? part;
 			} else if (message.type === 'chunk') {
 				if (part) peaks.append(part, message.offset, message.data);
+			} else if (message.type === 'loudness') {
+				loudness.append(message.index, message.momentary, message.peak);
 			} else if (message.type === 'done') {
 				if (part) part.read = Math.max(part.read, Math.min(part.to, peaks.capacity));
 				worker.terminate();
@@ -222,6 +228,7 @@ export function readPeaks(file: File, duration: number, onUpdate: () => void): P
 
 	const first = launch({ file, origin: null, fromFrame: 0, toFrame: null }, null, (origin) => {
 		peaks.setOrigin(origin, duration);
+		loudness.reserve(origin.start, duration);
 		const frames = Math.ceil((duration - origin.start) * origin.rate);
 		const parts = workerCount(duration);
 		// Boundaries fall on whole peaks, so no peak is shared by two workers.
@@ -246,6 +253,7 @@ export function readPeaks(file: File, duration: number, onUpdate: () => void): P
 
 	return {
 		peaks,
+		loudness,
 		done,
 		cancel: () => {
 			for (const worker of workers) worker.terminate();

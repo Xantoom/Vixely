@@ -182,8 +182,8 @@
 				"countPlural"
 			],
 			"match": {
-				"countPlural=one": "{count} fichier a été écarté : le traitement par lot ne prend que des images.",
-				"countPlural=other": "{count} fichiers ont été écartés : le traitement par lot ne prend que des images."
+				"countPlural=one": "{count} fichier a été écarté : un lot contient des fichiers d'un seul type.",
+				"countPlural=other": "{count} fichiers ont été écartés : un lot contient des fichiers d'un seul type."
 			}
 		}
 	],
@@ -269,10 +269,9 @@
 	"volume_title": "Volume",
 	"volume_gain": "Gain",
 	"volume_gain_hint": "+6 dB double l'amplitude. Environ +10 dB paraît deux fois plus fort.",
-	"volume_peak": "Niveau crête",
 	"volume_peak_pending": "Mesuré une fois la forme d'onde lue.",
-	"volume_clipping": "Les crêtes dépassent 0 dBFS de {db} dB et vont saturer.",
-	"volume_maximize": "Crêtes à −1 dBFS",
+	"volume_clipping": "Les crêtes dépassent 0 dBTP de {db} dB et vont saturer.",
+	"volume_maximize": "Crêtes à −1 dBTP",
 	"volume_maximize_hint": "Règle le gain pour que la crête la plus forte soit juste sous le maximum.",
 	"fades_title": "Fondus",
 	"fade_in": "Fondu d'entrée",
@@ -305,5 +304,67 @@
 	"cover_add": "Ajouter",
 	"cover_remove": "Retirer",
 	"opus_unavailable": "Opus n'est pas disponible dans ce navigateur.",
-	"channels_count": "{count} canaux"
+	"channels_count": "{count} canaux",
+	"loudness_title": "Volume perçu",
+	"loudness_integrated": "Sonie intégrée",
+	"loudness_true_peak": "Crête réelle",
+	"loudness_hint": "Le LUFS mesure le volume tel qu'on l'entend, sur tout le fichier (EBU R128).",
+	"normalize": "Normaliser",
+	"normalize_off": "Non",
+	"normalize_streaming": "Spotify, YouTube et Tidal jouent la musique à ce niveau.",
+	"normalize_apple": "Apple Music et la plupart des podcasts.",
+	"normalize_broadcast": "Télévision et radio, la norme EBU R128.",
+	"normalize_limited": "Atteint {lufs} LUFS : plus fort, les crêtes dépasseraient −1 dBTP.",
+	"volume_gain_auto": "Réglé par la normalisation.",
+	"batch_count_audio": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} fichier audio",
+				"countPlural=other": "{count} fichiers audio"
+			}
+		}
+	],
+	"batch_hint_audio": "Le volume, les fondus et les réglages d'export s'appliquent à tous les fichiers.",
+	"batch_add_audio": "Ajouter des fichiers",
+	"export_batch_audio_button": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Exporter {count} fichier",
+				"countPlural=other": "Exporter {count} fichiers"
+			}
+		}
+	],
+	"batch_saved_audio": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} fichier exporté",
+				"countPlural=other": "{count} fichiers exportés"
+			}
+		}
+	],
+	"batch_tags_kept": "Chaque fichier garde son titre, son artiste, son album et sa pochette.",
+	"batch_trim_hint": "La découpe se fait fichier par fichier : ouvre-le seul pour le couper.",
+	"audio_from_video": "Éditer l'audio",
+	"audio_from_video_hint": "Ouvre la bande-son dans l'éditeur audio, pour la couper, la normaliser ou l'enregistrer en MP3, FLAC…"
 }

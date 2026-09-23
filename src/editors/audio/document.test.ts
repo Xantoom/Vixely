@@ -8,7 +8,9 @@ import {
 	gainAt,
 	keepOnly,
 	keptRanges,
+	normalizationGain,
 	outputDuration,
+	resolveGain,
 	restoreCut,
 	setFades,
 	setGain,
@@ -95,5 +97,25 @@ describe('audio document', () => {
 		// 6 + 2 seconds of fades in 4 seconds: the fade in takes 3, the fade out 1.
 		expect(gainAt(points, 3)).toBeCloseTo(1);
 		expect(gainAt(points, 1.5)).toBeCloseTo(0.5, 2);
+	});
+});
+
+describe('loudness normalization', () => {
+	it('reaches the target when peaks allow it', () => {
+		expect(normalizationGain(-14, { integrated: -20, truePeak: -9 })).toEqual({ gain: 6, limited: false });
+		expect(normalizationGain(-23, { integrated: -10, truePeak: -0.5 })).toEqual({ gain: -13, limited: false });
+	});
+
+	it('stops short so true peaks stay under −1 dBTP', () => {
+		expect(normalizationGain(-14, { integrated: -20, truePeak: -3 })).toEqual({ gain: 2, limited: true });
+	});
+
+	it('applies the gain only when normalization is on and measured', () => {
+		const doc = { ...createAudioDoc(10), gain: 3 };
+		const reading = { integrated: -20, truePeak: -10 };
+		expect(resolveGain(doc, reading).gain).toBe(3);
+		expect(resolveGain({ ...doc, normalize: -16 }, reading).gain).toBe(4);
+		expect(resolveGain({ ...doc, normalize: -16 }, null).gain).toBe(3);
+		expect(normalizationGain(-14, { integrated: Number.NEGATIVE_INFINITY, truePeak: -90 })).toBeNull();
 	});
 });

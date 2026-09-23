@@ -27,9 +27,20 @@ export interface PeaksLimit {
 	toFrame: number;
 }
 
+/**
+ * Loudness is measured over blocks this far apart, in seconds. EBU R128 gates 400 ms blocks taken
+ * every 100 ms; block k ends at the frame `round((k + 1) * rate / 10)`.
+ */
+export const LOUDNESS_STEP = 0.1;
+
 export type PeaksMessage =
 	| ({ type: 'start' } & PeaksOrigin)
 	/** Minimum and maximum of each peak from `offset`, interleaved, as signed bytes where 127 is full scale. */
 	| { type: 'chunk'; offset: number; data: Int8Array }
+	/**
+	 * Consecutive loudness blocks from `index`: momentary loudness of the 400 ms ending with each
+	 * block, in LUFS, and the highest true peak within it, as a linear amplitude.
+	 */
+	| { type: 'loudness'; index: number; momentary: Float32Array; peak: Float32Array }
 	| { type: 'done' }
 	| { type: 'error' };

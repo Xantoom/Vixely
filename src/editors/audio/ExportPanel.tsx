@@ -3,10 +3,13 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { formatSampleRate, groupDigits } from '@/lib/format';
 import { outputName } from '@/media/save';
-import { openSaveTarget } from '@/media/save-target';
+import { openBatchDestination, openSaveTarget } from '@/media/save-target';
+import type { BatchFile } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { Button } from '@/ui/Button';
 import { FieldRow, OptionList, Select, TextField } from '@/ui/fields';
+import { exportAudioBatch, type ItemStatus } from './batch-export';
+import type { AudioDoc } from './document';
 import {
 	AUDIO_FORMAT_ORDER,
 	AUDIO_FORMATS,
@@ -20,7 +23,7 @@ import {
 	exportAudio,
 	type SourceFormat,
 } from './export';
-import { useAudioDoc, useAudioEditor } from './store';
+import { type AudioTags, useAudioEditor } from './store';
 
 const FORMAT_HINTS: Record<AudioFormat, () => string> = {
 	mp3: () => m.audio_format_mp3(),
@@ -152,7 +155,16 @@ function CoverField({ source }: { source: ImageBitmap | null }) {
 	);
 }
 
-export function ExportPanel({ source, cover }: { source: SourceFormat; cover: ImageBitmap | null }) {
+export function ExportPanel({
+	source,
+	cover,
+	batch,
+}: {
+	source: SourceFormat;
+	cover: ImageBitmap | null;
+	/** In a batch, every file keeps its own tags. */
+	batch: boolean;
+}) {
 	const settings = useAudioEditor((state) => state.exportSettings);
 	const setExport = useAudioEditor((state) => state.setExport);
 	const opus = useOpusSupport();
@@ -275,29 +287,42 @@ export function ExportPanel({ source, cover }: { source: SourceFormat; cover: Im
 
 			<section className="grid gap-3.5">
 				<h3 className="text-ui text-ink-2 font-semibold">{m.export_metadata()}</h3>
-				<TextField
-					label={m.info_title()}
-					value={settings.tags.title}
-					onChange={(title) => {
-						setExport({ tags: { ...settings.tags, title } });
-					}}
-				/>
-				<TextField
-					label={m.info_artist()}
-					value={settings.tags.artist}
-					onChange={(artist) => {
-						setExport({ tags: { ...settings.tags, artist } });
-					}}
-				/>
-				<TextField
-					label={m.info_album()}
-					value={settings.tags.album}
-					onChange={(album) => {
-						setExport({ tags: { ...settings.tags, album } });
-					}}
-				/>
-				<CoverField source={cover} />
+				{batch || !settings.tags ? (
+					<p className="text-small text-muted -mt-1">{m.batch_tags_kept()}</p>
+				) : (
+					<MetadataFields tags={settings.tags} cover={cover} />
+				)}
 			</section>
+		</>
+	);
+}
+
+function MetadataFields({ tags, cover }: { tags: AudioTags; cover: ImageBitmap | null }) {
+	const setExport = useAudioEditor((state) => state.setExport);
+	return (
+		<>
+			<TextField
+				label={m.info_title()}
+				value={tags.title}
+				onChange={(title) => {
+					setExport({ tags: { ...tags, title } });
+				}}
+			/>
+			<TextField
+				label={m.info_artist()}
+				value={tags.artist}
+				onChange={(artist) => {
+					setExport({ tags: { ...tags, artist } });
+				}}
+			/>
+			<TextField
+				label={m.info_album()}
+				value={tags.album}
+				onChange={(album) => {
+					setExport({ tags: { ...tags, album } });
+				}}
+			/>
+			<CoverField source={cover} />
 		</>
 	);
 }
@@ -305,11 +330,32 @@ export function ExportPanel({ source, cover }: { source: SourceFormat; cover: Im
 /** How long the button confirms a save before going back to its normal label. */
 const SAVED_FEEDBACK = 2500;
 
-export function ExportFooter({ file, source }: { file: File; source: SourceFormat }) {
-	const doc = useAudioDoc();
+/**
+ * `doc` is the document as it sounds. `ready` is false while normalization waits for the
+ * loudness measurement: exporting then would use the wrong gain. With a batch, every file is
+ * exported with the same edits.
+ */
+export function ExportFooter({
+	file,
+	source,
+	doc,
+	ready,
+	batch,
+	onStatus,
+	onRunning,
+}: {
+	file: File;
+	source: SourceFormat;
+	doc: AudioDoc;
+	ready: boolean;
+	batch: BatchFile[] | null;
+	onStatus: (id: number, status: ItemStatus | null) => void;
+	onRunning: (running: boolean) => void;
+}) {
 	const settings = useAudioEditor((state) => state.exportSettings);
 	const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
 	const [progress, setProgress] = useState(0);
+	const [exported, setExported] = useState(0);
 	const abort = useRef<AbortController | null>(null);
 
 	useEffect(() => {
@@ -322,7 +368,22 @@ export function ExportFooter({ file, source }: { file: File; source: SourceForma
 		};
 	}, [status]);
 
-	const run = async () => {
+	const start = () => {
+		const controller = new AbortController();
+		abort.current = controller;
+		setProgress(0);
+		setStatus('saving');
+		onRunning(true);
+		return controller.signal;
+	};
+
+	const end = (next: typeof status) => {
+		setStatus(next);
+		abort.current = null;
+		onRunning(false);
+	};
+
+	const exportOne = async () => {
 		const info = AUDIO_FORMATS[settings.format];
 		// The destination is asked first: the file picker only opens from the click itself.
 		const save = await openSaveTarget(outputName(file.name, info.extension), {
@@ -331,26 +392,48 @@ export function ExportFooter({ file, source }: { file: File; source: SourceForma
 			description: info.label,
 		});
 		if (!save) return;
-		const controller = new AbortController();
-		abort.current = controller;
-		setProgress(0);
-		setStatus('saving');
+		const signal = start();
 		try {
-			await exportAudio({
-				file,
-				doc,
+			await exportAudio({ file, doc, settings, source, save, signal, onProgress: setProgress });
+			end('saved');
+		} catch (error) {
+			end(error instanceof DOMException && error.name === 'AbortError' ? 'idle' : 'failed');
+		}
+	};
+
+	const exportAll = async (items: BatchFile[]) => {
+		const destination = await openBatchDestination('music');
+		if (!destination) return;
+		for (const item of items) onStatus(item.id, null);
+		const signal = start();
+		try {
+			const count = await exportAudioBatch({
+				items,
+				template: doc,
 				settings,
-				source,
-				save,
-				signal: controller.signal,
+				destination,
+				signal,
+				onStatus,
 				onProgress: setProgress,
 			});
-			setStatus('saved');
-		} catch (error) {
-			setStatus(error instanceof DOMException && error.name === 'AbortError' ? 'idle' : 'failed');
-		} finally {
-			abort.current = null;
+			setExported(count);
+			end(signal.aborted ? 'idle' : count > 0 ? 'saved' : 'failed');
+		} catch {
+			end('failed');
 		}
+	};
+
+	const label = () => {
+		if (status === 'saving') return m.exporting_percent({ percent: Math.floor(progress * 100) });
+		if (status === 'saved') {
+			return (
+				<>
+					<Check size={17} strokeWidth={2.4} aria-hidden="true" />
+					{batch ? m.batch_saved_audio({ count: exported }) : m.saved()}
+				</>
+			);
+		}
+		return batch ? m.export_batch_audio_button({ count: batch.length }) : m.export_audio_button();
 	};
 
 	return (
@@ -367,19 +450,10 @@ export function ExportFooter({ file, source }: { file: File; source: SourceForma
 				<Button
 					variant="primary"
 					className="h-11 flex-1"
-					onClick={() => void run()}
-					disabled={status === 'saving'}
+					onClick={() => void (batch ? exportAll(batch) : exportOne())}
+					disabled={status === 'saving' || !ready}
 				>
-					{status === 'saving' ? (
-						m.exporting_percent({ percent: Math.floor(progress * 100) })
-					) : status === 'saved' ? (
-						<>
-							<Check size={17} strokeWidth={2.4} aria-hidden="true" />
-							{m.saved()}
-						</>
-					) : (
-						m.export_audio_button()
-					)}
+					{label()}
 				</Button>
 				{status === 'saving' && (
 					<Button className="h-11" onClick={() => abort.current?.abort()}>

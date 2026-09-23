@@ -27,7 +27,7 @@ export function Viewer({ kind, opened }: { kind: MediaKind; opened: OpenedFile |
 	if (!opened) {
 		return (
 			<div className="w-full max-w-[680px]">
-				<DropZone compact />
+				<DropZone compact prefer={kind} />
 			</div>
 		);
 	}

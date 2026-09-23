@@ -1,0 +1,18 @@
+[package]
+name = "vixely-audio"
+version = "0.1.0"
+edition = "2024"
+license = "AGPL-3.0-only"
+description = "Audio analysis for Vixely, such as EBU R128 loudness. Compiled to WebAssembly."
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+# EBU R128 / ITU-R BS.1770 loudness and true peak, a port of libebur128.
+ebur128 = "0.1"
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O3", "--enable-bulk-memory", "--enable-nontrapping-float-to-int", "--enable-sign-ext", "--enable-mutable-globals", "--enable-reference-types", "--enable-multivalue", "--enable-simd"]

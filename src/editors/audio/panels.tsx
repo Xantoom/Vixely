@@ -1,22 +1,22 @@
 import { RotateCcw } from 'lucide-react';
-import { type ReactNode, useId, useMemo } from 'react';
+import { type ReactNode, useId } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { formatPreciseTime } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
 import { Button, IconButton } from '@/ui/Button';
-import { FieldRow, Slider, TimeField } from '@/ui/fields';
+import { FieldRow, Select, Slider, TimeField } from '@/ui/fields';
 import {
 	createAudioDoc,
 	cut,
 	GAIN_RANGE,
-	gainToDb,
 	keepOnly,
-	keptRanges,
+	normalizationGain,
 	outputDuration,
 	restoreCut,
 	setFades,
 	setGain,
 	setTrim,
+	TRUE_PEAK_CEILING,
 } from './document';
 import type { AudioEngine } from './engine';
 import { useAudioDoc, useAudioEditor } from './store';
@@ -182,9 +182,6 @@ export function TrimPanel() {
 	);
 }
 
-/** Highest level a peak is raised to by the maximise action, in dBFS: a little headroom for encoders. */
-const MAXIMISE_TARGET = -1;
-
 /** Signed decibels with a true minus sign: `+3.0`, `−1.2`, `0.0`. */
 function signedDb(db: number): string {
 	const rounded = Math.round(db * 10) / 10;
@@ -195,67 +192,116 @@ function formatDb(db: number): string {
 	return `${signedDb(db)} dB`;
 }
 
+/** Loudness targets of the places audio ends up, in LUFS. */
+const TARGETS: { value: number; hint: () => string }[] = [
+	{ value: -14, hint: () => m.normalize_streaming() },
+	{ value: -16, hint: () => m.normalize_apple() },
+	{ value: -23, hint: () => m.normalize_broadcast() },
+];
+
 export function VolumePanel({ engine }: { engine: AudioEngine }) {
 	const doc = useAudioDoc();
 	const apply = useAudioEditor((state) => state.apply);
 	const preview = useAudioEditor((state) => state.preview);
 	const settle = useAudioEditor((state) => state.settle);
-	const { peaks, version } = engine.waveform;
-	const complete = peaks?.complete ?? false;
+	const normalizeId = useId();
+	const { reading } = engine;
 	const length = outputDuration(doc);
 	const fadeMax = Math.max(0.1, Math.min(30, Math.floor(length * 10) / 10));
-
-	// Peak of the kept audio before gain, measured on the waveform once it is fully read.
-	const sourcePeak = useMemo(
-		() => (peaks && complete ? peaks.peak(keptRanges(doc)) : null),
-		// `version` marks new peaks; the ranges only change with trim and cuts.
-		// oxlint-disable-next-line react-hooks/exhaustive-deps
-		[peaks, complete, version, doc.trim, doc.cuts],
-	);
-	const peakDb = sourcePeak !== null && sourcePeak > 0 ? gainToDb(sourcePeak) + doc.gain : null;
+	const normalization = doc.normalize !== null && reading ? normalizationGain(doc.normalize, reading) : null;
+	// What the export will measure: the reading taken without gain, moved by the gain applied.
+	const gain = engine.resolved.gain;
+	const integrated = reading && Number.isFinite(reading.integrated) ? reading.integrated + gain : null;
+	const truePeak = reading && Number.isFinite(reading.truePeak) ? reading.truePeak + gain : null;
+	const target = TARGETS.find((option) => option.value === doc.normalize);
 
 	return (
 		<>
 			<PanelTitle>{m.volume_title()}</PanelTitle>
 
 			<div className="grid gap-4">
-				<Slider
-					label={m.volume_gain()}
-					value={doc.gain}
-					min={GAIN_RANGE.min}
-					max={GAIN_RANGE.max}
-					step={0.5}
-					format={formatDb}
-					hint={m.volume_gain_hint()}
-					onChange={(gain) => {
-						preview((current) => setGain(current, gain));
-					}}
-					onEnd={settle}
-				/>
+				<div className="grid gap-1.5">
+					<FieldRow label={m.normalize()} htmlFor={normalizeId}>
+						<Select
+							id={normalizeId}
+							value={doc.normalize === null ? 'off' : String(doc.normalize)}
+							options={[
+								{ value: 'off', label: m.normalize_off() },
+								...TARGETS.map((option) => ({
+									value: String(option.value),
+									label: `${signedDb(option.value).replace('.0', '')} LUFS`,
+								})),
+							]}
+							onChange={(value) => {
+								apply((current) => ({ ...current, normalize: value === 'off' ? null : Number(value) }));
+							}}
+						/>
+					</FieldRow>
+					<p className="text-small text-muted">{target ? target.hint() : m.loudness_hint()}</p>
+					{normalization?.limited && integrated !== null && (
+						<p role="status" className="text-small text-ed-text font-medium">
+							{m.normalize_limited({ lufs: signedDb(integrated) })}
+						</p>
+					)}
+				</div>
+
+				{doc.normalize === null ? (
+					<Slider
+						label={m.volume_gain()}
+						value={doc.gain}
+						min={GAIN_RANGE.min}
+						max={GAIN_RANGE.max}
+						step={0.5}
+						format={formatDb}
+						hint={m.volume_gain_hint()}
+						onChange={(value) => {
+							preview((current) => setGain(current, value));
+						}}
+						onEnd={settle}
+					/>
+				) : (
+					<div className="grid gap-1.5">
+						<ValueRow label={m.volume_gain()} value={reading ? formatDb(gain) : '–'} />
+						<p className="text-small text-muted">{m.volume_gain_auto()}</p>
+					</div>
+				)}
+
 				<div className="grid gap-2">
-					<ValueRow label={m.volume_peak()} value={peakDb === null ? '–' : `${signedDb(peakDb)} dBFS`} />
-					{peakDb === null ? (
+					<ValueRow
+						label={m.loudness_integrated()}
+						value={integrated === null ? '–' : `${signedDb(integrated)} LUFS`}
+					/>
+					<ValueRow
+						label={m.loudness_true_peak()}
+						value={truePeak === null ? '–' : `${signedDb(truePeak)} dBTP`}
+					/>
+					{reading === null ? (
 						<p className="text-small text-muted">{m.volume_peak_pending()}</p>
 					) : (
-						peakDb > 0.05 && (
+						truePeak !== null &&
+						truePeak > 0.05 && (
 							<p role="status" className="text-small text-danger font-medium">
-								{m.volume_clipping({ db: (Math.round(peakDb * 10) / 10).toFixed(1) })}
+								{m.volume_clipping({ db: (Math.round(truePeak * 10) / 10).toFixed(1) })}
 							</p>
 						)
 					)}
 				</div>
-				<div className="grid gap-2">
-					<Button
-						disabled={peakDb === null}
-						onClick={() => {
-							if (peakDb !== null)
-								apply((current) => setGain(current, current.gain + MAXIMISE_TARGET - peakDb));
-						}}
-					>
-						{m.volume_maximize()}
-					</Button>
-					<p className="text-small text-muted">{m.volume_maximize_hint()}</p>
-				</div>
+
+				{doc.normalize === null && (
+					<div className="grid gap-2">
+						<Button
+							disabled={truePeak === null}
+							onClick={() => {
+								if (truePeak !== null) {
+									apply((current) => setGain(current, current.gain + TRUE_PEAK_CEILING - truePeak));
+								}
+							}}
+						>
+							{m.volume_maximize()}
+						</Button>
+						<p className="text-small text-muted">{m.volume_maximize_hint()}</p>
+					</div>
+				)}
 			</div>
 
 			<Section title={m.fades_title()}>

@@ -18,6 +18,7 @@ src/routeTree.gen.ts
 src/paraglide/
 src/wasm/vixely-core/
 src/wasm/vixely-image/
+src/wasm/vixely-audio/
 project.inlang/cache/
 project.inlang/.gitignore
 target/

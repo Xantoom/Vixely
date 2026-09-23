@@ -181,8 +181,9 @@ function TrimHandle({ side, doc, view }: { side: 'start' | 'end'; doc: AudioDoc;
 }
 
 /** The waveform, with what is kept, removed and selected, and the trim handles. */
-function WaveArea({ engine }: { engine: AudioEngine }) {
-	const doc = useAudioDoc();
+function WaveArea({ engine, trimmable }: { engine: AudioEngine; trimmable: boolean }) {
+	// Drawn as it sounds: with normalization, the gain comes from the measured loudness.
+	const doc = engine.resolved;
 	const view = useAudioEditor((state) => state.view);
 	const selection = useAudioEditor((state) => state.selection);
 	const setSelection = useAudioEditor((state) => state.setSelection);
@@ -277,7 +278,7 @@ function WaveArea({ engine }: { engine: AudioEngine }) {
 	const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
 		const current = drag.current;
 		if (!current) return;
-		if (!current.moved && Math.abs(event.clientX - current.x) < 4) return;
+		if (!trimmable || (!current.moved && Math.abs(event.clientX - current.x) < 4)) return;
 		current.moved = true;
 		const time = timeAt(event.currentTarget, event.clientX, view, doc.duration);
 		setSelection({ start: Math.min(current.time, time), end: Math.max(current.time, time) });
@@ -360,8 +361,8 @@ function WaveArea({ engine }: { engine: AudioEngine }) {
 					style={box(selection)}
 				/>
 			)}
-			<TrimHandle side="start" doc={doc} view={view} />
-			<TrimHandle side="end" doc={doc} view={view} />
+			{trimmable && <TrimHandle side="start" doc={doc} view={view} />}
+			{trimmable && <TrimHandle side="end" doc={doc} view={view} />}
 			<Playhead view={view} />
 		</div>
 	);
@@ -424,7 +425,8 @@ function ViewScroll() {
  * Timeline of the audio editor. It shows the whole source: removed audio stays visible, greyed
  * out, so any edit can be seen and undone.
  */
-export function AudioTimeline({ engine }: { engine: AudioEngine }) {
+/** `trimmable` is false in a batch, where cutting doesn't apply: the waveform is for listening only. */
+export function AudioTimeline({ engine, trimmable }: { engine: AudioEngine; trimmable: boolean }) {
 	const view = useAudioEditor((state) => state.view);
 
 	// While playing, the view turns the page when the playhead leaves it.
@@ -445,7 +447,7 @@ export function AudioTimeline({ engine }: { engine: AudioEngine }) {
 			<Transport engine={engine} />
 			<div id="audio-waveform" className="grid gap-1">
 				<TimeRuler view={view} onSeek={engine.seek} />
-				<WaveArea engine={engine} />
+				<WaveArea engine={engine} trimmable={trimmable} />
 				<ViewScroll />
 			</div>
 		</section>

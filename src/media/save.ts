@@ -24,3 +24,14 @@ export function download(blob: Blob, name: string) {
 export function isPickerCancel(error: unknown): boolean {
 	return error instanceof DOMException && error.name === 'AbortError';
 }
+
+/** `photo.jpg`, then `photo (2).jpg`: two sources can map to the same output name. */
+export function uniqueName(name: string, taken: Set<string>): string {
+	let candidate = name;
+	const dot = name.lastIndexOf('.');
+	for (let n = 2; taken.has(candidate.toLowerCase()); n += 1) {
+		candidate = `${name.slice(0, dot)} (${n})${name.slice(dot)}`;
+	}
+	taken.add(candidate.toLowerCase());
+	return candidate;
+}

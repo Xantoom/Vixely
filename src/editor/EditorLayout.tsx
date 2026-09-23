@@ -36,6 +36,8 @@ interface EditorLayoutProps {
 	fileName?: string;
 	tool: ToolId;
 	onTool: (tool: ToolId) => void;
+	/** Tools shown in the rail, when they differ from the editor's usual ones (in a batch). */
+	tools?: ToolId[];
 	actions?: EditorActions;
 	viewer: ReactNode;
 	timeline?: ReactNode;
@@ -53,6 +55,7 @@ export function EditorLayout({
 	fileName,
 	tool,
 	onTool,
+	tools,
 	actions,
 	viewer,
 	timeline,
@@ -73,7 +76,7 @@ export function EditorLayout({
 			<AppBar editor={kind} fileName={fileName} actions={actions} />
 			<div className="grid min-h-0 flex-1 max-lg:grid-rows-[auto_auto_auto_auto] lg:grid-cols-[76px_minmax(0,1fr)_320px] lg:grid-rows-[minmax(0,1fr)_auto]">
 				<div className="max-lg:order-4 lg:row-span-2">
-					<Rail tools={editor.tools} current={tool} onSelect={onTool} />
+					<Rail tools={tools ?? editor.tools} current={tool} onSelect={onTool} />
 				</div>
 				<section
 					aria-label={m.preview()}

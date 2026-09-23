@@ -26,15 +26,23 @@ export interface BatchFile {
 
 interface SessionState {
 	current: OpenedFile | null;
-	/** Several images opened at once. The current file is one of them, shown in the preview. */
+	/** Several files of one kind opened at once. The current file is one of them. */
 	batch: BatchFile[] | null;
+	/** What the batch holds: images or audio. */
+	batchKind: MediaKind | null;
 	/** Stays the same while a batch lives, even as images are added or removed. */
 	batchKey: object | null;
 	/** What is being read, ready to show while the drop is processed. */
 	reading: string | null;
 	error: OpenError | null;
-	/** Reads files and resolves with the editor that should open them, or null if none can be opened. */
-	open: (files: File[]) => Promise<MediaKind | null>;
+	/**
+	 * Reads files and resolves with the editor that should open them, or null if none can be opened.
+	 * `prefer` names the editor the files were dropped on: a video dropped on the audio editor
+	 * opens its audio there.
+	 */
+	open: (files: File[], prefer?: MediaKind) => Promise<MediaKind | null>;
+	/** Opens the current file in another editor, such as the audio of a video. */
+	openAs: (kind: MediaKind) => void;
 	/** Shows another file of the batch in the preview. */
 	select: (item: BatchFile) => Promise<void>;
 	addToBatch: (files: File[]) => Promise<void>;
@@ -66,25 +74,43 @@ async function read(file: File, kind: MediaKind, format: string): Promise<Opened
 
 let nextBatchId = 1;
 
-/** Identifies files and keeps the images, for batches. */
-async function identifyImages(files: File[]): Promise<{ images: BatchFile[]; skipped: number }> {
+/** Kinds that can be batched. Audio batches also take videos: their audio is what gets processed. */
+const BATCH_KINDS: Partial<Record<MediaKind, MediaKind[]>> = { image: ['image'], audio: ['audio', 'video'] };
+
+/** Identifies files and keeps those a batch of `kind` accepts. */
+async function identifyBatch(files: File[], kind: MediaKind): Promise<{ items: BatchFile[]; skipped: number }> {
+	const accepted = BATCH_KINDS[kind] ?? [kind];
 	const results = await Promise.all(files.map(async (file) => ({ file, result: await identify(file) })));
-	const images: BatchFile[] = [];
+	const items: BatchFile[] = [];
 	for (const { file, result } of results) {
-		if (result.ok && result.value.kind === 'image')
-			images.push({ id: nextBatchId++, file, format: result.value.format });
+		if (result.ok && accepted.includes(result.value.kind))
+			items.push({ id: nextBatchId++, file, format: result.value.format });
 	}
-	return { images, skipped: files.length - images.length };
+	return { items, skipped: files.length - items.length };
+}
+
+/** The kind a set of dropped files is batched as: the editor dropped on, else the first file's kind. */
+async function batchKindOf(files: File[], prefer: MediaKind | undefined): Promise<MediaKind | null> {
+	if (prefer && BATCH_KINDS[prefer]) return prefer;
+	for (const file of files) {
+		// Sequential on purpose: the first recognised file decides, the rest is not read.
+		// oxlint-disable-next-line no-await-in-loop
+		const result = await identify(file);
+		if (!result.ok) continue;
+		if (result.value.kind === 'image' || result.value.kind === 'audio') return result.value.kind;
+	}
+	return null;
 }
 
 export const useSession = create<SessionState>((set, get) => ({
 	current: null,
 	batch: null,
+	batchKind: null,
 	batchKey: null,
 	reading: null,
 	error: null,
 
-	async open(files) {
+	async open(files, prefer) {
 		const [first] = files;
 		if (!first) return null;
 		const reading =
@@ -92,22 +118,24 @@ export const useSession = create<SessionState>((set, get) => ({
 		set({ reading, error: null });
 
 		if (files.length > 1) {
-			const { images, skipped } = await identifyImages(files);
-			const [lead] = images;
-			if (!lead) {
+			const kind = await batchKindOf(files, prefer);
+			const { items, skipped } = kind ? await identifyBatch(files, kind) : { items: [], skipped: files.length };
+			const [lead] = items;
+			if (!kind || !lead) {
 				set({ reading: null, error: { reason: 'unknown' } });
 				return null;
 			}
-			const opened = await read(lead.file, 'image', lead.format);
+			const opened = { ...(await read(lead.file, kind, lead.format)), kind };
 			get().current?.poster?.close();
 			set({
 				reading: null,
 				current: opened,
-				batch: images.length > 1 ? images : null,
-				batchKey: images.length > 1 ? {} : null,
+				batch: items.length > 1 ? items : null,
+				batchKind: items.length > 1 ? kind : null,
+				batchKey: items.length > 1 ? {} : null,
 				error: skipped > 0 ? { reason: 'skipped', count: skipped } : null,
 			});
-			return 'image';
+			return kind;
 		}
 
 		const result = await identify(first);
@@ -121,14 +149,23 @@ export const useSession = create<SessionState>((set, get) => ({
 			opened.poster?.close();
 			return null;
 		}
+		// A video dropped on the audio editor opens its audio there.
+		if (prefer === 'audio' && opened.kind === 'video' && opened.info?.audio) opened.kind = 'audio';
 		get().current?.poster?.close();
-		set({ reading: null, current: opened, batch: null, batchKey: null });
+		set({ reading: null, current: opened, batch: null, batchKind: null, batchKey: null });
 		return opened.kind;
 	},
 
+	openAs(kind) {
+		const current = get().current;
+		if (!current) return;
+		set({ current: { ...current, kind }, batch: null, batchKind: null, batchKey: null });
+	},
+
 	async select(item) {
-		if (get().current?.file === item.file) return;
-		const opened = await read(item.file, 'image', item.format);
+		const kind = get().batchKind;
+		if (!kind || get().current?.file === item.file) return;
+		const opened = { ...(await read(item.file, kind, item.format)), kind };
 		if (!get().batch?.some((entry) => entry.id === item.id)) {
 			opened.poster?.close();
 			return;
@@ -138,12 +175,15 @@ export const useSession = create<SessionState>((set, get) => ({
 	},
 
 	async addToBatch(files) {
-		const { images, skipped } = await identifyImages(files);
 		const current = get().current;
+		const kind = get().batchKind ?? current?.kind;
+		if (!kind || !BATCH_KINDS[kind]) return;
+		const { items, skipped } = await identifyBatch(files, kind);
 		const existing =
 			get().batch ?? (current ? [{ id: nextBatchId++, file: current.file, format: current.format }] : []);
 		set({
-			batch: [...existing, ...images],
+			batch: [...existing, ...items],
+			batchKind: kind,
 			batchKey: get().batchKey ?? {},
 			error: skipped > 0 ? { reason: 'skipped', count: skipped } : null,
 		});

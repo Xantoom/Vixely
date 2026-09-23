@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AudioPlayer } from '@/media/audio-player';
+import type { Loudness, LoudnessReading } from '@/media/loudness';
 import { type Peaks, readPeaks } from '@/media/peaks';
-import { envelope, keptRanges } from './document';
+import { type AudioDoc, envelope, keptRanges, resolveGain } from './document';
 import { useAudioDoc, useAudioEditor } from './store';
 
 export interface WaveformState {
 	peaks: Peaks | null;
+	loudness: Loudness | null;
 	/** Changes every time peaks arrive, so views redraw. */
 	version: number;
 	failed: boolean;
@@ -14,6 +16,10 @@ export interface WaveformState {
 export interface AudioEngine {
 	player: AudioPlayer | null;
 	waveform: WaveformState;
+	/** Loudness of the kept audio with its fades but no gain, once the whole file is read. */
+	reading: LoudnessReading | null;
+	/** The document as it sounds, normalization applied. Playback and export use this one. */
+	resolved: AudioDoc;
 	togglePlay: () => void;
 	/** Moves the playhead, and playback with it. */
 	seek: (time: number) => void;
@@ -28,7 +34,7 @@ export function useAudioEngine(file: File | null, duration: number): AudioEngine
 	const setPlayhead = useAudioEditor((state) => state.setPlayhead);
 	const setPlaying = useAudioEditor((state) => state.setPlaying);
 	const [player, setPlayer] = useState<AudioPlayer | null>(null);
-	const [waveform, setWaveform] = useState<WaveformState>({ peaks: null, version: 0, failed: false });
+	const [waveform, setWaveform] = useState<WaveformState>({ peaks: null, loudness: null, version: 0, failed: false });
 
 	useEffect(() => {
 		if (!file) return;
@@ -48,17 +54,29 @@ export function useAudioEngine(file: File | null, duration: number): AudioEngine
 		const reader = readPeaks(file, duration, () => {
 			setWaveform((state) => ({ ...state, version: state.version + 1 }));
 		});
-		setWaveform({ peaks: reader.peaks, version: 0, failed: false });
+		setWaveform({ peaks: reader.peaks, loudness: reader.loudness, version: 0, failed: false });
 		reader.done.catch(() => {
 			setWaveform((state) => ({ ...state, failed: true }));
 		});
 		return () => {
 			reader.cancel();
-			setWaveform({ peaks: null, version: 0, failed: false });
+			setWaveform({ peaks: null, loudness: null, version: 0, failed: false });
 		};
 	}, [file, duration]);
 
-	const plan = useMemo(() => ({ ranges: keptRanges(doc), envelope: envelope(doc) }), [doc]);
+	const complete = waveform.peaks?.complete ?? false;
+	const { loudness } = waveform;
+	const { trim, cuts, fadeIn, fadeOut, duration: length } = doc;
+	const reading = useMemo(() => {
+		if (!complete || !loudness) return null;
+		const unity = { ...doc, gain: 0 };
+		return loudness.measure(keptRanges(unity), envelope(unity));
+		// Only what changes the measured audio: gain is applied afterwards, as an offset.
+		// oxlint-disable-next-line react-hooks/exhaustive-deps
+	}, [complete, loudness, trim, cuts, fadeIn, fadeOut, length]);
+	const resolved = useMemo(() => resolveGain(doc, reading), [doc, reading]);
+
+	const plan = useMemo(() => ({ ranges: keptRanges(resolved), envelope: envelope(resolved) }), [resolved]);
 	useEffect(() => {
 		player?.setPlan(plan);
 	}, [player, plan]);
@@ -67,6 +85,8 @@ export function useAudioEngine(file: File | null, duration: number): AudioEngine
 		() => ({
 			player,
 			waveform,
+			reading,
+			resolved,
 			togglePlay: () => {
 				if (!player) return;
 				if (player.playing) {
@@ -81,6 +101,6 @@ export function useAudioEngine(file: File | null, duration: number): AudioEngine
 				player?.seek(time);
 			},
 		}),
-		[player, waveform, setPlayhead],
+		[player, waveform, reading, resolved, setPlayhead],
 	);
 }

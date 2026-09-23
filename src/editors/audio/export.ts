@@ -106,7 +106,8 @@ export interface AudioExportSettings {
 	channels: 'keep' | 'stereo' | 'mono';
 	/** Lossless formats only. */
 	bitDepth: 16 | 24;
-	tags: { title: string; artist: string; album: string };
+	/** Null keeps the source's own tags, as batches do. */
+	tags: { title: string; artist: string; album: string } | null;
 	/** Cover art: the source's, none, or a picture chosen by the user. */
 	cover: 'keep' | 'none' | { data: Uint8Array; mimeType: string };
 }
@@ -210,9 +211,9 @@ async function outputTags(input: Input, settings: AudioExportSettings): Promise<
 		date: source.date,
 		lyrics: source.lyrics,
 		comment: source.comment,
-		title: settings.tags.title.trim() || undefined,
-		artist: settings.tags.artist.trim() || undefined,
-		album: settings.tags.album.trim() || undefined,
+		title: settings.tags ? settings.tags.title.trim() || undefined : source.title,
+		artist: settings.tags ? settings.tags.artist.trim() || undefined : source.artist,
+		album: settings.tags ? settings.tags.album.trim() || undefined : source.album,
 	};
 	if (settings.cover === 'keep') tags.images = source.images;
 	else if (settings.cover !== 'none') tags.images = [{ ...settings.cover, kind: 'coverFront' }];

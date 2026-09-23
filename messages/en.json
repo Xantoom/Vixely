@@ -182,8 +182,8 @@
 				"countPlural"
 			],
 			"match": {
-				"countPlural=one": "{count} file was left out: batches take images only.",
-				"countPlural=other": "{count} files were left out: batches take images only."
+				"countPlural=one": "{count} file was left out: a batch holds files of one kind.",
+				"countPlural=other": "{count} files were left out: a batch holds files of one kind."
 			}
 		}
 	],
@@ -269,10 +269,9 @@
 	"volume_title": "Volume",
 	"volume_gain": "Gain",
 	"volume_gain_hint": "+6 dB doubles the amplitude. About +10 dB sounds twice as loud.",
-	"volume_peak": "Peak level",
 	"volume_peak_pending": "Measured once the waveform is read.",
-	"volume_clipping": "Peaks go {db} dB over 0 dBFS and will distort.",
-	"volume_maximize": "Peaks at −1 dBFS",
+	"volume_clipping": "True peaks go {db} dB over 0 dBTP and will distort.",
+	"volume_maximize": "Peaks at −1 dBTP",
 	"volume_maximize_hint": "Sets the gain so the loudest peak sits just under the maximum.",
 	"fades_title": "Fades",
 	"fade_in": "Fade in",
@@ -305,5 +304,67 @@
 	"cover_add": "Add",
 	"cover_remove": "Remove",
 	"opus_unavailable": "Opus isn't available in this browser.",
-	"channels_count": "{count} channels"
+	"channels_count": "{count} channels",
+	"loudness_title": "Loudness",
+	"loudness_integrated": "Integrated loudness",
+	"loudness_true_peak": "True peak",
+	"loudness_hint": "LUFS measure loudness as people hear it, over the whole file (EBU R128).",
+	"normalize": "Normalize",
+	"normalize_off": "Off",
+	"normalize_streaming": "Spotify, YouTube and Tidal play music at this level.",
+	"normalize_apple": "Apple Music and most podcasts.",
+	"normalize_broadcast": "TV and radio, the EBU R128 standard.",
+	"normalize_limited": "Reaches {lufs} LUFS: any louder and true peaks would go over −1 dBTP.",
+	"volume_gain_auto": "Set by normalization.",
+	"batch_count_audio": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} audio file",
+				"countPlural=other": "{count} audio files"
+			}
+		}
+	],
+	"batch_hint_audio": "Volume, fades and export settings apply to every file.",
+	"batch_add_audio": "Add files",
+	"export_batch_audio_button": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Export {count} file",
+				"countPlural=other": "Export {count} files"
+			}
+		}
+	],
+	"batch_saved_audio": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} file exported",
+				"countPlural=other": "{count} files exported"
+			}
+		}
+	],
+	"batch_tags_kept": "Each file keeps its own title, artist, album and cover.",
+	"batch_trim_hint": "Cutting applies to one file at a time: open it on its own to trim it.",
+	"audio_from_video": "Edit the audio",
+	"audio_from_video_hint": "Opens the soundtrack in the audio editor, to cut it, normalize it or save it as MP3, FLAC…"
 }

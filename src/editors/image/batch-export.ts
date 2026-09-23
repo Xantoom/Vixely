@@ -1,4 +1,5 @@
 import { zipSync } from 'fflate';
+import { uniqueName } from '@/media/save';
 import type { BatchFile } from '@/media/session';
 import { adaptDoc, type ImageDoc, type Size } from './document';
 import { exportImage, exportName, saveFile } from './export';
@@ -44,17 +45,6 @@ function zipDestination(): Destination {
 			await saveFile(new Blob([new Uint8Array(zip)], { type: 'application/zip' }), 'vixely-images.zip');
 		},
 	};
-}
-
-/** `photo.jpg`, then `photo (2).jpg`: two sources can map to the same output name. */
-function uniqueName(name: string, taken: Set<string>): string {
-	let candidate = name;
-	const dot = name.lastIndexOf('.');
-	for (let n = 2; taken.has(candidate.toLowerCase()); n += 1) {
-		candidate = `${name.slice(0, dot)} (${n})${name.slice(dot)}`;
-	}
-	taken.add(candidate.toLowerCase());
-	return candidate;
 }
 
 export interface BatchJob {

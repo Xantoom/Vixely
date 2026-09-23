@@ -4,7 +4,7 @@ import type { Range } from '@/document/timemap';
 import { type AudioDoc, createAudioDoc } from './document';
 import { AUDIO_FORMATS, type AudioExportSettings } from './export';
 
-export type AudioTags = AudioExportSettings['tags'];
+export type AudioTags = NonNullable<AudioExportSettings['tags']>;
 
 /** Shortest span the timeline zooms to, in seconds. */
 export const MIN_VIEW = 1;
@@ -26,6 +26,8 @@ interface AudioEditorState {
 	exportSettings: AudioExportSettings;
 
 	load: (owner: object, duration: number, tags: AudioTags) => void;
+	/** Moves the edits of a batch to another file: its own length, everything kept. */
+	retarget: (duration: number) => void;
 	apply: (change: (doc: AudioDoc) => AudioDoc) => void;
 	preview: (change: (doc: AudioDoc) => AudioDoc) => void;
 	settle: () => void;
@@ -78,6 +80,20 @@ export const useAudioEditor = create<AudioEditorState>((set, get) => ({
 			selection: null,
 			view: { start: 0, end: duration },
 			exportSettings: defaultExport(tags),
+		});
+	},
+
+	retarget(duration) {
+		const { history } = get();
+		if (history.present.duration === duration) return;
+		const doc = { ...history.present, duration, trim: { start: 0, end: duration }, cuts: [] };
+		// Past states belong to the other file: the history starts again from here.
+		set({
+			history: createHistory(doc),
+			gestureStart: null,
+			selection: null,
+			playhead: 0,
+			view: { start: 0, end: duration },
 		});
 	},
 

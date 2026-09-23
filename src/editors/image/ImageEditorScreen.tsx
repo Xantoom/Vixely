@@ -15,8 +15,9 @@ import { useImageEditor, useUndoState } from './store';
 
 export function ImageEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	const current = useSession((state) => state.current);
-	const batch = useSession((state) => state.batch);
-	const batchKey = useSession((state) => state.batchKey);
+	// A batch of audio files belongs to the audio editor.
+	const batch = useSession((state) => (state.batchKind === 'image' ? state.batch : null));
+	const batchKey = useSession((state) => (state.batchKind === 'image' ? state.batchKey : null));
 	const opened = current?.kind === 'image' ? current : null;
 	const source = opened?.poster ?? null;
 	const load = useImageEditor((state) => state.load);

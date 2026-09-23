@@ -11,6 +11,7 @@ import { join } from 'node:path';
 const CRATES = [
 	{ dir: 'vixely-core', out: 'src/wasm/vixely-core', name: 'vixely_core' },
 	{ dir: 'vixely-image', out: 'src/wasm/vixely-image', name: 'vixely_image' },
+	{ dir: 'vixely-audio', out: 'src/wasm/vixely-audio', name: 'vixely_audio' },
 ];
 const force = process.argv.includes('--force') || process.env.CI === 'true';
 
