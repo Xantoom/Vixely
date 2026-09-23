@@ -20,6 +20,7 @@ png = "0.18"
 # Lossless PNG optimisation. Its libdeflate is C: building for wasm32 needs clang and llvm-ar.
 oxipng = { version = "10", default-features = false, features = ["freestanding"] }
 rgb = "0.8"
+crc32fast = "1"
 # AVIF through rav1e; no assembly so it builds for WebAssembly.
 ravif = { version = "0.13", default-features = false }
 # JPEG XL encoder and decoder.
@@ -27,6 +28,9 @@ jxl-encoder = { version = "0.3", default-features = false, features = ["std"] }
 jxl-oxide = { version = "0.12", default-features = false }
 # Decoding of formats browsers don't read: BMP, TIFF, ICO.
 image = { version = "0.25", default-features = false, features = ["bmp", "ico", "tiff"] }
+
+[dev-dependencies]
+kamadak-exif = "0.6"
 
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = ["-O3", "--enable-bulk-memory", "--enable-nontrapping-float-to-int", "--enable-sign-ext", "--enable-mutable-globals", "--enable-reference-types", "--enable-multivalue", "--enable-simd"]

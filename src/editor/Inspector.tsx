@@ -1,7 +1,20 @@
 import { EDITORS, type MediaKind, TOOL_LABELS, type ToolId } from '@/editors/registry';
-import { codecName, formatBytes, formatFrameRate, formatSampleRate, formatTimecode } from '@/lib/format';
+import {
+	codecName,
+	formatAperture,
+	formatBytes,
+	formatCoordinates,
+	formatExifDate,
+	formatFocalLength,
+	formatFrameRate,
+	formatSampleRate,
+	formatShutter,
+	formatTimecode,
+} from '@/lib/format';
+import type { PhotoMetadata } from '@/media/probe';
 import type { OpenedFile } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
+import { getLocale } from '@/paraglide/runtime.js';
 import { PanelTitle } from './EditorLayout';
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -31,6 +44,41 @@ function SupportRow({ label, supported }: { label: string; supported: boolean })
 				{supported ? m.supported() : m.not_supported()}
 			</dd>
 		</div>
+	);
+}
+
+function CameraSection({ photo }: { photo: PhotoMetadata }) {
+	// Free text reads best in the interface font; measured values use the mono face.
+	const text: [string, string | null][] = [
+		[m.info_camera(), photo.camera],
+		[m.info_lens(), photo.lens],
+		[m.info_taken(), photo.taken === null ? null : formatExifDate(photo.taken, getLocale())],
+		[m.info_software(), photo.software],
+	];
+	const values: [string, string | null][] = [
+		[m.info_shutter(), photo.exposureTime === null ? null : formatShutter(photo.exposureTime)],
+		[m.info_aperture(), photo.fNumber === null ? null : formatAperture(photo.fNumber)],
+		[m.info_iso(), photo.iso === null ? null : String(photo.iso)],
+		[m.info_focal(), photo.focalLength === null ? null : formatFocalLength(photo.focalLength)],
+		[m.info_location(), photo.location && formatCoordinates(photo.location.latitude, photo.location.longitude)],
+	];
+	const present = (row: [string, string | null]): row is [string, string] => Boolean(row[1]);
+	const shownText = text.filter(present);
+	const shownValues = values.filter(present);
+	if (shownText.length === 0 && shownValues.length === 0) return null;
+	return (
+		<section className="grid gap-3.5">
+			<h3 className="text-ui text-ink-2 font-semibold">{m.info_camera_section()}</h3>
+			<dl className="grid gap-3.5">
+				{shownText.map(([label, value]) => (
+					<TextRow key={label} label={label} value={value} />
+				))}
+				{shownValues.map(([label, value]) => (
+					<Row key={label} label={label} value={value} />
+				))}
+			</dl>
+			{photo.location && <p className="text-small text-ed-text font-medium">{m.location_warning()}</p>}
+		</section>
 	);
 }
 
@@ -67,6 +115,8 @@ export function InfoPanel({ opened }: { opened: OpenedFile | null }) {
 				)}
 				{info.cues && <Row label={m.info_cues()} value={String(info.cues.length)} />}
 			</dl>
+
+			{info.photo && <CameraSection photo={info.photo} />}
 
 			{video && (
 				<dl className="grid gap-3.5">

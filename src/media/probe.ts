@@ -1,5 +1,6 @@
 import { ALL_FORMATS, BlobSource, CanvasSink, EncodedPacketSink, Input, type InputVideoTrack } from 'mediabunny';
 import type { MediaKind } from '@/editors/registry';
+import { loadCore } from '@/wasm/core';
 
 export interface VideoStream {
 	codec: string | null;
@@ -21,6 +22,25 @@ export interface SubtitleCue {
 	text: string;
 }
 
+/** Camera details read from EXIF, and EXIF ready to embed in an export. */
+export interface PhotoMetadata {
+	camera: string | null;
+	lens: string | null;
+	/** As written by the camera: `2026:07:14 18:32:05`. */
+	taken: string | null;
+	/** Seconds. */
+	exposureTime: number | null;
+	fNumber: number | null;
+	iso: number | null;
+	/** Millimetres. */
+	focalLength: number | null;
+	software: string | null;
+	location: { latitude: number; longitude: number } | null;
+	/** Rewritten EXIF, orientation removed. Empty when there is nothing worth keeping. */
+	exifFull: Uint8Array;
+	exifWithoutLocation: Uint8Array;
+}
+
 export interface MediaTags {
 	title: string | null;
 	artist: string | null;
@@ -40,6 +60,8 @@ export interface MediaInfo {
 	cues: SubtitleCue[] | null;
 	/** Descriptive tags embedded in the file, mostly used by audio. */
 	tags: MediaTags | null;
+	/** EXIF of photos. */
+	photo: PhotoMetadata | null;
 }
 
 export interface Probe {
@@ -48,11 +70,46 @@ export interface Probe {
 	poster: ImageBitmap | null;
 }
 
-/** Formats vixely-image can decode when the browser can't (Safari reads TIFF and JPEG XL itself). */
-const CODEC_IMAGE_FORMATS = new Set(['tiff', 'jxl', 'bmp', 'ico']);
+/** Joins make and model without repeating the brand: `Canon Canon EOS R6` becomes `Canon EOS R6`. */
+function cameraName(make: string | undefined, model: string | undefined): string | null {
+	if (!model) return make ?? null;
+	if (!make || model.toLowerCase().startsWith(make.toLowerCase().split(' ')[0] ?? '')) return model;
+	return `${make} ${model}`;
+}
+
+export async function readPhotoMetadata(file: File): Promise<PhotoMetadata | null> {
+	try {
+		const core = await loadCore();
+		const raw = core.read_metadata(new Uint8Array(await file.arrayBuffer()));
+		if (!raw) return null;
+		const metadata: PhotoMetadata = {
+			camera: cameraName(raw.make, raw.model),
+			lens: raw.lens ?? null,
+			taken: raw.taken ?? null,
+			exposureTime: raw.exposure_time ?? null,
+			fNumber: raw.f_number ?? null,
+			iso: raw.iso ?? null,
+			focalLength: raw.focal_length ?? null,
+			software: raw.software ?? null,
+			location:
+				raw.latitude !== undefined && raw.longitude !== undefined
+					? { latitude: raw.latitude, longitude: raw.longitude }
+					: null,
+			exifFull: raw.exif_full,
+			exifWithoutLocation: raw.exif_without_location,
+		};
+		raw.free();
+		return metadata;
+	} catch {
+		return null;
+	}
+}
+
+/** Formats the codec worker decodes when the browser can't. Safari reads TIFF, JPEG XL and HEIC itself. */
+const CODEC_IMAGE_FORMATS = new Set(['tiff', 'jxl', 'bmp', 'ico', 'heic']);
 
 /** First frame of an image: the browser's decoder first, vixely-image as a fallback. */
-async function decodeStill(file: File, format: string): Promise<ImageBitmap | null> {
+export async function decodeStill(file: File, format: string): Promise<ImageBitmap | null> {
 	try {
 		return await createImageBitmap(file);
 	} catch {
@@ -78,14 +135,15 @@ export async function probe(file: File, kind: MediaKind, format: string): Promis
 		dimensions: null,
 		cues: null,
 		tags: null,
+		photo: null,
 	};
 
 	if (kind === 'video' || kind === 'audio') return probeTimed(file, base);
 	if (kind === 'subtitles') return { info: { ...base, cues: await readCues(file, format) }, poster: null };
 
-	const poster = await decodeStill(file, format);
-	if (!poster) return { info: base, poster: null };
-	return { info: { ...base, dimensions: { width: poster.width, height: poster.height } }, poster };
+	const [poster, photo] = await Promise.all([decodeStill(file, format), readPhotoMetadata(file)]);
+	if (!poster) return { info: { ...base, photo }, poster: null };
+	return { info: { ...base, photo, dimensions: { width: poster.width, height: poster.height } }, poster };
 }
 
 async function probeTimed(file: File, base: MediaInfo): Promise<Probe> {

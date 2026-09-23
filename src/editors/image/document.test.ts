@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { dragCrop, fitRatio } from './crop';
 import {
+	adaptDoc,
 	createImageDoc,
 	effectiveCrop,
 	fitWithin,
@@ -80,6 +81,31 @@ describe('image document', () => {
 	it('fits an export size without upscaling', () => {
 		expect(fitWithin({ width: 4000, height: 3000 }, 1920)).toEqual({ width: 1920, height: 1440 });
 		expect(fitWithin({ width: 800, height: 600 }, 1920)).toEqual({ width: 800, height: 600 });
+	});
+});
+
+describe('batch', () => {
+	const from = { width: 4000, height: 3000 };
+
+	it('keeps a square crop square and centred on another image', () => {
+		const doc = { ...createImageDoc(), crop: { x: 500, y: 0, width: 3000, height: 3000 } };
+		const adapted = adaptDoc(doc, from, { width: 1920, height: 1080 }, 1);
+		expect(adapted.crop).toEqual({ x: 420, y: 0, width: 1080, height: 1080 });
+	});
+
+	it('keeps a free crop at the same relative place', () => {
+		const doc = { ...createImageDoc(), crop: { x: 400, y: 300, width: 2000, height: 1500 } };
+		expect(adaptDoc(doc, from, { width: 2000, height: 1500 }, null).crop).toEqual({
+			x: 200,
+			y: 150,
+			width: 1000,
+			height: 750,
+		});
+	});
+
+	it('leaves documents without a crop untouched', () => {
+		const doc = createImageDoc();
+		expect(adaptDoc(doc, from, { width: 10, height: 10 }, 1)).toBe(doc);
 	});
 });
 

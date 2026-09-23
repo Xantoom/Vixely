@@ -28,7 +28,7 @@ fn check_size(rgba: &[u8], width: u32, height: u32) -> Result<(), EncodeError> {
 
 /// JPEG with jpegli. Chroma is kept at full resolution from quality 90, where subsampling
 /// starts to show on edges and text; below that, 4:2:0 gives smaller files.
-pub fn jpeg(rgba: &[u8], width: u32, height: u32, quality: f32) -> Result<Vec<u8>, EncodeError> {
+pub fn jpeg(rgba: &[u8], width: u32, height: u32, quality: f32, exif: &[u8]) -> Result<Vec<u8>, EncodeError> {
 	use zenjpeg::encoder::{ChromaSubsampling, EncoderConfig, PixelLayout, Unstoppable};
 	check_size(rgba, width, height)?;
 	let subsampling = if quality >= 90.0 {
@@ -43,7 +43,58 @@ pub fn jpeg(rgba: &[u8], width: u32, height: u32, quality: f32) -> Result<Vec<u8
 		.encode_from_bytes(width, height, PixelLayout::Rgbx8Srgb)
 		.map_err(fail)?;
 	encoder.push_packed(rgba, Unstoppable).map_err(fail)?;
-	encoder.finish().map_err(fail)
+	let jpeg = encoder.finish().map_err(fail)?;
+	Ok(embed_jpeg_exif(jpeg, exif))
+}
+
+/// Inserts an EXIF APP1 segment after SOI and any JFIF APP0 segment. EXIF too large for one
+/// segment (64 KiB) is left out rather than split, which few readers support.
+fn embed_jpeg_exif(jpeg: Vec<u8>, exif: &[u8]) -> Vec<u8> {
+	if exif.is_empty() || exif.len() + 8 > u16::MAX as usize || !jpeg.starts_with(&[0xFF, 0xD8]) {
+		return jpeg;
+	}
+	let mut at = 2;
+	if jpeg.get(2..4) == Some(&[0xFF, 0xE0]) {
+		let length = u16::from_be_bytes([jpeg[4], jpeg[5]]) as usize;
+		at = 4 + length;
+	}
+	let mut segment = vec![0xFF, 0xE1];
+	segment.extend_from_slice(&((exif.len() + 8) as u16).to_be_bytes());
+	segment.extend_from_slice(b"Exif\0\0");
+	segment.extend_from_slice(exif);
+	let mut out = Vec::with_capacity(jpeg.len() + segment.len());
+	out.extend_from_slice(&jpeg[..at]);
+	out.extend_from_slice(&segment);
+	out.extend_from_slice(&jpeg[at..]);
+	out
+}
+
+/// Inserts an `eXIf` chunk before the first `IDAT`, as the PNG specification requires.
+fn embed_png_exif(png: Vec<u8>, exif: &[u8]) -> Vec<u8> {
+	if exif.is_empty() {
+		return png;
+	}
+	let mut at = 8;
+	while at + 8 <= png.len() {
+		let length = u32::from_be_bytes([png[at], png[at + 1], png[at + 2], png[at + 3]]) as usize;
+		if &png[at + 4..at + 8] == b"IDAT" {
+			break;
+		}
+		at += 12 + length;
+	}
+	let mut chunk = Vec::with_capacity(exif.len() + 12);
+	chunk.extend_from_slice(&(exif.len() as u32).to_be_bytes());
+	chunk.extend_from_slice(b"eXIf");
+	chunk.extend_from_slice(exif);
+	let mut crc = crc32fast::Hasher::new();
+	crc.update(b"eXIf");
+	crc.update(exif);
+	chunk.extend_from_slice(&crc.finalize().to_be_bytes());
+	let mut out = Vec::with_capacity(png.len() + chunk.len());
+	out.extend_from_slice(&png[..at]);
+	out.extend_from_slice(&chunk);
+	out.extend_from_slice(&png[at..]);
+	out
 }
 
 fn is_opaque(rgba: &[u8]) -> bool {
@@ -53,7 +104,13 @@ fn is_opaque(rgba: &[u8]) -> bool {
 /// PNG. With `lossy_quality` set (1 to 100), colours are reduced to a palette of at most 256 by
 /// libimagequant, with dithering: typically 60 to 80 % smaller and hard to tell apart. Either way
 /// oxipng then searches for the smallest lossless encoding of the result.
-pub fn png(rgba: &[u8], width: u32, height: u32, lossy_quality: Option<u8>) -> Result<Vec<u8>, EncodeError> {
+pub fn png(
+	rgba: &[u8],
+	width: u32,
+	height: u32,
+	lossy_quality: Option<u8>,
+	exif: &[u8],
+) -> Result<Vec<u8>, EncodeError> {
 	check_size(rgba, width, height)?;
 	let mut out = Vec::new();
 	match lossy_quality {
@@ -103,7 +160,7 @@ pub fn png(rgba: &[u8], width: u32, height: u32, lossy_quality: Option<u8>) -> R
 			writer.finish().map_err(fail)?;
 		}
 	}
-	optimize_png(&out)
+	Ok(embed_png_exif(optimize_png(&out)?, exif))
 }
 
 /// oxipng preset 2: tries the filters and compression strategies that matter most, in about the
@@ -113,17 +170,25 @@ fn optimize_png(png: &[u8]) -> Result<Vec<u8>, EncodeError> {
 }
 
 /// AVIF with rav1e. `speed` goes from 1 (slowest, smallest) to 10 (fastest).
-pub fn avif(rgba: &[u8], width: u32, height: u32, quality: f32, speed: u8) -> Result<Vec<u8>, EncodeError> {
+pub fn avif(
+	rgba: &[u8],
+	width: u32,
+	height: u32,
+	quality: f32,
+	speed: u8,
+	exif: &[u8],
+) -> Result<Vec<u8>, EncodeError> {
 	check_size(rgba, width, height)?;
 	let quality = quality.clamp(1.0, 100.0);
 	let image = ravif::Img::new(rgba.as_rgba(), width as usize, height as usize);
-	let encoded = ravif::Encoder::new()
+	let mut encoder = ravif::Encoder::new()
 		.with_quality(quality)
 		.with_alpha_quality(quality)
-		.with_speed(speed.clamp(1, 10))
-		.encode_rgba(image)
-		.map_err(fail)?;
-	Ok(encoded.avif_file)
+		.with_speed(speed.clamp(1, 10));
+	if !exif.is_empty() {
+		encoder = encoder.with_exif(exif);
+	}
+	Ok(encoder.encode_rgba(image).map_err(fail)?.avif_file)
 }
 
 /// Maps a JPEG-like quality (1 to 100) to a JPEG XL Butteraugli distance, as libjxl's cjxl does.
@@ -144,37 +209,47 @@ pub fn jxl_distance(quality: f32) -> f32 {
 /// effort 3 and above. Lossless therefore uses Huffman coding, and transparent lossy images stay at
 /// effort 2. Opaque lossy images, the common case, go through as RGB with every option.
 /// `large_tests` guards all of this.
-pub fn jxl(rgba: &[u8], width: u32, height: u32, quality: f32, effort: u8) -> Result<Vec<u8>, EncodeError> {
-	use jxl_encoder::{LosslessConfig, LossyConfig, PixelLayout};
+pub fn jxl(
+	rgba: &[u8],
+	width: u32,
+	height: u32,
+	quality: f32,
+	effort: u8,
+	exif: &[u8],
+) -> Result<Vec<u8>, EncodeError> {
+	use jxl_encoder::{ImageMetadata, LosslessConfig, LossyConfig, PixelLayout};
 	check_size(rgba, width, height)?;
 	let effort = effort.clamp(1, 9);
 	let lossless = quality >= 100.0;
+	let metadata = if exif.is_empty() {
+		ImageMetadata::new()
+	} else {
+		ImageMetadata::new().with_exif(exif)
+	};
 
-	if is_opaque(rgba) {
-		let rgb: Vec<u8> = rgba.chunks_exact(4).flat_map(|p| [p[0], p[1], p[2]]).collect();
-		return if lossless {
-			LosslessConfig::new()
-				.with_effort(effort)
-				.with_ans(false)
-				.encode(&rgb, width, height, PixelLayout::Rgb8)
-		} else {
-			LossyConfig::new(jxl_distance(quality))
-				.with_effort(effort)
-				.encode(&rgb, width, height, PixelLayout::Rgb8)
-		}
-		.map_err(fail);
-	}
+	let opaque = is_opaque(rgba);
+	let rgb: Vec<u8>;
+	let (pixels, layout) = if opaque {
+		rgb = rgba.chunks_exact(4).flat_map(|p| [p[0], p[1], p[2]]).collect();
+		(&rgb[..], PixelLayout::Rgb8)
+	} else {
+		(rgba, PixelLayout::Rgba8)
+	};
 
 	if lossless {
-		LosslessConfig::new()
-			.with_effort(effort)
-			.with_ans(false)
-			.encode(rgba, width, height, PixelLayout::Rgba8)
+		let config = LosslessConfig::new().with_effort(effort).with_ans(false);
+		config
+			.encode_request(width, height, layout)
+			.with_metadata(&metadata)
+			.encode(pixels)
 			.map_err(fail)
 	} else {
-		LossyConfig::new(jxl_distance(quality))
-			.with_effort(effort.min(2))
-			.encode(rgba, width, height, PixelLayout::Rgba8)
+		let effort = if opaque { effort } else { effort.min(2) };
+		let config = LossyConfig::new(jxl_distance(quality)).with_effort(effort);
+		config
+			.encode_request(width, height, layout)
+			.with_metadata(&metadata)
+			.encode(pixels)
 			.map_err(fail)
 	}
 }
@@ -199,7 +274,7 @@ mod tests {
 	#[test]
 	fn jpeg_is_valid() {
 		let (rgba, w, h) = sample();
-		let out = jpeg(&rgba, w, h, 85.0).unwrap();
+		let out = jpeg(&rgba, w, h, 85.0, &[]).unwrap();
 		assert_eq!(&out[..2], &[0xFF, 0xD8]);
 		assert_eq!(&out[out.len() - 2..], &[0xFF, 0xD9]);
 	}
@@ -207,7 +282,7 @@ mod tests {
 	#[test]
 	fn png_round_trips_losslessly() {
 		let (rgba, w, h) = sample();
-		let out = png(&rgba, w, h, None).unwrap();
+		let out = png(&rgba, w, h, None, &[]).unwrap();
 		let mut reader = png::Decoder::new(std::io::Cursor::new(out)).read_info().unwrap();
 		let mut buf = vec![0; reader.output_buffer_size().unwrap()];
 		let info = reader.next_frame(&mut buf).unwrap();
@@ -218,7 +293,7 @@ mod tests {
 	#[test]
 	fn lossy_png_uses_a_palette_and_keeps_transparency() {
 		let (rgba, w, h) = sample();
-		let out = png(&rgba, w, h, Some(80)).unwrap();
+		let out = png(&rgba, w, h, Some(80), &[]).unwrap();
 		let reader = png::Decoder::new(std::io::Cursor::new(out)).read_info().unwrap();
 		assert_eq!(reader.info().color_type, png::ColorType::Indexed);
 		assert!(reader.info().trns.is_some());
@@ -230,7 +305,7 @@ mod tests {
 		for pixel in rgba.chunks_exact_mut(4) {
 			pixel[3] = 255;
 		}
-		let out = png(&rgba, w, h, None).unwrap();
+		let out = png(&rgba, w, h, None, &[]).unwrap();
 		let reader = png::Decoder::new(std::io::Cursor::new(out)).read_info().unwrap();
 		assert_eq!(reader.info().color_type, png::ColorType::Rgb);
 	}
@@ -238,7 +313,7 @@ mod tests {
 	#[test]
 	fn avif_is_valid() {
 		let (rgba, w, h) = sample();
-		let out = avif(&rgba, w, h, 70.0, 10).unwrap();
+		let out = avif(&rgba, w, h, 70.0, 10, &[]).unwrap();
 		assert_eq!(&out[4..12], b"ftypavif");
 	}
 
@@ -246,7 +321,7 @@ mod tests {
 	fn jxl_round_trips() {
 		let (rgba, w, h) = sample();
 		for quality in [80.0, 100.0] {
-			let out = jxl(&rgba, w, h, quality, 3).unwrap();
+			let out = jxl(&rgba, w, h, quality, 3, &[]).unwrap();
 			let decoded = crate::decode::jxl(&out).unwrap();
 			assert_eq!((decoded.width, decoded.height), (w, h));
 			if quality >= 100.0 {
@@ -261,9 +336,57 @@ mod tests {
 		assert!((jxl_distance(100.0) - 0.1).abs() < 1e-5);
 	}
 
+	/// A minimal big-endian TIFF with one IFD holding Make = "Vixely".
+	fn exif_blob() -> Vec<u8> {
+		let mut tiff = b"MM\0\x2a\0\0\0\x08".to_vec();
+		tiff.extend_from_slice(&[0, 1]); // one entry
+		tiff.extend_from_slice(&[0x01, 0x0F, 0, 2, 0, 0, 0, 7, 0, 0, 0, 26]); // Make, ASCII, 7 bytes at 26
+		tiff.extend_from_slice(&[0, 0, 0, 0]); // no next IFD
+		tiff.extend_from_slice(b"Vixely\0");
+		tiff
+	}
+
+	fn make_of(file: &[u8]) -> Option<String> {
+		let exif = exif::Reader::new()
+			.read_from_container(&mut std::io::Cursor::new(file))
+			.ok()?;
+		let field = exif.get_field(exif::Tag::Make, exif::In::PRIMARY)?;
+		Some(field.display_value().to_string().trim_matches('"').to_owned())
+	}
+
+	#[test]
+	fn exif_is_embedded_in_jpeg_and_png() {
+		let (rgba, w, h) = sample();
+		let exif = exif_blob();
+		assert_eq!(
+			make_of(&jpeg(&rgba, w, h, 85.0, &exif).unwrap()).as_deref(),
+			Some("Vixely")
+		);
+		assert_eq!(
+			make_of(&png(&rgba, w, h, None, &exif).unwrap()).as_deref(),
+			Some("Vixely")
+		);
+		assert_eq!(
+			make_of(&png(&rgba, w, h, Some(80), &exif).unwrap()).as_deref(),
+			Some("Vixely")
+		);
+		assert_eq!(make_of(&jpeg(&rgba, w, h, 85.0, &[]).unwrap()), None);
+	}
+
+	#[test]
+	fn exif_does_not_break_avif_or_jxl() {
+		let (rgba, w, h) = sample();
+		let exif = exif_blob();
+		let avif_file = avif(&rgba, w, h, 70.0, 10, &exif).unwrap();
+		assert_eq!(&avif_file[4..12], b"ftypavif");
+		assert!(avif_file.windows(6).any(|window| window == b"Vixely"));
+		let jxl_file = jxl(&rgba, w, h, 80.0, 3, &exif).unwrap();
+		assert!(crate::decode::jxl(&jxl_file).is_ok());
+	}
+
 	#[test]
 	fn rejects_mismatched_buffers() {
-		assert!(jpeg(&[0; 12], 2, 2, 80.0).is_err());
+		assert!(jpeg(&[0; 12], 2, 2, 80.0, &[]).is_err());
 	}
 }
 
@@ -286,7 +409,7 @@ mod large_tests {
 			let (rgba, w, h) = image(transparent);
 			for quality in [85.0, 100.0] {
 				for effort in [1, 5, 7] {
-					let out = super::jxl(&rgba, w, h, quality, effort).unwrap();
+					let out = super::jxl(&rgba, w, h, quality, effort, &[]).unwrap();
 					let decoded = crate::decode::jxl(&out).unwrap_or_else(|e| {
 						panic!("transparent {transparent}, quality {quality}, effort {effort}: {e}")
 					});

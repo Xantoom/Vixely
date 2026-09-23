@@ -12,24 +12,38 @@ fn js_error(error: encode::EncodeError) -> JsError {
 }
 
 #[wasm_bindgen]
-pub fn encode_jpeg(rgba: &[u8], width: u32, height: u32, quality: f32) -> Result<Vec<u8>, JsError> {
-	encode::jpeg(rgba, width, height, quality).map_err(js_error)
+pub fn encode_jpeg(rgba: &[u8], width: u32, height: u32, quality: f32, exif: &[u8]) -> Result<Vec<u8>, JsError> {
+	encode::jpeg(rgba, width, height, quality, exif).map_err(js_error)
 }
 
-/// `lossy_quality` of 0 encodes losslessly.
+/// `lossy_quality` of 0 encodes losslessly. In every encoder, an empty `exif` embeds none.
 #[wasm_bindgen]
-pub fn encode_png(rgba: &[u8], width: u32, height: u32, lossy_quality: u8) -> Result<Vec<u8>, JsError> {
-	encode::png(rgba, width, height, (lossy_quality > 0).then_some(lossy_quality)).map_err(js_error)
-}
-
-#[wasm_bindgen]
-pub fn encode_avif(rgba: &[u8], width: u32, height: u32, quality: f32, speed: u8) -> Result<Vec<u8>, JsError> {
-	encode::avif(rgba, width, height, quality, speed).map_err(js_error)
+pub fn encode_png(rgba: &[u8], width: u32, height: u32, lossy_quality: u8, exif: &[u8]) -> Result<Vec<u8>, JsError> {
+	encode::png(rgba, width, height, (lossy_quality > 0).then_some(lossy_quality), exif).map_err(js_error)
 }
 
 #[wasm_bindgen]
-pub fn encode_jxl(rgba: &[u8], width: u32, height: u32, quality: f32, effort: u8) -> Result<Vec<u8>, JsError> {
-	encode::jxl(rgba, width, height, quality, effort).map_err(js_error)
+pub fn encode_avif(
+	rgba: &[u8],
+	width: u32,
+	height: u32,
+	quality: f32,
+	speed: u8,
+	exif: &[u8],
+) -> Result<Vec<u8>, JsError> {
+	encode::avif(rgba, width, height, quality, speed, exif).map_err(js_error)
+}
+
+#[wasm_bindgen]
+pub fn encode_jxl(
+	rgba: &[u8],
+	width: u32,
+	height: u32,
+	quality: f32,
+	effort: u8,
+	exif: &[u8],
+) -> Result<Vec<u8>, JsError> {
+	encode::jxl(rgba, width, height, quality, effort, exif).map_err(js_error)
 }
 
 #[wasm_bindgen(getter_with_clone)]

@@ -149,3 +149,41 @@ export function fitWithin(size: Size, limit: number): Size {
 	const scale = Math.min(1, limit / Math.max(size.width, size.height));
 	return { width: Math.max(1, Math.round(size.width * scale)), height: Math.max(1, Math.round(size.height * scale)) };
 }
+
+/**
+ * Carries a document edited on one image over to another of a different size, for batches.
+ * Rotation, mirrors and adjustments apply as they are. A crop keeps its aspect ratio, centred on
+ * the same relative point, when `ratio` is set; a free crop keeps its relative position and size.
+ */
+export function adaptDoc(doc: ImageDoc, from: Size, to: Size, ratio: number | null): ImageDoc {
+	if (!doc.crop) return doc;
+	const fromBounds = orientedSize(from, doc.rotation);
+	const toBounds = orientedSize(to, doc.rotation);
+	const scaleX = toBounds.width / fromBounds.width;
+	const scaleY = toBounds.height / fromBounds.height;
+
+	if (ratio === null) {
+		const x = Math.round(doc.crop.x * scaleX);
+		const y = Math.round(doc.crop.y * scaleY);
+		const width = Math.min(Math.round(doc.crop.width * scaleX), toBounds.width - x);
+		const height = Math.min(Math.round(doc.crop.height * scaleY), toBounds.height - y);
+		return { ...doc, crop: { x, y, width, height } };
+	}
+
+	// Largest rectangle of the ratio that fits the image, as large relative to it as the original crop.
+	const share = Math.min(1, Math.max(doc.crop.width / fromBounds.width, doc.crop.height / fromBounds.height));
+	let width = toBounds.width * share;
+	let height = width / ratio;
+	if (height > toBounds.height * share) {
+		height = toBounds.height * share;
+		width = height * ratio;
+	}
+	const centreX = (doc.crop.x + doc.crop.width / 2) * scaleX;
+	const centreY = (doc.crop.y + doc.crop.height / 2) * scaleY;
+	const x = Math.min(Math.max(centreX - width / 2, 0), toBounds.width - width);
+	const y = Math.min(Math.max(centreY - height / 2, 0), toBounds.height - height);
+	return {
+		...doc,
+		crop: { x: Math.round(x), y: Math.round(y), width: Math.round(width), height: Math.round(height) },
+	};
+}

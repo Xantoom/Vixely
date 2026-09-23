@@ -14,6 +14,8 @@ interface EncodeBase {
 	height: number;
 	/** 1 to 100. */
 	quality: number;
+	/** EXIF to embed, as a TIFF structure. Empty for none. */
+	exif: Uint8Array;
 }
 
 export type EncodeRequest =
@@ -22,7 +24,10 @@ export type EncodeRequest =
 	| (EncodeBase & { format: 'avif'; speed: number })
 	| (EncodeBase & { format: 'jxl'; effort: number });
 
-export type CodecRequest = EncodeRequest | { id: number; op: 'decode'; bytes: Uint8Array; format: string };
+export type CodecRequest =
+	| EncodeRequest
+	| { id: number; op: 'decode'; bytes: Uint8Array; format: string }
+	| { id: number; op: 'decode-heic'; bytes: Uint8Array };
 
 export type CodecResponse =
 	| { id: number; ok: true; bytes: Uint8Array; width?: number; height?: number }
@@ -69,9 +74,14 @@ export async function encodeImage(request: WithoutId<EncodeRequest>): Promise<Ui
 	return response.bytes;
 }
 
-/** Decodes TIFF, BMP, ICO or JPEG XL into straight RGBA pixels. */
+/**
+ * Decodes an image the browser can't read into straight RGBA pixels: TIFF, BMP, ICO and JPEG XL
+ * with vixely-image, HEIC and HEIF (iPhone photos) with libheif.
+ */
 export async function decodeImage(bytes: Uint8Array, format: string): Promise<ImageData> {
-	const response = await call({ op: 'decode', bytes, format }, [bytes.buffer]);
+	const request =
+		format === 'heic' ? ({ op: 'decode-heic', bytes } as const) : ({ op: 'decode', bytes, format } as const);
+	const response = await call(request, [bytes.buffer]);
 	const { width = 0, height = 0 } = response;
 	// Copied into a fresh buffer: ImageData refuses views that could be shared memory.
 	return new ImageData(new Uint8ClampedArray(response.bytes), width, height);

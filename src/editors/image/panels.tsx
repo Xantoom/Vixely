@@ -1,6 +1,7 @@
 import { FlipHorizontal2, FlipVertical2, RotateCcw, RotateCw } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
+import type { PhotoMetadata } from '@/media/probe';
 import { m } from '@/paraglide/messages.js';
 import { FieldRow, NumberField, OptionList, Select, type SelectOption, Slider } from '@/ui/fields';
 import { containRect, fitRatio } from './crop';
@@ -315,7 +316,7 @@ function qualityHint(quality: number): ReactNode {
 	);
 }
 
-export function ExportPanel({ source }: { source: ImageBitmap }) {
+export function ExportPanel({ source, photo }: { source: ImageBitmap; photo: PhotoMetadata | null }) {
 	const doc = useImageDoc();
 	const settings = useImageEditor((state) => state.exportSettings);
 	const setExport = useImageEditor((state) => state.setExport);
@@ -389,6 +390,22 @@ export function ExportPanel({ source }: { source: ImageBitmap }) {
 						/>
 					</FieldRow>
 				)}
+				{photo && photo.exifFull.length > 0 && settings.format !== 'webp' && (
+					<FieldRow label={m.export_metadata()} htmlFor="export-metadata">
+						<Select
+							id="export-metadata"
+							value={settings.metadata}
+							options={[
+								{ value: 'private', label: m.metadata_private() },
+								{ value: 'none', label: m.metadata_none() },
+								{ value: 'all', label: m.metadata_all() },
+							]}
+							onChange={(metadata) => {
+								setExport({ metadata });
+							}}
+						/>
+					</FieldRow>
+				)}
 				<FieldRow label={m.export_size()} htmlFor="export-size">
 					<Select
 						id="export-size"
@@ -425,7 +442,8 @@ export function ExportPanel({ source }: { source: ImageBitmap }) {
 				/>
 			)}
 			<p className="text-small text-muted">
-				{m.export_output({ size: `${current.width} × ${current.height}` })} {m.export_metadata_note()}
+				{m.export_output({ size: `${current.width} × ${current.height}` })}
+				{photo && photo.exifFull.length > 0 && settings.format === 'webp' ? ` ${m.metadata_webp()}` : ''}
 			</p>
 		</>
 	);

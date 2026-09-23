@@ -3,9 +3,9 @@
 	"app_home": "Accueil Vixely",
 	"home_title": "Modifiez tous vos médias, directement dans le navigateur.",
 	"home_lede": "Rien n'est envoyé en ligne. Vos fichiers restent sur votre appareil.",
-	"drop_title": "Déposez un fichier",
+	"drop_title": "Déposez des fichiers ou un dossier",
 	"drop_or": "ou",
-	"drop_choose": "choisissez un fichier",
+	"drop_choose": "choisissez des fichiers",
 	"drop_release": "Relâchez pour ouvrir",
 	"drop_reading": "Lecture de {name}…",
 	"media_video": "Vidéo",
@@ -125,7 +125,6 @@
 	"quality_low": "Faible,",
 	"quality_low_note": "blocs et flou visibles.",
 	"export_output": "Sortie : {size} px.",
-	"export_metadata_note": "Les infos de l'appareil et la localisation sont retirées.",
 	"export_image_button": "Exporter l'image",
 	"exporting": "Export en cours…",
 	"export_failed": "L'export a échoué. Essayez un autre format ou une taille plus petite.",
@@ -141,5 +140,102 @@
 	"avif_fast": "Rapide",
 	"avif_best": "Optimal, plus lent",
 	"quality_lossless": "Sans perte,",
-	"quality_lossless_note": "identique à l'original."
+	"quality_lossless_note": "identique à l'original.",
+	"info_camera_section": "Prise de vue",
+	"info_camera": "Appareil",
+	"info_lens": "Objectif",
+	"info_taken": "Prise le",
+	"info_shutter": "Vitesse",
+	"info_aperture": "Ouverture",
+	"info_iso": "ISO",
+	"info_focal": "Focale",
+	"info_software": "Logiciel",
+	"info_location": "Localisation",
+	"location_warning": "Cette photo contient le lieu où elle a été prise.",
+	"export_metadata": "Métadonnées",
+	"metadata_private": "Sans localisation",
+	"metadata_none": "Aucune",
+	"metadata_all": "Toutes",
+	"metadata_webp": "L'export WebP retire les métadonnées.",
+	"drop_reading_many": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Lecture de {count} fichier…",
+				"countPlural=other": "Lecture de {count} fichiers…"
+			}
+		}
+	],
+	"batch_skipped": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} fichier a été écarté : le traitement par lot ne prend que des images.",
+				"countPlural=other": "{count} fichiers ont été écartés : le traitement par lot ne prend que des images."
+			}
+		}
+	],
+	"batch_label": "Lot",
+	"batch_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} image",
+				"countPlural=other": "{count} images"
+			}
+		}
+	],
+	"batch_hint": "Les modifications s'appliquent à toutes les images.",
+	"batch_add": "Ajouter des images",
+	"batch_remove": "Retirer {name}",
+	"export_batch_button": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Exporter {count} image",
+				"countPlural=other": "Exporter {count} images"
+			}
+		}
+	],
+	"exporting_progress": "Export de {done} sur {total}…",
+	"batch_saved": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} image exportée",
+				"countPlural=other": "{count} images exportées"
+			}
+		}
+	],
+	"stop": "Arrêter"
 }

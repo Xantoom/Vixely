@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { canRedo, canUndo, commit, createHistory, type History, redo, replace, undo } from '@/document/history';
-import { createImageDoc, type ImageDoc, type Size } from './document';
+import { adaptDoc, createImageDoc, type ImageDoc, orientedSize, type Size } from './document';
 
 export type ImageFormat = 'jpeg' | 'png' | 'webp' | 'avif' | 'jxl';
 
@@ -33,11 +33,13 @@ export interface ExportSettings {
 	pngLossy: boolean;
 	/** AVIF only: `best` spends much longer searching for a smaller file. */
 	avifEffort: 'fast' | 'best';
+	/** EXIF kept in the export. `private` keeps camera details but never the location. */
+	metadata: 'none' | 'private' | 'all';
 }
 
 interface ImageEditorState {
-	/** The file the history belongs to. A new file starts a fresh history. */
-	file: File | null;
+	/** What the history belongs to: a file, or a whole batch. Anything else starts a fresh history. */
+	owner: object | null;
 	history: History<ImageDoc>;
 	/** Document before the gesture in progress, so a whole drag becomes one undo step. */
 	gestureStart: ImageDoc | null;
@@ -45,7 +47,9 @@ interface ImageEditorState {
 	cropAspect: AspectId;
 	exportSettings: ExportSettings;
 
-	load: (file: File) => void;
+	load: (owner: object) => void;
+	/** Carries the edits over to another image of a batch, of a different size. */
+	retarget: (from: Size, to: Size) => void;
 	/** Applies a change as one undo step. */
 	apply: (change: (doc: ImageDoc) => ImageDoc) => void;
 	/** Updates the document during a gesture without creating undo steps. */
@@ -64,24 +68,32 @@ const DEFAULT_EXPORT: ExportSettings = {
 	longestSide: null,
 	pngLossy: false,
 	avifEffort: 'fast',
+	metadata: 'private',
 };
 
 export const useImageEditor = create<ImageEditorState>((set, get) => ({
-	file: null,
+	owner: null,
 	history: createHistory(createImageDoc()),
 	gestureStart: null,
 	cropAspect: 'free',
 	exportSettings: DEFAULT_EXPORT,
 
-	load(file) {
-		if (get().file === file) return;
+	load(owner) {
+		if (get().owner === owner) return;
 		set({
-			file,
+			owner,
 			history: createHistory(createImageDoc()),
 			gestureStart: null,
 			cropAspect: 'free',
 			exportSettings: DEFAULT_EXPORT,
 		});
+	},
+
+	retarget(from, to) {
+		const { history, cropAspect } = get();
+		const ratio = cropRatio(cropAspect, orientedSize(from, history.present.rotation));
+		// Past states hold coordinates of the previous image: the history starts again from here.
+		set({ history: createHistory(adaptDoc(history.present, from, to, ratio)), gestureStart: null });
 	},
 
 	apply(change) {

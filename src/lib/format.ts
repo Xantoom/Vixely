@@ -70,3 +70,32 @@ export function codecName(codec: string): string {
 	if (codec.startsWith('pcm-')) return `PCM ${codec.slice(4).toUpperCase()}`;
 	return codec.toUpperCase();
 }
+
+/** Shutter speed as photographers write it: `1/250 s`, `0.5 s` is `1/2 s`, long exposures `2 s`. */
+export function formatShutter(seconds: number): string {
+	if (seconds >= 1) return `${Math.round(seconds * 10) / 10} s`;
+	return `1/${Math.round(1 / seconds)} s`;
+}
+
+export function formatAperture(fNumber: number): string {
+	return `f/${Math.round(fNumber * 10) / 10}`;
+}
+
+export function formatFocalLength(millimetres: number): string {
+	return `${Math.round(millimetres * 10) / 10} mm`;
+}
+
+/** EXIF dates (`2026:07:14 18:32:05`, local time of the camera) in the user's language. */
+export function formatExifDate(value: string, locale: string): string {
+	const match = /^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2})/.exec(value);
+	if (!match) return value;
+	const [, y, mo, d, h, mi] = match.map(Number);
+	const date = new Date(y ?? 0, (mo ?? 1) - 1, d ?? 1, h ?? 0, mi ?? 0);
+	return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+}
+
+export function formatCoordinates(latitude: number, longitude: number): string {
+	const lat = `${Math.abs(latitude).toFixed(4)}° ${latitude < 0 ? 'S' : 'N'}`;
+	const lon = `${Math.abs(longitude).toFixed(4)}° ${longitude < 0 ? 'W' : 'E'}`;
+	return `${lat}, ${lon}`;
+}

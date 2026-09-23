@@ -3,9 +3,9 @@
 	"app_home": "Vixely home",
 	"home_title": "Edit any media, right in your browser.",
 	"home_lede": "Nothing is uploaded. Every file stays on your device.",
-	"drop_title": "Drop a file",
+	"drop_title": "Drop files or a folder",
 	"drop_or": "or",
-	"drop_choose": "choose a file",
+	"drop_choose": "choose files",
 	"drop_release": "Release to open",
 	"drop_reading": "Reading {name}…",
 	"media_video": "Video",
@@ -125,7 +125,6 @@
 	"quality_low": "Low,",
 	"quality_low_note": "visible blocks and blur.",
 	"export_output": "Output: {size} px.",
-	"export_metadata_note": "Camera details and location are removed.",
 	"export_image_button": "Export image",
 	"exporting": "Exporting…",
 	"export_failed": "The export failed. Try another format or a smaller size.",
@@ -141,5 +140,102 @@
 	"avif_fast": "Fast",
 	"avif_best": "Best, slower",
 	"quality_lossless": "Lossless,",
-	"quality_lossless_note": "identical to the original."
+	"quality_lossless_note": "identical to the original.",
+	"info_camera_section": "Capture",
+	"info_camera": "Camera",
+	"info_lens": "Lens",
+	"info_taken": "Taken",
+	"info_shutter": "Shutter speed",
+	"info_aperture": "Aperture",
+	"info_iso": "ISO",
+	"info_focal": "Focal length",
+	"info_software": "Software",
+	"info_location": "Location",
+	"location_warning": "This photo records where it was taken.",
+	"export_metadata": "Metadata",
+	"metadata_private": "Without location",
+	"metadata_none": "None",
+	"metadata_all": "All",
+	"metadata_webp": "WebP export removes metadata.",
+	"drop_reading_many": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Reading {count} file…",
+				"countPlural=other": "Reading {count} files…"
+			}
+		}
+	],
+	"batch_skipped": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} file was left out: batches take images only.",
+				"countPlural=other": "{count} files were left out: batches take images only."
+			}
+		}
+	],
+	"batch_label": "Batch",
+	"batch_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} image",
+				"countPlural=other": "{count} images"
+			}
+		}
+	],
+	"batch_hint": "Edits apply to every image.",
+	"batch_add": "Add images",
+	"batch_remove": "Remove {name}",
+	"export_batch_button": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Export {count} image",
+				"countPlural=other": "Export {count} images"
+			}
+		}
+	],
+	"exporting_progress": "Exporting {done} of {total}…",
+	"batch_saved": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} image exported",
+				"countPlural=other": "{count} images exported"
+			}
+		}
+	],
+	"stop": "Stop"
 }

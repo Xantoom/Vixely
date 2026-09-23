@@ -4,8 +4,10 @@ import { EDITOR_ORDER, EDITORS } from '@/editors/registry';
 import { type OpenError, useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { Tile } from '@/ui/Tile';
+import { filesFromDrop } from './files';
 
 function errorMessage(error: OpenError): string {
+	if (error.reason === 'skipped') return m.batch_skipped({ count: error.count });
 	if (error.reason === 'legacy') return m.error_legacy({ format: error.format ?? '' });
 	if (error.reason === 'read') return m.error_read();
 	return m.error_unknown();
@@ -23,16 +25,15 @@ export function DropZone({ compact = false }: { compact?: boolean }) {
 	const inputRef = useRef<HTMLInputElement>(null);
 	const [over, setOver] = useState(false);
 
-	const openFile = async (file: File | undefined) => {
-		if (!file) return;
-		const kind = await open(file);
+	const openFiles = async (files: File[]) => {
+		const kind = await open(files);
 		if (kind) await navigate({ to: EDITORS[kind].path });
 	};
 
 	const onDrop = (event: DragEvent) => {
 		event.preventDefault();
 		setOver(false);
-		void openFile(event.dataTransfer.files[0]);
+		void filesFromDrop(event.dataTransfer).then(openFiles);
 	};
 
 	const onDragOver = (event: DragEvent) => {
@@ -77,7 +78,7 @@ export function DropZone({ compact = false }: { compact?: boolean }) {
 					))}
 				</span>
 				<span className="mt-1.5 text-lg font-semibold tracking-[-0.015em]">
-					{reading ? m.drop_reading({ name: reading }) : over ? m.drop_release() : m.drop_title()}
+					{reading ?? (over ? m.drop_release() : m.drop_title())}
 				</span>
 				{!reading && !over && (
 					<span className="text-muted text-body">
@@ -88,16 +89,21 @@ export function DropZone({ compact = false }: { compact?: boolean }) {
 				<input
 					ref={inputRef}
 					type="file"
+					multiple
 					className="hidden"
 					tabIndex={-1}
 					onChange={(event) => {
-						void openFile(event.target.files?.[0]);
+						void openFiles([...(event.target.files ?? [])]);
 						event.target.value = '';
 					}}
 				/>
 			</div>
 			{error && (
-				<p id="drop-error" role="alert" className="text-danger text-body max-w-[70ch]">
+				<p
+					id="drop-error"
+					role="alert"
+					className={`text-body max-w-[70ch] ${error.reason === 'skipped' ? 'text-muted' : 'text-danger'}`}
+				>
 					{errorMessage(error)}
 				</p>
 			)}

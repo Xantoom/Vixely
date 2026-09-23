@@ -1,4 +1,5 @@
 import { encodeImage } from '@/media/image-codec';
+import type { PhotoMetadata } from '@/media/probe';
 import { effectiveCrop, fitWithin, type ImageDoc, type Size } from './document';
 import { ImageRenderer } from './renderer';
 import type { ExportSettings, ImageFormat } from './store';
@@ -41,7 +42,17 @@ export function outputSize(doc: ImageDoc, source: Size, settings: ExportSettings
  * Renders the document at export size with the same renderer as the preview, then encodes it:
  * jpegli, PNG, AVIF and JPEG XL in the codec worker, WebP with the browser.
  */
-export async function exportImage(source: ImageBitmap, doc: ImageDoc, settings: ExportSettings): Promise<Blob> {
+function exifFor(settings: ExportSettings, photo: PhotoMetadata | null): Uint8Array {
+	if (!photo || settings.metadata === 'none') return new Uint8Array();
+	return settings.metadata === 'all' ? photo.exifFull : photo.exifWithoutLocation;
+}
+
+export async function exportImage(
+	source: ImageBitmap,
+	doc: ImageDoc,
+	settings: ExportSettings,
+	photo: PhotoMetadata | null,
+): Promise<Blob> {
 	const { width, height } = outputSize(doc, source, settings);
 	const info = FORMAT_INFO[settings.format];
 	const canvas = new OffscreenCanvas(width, height);
@@ -62,7 +73,14 @@ export async function exportImage(source: ImageBitmap, doc: ImageDoc, settings: 
 	const rgba = renderer.readPixels();
 	renderer.dispose();
 
-	const base = { op: 'encode', rgba, width, height, quality: settings.quality } as const;
+	const base = {
+		op: 'encode',
+		rgba,
+		width,
+		height,
+		quality: settings.quality,
+		exif: exifFor(settings, photo),
+	} as const;
 	const bytes = await (settings.format === 'png'
 		? encodeImage({ ...base, format: 'png', lossless: !settings.pngLossy })
 		: settings.format === 'avif'

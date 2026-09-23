@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { codecName, formatBytes, formatClock, formatFrameRate, formatTimecode, groupDigits } from './format';
+import {
+	codecName,
+	formatAperture,
+	formatBytes,
+	formatClock,
+	formatCoordinates,
+	formatExifDate,
+	formatFocalLength,
+	formatFrameRate,
+	formatShutter,
+	formatTimecode,
+	groupDigits,
+} from './format';
 
 describe('format', () => {
 	it('groups digits with thin spaces', () => {
@@ -37,5 +49,19 @@ describe('format', () => {
 		expect(codecName('avc')).toBe('H.264');
 		expect(codecName('pcm-s16')).toBe('PCM S16');
 		expect(codecName('something')).toBe('SOMETHING');
+	});
+
+	it('formats exposure values like photographers', () => {
+		expect(formatShutter(0.004)).toBe('1/250 s');
+		expect(formatShutter(0.5)).toBe('1/2 s');
+		expect(formatShutter(2)).toBe('2 s');
+		expect(formatAperture(2.8)).toBe('f/2.8');
+		expect(formatFocalLength(35)).toBe('35 mm');
+	});
+
+	it('formats EXIF dates and coordinates', () => {
+		expect(formatExifDate('2026:07:14 18:32:05', 'en-GB')).toBe('14 Jul 2026, 18:32');
+		expect(formatExifDate('not a date', 'en-GB')).toBe('not a date');
+		expect(formatCoordinates(48.85821, -2.29449)).toBe('48.8582° N, 2.2945° W');
 	});
 });
