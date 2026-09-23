@@ -1,35 +1,26 @@
-# --- SYS FILES & IDE ---
-.idea/
-.vscode/
+# System and editors
 .DS_Store
 Thumbs.db
+.idea/
+.vscode/
 *.swp
 
-# --- PROJECT FILES ---
+# Dependencies and builds
 node_modules/
 dist/
-build/
 coverage/
-logs/
 *.log
 .env
-*.env.local
-*.env.development
-*.env.test
-*.env.production
+.env.*
 
-# --- GENERATED ---
+# Generated
 src/routeTree.gen.ts
-public/ffmpeg/
-public/jassub/
-wasm/
-
-# --- RUST ---
+src/paraglide/
+src/wasm/vixely-core/
+project.inlang/cache/
+project.inlang/.gitignore
 vixely-core/target/
-
-# --- BUN ---
-.bun-cache/
-.bun-install/
-.bun-tmp/
 .tanstack/
-.claude
+
+# Local assistant settings
+.claude/

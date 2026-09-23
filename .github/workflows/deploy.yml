@@ -2,17 +2,17 @@ name: CI
 
 on:
     push:
-        branches: [main]
+        branches: [main, v1]
     pull_request:
-        branches: [main]
+        branches: [main, v1]
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.ref }}
     cancel-in-progress: true
 
 jobs:
-    lint-build:
-        name: Lint & Build
+    check:
+        name: Build, lint and test
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -27,13 +27,18 @@ jobs:
                   targets: wasm32-unknown-unknown
 
             - name: Install wasm-pack
-              run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+              run: curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
 
             - name: Install dependencies
               run: bun install --frozen-lockfile
 
-            - name: Generate build artifacts for lint
-              run: bun run build:prep
+            # The build generates the route tree, the translations and the WASM module that the
+            # checks below rely on.
+            - name: Build
+              run: bun run build
+
+            - name: Type check
+              run: bun run typecheck
 
             - name: Lint
               run: bun run lint
@@ -41,13 +46,8 @@ jobs:
             - name: Format check
               run: bun run fmt:check
 
-            - name: Build
-              run: bun run build:web
+            - name: Test
+              run: bun run test
 
-            - name: Upload build artifact
-              if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-              uses: actions/upload-artifact@v4
-              with:
-                  name: dist
-                  path: dist/
-                  retention-days: 7
+            - name: Test Rust
+              run: bun run test:rust

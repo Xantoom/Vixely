@@ -1,0 +1,46 @@
+{
+	"name": "vixely",
+	"version": "1.0.0-alpha.0",
+	"private": true,
+	"description": "Edit video, images, GIFs, audio and subtitles in your browser. Nothing is uploaded.",
+	"license": "AGPL-3.0-only",
+	"type": "module",
+	"scripts": {
+		"dev": "bun run build:wasm && vite",
+		"build": "bun run build:wasm && vite build",
+		"build:wasm": "wasm-pack build vixely-core --target web --release --out-dir ../src/wasm/vixely-core --out-name vixely_core --no-pack",
+		"preview": "vite preview",
+		"typecheck": "tsc --noEmit",
+		"lint": "oxlint src --type-aware --type-check",
+		"lint:fix": "oxlint src --type-aware --type-check --fix",
+		"fmt": "oxfmt src --write",
+		"fmt:check": "oxfmt src --check",
+		"test": "vitest run",
+		"test:rust": "cargo test --manifest-path vixely-core/Cargo.toml"
+	},
+	"dependencies": {
+		"@fontsource-variable/jetbrains-mono": "^5.3.0",
+		"@tanstack/react-router": "^1.170.39",
+		"lucide-react": "^1.47.0",
+		"mediabunny": "^1.59.0",
+		"react": "^19.3.0",
+		"react-dom": "^19.3.0",
+		"wasm-feature-detect": "^1.9.0",
+		"zustand": "^5.0.15"
+	},
+	"devDependencies": {
+		"@inlang/paraglide-js": "^2.25.4",
+		"@tailwindcss/vite": "^4.3.3",
+		"@tanstack/router-plugin": "^1.168.40",
+		"@types/react": "^19.3.0",
+		"@types/react-dom": "^19.3.0",
+		"@vitejs/plugin-react": "^6.1.1",
+		"oxfmt": "^0.70.0",
+		"oxlint": "^1.85.0",
+		"oxlint-tsgolint": "^7.0.2002",
+		"tailwindcss": "^4.3.3",
+		"typescript": "^7.0.2",
+		"vite": "^8.3.0",
+		"vitest": "^5.0.1"
+	}
+}

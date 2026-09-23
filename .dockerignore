@@ -1,6 +1,9 @@
 node_modules
 dist
 .git
-*.md
+.github
 .env*
 vixely-core/target
+src/paraglide
+src/wasm
+src/routeTree.gen.ts
