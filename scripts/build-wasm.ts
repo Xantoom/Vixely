@@ -8,10 +8,12 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-const CRATES = [
+/** `watch` lists other folders the crate is built from, such as vendored dependencies. */
+const CRATES: { dir: string; out: string; name: string; watch?: string[] }[] = [
 	{ dir: 'vixely-core', out: 'src/wasm/vixely-core', name: 'vixely_core' },
 	{ dir: 'vixely-image', out: 'src/wasm/vixely-image', name: 'vixely_image' },
 	{ dir: 'vixely-audio', out: 'src/wasm/vixely-audio', name: 'vixely_audio' },
+	{ dir: 'vixely-gif', out: 'src/wasm/vixely-gif', name: 'vixely_gif', watch: ['vendor/gifski'] },
 ];
 const force = process.argv.includes('--force') || process.env.CI === 'true';
 
@@ -40,7 +42,13 @@ function newest(path: string): number {
 
 for (const crate of CRATES) {
 	const output = join(crate.out, `${crate.name}_bg.wasm`);
-	const inputs = Math.max(newest(crate.dir), newest('Cargo.toml'), newest('Cargo.lock'), newest('.cargo'));
+	const inputs = Math.max(
+		newest(crate.dir),
+		...(crate.watch ?? []).map(newest),
+		newest('Cargo.toml'),
+		newest('Cargo.lock'),
+		newest('.cargo'),
+	);
 	if (!force && existsSync(output) && statSync(output).mtimeMs > inputs) {
 		console.log(`${crate.dir}: up to date`);
 		continue;

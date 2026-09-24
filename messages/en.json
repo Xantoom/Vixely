@@ -374,5 +374,62 @@
 	"encoding_copy_cuts": "Cuts land on the nearest frame of the original, within about 20 ms.",
 	"encoding_copy_volume": "Volume, fades and normalization change the sound: they need re-encoding.",
 	"encoding_copy_codec": "This audio can't be copied as it is into a file of its own.",
-	"encoding_convert_hint": "Choose the format and the settings of the new file."
+	"encoding_convert_hint": "Choose the format and the settings of the new file.",
+	"gif_reading": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Reading {count} frame…",
+				"countPlural=other": "Reading {count} frames…"
+			}
+		}
+	],
+	"gif_failed": "This animation couldn't be read.",
+	"frames_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} frame",
+				"countPlural=other": "{count} frames"
+			}
+		}
+	],
+	"filmstrip": "Frames",
+	"gif_trim_hint": "Drag the handles at both ends of the frames, or type exact times.",
+	"speed_label": "Speed",
+	"speed_hint": "How fast the animation plays. Frames per second are set below.",
+	"direction": "Direction",
+	"direction_forward": "Forward",
+	"direction_reverse": "Reverse",
+	"direction_pingpong": "Back and forth",
+	"fps_original": "Original timing",
+	"fps_hint": "Above 25 fps a GIF rarely looks smoother and gets much heavier. Browsers play 50 fps at most.",
+	"export_gif_title": "Export GIF",
+	"export_gif_button": "Export GIF",
+	"gif_width": "Width",
+	"gif_width_hint": "The height follows. Wide GIFs weigh a lot: 480 px suits chats and social networks.",
+	"loop": "Loop",
+	"loop_forever": "Forever",
+	"loop_once": "Once",
+	"loop_times": "{count} times",
+	"gif_quality_hint": "gifski quality. 90 looks like the original for most videos; lower keeps fewer colours.",
+	"gif_compression": "Compression",
+	"gif_compression_hint": "Lossy compression: smaller files with a little grain. 0 adds none.",
+	"exporting_frames": "Preparing frames {percent} %",
+	"encoding_gif": "Encoding…",
+	"export_gif_failed": "The GIF couldn't be made. Try a smaller width or a shorter part.",
+	"make_gif": "Make a GIF",
+	"make_gif_hint": "Opens the video in the GIF editor, to turn a moment into a GIF."
 }

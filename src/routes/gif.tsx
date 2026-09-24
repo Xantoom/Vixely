@@ -1,11 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { EditorScreen } from '@/editor/EditorScreen';
+import { GifEditorScreen } from '@/editors/gif/GifEditorScreen';
 import { validateEditorSearch } from '@/editors/search';
 
 export const Route = createFileRoute('/gif')({
 	validateSearch: validateEditorSearch,
 	component: function GifEditor() {
 		const { tool } = Route.useSearch();
-		return <EditorScreen key={tool ?? 'info'} kind="gif" initialTool={tool} />;
+		return <GifEditorScreen key={tool ?? 'info'} initialTool={tool} />;
 	},
 });

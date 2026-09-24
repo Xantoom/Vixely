@@ -374,5 +374,62 @@
 	"encoding_copy_cuts": "Les coupes tombent sur la trame d'origine la plus proche, à environ 20 ms près.",
 	"encoding_copy_volume": "Le volume, les fondus et la normalisation modifient le son : ils demandent un réencodage.",
 	"encoding_copy_codec": "Cet audio ne peut pas être copié tel quel dans un fichier à part.",
-	"encoding_convert_hint": "Choisis le format et les réglages du nouveau fichier."
+	"encoding_convert_hint": "Choisis le format et les réglages du nouveau fichier.",
+	"gif_reading": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Lecture de {count} image…",
+				"countPlural=other": "Lecture de {count} images…"
+			}
+		}
+	],
+	"gif_failed": "Cette animation n'a pas pu être lue.",
+	"frames_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} image",
+				"countPlural=other": "{count} images"
+			}
+		}
+	],
+	"filmstrip": "Images",
+	"gif_trim_hint": "Tire les poignées aux deux bouts des images, ou tape des temps exacts.",
+	"speed_label": "Vitesse",
+	"speed_hint": "La vitesse de l'animation. Le nombre d'images par seconde se règle plus bas.",
+	"direction": "Sens",
+	"direction_forward": "Normal",
+	"direction_reverse": "Inversé",
+	"direction_pingpong": "Aller-retour",
+	"fps_original": "Rythme d'origine",
+	"fps_hint": "Au-delà de 25 images par seconde, un GIF est rarement plus fluide et beaucoup plus lourd. Les navigateurs jouent 50 au maximum.",
+	"export_gif_title": "Exporter le GIF",
+	"export_gif_button": "Exporter le GIF",
+	"gif_width": "Largeur",
+	"gif_width_hint": "La hauteur suit. Un GIF large pèse lourd : 480 px convient aux messageries et aux réseaux sociaux.",
+	"loop": "Boucle",
+	"loop_forever": "À l'infini",
+	"loop_once": "Une fois",
+	"loop_times": "{count} fois",
+	"gif_quality_hint": "La qualité gifski. 90 ressemble à l'original pour la plupart des vidéos ; plus bas garde moins de couleurs.",
+	"gif_compression": "Compression",
+	"gif_compression_hint": "Compression avec perte : fichiers plus légers, avec un peu de grain. 0 n'en ajoute pas.",
+	"exporting_frames": "Préparation des images {percent} %",
+	"encoding_gif": "Encodage…",
+	"export_gif_failed": "Le GIF n'a pas pu être créé. Essaie une largeur plus petite ou un passage plus court.",
+	"make_gif": "Créer un GIF",
+	"make_gif_hint": "Ouvre la vidéo dans l'éditeur GIF, pour transformer un moment en GIF."
 }

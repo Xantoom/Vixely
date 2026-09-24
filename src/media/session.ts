@@ -151,6 +151,8 @@ export const useSession = create<SessionState>((set, get) => ({
 		}
 		// A video dropped on the audio editor opens its audio there.
 		if (prefer === 'audio' && opened.kind === 'video' && opened.info?.audio) opened.kind = 'audio';
+		// And a video dropped on the GIF editor becomes a GIF there.
+		if (prefer === 'gif' && opened.kind === 'video' && opened.info?.video) opened.kind = 'gif';
 		get().current?.poster?.close();
 		set({ reading: null, current: opened, batch: null, batchKind: null, batchKey: null });
 		return opened.kind;

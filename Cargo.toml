@@ -1,8 +1,12 @@
 [workspace]
 resolver = "3"
-members = ["vixely-core", "vixely-image", "vixely-audio"]
+members = ["vixely-core", "vixely-image", "vixely-audio", "vixely-gif"]
 
 [profile.release]
 opt-level = 3
 lto = true
 codegen-units = 1
+
+# gifski patched to run without threads in WebAssembly: see vendor/gifski/VIXELY.md.
+[patch.crates-io]
+gifski = { path = "vendor/gifski" }

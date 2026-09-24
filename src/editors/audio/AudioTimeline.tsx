@@ -1,13 +1,8 @@
 import { ChevronsLeftRight, Pause, Play, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
-import {
-	type KeyboardEvent as ReactKeyboardEvent,
-	type PointerEvent as ReactPointerEvent,
-	useEffect,
-	useLayoutEffect,
-	useRef,
-} from 'react';
+import { type PointerEvent as ReactPointerEvent, useEffect, useLayoutEffect, useRef } from 'react';
 import type { Range } from '@/document/timemap';
 import { TimeRuler } from '@/editor/TimeRuler';
+import { TrimHandle } from '@/editor/TrimHandle';
 import { formatPreciseTime } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
 import { IconButton } from '@/ui/Button';
@@ -19,8 +14,6 @@ import { MIN_VIEW, useAudioDoc, useAudioEditor } from './store';
 
 /** Waveform, removed audio, and audio pushed past full scale. */
 const WAVE_COLORS = ['--audio-1', '--line-2', '--danger'] as const;
-/** Arrow keys move a trim handle by this much; with Shift, ten times more. */
-const HANDLE_STEP = 0.1;
 
 function percent(time: number, view: Range): string {
 	return `${((time - view.start) / (view.end - view.start)) * 100}%`;
@@ -128,55 +121,21 @@ function Playhead({ view }: { view: Range }) {
 	);
 }
 
-/** Handle at one end of the kept audio. Dragged, or moved with the arrow keys. */
-function TrimHandle({ side, doc, view }: { side: 'start' | 'end'; doc: AudioDoc; view: Range }) {
+/** Handle at one end of the kept audio, bound to the audio document. */
+function AudioTrimHandle({ side, doc, view }: { side: 'start' | 'end'; doc: AudioDoc; view: Range }) {
 	const preview = useAudioEditor((state) => state.preview);
 	const settle = useAudioEditor((state) => state.settle);
-	const time = doc.trim[side];
-	const move = (to: number) => {
-		preview((current) => setTrim(current, { ...current.trim, [side]: to }));
-	};
-	const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-		if (event.button !== 0) return;
-		event.stopPropagation();
-		event.currentTarget.setPointerCapture(event.pointerId);
-	};
-	const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-		if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
-		const area = event.currentTarget.parentElement;
-		if (area) move(timeAt(area, event.clientX, view, doc.duration));
-	};
-	const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-		const step = event.shiftKey ? HANDLE_STEP * 10 : HANDLE_STEP;
-		if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-			event.preventDefault();
-			event.stopPropagation();
-			move(time + (event.key === 'ArrowLeft' ? -step : step));
-		}
-	};
-	if (time < view.start || time > view.end) return null;
 	return (
-		<div
-			role="slider"
-			tabIndex={0}
-			aria-label={side === 'start' ? m.trim_handle_start() : m.trim_handle_end()}
-			aria-valuemin={0}
-			aria-valuemax={doc.duration}
-			aria-valuenow={time}
-			aria-valuetext={formatPreciseTime(time)}
-			onPointerDown={onPointerDown}
-			onPointerMove={onPointerMove}
-			onPointerUp={settle}
-			onPointerCancel={settle}
-			onKeyDown={onKeyDown}
-			onKeyUp={settle}
-			onBlur={settle}
-			className="group absolute inset-y-0 z-10 w-4 -translate-x-1/2 cursor-ew-resize touch-none"
-			style={{ left: percent(time, view) }}
-		>
-			<span className="bg-ed absolute inset-y-0 left-1/2 w-[3px] -translate-x-1/2 rounded-full" />
-			<span className="bg-ed absolute top-1/2 left-1/2 h-7 w-2.5 -translate-1/2 rounded-full shadow-[0_0_0_2px_var(--bg)] transition-transform group-hover:scale-110 group-focus-visible:scale-110" />
-		</div>
+		<TrimHandle
+			label={side === 'start' ? m.trim_handle_start() : m.trim_handle_end()}
+			time={doc.trim[side]}
+			duration={doc.duration}
+			view={view}
+			onMove={(time) => {
+				preview((current) => setTrim(current, { ...current.trim, [side]: time }));
+			}}
+			onEnd={settle}
+		/>
 	);
 }
 
@@ -361,8 +320,8 @@ function WaveArea({ engine, trimmable }: { engine: AudioEngine; trimmable: boole
 					style={box(selection)}
 				/>
 			)}
-			{trimmable && <TrimHandle side="start" doc={doc} view={view} />}
-			{trimmable && <TrimHandle side="end" doc={doc} view={view} />}
+			{trimmable && <AudioTrimHandle side="start" doc={doc} view={view} />}
+			{trimmable && <AudioTrimHandle side="end" doc={doc} view={view} />}
 			<Playhead view={view} />
 		</div>
 	);

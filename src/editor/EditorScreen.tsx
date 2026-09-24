@@ -1,31 +1,32 @@
 import { useNavigate } from '@tanstack/react-router';
-import { AudioLines } from 'lucide-react';
 import { useState } from 'react';
 import { EDITORS, type MediaKind, type ToolId } from '@/editors/registry';
 import { useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { Button } from '@/ui/Button';
+import { MEDIA_ICONS } from '@/ui/icons';
 import { EditorLayout } from './EditorLayout';
 import { FilePanel, ToolLater } from './Inspector';
 import { Timeline } from './Timeline';
 import { Viewer } from './Viewer';
 
-/** Opens the soundtrack of the current video in the audio editor. */
-function AudioFromVideo() {
+/** Opens the current video in another editor: its soundtrack in the audio one, a GIF in the GIF one. */
+function OpenIn({ kind }: { kind: 'audio' | 'gif' }) {
 	const openAs = useSession((state) => state.openAs);
 	const navigate = useNavigate();
+	const Icon = MEDIA_ICONS[kind];
 	return (
 		<section className="grid gap-2">
 			<Button
 				onClick={() => {
-					openAs('audio');
-					void navigate({ to: EDITORS.audio.path });
+					openAs(kind);
+					void navigate({ to: EDITORS[kind].path });
 				}}
 			>
-				<AudioLines size={16} aria-hidden="true" />
-				{m.audio_from_video()}
+				<Icon size={16} aria-hidden="true" />
+				{kind === 'audio' ? m.audio_from_video() : m.make_gif()}
 			</Button>
-			<p className="text-small text-muted">{m.audio_from_video_hint()}</p>
+			<p className="text-small text-muted">{kind === 'audio' ? m.audio_from_video_hint() : m.make_gif_hint()}</p>
 		</section>
 	);
 }
@@ -49,7 +50,8 @@ export function EditorScreen({ kind, initialTool }: { kind: MediaKind; initialTo
 				tool === 'info' ? (
 					<>
 						<FilePanel opened={opened} />
-						{kind === 'video' && opened?.info?.audio && <AudioFromVideo />}
+						{kind === 'video' && opened?.info?.video?.decodable && <OpenIn kind="gif" />}
+						{kind === 'video' && opened?.info?.audio && <OpenIn kind="audio" />}
 					</>
 				) : (
 					<ToolLater kind={kind} tool={tool} />
