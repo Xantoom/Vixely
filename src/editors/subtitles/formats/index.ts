@@ -8,7 +8,13 @@ export const FORMAT_FILES: Record<SubtitleFormat, { extension: string; mime: str
 	srt: { extension: 'srt', mime: 'application/x-subrip', label: 'SRT' },
 	vtt: { extension: 'vtt', mime: 'text/vtt', label: 'WebVTT' },
 	ass: { extension: 'ass', mime: 'text/x-ssa', label: 'ASS' },
+	pgs: { extension: 'sup', mime: 'application/octet-stream', label: 'PGS' },
 };
+
+/** Formats a document can be written in: pictures stay pictures, text goes to any text format. */
+export function exportFormats(doc: SubtitleDoc): SubtitleFormat[] {
+	return doc.format === 'pgs' ? ['pgs'] : ['srt', 'vtt', 'ass'];
+}
 
 /**
  * Reads subtitle text. The content decides, not the extension: WebVTT starts with `WEBVTT`, ASS
@@ -35,7 +41,7 @@ function convertedCues(doc: SubtitleDoc, format: 'srt' | 'vtt'): Cue[] {
  * text around, have no words for SRT or WebVTT. Comments are counted too.
  */
 export function droppedCues(doc: SubtitleDoc, format: SubtitleFormat): number {
-	if (format === 'ass' || doc.format === format) return 0;
+	if (format === 'ass' || format === 'pgs' || doc.format === format) return 0;
 	return doc.cues.length - convertedCues(doc, format).length;
 }
 
@@ -51,10 +57,10 @@ export function toAssScript(doc: SubtitleDoc, title: string, playRes?: { width: 
 	return writeAss(cues, header);
 }
 
-/** The document written as a file in `format`. */
+/** The document written as a text file in `format`. PGS is written by `writeSup`. */
 export function writeSubtitles(
 	doc: SubtitleDoc,
-	format: SubtitleFormat,
+	format: Exclude<SubtitleFormat, 'pgs'>,
 	title: string,
 	playRes?: { width: number; height: number },
 ): string {

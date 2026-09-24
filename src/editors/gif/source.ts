@@ -121,9 +121,12 @@ export async function openVideo(file: File, fps: number | null): Promise<FrameSo
 	const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
 	const track: InputVideoTrack | null = await input.getPrimaryVideoTrack();
 	if (!track) throw new Error('No video track.');
-	const [duration, start] = await Promise.all([input.computeDuration(), track.getFirstTimestamp()]);
-	const width = track.displayWidth;
-	const height = track.displayHeight;
+	const [duration, start, width, height] = await Promise.all([
+		input.computeDuration(),
+		track.getFirstTimestamp(),
+		track.getDisplayWidth(),
+		track.getDisplayHeight(),
+	]);
 	const scale = Math.min(1, PREVIEW_SIZE / Math.max(width, height));
 	const preview = new CanvasSink(track, { width: Math.round(width * scale), poolSize: 0 });
 	const cache = new Map<number, ImageBitmap>();

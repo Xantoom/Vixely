@@ -20,6 +20,7 @@ src/wasm/vixely-core/
 src/wasm/vixely-image/
 src/wasm/vixely-audio/
 src/wasm/vixely-gif/
+src/wasm/vixely-subs/
 project.inlang/cache/
 project.inlang/.gitignore
 target/

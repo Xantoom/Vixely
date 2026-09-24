@@ -113,19 +113,21 @@ function useAudioShortcuts(engine: AudioEngine, trimmable: boolean) {
 }
 
 /** Codec, bitrate and layout of the file's audio, read in the background once it opens. */
-function useSourceFormat(file: File | null): SourceFormat | null {
-	const [format, setFormat] = useState<{ file: File; format: SourceFormat | null } | null>(null);
+function useSourceFormat(file: File | null, track: number | null): SourceFormat | null {
+	const [format, setFormat] = useState<{ file: File; track: number | null; format: SourceFormat | null } | null>(
+		null,
+	);
 	useEffect(() => {
 		if (!file) return;
 		let active = true;
-		void readSourceFormat(file).then((result) => {
-			if (active) setFormat({ file, format: result });
+		void readSourceFormat(file, track).then((result) => {
+			if (active) setFormat({ file, track, format: result });
 		});
 		return () => {
 			active = false;
 		};
-	}, [file]);
-	return format && format.file === file ? format.format : null;
+	}, [file, track]);
+	return format && format.file === file && format.track === track ? format.format : null;
 }
 
 export function AudioEditorScreen({ initialTool }: { initialTool?: ToolId }) {
@@ -147,8 +149,9 @@ export function AudioEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	// Cutting belongs to one file: a batch shares volume, fades and export settings only.
 	const tools: ToolId[] | undefined = batch ? ['info', 'volume'] : undefined;
 	const tool = batch && chosenTool === 'trim' ? 'info' : chosenTool;
-	const engine = useAudioEngine(editable ? opened.file : null, duration);
-	const sourceFormat = useSourceFormat(editable ? opened.file : null);
+	const audioTrack = useAudioEditor((state) => state.audioTrack);
+	const engine = useAudioEngine(editable ? opened.file : null, duration, audioTrack);
+	const sourceFormat = useSourceFormat(editable ? opened.file : null, audioTrack);
 	const adoptSource = useAudioEditor((state) => state.adoptSource);
 
 	useEffect(() => {
@@ -216,7 +219,6 @@ export function AudioEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 								statuses={statuses}
 								locked={running}
 								count={(count) => m.batch_count_audio({ count })}
-								hint={m.batch_hint_audio()}
 								addLabel={m.batch_add_audio()}
 								accept="audio/*,video/*,.mka,.mkv,.opus,.flac"
 							/>

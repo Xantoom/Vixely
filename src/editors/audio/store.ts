@@ -25,6 +25,8 @@ interface AudioEditorState {
 	exportSettings: AudioExportSettings;
 	/** Owner whose export settings were taken from its source file, so it happens once. */
 	adopted: object | null;
+	/** Audio track edited, for videos with several; null for the file's main one. */
+	audioTrack: number | null;
 
 	load: (owner: object, duration: number, tags: AudioTags) => void;
 	/** Moves the edits of a batch to another file: its own length, everything kept. */
@@ -41,6 +43,8 @@ interface AudioEditorState {
 	setExport: (settings: Partial<AudioExportSettings>) => void;
 	/** Starts the export settings from the source's own format, once per file or batch. */
 	adoptSource: (source: SourceFormat) => void;
+	/** Edits another audio track of the file; its format is adopted again. */
+	setAudioTrack: (track: number | null) => void;
 }
 
 function defaultExport(tags: AudioTags): AudioExportSettings {
@@ -66,6 +70,7 @@ export const useAudioEditor = create<AudioEditorState>((set, get) => ({
 	view: { start: 0, end: 0 },
 	exportSettings: defaultExport({ title: '', artist: '', album: '' }),
 	adopted: null,
+	audioTrack: null,
 
 	load(owner, duration, tags) {
 		if (get().owner === owner) return;
@@ -78,6 +83,7 @@ export const useAudioEditor = create<AudioEditorState>((set, get) => ({
 			selection: null,
 			view: { start: 0, end: duration },
 			exportSettings: defaultExport(tags),
+			audioTrack: null,
 		});
 	},
 
@@ -145,6 +151,11 @@ export const useAudioEditor = create<AudioEditorState>((set, get) => ({
 
 	setExport(settings) {
 		set({ exportSettings: { ...get().exportSettings, ...settings } });
+	},
+
+	setAudioTrack(audioTrack) {
+		get().setPlaying(false);
+		set({ audioTrack, adopted: null });
 	},
 }));
 

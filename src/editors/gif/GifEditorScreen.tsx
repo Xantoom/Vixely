@@ -104,7 +104,6 @@ export function GifEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 								statuses={statuses}
 								locked={running}
 								count={(count) => m.batch_count_gif({ count })}
-								hint={m.batch_hint_gif()}
 								addLabel={m.batch_add_audio()}
 								accept="image/gif,image/png,image/webp,.gif,.apng,.webp"
 							/>

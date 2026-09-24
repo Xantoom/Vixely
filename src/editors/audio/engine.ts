@@ -28,8 +28,9 @@ export interface AudioEngine {
 /**
  * Opens a file for playback and reads its waveform. Playback always follows the current
  * document: a gain change is heard at once, a cut restarts from the same moment without it.
+ * `track` picks one audio track of a video with several; null is the file's main one.
  */
-export function useAudioEngine(file: File | null, duration: number): AudioEngine {
+export function useAudioEngine(file: File | null, duration: number, track: number | null = null): AudioEngine {
 	const doc = useAudioDoc();
 	const setPlayhead = useAudioEditor((state) => state.setPlayhead);
 	const setPlaying = useAudioEditor((state) => state.setPlaying);
@@ -38,7 +39,7 @@ export function useAudioEngine(file: File | null, duration: number): AudioEngine
 
 	useEffect(() => {
 		if (!file) return;
-		const next = new AudioPlayer(file);
+		const next = new AudioPlayer(file, track);
 		next.onTime = setPlayhead;
 		next.onStateChange = setPlaying;
 		setPlayer(next);
@@ -47,13 +48,18 @@ export function useAudioEngine(file: File | null, duration: number): AudioEngine
 			setPlaying(false);
 			setPlayer(null);
 		};
-	}, [file, setPlayhead, setPlaying]);
+	}, [file, track, setPlayhead, setPlaying]);
 
 	useEffect(() => {
 		if (!file || duration <= 0) return;
-		const reader = readPeaks(file, duration, () => {
-			setWaveform((state) => ({ ...state, version: state.version + 1 }));
-		});
+		const reader = readPeaks(
+			file,
+			duration,
+			() => {
+				setWaveform((state) => ({ ...state, version: state.version + 1 }));
+			},
+			track,
+		);
 		setWaveform({ peaks: reader.peaks, loudness: reader.loudness, version: 0, failed: false });
 		reader.done.catch(() => {
 			setWaveform((state) => ({ ...state, failed: true }));
@@ -62,7 +68,7 @@ export function useAudioEngine(file: File | null, duration: number): AudioEngine
 			reader.cancel();
 			setWaveform({ peaks: null, loudness: null, version: 0, failed: false });
 		};
-	}, [file, duration]);
+	}, [file, duration, track]);
 
 	const complete = waveform.peaks?.complete ?? false;
 	const { loudness } = waveform;

@@ -1,10 +1,14 @@
-import { ChevronsLeftRight, Pause, Play, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
-import { type PointerEvent as ReactPointerEvent, useEffect, useLayoutEffect, useRef } from 'react';
+import { AudioLines, ChevronsLeftRight, Pause, Play, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
+import { ALL_FORMATS, BlobSource, Input } from 'mediabunny';
+import { type PointerEvent as ReactPointerEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Range } from '@/document/timemap';
+import { audioTrackLabel, PlayerMenu } from '@/editor/PlayerControls';
 import { TimeRuler } from '@/editor/TimeRuler';
 import { TrimHandle } from '@/editor/TrimHandle';
 import { ViewScroll } from '@/editor/ViewScroll';
 import { formatPreciseTime } from '@/lib/format';
+import { type AudioTrackInfo, listAudioTracks } from '@/media/audio-tracks';
+import { useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { IconButton } from '@/ui/Button';
 import { useCssColors } from '@/ui/css-colors';
@@ -29,6 +33,48 @@ function timeAt(element: HTMLElement, clientX: number, view: Range, duration: nu
 
 function zoomView(view: Range, factor: number, anchor: number): Range {
 	return { start: anchor - (anchor - view.start) * factor, end: anchor + (view.end - anchor) * factor };
+}
+
+/** Which audio track of a video is edited, when it has several. */
+function AudioTrackPicker() {
+	const file = useSession((state) => (state.current?.kind === 'audio' ? state.current.file : null));
+	const track = useAudioEditor((state) => state.audioTrack);
+	const setAudioTrack = useAudioEditor((state) => state.setAudioTrack);
+	const [found, setFound] = useState<{ file: File; tracks: AudioTrackInfo[]; primary: number | null } | null>(null);
+
+	useEffect(() => {
+		if (!file) return;
+		let active = true;
+		const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
+		void Promise.all([listAudioTracks(input), input.getPrimaryAudioTrack()])
+			.then(([tracks, primary]) => {
+				if (active) setFound({ file, tracks, primary: primary?.id ?? null });
+			})
+			.catch(() => undefined)
+			.finally(() => {
+				input.dispose();
+			});
+		return () => {
+			active = false;
+		};
+	}, [file]);
+
+	if (!found || found.file !== file || found.tracks.length < 2) return null;
+	return (
+		<PlayerMenu
+			icon={AudioLines}
+			label={m.player_audio_track()}
+			value={String(track ?? found.primary ?? '')}
+			options={found.tracks.map((option) => ({
+				value: String(option.id),
+				label: audioTrackLabel(option),
+				disabled: !option.playable,
+			}))}
+			onChange={(value) => {
+				setAudioTrack(Number(value) === found.primary ? null : Number(value));
+			}}
+		/>
+	);
 }
 
 function Transport({ engine }: { engine: AudioEngine }) {
@@ -73,6 +119,7 @@ function Transport({ engine }: { engine: AudioEngine }) {
 				)
 			)}
 			<div className="flex-1" />
+			<AudioTrackPicker />
 			<span className="text-ui text-muted max-sm:hidden">{m.audio_final_length()}</span>
 			<span className="tabular font-mono text-[12.5px] max-sm:hidden">
 				{formatPreciseTime(outputDuration(doc))}

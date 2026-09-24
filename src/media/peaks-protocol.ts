@@ -15,6 +15,8 @@ export interface PeaksOrigin {
 /** Reads frames `fromFrame` to `toFrame` of the track. The first worker finds the origin itself. */
 export interface PeaksRequest {
 	file: File;
+	/** Audio track ID; null for the file's main one. */
+	track: number | null;
 	origin: PeaksOrigin | null;
 	fromFrame: number;
 	/** Null reads to the end, until a `limit` command says otherwise. */

@@ -188,6 +188,8 @@ function readOverrides(block: string, tokens: Token[], setDrawing: (on: boolean)
 }
 
 export function readMarkup(text: string, format: SubtitleFormat): Token[] {
+	// PGS lines are pictures: no words.
+	if (format === 'pgs') return [];
 	return format === 'ass' ? readAssMarkup(text) : readHtmlMarkup(text, format);
 }
 
@@ -259,6 +261,7 @@ export function writeAssMarkup(tokens: readonly Token[]): string {
 export function convertText(text: string, from: SubtitleFormat, to: SubtitleFormat): string {
 	if (from === to) return text;
 	const tokens = readMarkup(text, from);
+	if (to === 'pgs') return '';
 	return to === 'ass' ? writeAssMarkup(tokens) : writeHtmlMarkup(tokens, to);
 }
 

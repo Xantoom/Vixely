@@ -1,3 +1,4 @@
+import { Lock } from 'lucide-react';
 import { type ReactNode, useId, useLayoutEffect, useRef, useState } from 'react';
 import { formatPreciseTime, parseTime } from '@/lib/format';
 
@@ -264,7 +265,8 @@ export function OptionList<T extends string>({
 }: {
 	label: string;
 	value: T;
-	options: { value: T; label: string; detail?: string; disabled?: boolean }[];
+	/** `reason` says why a disabled choice can't be picked, on hover. */
+	options: { value: T; label: string; detail?: string; disabled?: boolean; reason?: string }[];
 	onChange: (value: T) => void;
 }) {
 	return (
@@ -276,14 +278,18 @@ export function OptionList<T extends string>({
 					role="radio"
 					aria-checked={option.value === value}
 					disabled={option.disabled}
+					title={option.disabled ? option.reason : undefined}
 					onClick={() => {
 						onChange(option.value);
 					}}
-					className="enabled:hover:bg-surface group grid grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-3 rounded-xs px-2.5 py-2 text-left disabled:opacity-45"
+					className="enabled:hover:bg-surface group grid grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-3 rounded-xs px-2.5 py-2 text-left disabled:cursor-not-allowed disabled:opacity-45"
 				>
 					<span className="size-4 rounded-full shadow-[inset_0_0_0_1.5px_var(--line-2)] group-aria-checked:shadow-[inset_0_0_0_5px_var(--ed)]" />
 					<span className="text-body">{option.label}</span>
-					{option.detail && <span className="text-small text-muted font-mono">{option.detail}</span>}
+					<span className="text-small text-muted flex items-center gap-1.5 font-mono">
+						{option.disabled && option.reason && <Lock size={12} aria-hidden="true" />}
+						{option.detail}
+					</span>
 				</button>
 			))}
 		</div>

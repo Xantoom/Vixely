@@ -7,7 +7,20 @@
  * for ASS, `<i>` for SRT and WebVTT. It is converted only when written in another format.
  */
 
-export type SubtitleFormat = 'srt' | 'vtt' | 'ass';
+/** Text formats, and PGS: Blu-ray subtitles, which are pictures. */
+export type SubtitleFormat = 'srt' | 'vtt' | 'ass' | 'pgs';
+
+/** A PGS line: a self-contained display set and where its picture shows. */
+export interface Picture {
+	/** Display set segments, as vixely-subs rebuilds them: decodable and writable on their own. */
+	set: Uint8Array;
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+	/** Shown even when subtitles are off: signs and foreign dialogue. */
+	forced: boolean;
+}
 
 export interface Cue {
 	/** Stable across edits, for selection and lists. Not written to files. */
@@ -24,6 +37,8 @@ export interface Cue {
 	comment?: boolean;
 	/** WebVTT: the cue identifier and the settings after its times. */
 	vtt?: { id: string; settings: string };
+	/** PGS: the picture shown. */
+	picture?: Picture;
 }
 
 export interface AssHeader {
@@ -49,6 +64,8 @@ export interface SubtitleDoc {
 	ass: AssHeader | null;
 	/** WebVTT files: header text and STYLE or REGION blocks before the first cue. */
 	vttHeader: string | null;
+	/** PGS: the video size picture positions refer to. */
+	pgsSize?: { width: number; height: number } | null;
 }
 
 /** Shortest cue the editor makes, in milliseconds: shorter is unreadable. */
@@ -70,6 +87,14 @@ export function lastEnd(doc: SubtitleDoc): number {
 /** Cues that are shown, in time order. Comments are left out. */
 export function shownCues(doc: SubtitleDoc): Cue[] {
 	return doc.cues.filter((cue) => !cue.comment).toSorted((a, b) => a.start - b.start || a.end - b.end);
+}
+
+/**
+ * Lines as the grid lists them: in the file's order, as Aegisub does, so a line being retimed
+ * stays in its row. Comments are left out.
+ */
+export function gridLines(doc: SubtitleDoc): Cue[] {
+	return doc.cues.filter((cue) => !cue.comment);
 }
 
 /** Cues showing at a time, in milliseconds. */
@@ -110,6 +135,75 @@ export function addCue(doc: SubtitleDoc, at: number, text = ''): { doc: Subtitle
 	const cues = [...doc.cues];
 	cues.splice(index === -1 ? cues.length : index, 0, cue);
 	return { doc: { ...doc, cues }, id };
+}
+
+/** Line break in a cue's markup: `\N` in ASS, a real one elsewhere. */
+export function lineBreak(format: SubtitleFormat): string {
+	return format === 'ass' ? '\\N' : '\n';
+}
+
+function insertAt(doc: SubtitleDoc, index: number, cue: Cue): SubtitleDoc {
+	const cues = [...doc.cues];
+	cues.splice(index, 0, cue);
+	return { ...doc, cues };
+}
+
+/**
+ * A new line right after another, starting where it ends, as Aegisub's "insert after": the way
+ * to go on transcribing.
+ */
+export function insertAfter(doc: SubtitleDoc, id: number): { doc: SubtitleDoc; id: number } {
+	const index = doc.cues.findIndex((cue) => cue.id === id);
+	const before = doc.cues[index];
+	if (!before) return addCue(doc, lastEnd(doc));
+	const next = newCueId();
+	const cue: Cue = { id: next, start: before.end, end: before.end + NEW_CUE, text: '' };
+	if (doc.format === 'ass') cue.fields = before.fields ?? defaultAssFields();
+	return { doc: insertAt(doc, index + 1, cue), id: next };
+}
+
+/** A copy of a line, right after it. */
+export function duplicateCue(doc: SubtitleDoc, id: number): { doc: SubtitleDoc; id: number } {
+	const index = doc.cues.findIndex((cue) => cue.id === id);
+	const cue = doc.cues[index];
+	if (!cue) return { doc, id };
+	const copy = { ...cue, id: newCueId() };
+	return { doc: insertAt(doc, index + 1, copy), id: copy.id };
+}
+
+/** The line and the next one become one line, from the first start to the last end. */
+export function joinWithNext(doc: SubtitleDoc, id: number): SubtitleDoc {
+	const index = doc.cues.findIndex((cue) => cue.id === id);
+	const cue = doc.cues[index];
+	const next = doc.cues.slice(index + 1).find((other) => !other.comment);
+	if (!cue || !next || cue.picture || next.picture) return doc;
+	const text = [cue.text, next.text].filter(Boolean).join(lineBreak(doc.format));
+	const joined = { ...cue, start: Math.min(cue.start, next.start), end: Math.max(cue.end, next.end), text };
+	return {
+		...doc,
+		cues: doc.cues.flatMap((other) => (other.id === next.id ? [] : other.id === id ? [joined] : [other])),
+	};
+}
+
+/**
+ * Splits a line at a time: the text before `textAt` stays in the first part, the rest goes to
+ * the second. Returns the second part's id.
+ */
+export function splitCue(doc: SubtitleDoc, id: number, at: number, textAt: number): { doc: SubtitleDoc; id: number } {
+	const index = doc.cues.findIndex((cue) => cue.id === id);
+	const cue = doc.cues[index];
+	if (!cue || at <= cue.start + MIN_CUE / 2 || at >= cue.end - MIN_CUE / 2) return { doc, id };
+	const breakPattern = doc.format === 'ass' ? /^(\\N|\s)+|(\\N|\s)+$/g : /^\s+|\s+$/g;
+	const first = { ...cue, end: Math.round(at), text: cue.text.slice(0, textAt).replace(breakPattern, '') };
+	const second = {
+		...cue,
+		id: newCueId(),
+		start: Math.round(at),
+		text: cue.text.slice(textAt).replace(breakPattern, ''),
+	};
+	const cues = [...doc.cues];
+	cues.splice(index, 1, first, second);
+	return { doc: { ...doc, cues }, id: second.id };
 }
 
 export function removeCues(doc: SubtitleDoc, ids: ReadonlySet<number>): SubtitleDoc {

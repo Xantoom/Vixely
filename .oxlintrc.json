@@ -168,5 +168,5 @@
 		}
 	},
 	"env": { "browser": true, "es2024": true },
-	"globals": {}
+	"globals": { "FileReaderSync": "readonly" }
 }

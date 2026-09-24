@@ -1,5 +1,5 @@
 import { FlipHorizontal2, FlipVertical2, RotateCcw, RotateCw } from 'lucide-react';
-import { type ReactNode, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { ASPECT_LABELS, ResetButton, Section, ToolButton } from '@/editor/panel-parts';
 import type { PhotoMetadata } from '@/media/probe';
@@ -241,20 +241,11 @@ export function AdjustPanel() {
 /** Longest sides offered as export sizes, when smaller than the crop. */
 const SIZE_STEPS = [3840, 2560, 1920, 1600, 1280, 1080, 800, 640];
 
-function qualityHint(quality: number): ReactNode {
-	const [level, note] =
-		quality >= 90
-			? [m.quality_top(), m.quality_top_note()]
-			: quality >= 75
-				? [m.quality_good(), m.quality_good_note()]
-				: quality >= 50
-					? [m.quality_fair(), m.quality_fair_note()]
-					: [m.quality_low(), m.quality_low_note()];
-	return (
-		<>
-			<b className="text-ed-text font-semibold">{level}</b> {note}
-		</>
-	);
+function qualityLevel(quality: number): string {
+	if (quality >= 90) return m.quality_top();
+	if (quality >= 75) return m.quality_good();
+	if (quality >= 50) return m.quality_fair();
+	return m.quality_low();
 }
 
 export function ExportPanel({ source, photo }: { source: ImageBitmap; photo: PhotoMetadata | null }) {
@@ -367,14 +358,9 @@ export function ExportPanel({ source, photo }: { source: ImageBitmap; photo: Pho
 					defaultValue={85}
 					format={String}
 					hint={
-						lossless ? (
-							<>
-								<b className="text-ed-text font-semibold">{m.quality_lossless()}</b>{' '}
-								{m.quality_lossless_note()}
-							</>
-						) : (
-							qualityHint(settings.quality)
-						)
+						<b className="text-ed-text font-semibold">
+							{lossless ? m.quality_lossless() : qualityLevel(settings.quality)}
+						</b>
 					}
 					onChange={(quality) => {
 						setExport({ quality });

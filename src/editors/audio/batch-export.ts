@@ -84,6 +84,7 @@ export async function exportAudioBatch(job: AudioBatchJob): Promise<number> {
 			// oxlint-disable-next-line no-await-in-loop
 			await exportAudio({
 				file: item.file,
+				track: null,
 				doc,
 				settings: { ...settings, tags: null, cover: 'keep' },
 				source,

@@ -1,6 +1,7 @@
 import { ALL_FORMATS, AudioBufferSink, BlobSource, Input } from 'mediabunny';
 import { type GainPoint, gainAt } from '@/document/gain-curve';
 import { type Range, sameRanges, toOutput, toSource, totalLength } from '@/document/timemap';
+import { findAudioTrack } from './audio-tracks';
 import { DECODER_PREROLL } from './decoder';
 
 /** What to play: the source ranges in order, and the volume curve over output time. */
@@ -43,10 +44,10 @@ export class AudioPlayer {
 	private frame = 0;
 	private disposed = false;
 
-	constructor(file: File) {
+	/** `track` is the ID of the audio track to play; null plays the file's main one. */
+	constructor(file: File, track: number | null = null) {
 		this.input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
-		this.sink = this.input
-			.getPrimaryAudioTrack()
+		this.sink = findAudioTrack(this.input, track)
 			.then(async (track) => (track && (await track.canDecode()) ? new AudioBufferSink(track) : null))
 			.catch(() => null);
 	}
@@ -145,7 +146,9 @@ export class AudioPlayer {
 		this.scheduleEnvelope();
 		this.frame = requestAnimationFrame(this.tick);
 		if (!wasPlaying) this.onStateChange(true);
-		void this.schedule(sink, run, this.position);
+		this.schedule(sink, run, this.position).catch(() => {
+			// The player was closed while decoding (another track, another file): nothing to play.
+		});
 	}
 
 	private tick = () => {

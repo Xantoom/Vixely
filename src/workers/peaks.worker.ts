@@ -2,6 +2,7 @@
  * Reads the waveform of part of an audio track off the main thread. See `readPeaks`.
  */
 import { ALL_FORMATS, AudioSampleSink, BlobSource, Input } from 'mediabunny';
+import { findAudioTrack } from '@/media/audio-tracks';
 import { DECODER_PREROLL } from '@/media/decoder';
 import { PEAK_CHUNK, PEAK_FRAMES, type PeaksLimit, type PeaksMessage, type PeaksRequest } from '@/media/peaks-protocol';
 import { loadAudio } from '@/wasm/audio';
@@ -143,7 +144,7 @@ async function read(request: PeaksRequest) {
 	const input = new Input({ source: new BlobSource(request.file), formats: ALL_FORMATS });
 	limit = request.toFrame ?? Number.POSITIVE_INFINITY;
 	try {
-		const track = await input.getPrimaryAudioTrack();
+		const track = await findAudioTrack(input, request.track);
 		if (!track || !(await track.canDecode())) {
 			post({ type: 'error' });
 			return;

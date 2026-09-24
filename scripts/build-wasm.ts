@@ -14,6 +14,7 @@ const CRATES: { dir: string; out: string; name: string; watch?: string[] }[] = [
 	{ dir: 'vixely-image', out: 'src/wasm/vixely-image', name: 'vixely_image' },
 	{ dir: 'vixely-audio', out: 'src/wasm/vixely-audio', name: 'vixely_audio' },
 	{ dir: 'vixely-gif', out: 'src/wasm/vixely-gif', name: 'vixely_gif', watch: ['vendor/gifski'] },
+	{ dir: 'vixely-subs', out: 'src/wasm/vixely-subs', name: 'vixely_subs' },
 ];
 const force = process.argv.includes('--force') || process.env.CI === 'true';
 

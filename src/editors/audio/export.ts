@@ -22,6 +22,7 @@ import {
 } from 'mediabunny';
 import type { GainPoint } from '@/document/gain-curve';
 import { totalLength } from '@/document/timemap';
+import { findAudioTrack } from '@/media/audio-tracks';
 import { DECODER_PREROLL } from '@/media/decoder';
 import type { SaveTarget } from '@/media/save-target';
 import { envelope, keptRanges, type AudioDoc } from './document';
@@ -146,12 +147,16 @@ function flacBitDepth(description: AllowSharedBufferSource | undefined): 16 | 24
 	return bits > 16 ? 24 : 16;
 }
 
-export async function readSourceFormat(file: File): Promise<SourceFormat | null> {
+export async function readSourceFormat(file: File, trackId: number | null = null): Promise<SourceFormat | null> {
 	const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
 	try {
-		const track = await input.getPrimaryAudioTrack();
+		const track = await findAudioTrack(input, trackId);
 		if (!track) return null;
-		const codec = track.codec;
+		const [codec, sampleRate, channels] = await Promise.all([
+			track.getCodec(),
+			track.getSampleRate(),
+			track.getNumberOfChannels(),
+		]);
 		const [stats, config] = await Promise.all([
 			track.computePacketStats(200).catch(() => null),
 			codec === 'flac' ? track.getDecoderConfig().catch(() => null) : Promise.resolve(null),
@@ -159,8 +164,8 @@ export async function readSourceFormat(file: File): Promise<SourceFormat | null>
 		const wide = codec === 'pcm-s24' || codec === 'pcm-s24be' || codec === 'pcm-s32' || codec?.startsWith('pcm-f');
 		return {
 			codec,
-			sampleRate: track.sampleRate,
-			channels: track.numberOfChannels,
+			sampleRate,
+			channels,
 			bitrate: stats && stats.averageBitrate > 0 ? Math.round(stats.averageBitrate / 1000) : null,
 			bitDepth: wide ? 24 : codec === 'flac' ? flacBitDepth(config?.description) : 16,
 		};
@@ -361,6 +366,8 @@ class CurveReader {
 
 export interface ExportAudioOptions {
 	file: File;
+	/** Audio track ID; null for the file's main one. */
+	track: number | null;
 	doc: AudioDoc;
 	settings: AudioExportSettings;
 	source: SourceFormat;
@@ -384,7 +391,16 @@ export async function exportAudio(options: ExportAudioOptions) {
  * with no decoding and no loss. Cuts fall on packet edges (about 20 ms for MP3, AAC and Opus); a
  * packet belongs to a range when its middle does.
  */
-async function copyAudio({ file, doc, settings, source, save, signal, onProgress }: ExportAudioOptions) {
+async function copyAudio({
+	file,
+	track: trackId,
+	doc,
+	settings,
+	source,
+	save,
+	signal,
+	onProgress,
+}: ExportAudioOptions) {
 	const codec = source.codec;
 	const target = codec ? copyTarget(codec) : null;
 	if (!codec || !target) throw new Error('This audio cannot be copied as it is.');
@@ -393,7 +409,7 @@ async function copyAudio({ file, doc, settings, source, save, signal, onProgress
 	const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
 	const output = new Output({ format: target.create(), target: save.target });
 	try {
-		const track = await input.getPrimaryAudioTrack();
+		const track = await findAudioTrack(input, trackId);
 		if (!track) throw new Error('The file has no audio track.');
 		const packets = new EncodedAudioPacketSource(codec);
 		output.addAudioTrack(packets);
@@ -442,7 +458,16 @@ async function copyAudio({ file, doc, settings, source, save, signal, onProgress
  * and to the destination, so memory stays flat whatever the length. Samples are laid end to end
  * by frame count, so the output has no gap and no overlap at cuts.
  */
-async function encodeAudio({ file, doc, settings, source, save, signal, onProgress }: ExportAudioOptions) {
+async function encodeAudio({
+	file,
+	track: trackId,
+	doc,
+	settings,
+	source,
+	save,
+	signal,
+	onProgress,
+}: ExportAudioOptions) {
 	const info = AUDIO_FORMATS[settings.format];
 	const ranges = keptRanges(doc);
 	const total = totalLength(ranges);
@@ -459,7 +484,7 @@ async function encodeAudio({ file, doc, settings, source, save, signal, onProgre
 		target: save.target,
 	});
 	try {
-		const track = await input.getPrimaryAudioTrack();
+		const track = await findAudioTrack(input, trackId);
 		if (!track) throw new Error('The file has no audio track.');
 		const encoder = new AudioSampleSource({
 			codec,

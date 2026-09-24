@@ -1,4 +1,5 @@
 import { createRootRoute, Link, Outlet } from '@tanstack/react-router';
+import { GlobalDrop } from '@/app/GlobalDrop';
 import { m } from '@/paraglide/messages.js';
 
 function NotFound() {
@@ -12,4 +13,13 @@ function NotFound() {
 	);
 }
 
-export const Route = createRootRoute({ component: Outlet, notFoundComponent: NotFound });
+function Root() {
+	return (
+		<>
+			<Outlet />
+			<GlobalDrop />
+		</>
+	);
+}
+
+export const Route = createRootRoute({ component: Root, notFoundComponent: NotFound });

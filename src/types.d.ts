@@ -36,3 +36,8 @@ interface DirectoryPickerOptions {
 interface Window {
 	showDirectoryPicker?: (options?: DirectoryPickerOptions) => Promise<FileSystemDirectoryHandle>;
 }
+
+/** Synchronous file reading, available in workers only: missing from the DOM types. */
+declare class FileReaderSync {
+	readAsArrayBuffer(blob: Blob): ArrayBuffer;
+}

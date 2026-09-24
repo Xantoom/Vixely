@@ -179,8 +179,14 @@ function workerCount(duration: number): number {
  * Reads the waveform of a file in workers. The first worker finds where the track starts and at
  * which rate it decodes; a long track is then shared out between several workers, each decoding
  * its own part. `onUpdate` is called as peaks arrive, so the waveform draws while it is read.
+ * `track` is the ID of the audio track to read; null reads the file's main one.
  */
-export function readPeaks(file: File, duration: number, onUpdate: () => void): PeaksReader {
+export function readPeaks(
+	file: File,
+	duration: number,
+	onUpdate: () => void,
+	track: number | null = null,
+): PeaksReader {
 	const peaks = new Peaks();
 	const loudness = new Loudness();
 	const workers: Worker[] = [];
@@ -226,7 +232,7 @@ export function readPeaks(file: File, duration: number, onUpdate: () => void): P
 		return worker;
 	};
 
-	const first = launch({ file, origin: null, fromFrame: 0, toFrame: null }, null, (origin) => {
+	const first = launch({ file, track, origin: null, fromFrame: 0, toFrame: null }, null, (origin) => {
 		peaks.setOrigin(origin, duration);
 		loudness.reserve(origin.start, duration);
 		const frames = Math.ceil((duration - origin.start) * origin.rate);
@@ -241,7 +247,7 @@ export function readPeaks(file: File, duration: number, onUpdate: () => void): P
 			const from = bounds[k] ?? 0;
 			const to = k === parts - 1 ? null : (bounds[k + 1] ?? null);
 			const segment = peaks.addSegment(from / PEAK_FRAMES, to === null ? lastPeak : to / PEAK_FRAMES);
-			launch({ file, origin, fromFrame: from, toFrame: to }, segment);
+			launch({ file, track, origin, fromFrame: from, toFrame: to }, segment);
 		}
 		const firstEnd = parts > 1 ? (bounds[1] ?? frames) : null;
 		if (firstEnd !== null) {

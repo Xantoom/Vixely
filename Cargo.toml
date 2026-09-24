@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["vixely-core", "vixely-image", "vixely-audio", "vixely-gif"]
+members = ["vixely-core", "vixely-image", "vixely-audio", "vixely-gif", "vixely-subs"]
 
 [profile.release]
 opt-level = 3

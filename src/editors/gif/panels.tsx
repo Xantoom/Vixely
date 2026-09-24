@@ -67,7 +67,6 @@ export function TrimPanel({ engine }: { engine: GifEngine }) {
 					<span className="text-ui text-ink-2">{m.audio_final_length()}</span>
 					<span className="tabular font-mono text-[12.5px]">{formatPreciseTime(engine.length)}</span>
 				</div>
-				<p className="text-small text-muted">{m.gif_trim_hint()}</p>
 			</div>
 		</>
 	);
@@ -149,7 +148,6 @@ export function SpeedPanel({ animated }: { animated: boolean }) {
 					max={SPEEDS.length - 1}
 					defaultValue={SPEEDS.indexOf(1)}
 					format={(index) => formatSpeed(SPEEDS[index] ?? 1)}
-					hint={m.speed_hint()}
 					onChange={(index) => {
 						preview((current) => ({ ...current, speed: SPEEDS[index] ?? 1 }));
 					}}
@@ -180,7 +178,6 @@ export function SpeedPanel({ animated }: { animated: boolean }) {
 						}}
 					/>
 				</FieldRow>
-				<p className="text-small text-muted">{m.fps_hint()}</p>
 			</div>
 		</>
 	);
@@ -192,11 +189,11 @@ const SIZE_LIMITS = [25_000_000, 15_000_000, 10_000_000, 8_000_000, 5_000_000, 2
 /** Widths offered, besides the picture's own. */
 const WIDTHS = [320, 480, 640, 800, 1080];
 
-const FORMATS: { value: AnimationFormat; label: () => string; hint: () => string }[] = [
-	{ value: 'gif', label: () => 'GIF', hint: () => m.anim_format_gif() },
-	{ value: 'apng', label: () => 'APNG', hint: () => m.anim_format_apng() },
-	{ value: 'webp', label: () => 'WebP', hint: () => m.anim_format_webp() },
-	{ value: 'video', label: () => m.anim_video(), hint: () => m.anim_format_video() },
+const FORMATS: { value: AnimationFormat; label: () => string }[] = [
+	{ value: 'gif', label: () => 'GIF' },
+	{ value: 'apng', label: () => 'APNG' },
+	{ value: 'webp', label: () => 'WebP' },
+	{ value: 'video', label: () => m.anim_video() },
 ];
 
 /** What this browser can encode: WebP itself, and H.264 for video. Both change a note, not a choice. */
@@ -232,13 +229,6 @@ export function ExportPanel({ engine, isGif }: { engine: GifEngine; isGif: boole
 	);
 	const blocker = source ? copyBlocker(doc, settings, source, isGif) : 'source';
 	const copying = settings.mode === 'copy' && blocker === null;
-	const format = FORMATS.find((option) => option.value === settings.format) ?? FORMATS[0];
-	const qualityHint =
-		settings.format === 'webp'
-			? m.webp_quality_hint()
-			: settings.format === 'video'
-				? m.video_quality_hint()
-				: m.gif_quality_hint();
 	const note =
 		settings.format === 'webp' && !encoders.webp
 			? m.webp_lossless_note()
@@ -255,22 +245,24 @@ export function ExportPanel({ engine, isGif }: { engine: GifEngine; isGif: boole
 					label={m.export_encoding()}
 					value={copying ? 'copy' : 'encode'}
 					options={[
-						{ value: 'copy', label: m.encoding_copy(), detail: 'GIF', disabled: blocker !== null },
+						{
+							value: 'copy',
+							label: m.encoding_copy(),
+							detail: 'GIF',
+							disabled: blocker !== null,
+							reason:
+								blocker === 'frames'
+									? m.encoding_copy_frames()
+									: blocker === 'source'
+										? m.encoding_copy_not_gif()
+										: undefined,
+						},
 						{ value: 'encode', label: m.encoding_convert() },
 					]}
 					onChange={(mode) => {
 						setExport({ mode });
 					}}
 				/>
-				<p className="text-small text-muted">
-					{copying
-						? m.encoding_copy_gif()
-						: blocker === 'frames'
-							? m.encoding_copy_frames()
-							: blocker === 'source'
-								? m.encoding_copy_not_gif()
-								: m.encoding_convert_hint()}
-				</p>
 			</div>
 
 			{/* Kept visible but inactive while the original is kept. */}
@@ -293,7 +285,6 @@ export function ExportPanel({ engine, isGif }: { engine: GifEngine; isGif: boole
 							setExport({ format: value });
 						}}
 					/>
-					<p className="text-small text-muted">{format?.hint()}</p>
 					{note && <p className="text-small text-ed-text font-medium">{note}</p>}
 				</div>
 
@@ -310,7 +301,6 @@ export function ExportPanel({ engine, isGif }: { engine: GifEngine; isGif: boole
 								}}
 							/>
 						</FieldRow>
-						<p className="text-small text-muted">{m.gif_width_hint()}</p>
 					</div>
 					{settings.format !== 'apng' && (
 						<Slider
@@ -320,7 +310,6 @@ export function ExportPanel({ engine, isGif }: { engine: GifEngine; isGif: boole
 							max={100}
 							defaultValue={90}
 							format={String}
-							hint={qualityHint}
 							onChange={(quality) => {
 								setExport({ quality });
 							}}
@@ -335,7 +324,6 @@ export function ExportPanel({ engine, isGif }: { engine: GifEngine; isGif: boole
 							max={100}
 							defaultValue={0}
 							format={String}
-							hint={m.gif_compression_hint()}
 							onChange={(compression) => {
 								setExport({ compression });
 							}}
@@ -359,7 +347,6 @@ export function ExportPanel({ engine, isGif }: { engine: GifEngine; isGif: boole
 								}}
 							/>
 						</FieldRow>
-						<p className="text-small text-muted">{m.max_size_hint()}</p>
 					</div>
 				</div>
 			</div>

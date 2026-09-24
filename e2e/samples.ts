@@ -1,9 +1,15 @@
+import { spawnSync } from 'node:child_process';
 /**
  * Creates the sample files the scenarios open, in e2e/samples/. Needs the dev server running.
  *
  * - anim.gif: 60 frames of a moving circle on a gradient, 480 × 270, 3 s, made by gifski itself.
  * - long.wav: three hours of mono 8 kHz audio whose loudness follows a slow wave (173 MB).
  * - photo.heic: the example photo of the libheif project.
+ * - sample.mkv, sup2.sup: PGS and ASS tracks muxed by mkvmerge, from the PGS-Subtitle-Parser project.
+ * - film.mkv, live.mkv, film.mp4: a minute of test pattern with French SRT and English ASS tracks
+ *   and an embedded font; live.mkv has no cues; film.mp4 carries the SRT as timed text. Made with
+ *   FFmpeg when the FFMPEG variable points to it (a static build is enough).
+ * - h264.mp4: 12 s of 1080p H.264 with B-frames and two audio tracks (English, French commentary).
  */
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { chromium } from 'playwright-core';
@@ -79,4 +85,165 @@ if (!existsSync('samples/photo.heic')) {
 	} else {
 		console.log('photo.heic: download failed', response.status);
 	}
+}
+
+const PGS_SAMPLES = 'https://raw.githubusercontent.com/C0bra5/PGS-Subtitle-Parser/master/sample';
+for (const name of ['sample.mkv', 'sup2.sup']) {
+	if (existsSync(`samples/${name}`)) continue;
+	const response = await fetch(`${PGS_SAMPLES}/${name}`);
+	if (response.ok) {
+		writeFileSync(`samples/${name}`, Buffer.from(await response.arrayBuffer()));
+		console.log(`samples/${name}`);
+	} else {
+		console.log(`${name}: download failed`, response.status);
+	}
+}
+
+const ffmpeg = process.env.FFMPEG;
+if (!existsSync('samples/film.mkv') && ffmpeg) {
+	const time = (s: number, comma: boolean) => {
+		const ms = Math.round(s * 1000);
+		const hms = [Math.floor(ms / 3_600_000), Math.floor(ms / 60_000) % 60, Math.floor(ms / 1000) % 60];
+		return comma
+			? `${hms.map((v) => String(v).padStart(2, '0')).join(':')},${String(ms % 1000).padStart(3, '0')}`
+			: `${hms[0]}:${String(hms[1]).padStart(2, '0')}:${String(hms[2]).padStart(2, '0')}.${String(Math.round((ms % 1000) / 10)).padStart(2, '0')}`;
+	};
+	const starts = Array.from({ length: 20 }, (_, i) => 2 + i * 2.5);
+	writeFileSync(
+		'samples/fr.srt',
+		starts
+			.map(
+				(s, i) =>
+					`${i + 1}\n${time(s, true)} --> ${time(s + 1.8, true)}\n${i % 2 ? 'Ligne' : 'Réplique numéro'} ${i + 1}\n`,
+			)
+			.join('\n'),
+	);
+	// The embedded font is Ubuntu Condensed, whose family name is "Ubuntu".
+	const style = (name: string, size: number, colour: string, bold: number, align: number) =>
+		`Style: ${name},Ubuntu,${size},${colour},&H000000FF,&H00000000,&H80000000,${bold},0,0,0,100,100,0,0,1,2,1,${align},20,20,30,1`;
+	writeFileSync(
+		'samples/en.ass',
+		[
+			'[Script Info]',
+			'ScriptType: v4.00+',
+			'PlayResX: 1280',
+			'PlayResY: 720',
+			'',
+			'[V4+ Styles]',
+			'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
+			style('Default', 44, '&H00FFFFFF', 0, 2),
+			style('Sign', 36, '&H0000FFFF', -1, 8),
+			'',
+			'[Events]',
+			'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+			...starts.map(
+				(s, i) =>
+					`Dialogue: 0,${time(s, false)},${time(s + 1.8, false)},Default,,0,0,0,,{\\i1}English{\\i0} line ${i + 1}, with comma`,
+			),
+			'Dialogue: 1,0:00:01.00,0:00:10.00,Sign,,0,0,0,,{\\pos(640,60)}A SIGN',
+		].join('\n'),
+	);
+	const run = (...args: string[]) =>
+		spawnSync(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-y', ...args], { stdio: 'inherit' });
+	const font = '/usr/share/fonts/truetype/ubuntu/Ubuntu-C.ttf';
+	run(
+		'-f',
+		'lavfi',
+		'-i',
+		'testsrc2=size=1280x720:rate=25:duration=60',
+		'-f',
+		'lavfi',
+		'-i',
+		'sine=frequency=330:duration=60',
+		'-i',
+		'samples/fr.srt',
+		'-i',
+		'samples/en.ass',
+		'-map',
+		'0',
+		'-map',
+		'1',
+		'-map',
+		'2',
+		'-map',
+		'3',
+		'-c:v',
+		'libx264',
+		'-preset',
+		'veryfast',
+		'-pix_fmt',
+		'yuv420p',
+		'-c:a',
+		'libopus',
+		'-b:a',
+		'64k',
+		'-c:s:0',
+		'srt',
+		'-c:s:1',
+		'ass',
+		'-metadata:s:s:0',
+		'language=fre',
+		'-metadata:s:s:1',
+		'language=eng',
+		'-metadata:s:s:1',
+		'title=English (styled)',
+		'-disposition:s:0',
+		'default',
+		'-disposition:s:1',
+		'0',
+		...(existsSync(font) ? ['-attach', font, '-metadata:s:t', 'mimetype=font/ttf'] : []),
+		'samples/film.mkv',
+	);
+	run('-i', 'samples/film.mkv', '-map', '0', '-c', 'copy', '-live', '1', '-f', 'matroska', 'samples/live.mkv');
+	run(
+		'-i',
+		'samples/film.mkv',
+		'-map',
+		'0:v',
+		'-map',
+		'0:a',
+		'-map',
+		'0:s:0',
+		'-c:v',
+		'copy',
+		'-c:a',
+		'aac',
+		'-c:s',
+		'mov_text',
+		'-metadata:s:s:0',
+		'language=fre',
+		'samples/film.mp4',
+	);
+	console.log('samples/film.mkv, live.mkv, film.mp4');
+} else if (!existsSync('samples/film.mkv')) {
+	console.log('film.mkv: set FFMPEG to an ffmpeg binary to make the subtitle samples');
+}
+
+if (!existsSync('samples/h264.mp4') && ffmpeg) {
+	// Plain 1080p H.264 with B-frames (its first picture comes after zero) and two audio tracks.
+	spawnSync(
+		ffmpeg,
+		[
+			'-hide_banner',
+			'-loglevel',
+			'error',
+			'-y',
+			...['-f', 'lavfi', '-i', 'testsrc2=size=1920x1080:rate=30000/1001'],
+			...['-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000'],
+			...['-f', 'lavfi', '-i', 'sine=frequency=880:sample_rate=48000'],
+			...['-t', '12', '-map', '0:v', '-map', '1:a', '-map', '2:a'],
+			...['-c:v', 'libx264', '-profile:v', 'high', '-bf', '3', '-pix_fmt', 'yuv420p', '-c:a', 'aac'],
+			...[
+				'-metadata:s:a:0',
+				'language=eng',
+				'-metadata:s:a:1',
+				'language=fre',
+				'-metadata:s:a:1',
+				'title=Commentaire',
+			],
+			...['-movflags', '+faststart', 'samples/h264.mp4'],
+		],
+		{ stdio: 'inherit' },
+	);
+	console.log('samples/h264.mp4');
 }

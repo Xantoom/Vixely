@@ -17,30 +17,12 @@ import {
 	outputChannels,
 	outputRate,
 	outputType,
-	type AudioFormat,
 	canExport,
 	copyBlocker,
 	exportAudio,
 	type SourceFormat,
 } from './export';
 import { type AudioTags, useAudioEditor } from './store';
-
-const FORMAT_HINTS: Record<AudioFormat, () => string> = {
-	mp3: () => m.audio_format_mp3(),
-	aac: () => m.audio_format_aac(),
-	opus: () => m.audio_format_opus(),
-	flac: () => m.audio_format_flac(),
-	wav: () => m.audio_format_wav(),
-};
-
-/** What a bitrate sounds like. Opus reaches the same quality at about two thirds of the bitrate. */
-function bitrateHint(format: AudioFormat, kbps: number): string {
-	const equivalent = format === 'opus' ? kbps * 1.5 : format === 'aac' ? kbps * 1.2 : kbps;
-	if (equivalent >= 256) return m.bitrate_transparent();
-	if (equivalent >= 180) return m.bitrate_high();
-	if (equivalent >= 120) return m.bitrate_medium();
-	return m.bitrate_low();
-}
 
 function useOpusSupport(): boolean | null {
 	const [supported, setSupported] = useState<boolean | null>(null);
@@ -194,13 +176,8 @@ export function ExportPanel({
 	const original = source.codec
 		? `${codecName(source.codec)}${lossy && source.bitrate ? ` ${source.bitrate} kb/s` : ''}`
 		: undefined;
-	const trimmed = doc.cuts.length > 0 || doc.trim.start > 0 || doc.trim.end < doc.duration;
-	const encodingHint = () => {
-		if (copying) return trimmed ? `${m.encoding_copy_hint()} ${m.encoding_copy_cuts()}` : m.encoding_copy_hint();
-		if (blocker === 'volume') return m.encoding_copy_volume();
-		if (blocker === 'codec') return m.encoding_copy_codec();
-		return m.encoding_convert_hint();
-	};
+	const copyReason =
+		blocker === 'volume' ? m.encoding_copy_volume() : blocker === 'codec' ? m.encoding_copy_codec() : undefined;
 
 	return (
 		<>
@@ -211,14 +188,19 @@ export function ExportPanel({
 					label={m.export_encoding()}
 					value={copying ? 'copy' : 'encode'}
 					options={[
-						{ value: 'copy', label: m.encoding_copy(), detail: original, disabled: blocker !== null },
+						{
+							value: 'copy',
+							label: m.encoding_copy(),
+							detail: original,
+							disabled: blocker !== null,
+							reason: copyReason,
+						},
 						{ value: 'encode', label: m.encoding_convert() },
 					]}
 					onChange={(mode) => {
 						setExport({ mode });
 					}}
 				/>
-				<p className="text-small text-muted">{encodingHint()}</p>
 			</div>
 
 			{/* Kept visible but inactive while the original is kept: the values it has are the source's. */}
@@ -238,7 +220,6 @@ export function ExportPanel({
 							setExport({ format, bitrate: AUDIO_FORMATS[format].defaultBitrate });
 						}}
 					/>
-					<p className="text-small text-muted">{FORMAT_HINTS[settings.format]()}</p>
 					{opus === false && <p className="text-small text-muted">{m.opus_unavailable()}</p>}
 				</div>
 
@@ -258,7 +239,6 @@ export function ExportPanel({
 									}}
 								/>
 							</FieldRow>
-							<p className="text-small text-muted">{bitrateHint(settings.format, bitrate)}</p>
 						</div>
 					)}
 
@@ -284,9 +264,6 @@ export function ExportPanel({
 								/>
 							)}
 						</FieldRow>
-						<p className="text-small text-muted">
-							{info.sampleRates.length === 1 ? m.sample_rate_opus() : m.sample_rate_hint()}
-						</p>
 					</div>
 
 					<FieldRow label={m.info_channels()} htmlFor={channelsId}>
@@ -315,7 +292,6 @@ export function ExportPanel({
 									}}
 								/>
 							</FieldRow>
-							<p className="text-small text-muted">{m.bit_depth_hint()}</p>
 						</div>
 					)}
 				</div>
@@ -430,7 +406,16 @@ export function ExportFooter({
 		if (!save) return;
 		const signal = start();
 		try {
-			await exportAudio({ file, doc, settings, source, save, signal, onProgress: setProgress });
+			await exportAudio({
+				file,
+				track: useAudioEditor.getState().audioTrack,
+				doc,
+				settings,
+				source,
+				save,
+				signal,
+				onProgress: setProgress,
+			});
 			end('saved');
 		} catch (error) {
 			end(error instanceof DOMException && error.name === 'AbortError' ? 'idle' : 'failed');

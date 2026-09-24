@@ -1,126 +1,153 @@
-import { Film, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Film, TriangleAlert, X } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
 import { AssOverlay } from '@/editor/AssOverlay';
-import { formatPreciseTime } from '@/lib/format';
+import { PlayerControls, PlayerPicture } from '@/editor/PlayerControls';
+import { usePlayback } from '@/media/playback';
 import { m } from '@/paraglide/messages.js';
+import { IconButton } from '@/ui/Button';
 import { useBoxSize } from '@/ui/use-box-size';
-import { cuesAt } from './document';
-import type { SubtitleEngine } from './engine';
+import type { SubtitleDoc } from './document';
 import { toAssScript } from './formats';
-import { useSubtitleDoc, useSubtitleEditor } from './store';
+import { PgsOverlay } from './PgsOverlay';
+import { useSubtitleProject } from './project';
+import { useSubtitleDoc } from './store';
 
 /** Picture size used without a video: the resolution of the ASS script, or 1080p. */
 const DEFAULT_FRAME = { width: 1920, height: 1080 };
 
-/** Lets the user pick a video (or audio) to play under the subtitles. */
-export function ChooseMedia({ engine, compact = false }: { engine: SubtitleEngine; compact?: boolean }) {
-	const inputRef = useRef<HTMLInputElement>(null);
-	const media = engine.media;
+/** Size of the picture subtitles are drawn on: the video, else what the subtitles were made for. */
+export function subtitleFrame(doc: SubtitleDoc, video: { width: number; height: number } | null) {
+	return video ?? (doc.format === 'pgs' ? doc.pgsSize : doc.ass?.playRes) ?? DEFAULT_FRAME;
+}
+
+/**
+ * Subtitles over the picture at `time`: PGS pictures where the disc places them, text drawn by
+ * libass like players do. Fills its parent, which has the frame's proportions.
+ */
+export function SubtitleLayer({
+	doc,
+	time,
+	title,
+	video,
+	fonts,
+	onFailed,
+}: {
+	doc: SubtitleDoc;
+	time: number;
+	title: string;
+	video: { width: number; height: number } | null;
+	fonts: readonly Uint8Array[];
+	onFailed?: () => void;
+}) {
+	const pictures = doc.format === 'pgs';
+	const frame = subtitleFrame(doc, video);
+	// Converted subtitles get a style sized for the video they play on.
+	const script = useMemo(
+		() => (pictures ? '' : toAssScript(doc, title, video ?? undefined)),
+		[doc, title, video, pictures],
+	);
+	if (pictures) return <PgsOverlay doc={doc} time={time} />;
 	return (
-		<div className="flex min-w-0 items-center gap-2">
+		<AssOverlay
+			// Fonts are loaded as the renderer starts: new ones start a new renderer.
+			key={fonts.length}
+			script={script}
+			time={time}
+			width={frame.width}
+			height={frame.height}
+			fonts={fonts}
+			onFailed={onFailed}
+		/>
+	);
+}
+
+/** Picks the video (or audio) played under subtitles opened from a file, or removes it. */
+export function ChooseMedia() {
+	const inputRef = useRef<HTMLInputElement>(null);
+	const file = usePlayback((state) => state.file);
+	const load = usePlayback((state) => state.load);
+	const fromVideo = useSubtitleProject((state) => state.source === 'video');
+	if (fromVideo) return null;
+	return (
+		<div className="flex min-w-0 items-center gap-0.5">
 			<input
 				ref={inputRef}
 				type="file"
 				accept="video/*,audio/*,.mkv,.mka"
 				className="hidden"
 				onChange={(event) => {
-					const file = event.target.files?.[0];
-					if (file) engine.attachMedia(file);
+					const chosen = event.target.files?.[0];
+					if (chosen) load(chosen);
 					event.target.value = '';
 				}}
 			/>
 			<button
 				type="button"
+				title={m.subs_media_choose()}
 				onClick={() => inputRef.current?.click()}
-				className="text-ui text-ink-2 hover:text-ink hover:bg-surface inline-flex h-8 min-w-0 items-center gap-2 rounded-sm px-2.5 font-medium shadow-[inset_0_0_0_1px_var(--line-2)] transition-colors"
+				className="text-ui text-ink-2 hover:text-ink hover:bg-surface inline-flex h-8 max-w-56 min-w-0 items-center gap-1.5 rounded-sm px-2 font-medium shadow-[inset_0_0_0_1px_var(--line-2)] transition-colors"
 			>
 				<Film size={15} aria-hidden="true" className="flex-none" />
-				<span className="truncate">
-					{media ? media.file.name : compact ? m.subs_media_choose_short() : m.subs_media_choose()}
-				</span>
+				<span className="truncate">{file ? file.name : m.subs_media_choose_short()}</span>
 			</button>
-			{media && (
-				<button
-					type="button"
-					aria-label={m.subs_media_remove()}
-					title={m.subs_media_remove()}
+			{file && (
+				<IconButton
+					label={m.subs_media_remove()}
 					onClick={() => {
-						engine.attachMedia(null);
+						load(null);
 					}}
-					className="text-muted hover:text-ink hover:bg-surface grid size-8 flex-none place-items-center rounded-sm transition-colors"
 				>
-					<X size={15} aria-hidden="true" />
-				</button>
+					<X size={15} />
+				</IconButton>
 			)}
 		</div>
 	);
 }
 
-/**
- * The picture with the subtitles on it, drawn by libass at the playhead. Without a video, the
- * subtitles show on black at the script's resolution.
- */
-export function SubtitleViewer({ engine, title }: { engine: SubtitleEngine; title: string }) {
+/** The video with the subtitles on it, and its controls: the top-left box, as in Aegisub. */
+export function SubtitleViewer({ title }: { title: string }) {
 	const doc = useSubtitleDoc();
-	const playhead = useSubtitleEditor((state) => state.playhead);
+	const time = usePlayback((state) => state.time);
+	const video = usePlayback((state) => state.details?.video ?? null);
+	const failed = usePlayback((state) => state.failed);
+	const fonts = useSubtitleProject((state) => state.fonts);
 	const areaRef = useRef<HTMLDivElement>(null);
-	const videoRef = useRef<HTMLCanvasElement>(null);
 	const area = useBoxSize(areaRef);
 	const [rendererFailed, setRendererFailed] = useState(false);
-	const media = engine.media;
-	const video = media?.details?.video ?? null;
-	const frame = video ?? doc.ass?.playRes ?? DEFAULT_FRAME;
+	const frame = subtitleFrame(doc, video);
 	const scale = area.width && area.height ? Math.min(area.width / frame.width, area.height / frame.height) : 0;
-	const display = { width: Math.floor(frame.width * scale), height: Math.floor(frame.height * scale) };
-	// Converted subtitles get a style sized for the video they play on.
-	const script = useMemo(() => toAssScript(doc, title, video ?? undefined), [doc, title, video]);
-	const showing = cuesAt(doc, playhead * 1000).length;
-
-	useEffect(() => {
-		const canvas = videoRef.current;
-		if (!canvas || !media || display.width === 0) return;
-		const ratio = Math.min(window.devicePixelRatio || 1, 2);
-		canvas.width = Math.round(display.width * ratio);
-		canvas.height = Math.round(display.height * ratio);
-		media.player.attach(canvas);
-	}, [media, display.width, display.height]);
+	const width = Math.floor(frame.width * scale);
+	const height = Math.floor(frame.height * scale);
 
 	return (
-		<div className="flex h-full w-full flex-col gap-3">
+		<div className="flex h-full min-h-0 flex-col gap-2">
 			<div ref={areaRef} className="relative min-h-0 flex-1">
-				<div
-					className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[3px] bg-black shadow-[0_0_0_1px_var(--line)]"
-					style={display}
-				>
-					{video && <canvas ref={videoRef} className="absolute inset-0 size-full" />}
-					{display.width > 0 && (
-						<AssOverlay
-							script={script}
-							time={playhead}
-							width={frame.width}
-							height={frame.height}
+				<PlayerPicture width={width} height={height}>
+					{width > 0 && (
+						<SubtitleLayer
+							doc={doc}
+							time={time}
+							title={title}
+							video={video}
+							fonts={fonts}
 							onFailed={() => {
 								setRendererFailed(true);
 							}}
 						/>
 					)}
-				</div>
-			</div>
-			<div className="text-small text-muted tabular flex h-9 flex-none items-center justify-center gap-5 font-mono">
-				{rendererFailed ? (
-					<span className="text-danger font-sans">{m.subs_renderer_failed()}</span>
-				) : media?.failed ? (
-					<span className="text-danger font-sans">{m.subs_media_failed()}</span>
-				) : (
-					<>
-						<span>
-							{frame.width} × {frame.height}
+					{(failed || rendererFailed) && (
+						<span
+							className="bg-danger absolute top-2 right-2 grid size-7 place-items-center rounded-full text-white"
+							title={rendererFailed ? m.subs_renderer_failed() : m.subs_media_failed()}
+						>
+							<TriangleAlert size={15} aria-hidden="true" />
 						</span>
-						<span>{formatPreciseTime(playhead)}</span>
-						<span>{m.subs_showing({ count: showing })}</span>
-					</>
-				)}
+					)}
+				</PlayerPicture>
 			</div>
+			<PlayerControls>
+				<ChooseMedia />
+			</PlayerControls>
 		</div>
 	);
 }

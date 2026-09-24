@@ -39,8 +39,10 @@ interface EditorLayoutProps {
 	/** Tools shown in the rail, when they differ from the editor's usual ones (in a batch). */
 	tools?: ToolId[];
 	actions?: EditorActions;
-	viewer: ReactNode;
+	viewer?: ReactNode;
 	timeline?: ReactNode;
+	/** Takes the place of the preview and the timeline, for editors laid out their own way. */
+	workspace?: ReactNode;
 	inspector: ReactNode;
 	/** Sticks to the bottom of the inspector, for the final action of a panel. */
 	inspectorFooter?: ReactNode;
@@ -59,6 +61,7 @@ export function EditorLayout({
 	actions,
 	viewer,
 	timeline,
+	workspace,
 	inspector,
 	inspectorFooter,
 }: EditorLayoutProps) {
@@ -78,14 +81,25 @@ export function EditorLayout({
 				<div className="max-lg:order-4 lg:row-span-2">
 					<Rail tools={tools ?? editor.tools} current={tool} onSelect={onTool} />
 				</div>
-				<section
-					aria-label={m.preview()}
-					className="bg-canvas relative min-w-0 overflow-hidden max-lg:order-1 max-lg:h-[max(280px,min(56vw,460px))]"
-				>
-					{/* A box with a definite size, so the media can be contained in it whatever its resolution. */}
-					<div className="absolute inset-4 flex items-center justify-center sm:inset-6">{viewer}</div>
-				</section>
-				<div className="max-lg:order-2 lg:col-start-2 lg:row-start-2">{timeline}</div>
+				{workspace ? (
+					<section
+						aria-label={m.preview()}
+						className="bg-canvas min-w-0 overflow-hidden max-lg:order-1 max-lg:h-[64dvh] lg:row-span-2"
+					>
+						{workspace}
+					</section>
+				) : (
+					<>
+						<section
+							aria-label={m.preview()}
+							className="bg-canvas relative min-w-0 overflow-hidden max-lg:order-1 max-lg:h-[max(280px,min(56vw,460px))]"
+						>
+							{/* A box with a definite size, so the media can be contained in it whatever its resolution. */}
+							<div className="absolute inset-4 flex items-center justify-center sm:inset-6">{viewer}</div>
+						</section>
+						<div className="max-lg:order-2 lg:col-start-2 lg:row-start-2">{timeline}</div>
+					</>
+				)}
 				<div className="border-line flex min-h-0 flex-col max-lg:order-3 max-lg:border-t lg:col-start-3 lg:row-span-2 lg:row-start-1 lg:border-l">
 					<aside
 						aria-label={m.inspector()}

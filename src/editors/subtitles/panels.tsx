@@ -1,34 +1,26 @@
-import { ArrowDownToLine, Check, Trash2 } from 'lucide-react';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
+import { ArrowDownToLine, ArrowLeft, Ban, Check, Plus, TriangleAlert } from 'lucide-react';
+import { useEffect, useId, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { Section } from '@/editor/panel-parts';
 import { saveFile } from '@/editors/image/export';
+import { EDITORS } from '@/editors/registry';
 import { formatBytes, formatPreciseTime } from '@/lib/format';
-import { outputName } from '@/media/save';
-import type { OpenedFile } from '@/media/session';
+import { languageName } from '@/lib/language';
+import { usePlayback } from '@/media/playback';
+import { type OpenedFile, useSession } from '@/media/session';
+import type { SubtitleTrackInfo } from '@/media/subtitle-source';
 import { m } from '@/paraglide/messages.js';
 import { Button, IconButton } from '@/ui/Button';
 import { FieldRow, OptionList, Select, TimeField } from '@/ui/fields';
-import {
-	type Cue,
-	FRAME_RATES,
-	findCue,
-	lastEnd,
-	MIN_CUE,
-	removeCues,
-	retime,
-	setCueTimes,
-	shownCues,
-	type SubtitleFormat,
-	syncPoints,
-	updateCue,
-} from './document';
-import type { SubtitleEngine } from './engine';
-import { droppedCues, FORMAT_FILES, writeSubtitles } from './formats';
+import { FRAME_RATES, lastEnd, retime, shownCues, type SubtitleFormat, syncPoints } from './document';
+import { droppedCues, exportFormats, FORMAT_FILES, writeSubtitles } from './formats';
 import { ENCODINGS, type EncodingId } from './formats/encoding';
-import { plainText } from './formats/markup';
+import { cueLabel } from './labels';
+import { writeSup } from './pgs';
+import { exportName, useProjectTracks, useSubtitleProject } from './project';
 import { useSubtitleDoc, useSubtitleEditor } from './store';
-import { ChooseMedia } from './SubtitleViewer';
+import { codecLabel, unsupportedReason, type Unsupported } from './tracks';
 
 function Row({ label, value }: { label: string; value: string }) {
 	return (
@@ -45,30 +37,142 @@ function formatLabel(format: SubtitleFormat, scriptType: string | null | undefin
 	return FORMAT_FILES[format].label;
 }
 
-export function SubtitleInfoPanel({ opened, engine }: { opened: OpenedFile; engine: SubtitleEngine }) {
+const UNSUPPORTED: Record<Unsupported, () => string> = {
+	vobsub: () => m.subs_unsupported_vobsub(),
+	dvb: () => m.subs_unsupported_dvb(),
+	ttml: () => m.subs_unsupported_ttml(),
+	captions: () => m.subs_unsupported_captions(),
+	compressed: () => m.subs_unsupported_compressed(),
+	other: () => m.subs_unsupported_other(),
+};
+
+function trackLabel(track: SubtitleTrackInfo): string {
+	return [languageName(track.language), track.name].filter(Boolean).join(', ');
+}
+
+/**
+ * The subtitle tracks of the video, all read already: picking one shows it at once, and edits of
+ * the others are kept. A dot marks tracks that were edited.
+ */
+function TracksSection() {
+	const tracks = useProjectTracks();
+	const current = useSubtitleProject((state) => state.current);
+	const choose = useSubtitleProject((state) => state.choose);
+	const listFailed = useSubtitleProject((state) => state.listFailed);
+	return (
+		<Section title={m.subs_tracks()}>
+			<div role="radiogroup" aria-label={m.subs_tracks()} className="-mx-2.5 grid gap-0.5">
+				{tracks.map((track) => {
+					const { info } = track;
+					const usable = track.original !== null;
+					const reason = info && !usable ? UNSUPPORTED[unsupportedReason(info)]() : undefined;
+					return (
+						<button
+							key={track.key}
+							type="button"
+							role="radio"
+							aria-checked={current === track.key}
+							disabled={!usable}
+							title={reason}
+							onClick={() => {
+								choose(track.key);
+							}}
+							className="enabled:hover:bg-surface group grid grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-3 rounded-xs px-2.5 py-2 text-left disabled:cursor-not-allowed disabled:opacity-45"
+						>
+							<span className="size-4 rounded-full shadow-[inset_0_0_0_1.5px_var(--line-2)] group-aria-checked:shadow-[inset_0_0_0_5px_var(--ed)]" />
+							<span className="grid min-w-0">
+								<span className="text-body flex min-w-0 items-center gap-1.5">
+									<span className="truncate">{info ? trackLabel(info) : m.subs_new_track()}</span>
+									{track.edited && (
+										<span
+											className="bg-ed size-2 flex-none rounded-full"
+											title={m.subs_track_edited()}
+											aria-label={m.subs_track_edited()}
+										/>
+									)}
+								</span>
+								{info && (info.default || info.forced) && (
+									<span className="text-small text-muted">
+										{[
+											info.default ? m.subs_track_default() : '',
+											info.forced ? m.subs_track_forced() : '',
+										]
+											.filter(Boolean)
+											.join(', ')}
+									</span>
+								)}
+							</span>
+							<span className="text-small text-muted flex items-center gap-1.5 font-mono">
+								{!usable && info && <Ban size={13} aria-hidden="true" />}
+								{info ? codecLabel(info) : <Plus size={14} aria-hidden="true" />}
+							</span>
+						</button>
+					);
+				})}
+			</div>
+			{listFailed && <p className="text-small text-danger">{m.subs_tracks_failed()}</p>}
+		</Section>
+	);
+}
+
+/** Back to the video these subtitles belong to, with the edits kept. */
+function BackToVideo() {
+	const openAs = useSession((state) => state.openAs);
+	const navigate = useNavigate();
+	return (
+		<Button
+			onClick={() => {
+				openAs('video');
+				void navigate({ to: EDITORS.video.path });
+			}}
+		>
+			<ArrowLeft size={16} aria-hidden="true" />
+			{m.subs_back_to_video()}
+		</Button>
+	);
+}
+
+export function SubtitleInfoPanel({ opened }: { opened: OpenedFile }) {
 	const doc = useSubtitleDoc();
 	const encoding = useSubtitleEditor((state) => state.encoding);
+	const source = useSubtitleProject((state) => state.source);
+	const fonts = useSubtitleProject((state) => state.fonts);
+	const setEncoding = useSubtitleProject((state) => state.setEncoding);
+	const details = usePlayback((state) => state.details);
 	const encodingId = useId();
-	const details = engine.media?.details;
 	const count = doc.cues.filter((cue) => !cue.comment).length;
+	const fromVideo = source === 'video';
 	return (
 		<>
 			<PanelTitle>{m.info_file()}</PanelTitle>
+			{fromVideo && <BackToVideo />}
 			<dl className="grid gap-3.5">
-				<Row label={m.info_format()} value={formatLabel(doc.format, doc.ass?.scriptType)} />
+				<Row
+					label={m.info_format()}
+					value={fromVideo ? opened.format.toUpperCase() : formatLabel(doc.format, doc.ass?.scriptType)}
+				/>
 				<Row label={m.info_size()} value={formatBytes(opened.file.size)} />
+				{details && <Row label={m.info_duration()} value={formatPreciseTime(details.duration)} />}
+				{details?.video && (
+					<Row label={m.info_resolution()} value={`${details.video.width} × ${details.video.height}`} />
+				)}
 				<Row label={m.subs_lines()} value={String(count)} />
 				<Row label={m.subs_last_line()} value={formatPreciseTime(lastEnd(doc) / 1000)} />
 				{doc.ass?.playRes && (
 					<Row label={m.subs_play_res()} value={`${doc.ass.playRes.width} × ${doc.ass.playRes.height}`} />
 				)}
+				{doc.pgsSize && (
+					<Row label={m.subs_picture_size()} value={`${doc.pgsSize.width} × ${doc.pgsSize.height}`} />
+				)}
 				{doc.ass && doc.ass.styles.length > 0 && (
 					<Row label={m.subs_styles()} value={String(doc.ass.styles.length)} />
 				)}
+				{fonts.length > 0 && <Row label={m.subs_fonts()} value={String(fonts.length)} />}
 			</dl>
-			<Section title={m.subs_charset()}>
-				<div className="grid gap-1.5">
-					<label htmlFor={encodingId} className="text-ui text-ink-2">
+			{fromVideo && <TracksSection />}
+			{source === 'text' && (
+				<Section title={m.subs_charset()}>
+					<label htmlFor={encodingId} className="sr-only">
 						{m.subs_charset_read()}
 					</label>
 					<Select
@@ -76,234 +180,11 @@ export function SubtitleInfoPanel({ opened, engine }: { opened: OpenedFile; engi
 						value={encoding}
 						options={ENCODINGS.map((option) => ({ value: option.id, label: option.label }))}
 						onChange={(value: EncodingId) => {
-							engine.setEncoding(value);
+							setEncoding(value);
 						}}
 					/>
-				</div>
-				<p className="text-small text-muted">{m.subs_charset_hint()}</p>
-			</Section>
-			<Section title={m.subs_preview_media()}>
-				<ChooseMedia engine={engine} />
-				{details && (
-					<dl className="grid gap-3.5">
-						<Row label={m.info_duration()} value={formatPreciseTime(details.duration)} />
-						{details.video && (
-							<Row
-								label={m.info_resolution()}
-								value={`${details.video.width} × ${details.video.height}`}
-							/>
-						)}
-					</dl>
-				)}
-				<p className="text-small text-muted">{m.subs_preview_media_hint()}</p>
-			</Section>
-		</>
-	);
-}
-
-/** Characters shown per second: above about 20, most people can't finish reading. */
-function readingSpeed(cue: Cue, format: SubtitleFormat): number {
-	const characters = plainText(cue.text, format)
-		.replace(/\s*\n\s*/g, ' ')
-		.trim().length;
-	return characters / Math.max(0.001, (cue.end - cue.start) / 1000);
-}
-
-/** The selected line: its times, its text, its style. */
-function LineEditor({ cue, index, total }: { cue: Cue; index: number; total: number }) {
-	const doc = useSubtitleDoc();
-	const playhead = useSubtitleEditor((state) => state.playhead);
-	const apply = useSubtitleEditor((state) => state.apply);
-	const preview = useSubtitleEditor((state) => state.preview);
-	const settle = useSubtitleEditor((state) => state.settle);
-	const select = useSubtitleEditor((state) => state.select);
-	const startId = useId();
-	const endId = useId();
-	const styleId = useId();
-	const textId = useId();
-	const speed = readingSpeed(cue, doc.format);
-	const setStart = (seconds: number) => {
-		apply((current) => setCueTimes(current, cue.id, seconds * 1000, Math.max(cue.end, seconds * 1000 + MIN_CUE)));
-	};
-	const setEnd = (seconds: number) => {
-		apply((current) => setCueTimes(current, cue.id, cue.start, seconds * 1000));
-	};
-
-	return (
-		<section className="grid gap-3.5" aria-label={m.subs_line_editor()}>
-			<div className="flex items-center justify-between gap-3">
-				<h3 className="text-ui text-ink-2 font-semibold">{m.subs_line_of({ index: index + 1, total })}</h3>
-				<IconButton
-					label={m.subs_delete_line()}
-					onClick={() => {
-						apply((current) => removeCues(current, new Set([cue.id])));
-						select([]);
-					}}
-				>
-					<Trash2 size={16} />
-				</IconButton>
-			</div>
-			<FieldRow label={m.trim_start()} htmlFor={startId}>
-				<div className="flex gap-1">
-					<TimeField
-						id={startId}
-						value={cue.start / 1000}
-						min={0}
-						max={Number.MAX_SAFE_INTEGER}
-						onCommit={setStart}
-					/>
-					<IconButton
-						label={m.subs_start_here()}
-						onClick={() => {
-							setStart(playhead);
-						}}
-					>
-						<ArrowDownToLine size={15} />
-					</IconButton>
-				</div>
-			</FieldRow>
-			<FieldRow label={m.trim_end()} htmlFor={endId}>
-				<div className="flex gap-1">
-					<TimeField
-						id={endId}
-						value={cue.end / 1000}
-						min={(cue.start + MIN_CUE) / 1000}
-						max={Number.MAX_SAFE_INTEGER}
-						onCommit={setEnd}
-					/>
-					<IconButton
-						label={m.subs_end_here()}
-						onClick={() => {
-							setEnd(Math.max(playhead, (cue.start + MIN_CUE) / 1000));
-						}}
-					>
-						<ArrowDownToLine size={15} />
-					</IconButton>
-				</div>
-			</FieldRow>
-			<dl className="grid gap-2">
-				<Row label={m.info_duration()} value={`${((cue.end - cue.start) / 1000).toFixed(3)} s`} />
-				<div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
-					<dt className="text-ink-2">{m.subs_reading_speed()}</dt>
-					<dd className={`tabular font-mono text-[12.5px] ${speed > 20 ? 'text-danger' : ''}`}>
-						{m.subs_cps({ value: speed.toFixed(1) })}
-					</dd>
-				</div>
-			</dl>
-			{speed > 20 && <p className="text-small text-danger -mt-1">{m.subs_reading_fast()}</p>}
-			{doc.ass && doc.ass.styles.length > 0 && (
-				<FieldRow label={m.subs_style()} htmlFor={styleId}>
-					<Select
-						id={styleId}
-						value={cue.fields?.style ?? 'Default'}
-						options={[...new Set([...doc.ass.styles, cue.fields?.style ?? 'Default'])].map((style) => ({
-							value: style,
-							label: style,
-						}))}
-						onChange={(style) => {
-							apply((current) => updateCue(current, cue.id, { fields: { ...cue.fields, style } }));
-						}}
-					/>
-				</FieldRow>
+				</Section>
 			)}
-			<div className="grid gap-1.5">
-				<label htmlFor={textId} className="text-ui text-ink-2">
-					{m.subs_text()}
-				</label>
-				<textarea
-					id={textId}
-					value={cue.text}
-					rows={3}
-					spellCheck
-					onChange={(event) => {
-						const text = event.target.value;
-						// Typing is previewed at once and becomes one undo step when the field is left.
-						preview((current) => updateCue(current, cue.id, { text }));
-					}}
-					onBlur={settle}
-					className="border-line-2 bg-bg text-body text-ink hover:border-muted w-full resize-y rounded-xs border px-2.5 py-2 transition-colors"
-				/>
-				<p className="text-small text-muted">
-					{doc.format === 'ass' ? m.subs_markup_ass() : m.subs_markup_html()}
-				</p>
-			</div>
-		</section>
-	);
-}
-
-/** Id of the line showing at the playhead, so the list can mark it without redrawing every frame. */
-function useCurrentLine(): number | null {
-	return useSubtitleEditor((state) => {
-		const time = state.playhead * 1000;
-		return (
-			state.history.present.cues.find((cue) => !cue.comment && cue.start <= time && time < cue.end)?.id ?? null
-		);
-	});
-}
-
-export function LinesPanel({ engine }: { engine: SubtitleEngine }) {
-	const doc = useSubtitleDoc();
-	const active = useSubtitleEditor((state) => state.active);
-	const selection = useSubtitleEditor((state) => state.selection);
-	const select = useSubtitleEditor((state) => state.select);
-	const current = useCurrentLine();
-	const listRef = useRef<HTMLOListElement>(null);
-	const lines = shownCues(doc);
-	const activeCue = active === null ? undefined : findCue(doc, active);
-	const activeIndex = activeCue ? lines.findIndex((cue) => cue.id === activeCue.id) : -1;
-
-	// The line picked on the timeline scrolls into view.
-	useEffect(() => {
-		if (active === null) return;
-		listRef.current?.querySelector(`[data-cue="${active}"]`)?.scrollIntoView({ block: 'nearest' });
-	}, [active]);
-
-	return (
-		<>
-			<PanelTitle>{m.subs_lines_title()}</PanelTitle>
-			{activeCue && !activeCue.comment ? (
-				<LineEditor cue={activeCue} index={activeIndex} total={lines.length} />
-			) : (
-				<p className="text-ui text-muted -mt-3">{m.subs_lines_hint()}</p>
-			)}
-			<ol ref={listRef} className="-mx-2 grid gap-px" aria-label={m.subs_lines()}>
-				{lines.map((cue) => {
-					const selected = selection.has(cue.id);
-					return (
-						<li
-							key={cue.id}
-							data-cue={cue.id}
-							className="[contain-intrinsic-size:auto_56px] [content-visibility:auto]"
-						>
-							<button
-								type="button"
-								aria-pressed={selected}
-								onClick={(event) => {
-									if (event.ctrlKey || event.metaKey) {
-										const next = new Set(selection);
-										if (next.has(cue.id)) next.delete(cue.id);
-										else next.add(cue.id);
-										select(next);
-										return;
-									}
-									select([cue.id]);
-									engine.seek(cue.start / 1000);
-								}}
-								className={`grid w-full gap-0.5 rounded-xs px-2 py-1.5 text-left transition-colors ${
-									selected ? 'bg-ed-soft' : 'hover:bg-surface'
-								} ${cue.id === current ? 'shadow-[inset_2px_0_0_var(--ed)]' : ''}`}
-							>
-								<span className="text-caption text-muted tabular font-mono">
-									{formatPreciseTime(cue.start / 1000)} → {formatPreciseTime(cue.end / 1000)}
-								</span>
-								<span className="text-ui line-clamp-2 break-words whitespace-pre-line">
-									{plainText(cue.text, doc.format) || '–'}
-								</span>
-							</button>
-						</li>
-					);
-				})}
-			</ol>
 		</>
 	);
 }
@@ -346,10 +227,11 @@ function OffsetField({ id, value, onChange }: { id: string; value: number; onCha
 
 type Scope = 'all' | 'selected';
 
-export function TimingPanel({ engine }: { engine: SubtitleEngine }) {
+export function TimingPanel() {
 	const doc = useSubtitleDoc();
 	const selection = useSubtitleEditor((state) => state.selection);
-	const playhead = useSubtitleEditor((state) => state.playhead);
+	const playhead = usePlayback((state) => state.time);
+	const seek = usePlayback((state) => state.seek);
 	const apply = useSubtitleEditor((state) => state.apply);
 	const [offset, setOffset] = useState(0);
 	const [scope, setScope] = useState<Scope>('all');
@@ -385,7 +267,6 @@ export function TimingPanel({ engine }: { engine: SubtitleEngine }) {
 	return (
 		<>
 			<PanelTitle>{m.subs_timing_title()}</PanelTitle>
-			<p className="text-ui text-muted -mt-3">{m.subs_timing_hint()}</p>
 
 			<Section title={m.subs_shift()}>
 				<FieldRow label={m.subs_shift_by()} htmlFor={offsetId}>
@@ -406,7 +287,6 @@ export function TimingPanel({ engine }: { engine: SubtitleEngine }) {
 						onChange={setScope}
 					/>
 				</FieldRow>
-				<p className="text-small text-muted">{m.subs_shift_hint()}</p>
 				<Button
 					disabled={offset === 0}
 					onClick={() => {
@@ -419,9 +299,6 @@ export function TimingPanel({ engine }: { engine: SubtitleEngine }) {
 
 			{first && second && first.id !== second.id && (
 				<Section title={m.subs_sync()}>
-					<p className="text-small text-muted -mt-1">
-						{picked.length === 2 ? m.subs_sync_hint_selected() : m.subs_sync_hint()}
-					</p>
 					{[
 						{ id: firstId, cue: first, target: firstTarget, index: 0 },
 						{ id: secondId, cue: second, target: secondTarget, index: 1 },
@@ -431,7 +308,7 @@ export function TimingPanel({ engine }: { engine: SubtitleEngine }) {
 								<span className="text-muted tabular mr-2 font-mono text-[12px]">
 									{formatPreciseTime(cue.start / 1000)}
 								</span>
-								{plainText(cue.text, doc.format).replace(/\n/g, ' ')}
+								{cueLabel(cue, doc.format).replace(/\n/g, ' ')}
 							</p>
 							<FieldRow label={m.subs_should_start()} htmlFor={id}>
 								<div className="flex gap-1">
@@ -484,7 +361,7 @@ export function TimingPanel({ engine }: { engine: SubtitleEngine }) {
 						type="button"
 						className="text-small text-muted hover:text-ink justify-self-start underline-offset-2 hover:underline"
 						onClick={() => {
-							engine.seek(first.start / 1000);
+							seek(first.start / 1000);
 						}}
 					>
 						{m.subs_sync_listen()}
@@ -499,7 +376,6 @@ export function TimingPanel({ engine }: { engine: SubtitleEngine }) {
 				<FieldRow label={m.subs_rate_to()} htmlFor={toId}>
 					<Select id={toId} value={toRate} options={rateOptions} onChange={setToRate} />
 				</FieldRow>
-				<p className="text-small text-muted">{m.subs_frame_rate_hint()}</p>
 				<Button
 					disabled={fromRate === toRate}
 					onClick={() => {
@@ -513,11 +389,14 @@ export function TimingPanel({ engine }: { engine: SubtitleEngine }) {
 	);
 }
 
-const FORMAT_HINTS: Record<SubtitleFormat, () => string> = {
-	srt: () => m.subs_format_srt(),
-	vtt: () => m.subs_format_vtt(),
-	ass: () => m.subs_format_ass(),
-};
+function Warning({ children }: { children: string }) {
+	return (
+		<p className="text-small text-ed-text flex items-start gap-1.5 font-medium">
+			<TriangleAlert size={14} aria-hidden="true" className="mt-0.5 flex-none" />
+			{children}
+		</p>
+	);
+}
 
 export function SubtitleExportPanel() {
 	const doc = useSubtitleDoc();
@@ -532,7 +411,7 @@ export function SubtitleExportPanel() {
 				<OptionList
 					label={m.export_format()}
 					value={settings.format}
-					options={(['srt', 'vtt', 'ass'] as const).map((format) => ({
+					options={exportFormats(doc).map((format) => ({
 						value: format,
 						label: FORMAT_FILES[format].label,
 						detail: format === doc.format ? m.subs_format_source() : `.${FORMAT_FILES[format].extension}`,
@@ -541,23 +420,19 @@ export function SubtitleExportPanel() {
 						setExport({ format });
 					}}
 				/>
-				<p className="text-small text-muted">{FORMAT_HINTS[settings.format]()}</p>
-				{losesStyles && <p className="text-small text-ed-text font-medium">{m.subs_loses_styles()}</p>}
-				{dropped > 0 && (
-					<p className="text-small text-ed-text font-medium">{m.subs_dropped({ count: dropped })}</p>
-				)}
-				{doc.format !== 'ass' && settings.format === 'ass' && (
-					<p className="text-small text-muted">{m.subs_to_ass_hint()}</p>
-				)}
+				{losesStyles && <Warning>{m.subs_loses_styles()}</Warning>}
+				{dropped > 0 && <Warning>{m.subs_dropped({ count: dropped })}</Warning>}
 			</Section>
-			<Section title={m.subs_charset()}>
-				<p className="text-small text-muted -mt-1">{m.subs_utf8()}</p>
-			</Section>
+			{doc.format !== 'pgs' && (
+				<dl className="grid gap-3.5">
+					<Row label={m.subs_charset()} value={settings.format === 'vtt' ? 'UTF-8' : 'UTF-8 BOM'} />
+				</dl>
+			)}
 		</>
 	);
 }
 
-export function SubtitleExportFooter({ file, engine }: { file: File; engine: SubtitleEngine }) {
+export function SubtitleExportFooter() {
 	const doc = useSubtitleDoc();
 	const settings = useSubtitleEditor((state) => state.exportSettings);
 	const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
@@ -575,12 +450,21 @@ export function SubtitleExportFooter({ file, engine }: { file: File; engine: Sub
 	const run = async () => {
 		setStatus('saving');
 		try {
-			const { extension, mime } = FORMAT_FILES[settings.format];
-			const title = file.name.replace(/\.[^.]+$/, '');
-			const text = writeSubtitles(doc, settings.format, title, engine.media?.details?.video ?? undefined);
-			// A byte order mark tells older players and Windows programs the file is UTF-8.
-			const bom = settings.format === 'vtt' ? '' : '\ufeff';
-			const saved = await saveFile(new Blob([bom + text], { type: mime }), outputName(file.name, extension));
+			const format = settings.format;
+			const { extension, mime } = FORMAT_FILES[format];
+			const name = exportName(extension);
+			let blob: Blob;
+			if (format === 'pgs') {
+				const bytes = await writeSup(doc);
+				blob = new Blob([bytes.slice()], { type: mime });
+			} else {
+				const title = name.replace(/\.[^.]+$/, '');
+				const text = writeSubtitles(doc, format, title, usePlayback.getState().details?.video ?? undefined);
+				// A byte order mark tells older players and Windows programs the file is UTF-8.
+				const bom = format === 'vtt' ? '' : '\ufeff';
+				blob = new Blob([bom + text], { type: mime });
+			}
+			const saved = await saveFile(blob, name);
 			setStatus(saved ? 'saved' : 'idle');
 		} catch {
 			setStatus('failed');

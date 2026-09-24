@@ -20,7 +20,6 @@ interface BatchListProps {
 	/** True while exporting: files can't be added or removed. */
 	locked: boolean;
 	count: (count: number) => string;
-	hint: string;
 	addLabel: string;
 	/** File types the add button offers. */
 	accept: string;
@@ -30,7 +29,7 @@ interface BatchListProps {
  * The files of a batch, as named chips above the timeline. The one shown is the one being edited;
  * the batch's settings apply to all of them.
  */
-export function BatchList({ statuses, locked, count, hint, addLabel, accept }: BatchListProps) {
+export function BatchList({ statuses, locked, count, addLabel, accept }: BatchListProps) {
 	const batch = useSession((state) => state.batch) ?? [];
 	const current = useSession((state) => state.current);
 	const select = useSession((state) => state.select);
@@ -43,8 +42,7 @@ export function BatchList({ statuses, locked, count, hint, addLabel, accept }: B
 		<section aria-label={m.batch_label()} className="border-line grid gap-2 border-t px-4 pt-3 pb-1">
 			<div className="flex items-center justify-between gap-3">
 				<span className="text-ui">
-					<span className="font-semibold">{count(batch.length)}</span>{' '}
-					<span className="text-muted max-sm:hidden">{hint}</span>
+					<span className="font-semibold">{count(batch.length)}</span>
 				</span>
 				<button
 					type="button"

@@ -167,25 +167,26 @@ async function readTimed(input: Input, base: MediaInfo): Promise<Probe> {
 	let video: VideoStream | null = null;
 	let poster: ImageBitmap | null = null;
 	if (videoTrack) {
-		const [fps, decodable] = await Promise.all([measureFrameRate(videoTrack), videoTrack.canDecode()]);
-		video = {
-			codec: videoTrack.codec,
-			width: videoTrack.displayWidth,
-			height: videoTrack.displayHeight,
-			fps,
-			decodable,
-		};
+		const [fps, decodable, codec, width, height] = await Promise.all([
+			measureFrameRate(videoTrack),
+			videoTrack.canDecode(),
+			videoTrack.getCodec(),
+			videoTrack.getDisplayWidth(),
+			videoTrack.getDisplayHeight(),
+		]);
+		video = { codec, width, height, fps, decodable };
 		if (decodable) poster = await pickPoster(videoTrack, duration);
 	}
 
 	let audio: AudioStream | null = null;
 	if (audioTrack) {
-		audio = {
-			codec: audioTrack.codec,
-			sampleRate: audioTrack.sampleRate,
-			channels: audioTrack.numberOfChannels,
-			decodable: await audioTrack.canDecode(),
-		};
+		const [codec, sampleRate, channels, decodable] = await Promise.all([
+			audioTrack.getCodec(),
+			audioTrack.getSampleRate(),
+			audioTrack.getNumberOfChannels(),
+			audioTrack.canDecode(),
+		]);
+		audio = { codec, sampleRate, channels, decodable };
 	}
 
 	// Audio files show their cover art where a video would show a frame.

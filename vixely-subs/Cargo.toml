@@ -1,0 +1,19 @@
+[package]
+name = "vixely-subs"
+version = "0.1.0"
+edition = "2024"
+license = "AGPL-3.0-only"
+description = "Subtitle tracks for Vixely: Matroska and MP4 extraction, PGS decoding and writing. Compiled to WebAssembly."
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+js-sys = "0.3"
+# Matroska tracks may be zlib-compressed (older mkvmerge did it by default for subtitles).
+miniz_oxide = "0.8"
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O3", "--enable-bulk-memory", "--enable-nontrapping-float-to-int", "--enable-sign-ext", "--enable-mutable-globals", "--enable-reference-types", "--enable-multivalue", "--enable-simd"]

@@ -115,7 +115,6 @@ export function TrimPanel() {
 						{m.trim_end_here()}
 					</Button>
 				</div>
-				<p className="text-small text-muted">{m.trim_hint()}</p>
 			</div>
 
 			<Section title={m.selection_title()}>
@@ -193,10 +192,10 @@ function formatDb(db: number): string {
 }
 
 /** Loudness targets of the places audio ends up, in LUFS. */
-const TARGETS: { value: number; hint: () => string }[] = [
-	{ value: -14, hint: () => m.normalize_streaming() },
-	{ value: -16, hint: () => m.normalize_apple() },
-	{ value: -23, hint: () => m.normalize_broadcast() },
+const TARGETS: { value: number; name: () => string }[] = [
+	{ value: -14, name: () => m.normalize_streaming_name() },
+	{ value: -16, name: () => m.normalize_apple_name() },
+	{ value: -23, name: () => 'EBU R128' },
 ];
 
 export function VolumePanel({ engine }: { engine: AudioEngine }) {
@@ -213,7 +212,6 @@ export function VolumePanel({ engine }: { engine: AudioEngine }) {
 	const gain = engine.resolved.gain;
 	const integrated = reading && Number.isFinite(reading.integrated) ? reading.integrated + gain : null;
 	const truePeak = reading && Number.isFinite(reading.truePeak) ? reading.truePeak + gain : null;
-	const target = TARGETS.find((option) => option.value === doc.normalize);
 
 	return (
 		<>
@@ -229,7 +227,7 @@ export function VolumePanel({ engine }: { engine: AudioEngine }) {
 								{ value: 'off', label: m.normalize_off() },
 								...TARGETS.map((option) => ({
 									value: String(option.value),
-									label: `${signedDb(option.value).replace('.0', '')} LUFS`,
+									label: `${signedDb(option.value).replace('.0', '')} LUFS, ${option.name()}`,
 								})),
 							]}
 							onChange={(value) => {
@@ -237,7 +235,6 @@ export function VolumePanel({ engine }: { engine: AudioEngine }) {
 							}}
 						/>
 					</FieldRow>
-					<p className="text-small text-muted">{target ? target.hint() : m.loudness_hint()}</p>
 					{normalization?.limited && integrated !== null && (
 						<p role="status" className="text-small text-ed-text font-medium">
 							{m.normalize_limited({ lufs: signedDb(integrated) })}
@@ -253,7 +250,6 @@ export function VolumePanel({ engine }: { engine: AudioEngine }) {
 						max={GAIN_RANGE.max}
 						step={0.5}
 						format={formatDb}
-						hint={m.volume_gain_hint()}
 						onChange={(value) => {
 							preview((current) => setGain(current, value));
 						}}
@@ -299,7 +295,6 @@ export function VolumePanel({ engine }: { engine: AudioEngine }) {
 						>
 							{m.volume_maximize()}
 						</Button>
-						<p className="text-small text-muted">{m.volume_maximize_hint()}</p>
 					</div>
 				)}
 			</div>
@@ -329,7 +324,6 @@ export function VolumePanel({ engine }: { engine: AudioEngine }) {
 					}}
 					onEnd={settle}
 				/>
-				<p className="text-small text-muted">{m.fades_hint()}</p>
 			</Section>
 		</>
 	);

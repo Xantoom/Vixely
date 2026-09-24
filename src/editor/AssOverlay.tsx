@@ -12,6 +12,7 @@ export function AssOverlay({
 	time,
 	width,
 	height,
+	fonts,
 	onFailed,
 }: {
 	/** A complete ASS script. */
@@ -20,6 +21,8 @@ export function AssOverlay({
 	time: number;
 	width: number;
 	height: number;
+	/** Font files the script uses, such as those embedded in a video. Read when the renderer starts: give the overlay a new key when they change. */
+	fonts?: readonly Uint8Array[];
 	onFailed?: () => void;
 }) {
 	const hostRef = useRef<HTMLDivElement>(null);
@@ -29,6 +32,8 @@ export function AssOverlay({
 	failedRef.current = onFailed;
 	const sizeRef = useRef({ width, height });
 	sizeRef.current = { width, height };
+	const fontsRef = useRef(fonts);
+	fontsRef.current = fonts;
 	const [renderer, setRenderer] = useState<JASSUB | null>(null);
 
 	// The canvas is handed over to a worker, which can happen only once: each renderer gets its own.
@@ -49,7 +54,7 @@ export function AssOverlay({
 				created = new Renderer({
 					canvas,
 					subContent: scriptRef.current,
-					fonts: [defaultFont],
+					fonts: [defaultFont, ...(fontsRef.current ?? [])],
 					queryFonts: false,
 				});
 				// JASSUB watches the canvas size itself, but in canvas mode it can measure before it

@@ -59,7 +59,7 @@ export const EDITORS: Record<MediaKind, EditorDefinition> = {
 		kind: 'subtitles',
 		path: '/subtitles',
 		label: () => m.media_subtitles(),
-		tools: ['info', 'lines', 'timing'],
+		tools: ['info', 'timing'],
 		timed: true,
 	},
 };

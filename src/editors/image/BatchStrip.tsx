@@ -101,8 +101,7 @@ export function BatchStrip({ statuses, locked }: { statuses: ReadonlyMap<number,
 		<section aria-label={m.batch_label()} className="border-line grid gap-2.5 border-t px-4 pt-3 pb-4">
 			<div className="flex items-center justify-between gap-3">
 				<span className="text-ui">
-					<span className="font-semibold">{m.batch_count({ count: batch.length })}</span>{' '}
-					<span className="text-muted">{m.batch_hint()}</span>
+					<span className="font-semibold">{m.batch_count({ count: batch.length })}</span>
 				</span>
 				<button
 					type="button"
