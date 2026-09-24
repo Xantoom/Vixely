@@ -1,6 +1,7 @@
 import { Lock } from 'lucide-react';
 import { type ReactNode, useId, useLayoutEffect, useRef, useState } from 'react';
 import { formatPreciseTime, parseTime } from '@/lib/format';
+import { Dropdown, type DropdownOption } from './Dropdown';
 
 const FIELD =
 	'h-8 w-full rounded-xs border border-line-2 bg-bg font-mono text-[12.5px] text-ink transition-colors hover:border-muted';
@@ -17,46 +18,23 @@ export function FieldRow({ label, htmlFor, children }: { label: string; htmlFor?
 	);
 }
 
-export interface SelectOption<T extends string> {
-	value: T;
-	label: string;
-	disabled?: boolean;
-}
+export type SelectOption<T extends string> = DropdownOption<T>;
 
+/** A choice in a panel: fills its column, named by the label of its row. */
 export function Select<T extends string>({
 	id,
+	label = '',
 	value,
 	options,
 	onChange,
 }: {
 	id?: string;
+	label?: string;
 	value: T;
 	options: SelectOption<T>[];
 	onChange: (value: T) => void;
 }) {
-	return (
-		<span className="relative block">
-			<select
-				id={id}
-				value={value}
-				onChange={(event) => {
-					const next = options.find((option) => option.value === event.target.value);
-					if (next) onChange(next.value);
-				}}
-				className={`${FIELD} appearance-none pr-7 pl-2.5`}
-			>
-				{options.map((option) => (
-					<option key={option.value} value={option.value} disabled={option.disabled}>
-						{option.label}
-					</option>
-				))}
-			</select>
-			<span
-				className="border-muted pointer-events-none absolute top-1/2 right-3 size-1.5 -translate-y-[70%] rotate-45 border-r-[1.5px] border-b-[1.5px]"
-				aria-hidden="true"
-			/>
-		</span>
-	);
+	return <Dropdown id={id} label={label} value={value} options={options} onChange={onChange} />;
 }
 
 /**

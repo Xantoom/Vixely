@@ -21,9 +21,8 @@ export async function pictureBitmap(picture: Picture): Promise<ImageBitmap | nul
 	return bitmap;
 }
 
-/** The document as a `.sup` file: each picture at its line's times, in time order. */
-export async function writeSup(doc: SubtitleDoc): Promise<Uint8Array> {
-	const subs = await loadSubs();
+/** Pictures of the document in time order, packed side by side for vixely-subs. */
+function packPictures(doc: SubtitleDoc) {
 	const lines = shownCues(doc).filter((cue) => cue.picture);
 	const offsets = [0];
 	for (const cue of lines) offsets.push((offsets.at(-1) ?? 0) + (cue.picture?.set.length ?? 0));
@@ -31,10 +30,32 @@ export async function writeSup(doc: SubtitleDoc): Promise<Uint8Array> {
 	lines.forEach((cue, k) => {
 		if (cue.picture) data.set(cue.picture.set, offsets[k]);
 	});
-	return subs.pgs_write(
-		Float64Array.from(lines.map((cue) => cue.start)),
-		Float64Array.from(lines.map((cue) => cue.end)),
-		Uint32Array.from(offsets),
+	return {
+		starts: Float64Array.from(lines.map((cue) => cue.start)),
+		ends: Float64Array.from(lines.map((cue) => cue.end)),
+		offsets: Uint32Array.from(offsets),
 		data,
-	);
+	};
+}
+
+/** The document as a `.sup` file: each picture at its line's times, in time order. */
+export async function writeSup(doc: SubtitleDoc): Promise<Uint8Array> {
+	const subs = await loadSubs();
+	const { starts, ends, offsets, data } = packPictures(doc);
+	return subs.pgs_write(starts, ends, offsets, data);
+}
+
+/** The document as Matroska blocks: one display set each, clearing sets included. */
+export async function pgsBlocks(doc: SubtitleDoc) {
+	const subs = await loadSubs();
+	const { starts, ends, offsets, data } = packPictures(doc);
+	const packets = subs.pgs_mkv_packets(starts, ends, offsets, data);
+	const blocks = {
+		starts: packets.starts(),
+		durations: packets.durations(),
+		offsets: packets.offsets(),
+		data: packets.data(),
+	};
+	packets.free();
+	return blocks;
 }

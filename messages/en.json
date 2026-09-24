@@ -528,5 +528,35 @@
 	"subs_back_to_video": "Back to the video",
 	"drop_anywhere": "Drop to open",
 	"normalize_streaming_name": "streaming",
-	"normalize_apple_name": "Apple Music, podcasts"
+	"normalize_apple_name": "Apple Music, podcasts",
+	"mux_tracks": "Tracks",
+	"mux_language": "Language",
+	"mux_track_name": "Track name",
+	"mux_blocked_pgs": "MP4 files can't hold PGS subtitles",
+	"mux_failed": "The video couldn't be written.",
+	"mux_convert_later": "Converting comes with the video editor's tools",
+	"export_video_title": "Export the video",
+	"subs_export_target": "Export to",
+	"subs_export_file": "A subtitle file",
+	"subs_export_video": "The video",
+	"mux_video": "Video",
+	"mux_audio": "Audio",
+	"mux_edit_track": "Language and name",
+	"batch_count_subtitles": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} subtitle file",
+				"countPlural=other": "{count} subtitle files"
+			}
+		}
+	],
+	"subs_first_line": "First line",
+	"subs_batch_title": "Batch"
 }

@@ -79,6 +79,7 @@ const BATCH_KINDS: Partial<Record<MediaKind, MediaKind[]>> = {
 	image: ['image'],
 	gif: ['gif'],
 	audio: ['audio', 'video'],
+	subtitles: ['subtitles'],
 };
 
 /** Identifies files and keeps those a batch of `kind` accepts. */

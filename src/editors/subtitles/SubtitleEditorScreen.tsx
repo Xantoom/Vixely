@@ -16,6 +16,7 @@ import { LineGrid } from './LineGrid';
 import { SubtitleExportFooter, SubtitleExportPanel, SubtitleInfoPanel, TimingPanel } from './panels';
 import { useProjectReady, useSubtitleProject } from './project';
 import { useSubtitleDoc, useSubtitleEditor, useSubtitleUndoState } from './store';
+import { SubtitleBatchScreen } from './SubtitleBatchScreen';
 import { SubtitleViewer } from './SubtitleViewer';
 
 /** Room after the last line when there is no video, so lines can be placed after it. */
@@ -99,7 +100,14 @@ function Workspace({ title }: { title: string }) {
 	);
 }
 
+/** One subtitle file or track, or several files processed together. */
 export function SubtitleEditorScreen({ initialTool }: { initialTool?: ToolId }) {
+	const batch = useSession((state) => (state.batchKind === 'subtitles' ? state.batch : null));
+	if (batch) return <SubtitleBatchScreen batch={batch} />;
+	return <SingleSubtitleScreen initialTool={initialTool} />;
+}
+
+function SingleSubtitleScreen({ initialTool }: { initialTool?: ToolId }) {
 	const current = useSession((state) => state.current);
 	const opened = current?.kind === 'subtitles' ? current : null;
 	const open = useSubtitleProject((state) => state.open);
@@ -150,7 +158,7 @@ export function SubtitleEditorScreen({ initialTool }: { initialTool?: ToolId }) 
 	const inspector = () => {
 		if (!opened || !ready) return <FilePanel opened={opened} />;
 		if (tool === 'timing') return <TimingPanel />;
-		if (tool === 'export') return <SubtitleExportPanel />;
+		if (tool === 'export') return <SubtitleExportPanel opened={opened} />;
 		return <SubtitleInfoPanel opened={opened} />;
 	};
 
@@ -193,7 +201,7 @@ export function SubtitleEditorScreen({ initialTool }: { initialTool?: ToolId }) 
 			viewer={ready ? undefined : waiting()}
 			workspace={ready ? <Workspace title={opened.file.name.replace(/\.[^.]+$/, '')} /> : undefined}
 			inspector={inspector()}
-			inspectorFooter={tool === 'export' && ready ? <SubtitleExportFooter /> : undefined}
+			inspectorFooter={tool === 'export' && ready ? <SubtitleExportFooter opened={opened} /> : undefined}
 		/>
 	);
 }

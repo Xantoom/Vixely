@@ -29,14 +29,26 @@ pub struct Mp4Track {
 	pub samples: Vec<Sample>,
 }
 
+/// A video or audio track, listed for remuxing.
+#[derive(Clone, Debug, Default)]
+pub struct MediaTrack {
+	pub id: u32,
+	pub video: bool,
+	pub codec: String,
+	pub language: String,
+	pub name: String,
+	pub enabled: bool,
+}
+
 #[derive(Debug, Default)]
 pub struct Mp4 {
 	pub tracks: Vec<Mp4Track>,
+	pub media: Vec<MediaTrack>,
 	/// Fragmented files keep their samples in `moof` boxes, which are not read.
 	pub fragmented: bool,
 }
 
-fn invalid(message: &str) -> io::Error {
+pub(crate) fn invalid(message: &str) -> io::Error {
 	io::Error::new(io::ErrorKind::InvalidData, message.to_string())
 }
 
@@ -46,7 +58,7 @@ pub fn is_mp4(head: &[u8]) -> bool {
 }
 
 /// A box inside a byte slice: its type and content.
-struct Boxes<'a> {
+pub(crate) struct Boxes<'a> {
 	data: &'a [u8],
 }
 
@@ -74,28 +86,28 @@ impl<'a> Iterator for Boxes<'a> {
 	}
 }
 
-fn boxes(data: &[u8]) -> Boxes<'_> {
+pub(crate) fn boxes(data: &[u8]) -> Boxes<'_> {
 	Boxes { data }
 }
 
-fn find<'a>(data: &'a [u8], kind: &[u8; 4]) -> Option<&'a [u8]> {
+pub(crate) fn find<'a>(data: &'a [u8], kind: &[u8; 4]) -> Option<&'a [u8]> {
 	boxes(data).find(|(k, _)| k == kind).map(|(_, content)| content)
 }
 
-fn u16_at(data: &[u8], at: usize) -> Option<u16> {
+pub(crate) fn u16_at(data: &[u8], at: usize) -> Option<u16> {
 	Some(u16::from_be_bytes(data.get(at..at + 2)?.try_into().ok()?))
 }
 
-fn u32_at(data: &[u8], at: usize) -> Option<u32> {
+pub(crate) fn u32_at(data: &[u8], at: usize) -> Option<u32> {
 	Some(u32::from_be_bytes(data.get(at..at + 4)?.try_into().ok()?))
 }
 
-fn u64_at(data: &[u8], at: usize) -> Option<u64> {
+pub(crate) fn u64_at(data: &[u8], at: usize) -> Option<u64> {
 	Some(u64::from_be_bytes(data.get(at..at + 8)?.try_into().ok()?))
 }
 
 /// ISO 639-2 code packed in three 5-bit letters.
-fn packed_language(code: u16) -> String {
+pub(crate) fn packed_language(code: u16) -> String {
 	let letters = [(code >> 10) & 0x1F, (code >> 5) & 0x1F, code & 0x1F];
 	if letters.iter().any(|&l| l == 0) {
 		return "und".into();
@@ -103,7 +115,7 @@ fn packed_language(code: u16) -> String {
 	letters.iter().map(|&l| char::from(b'`' + l as u8)).collect()
 }
 
-fn text(data: &[u8]) -> String {
+pub(crate) fn text(data: &[u8]) -> String {
 	let end = data.iter().position(|&b| b == 0).unwrap_or(data.len());
 	String::from_utf8_lossy(&data[..end]).trim().to_string()
 }
@@ -160,6 +172,8 @@ pub fn probe<R: Read + Seek>(r: &mut R, file_size: u64) -> io::Result<Mp4> {
 		}
 		if let Some(track) = read_track(trak, movie_timescale) {
 			file.tracks.push(track);
+		} else if let Some(track) = read_media_track(trak) {
+			file.media.push(track);
 		}
 	}
 	Ok(file)
@@ -213,6 +227,45 @@ fn read_track(trak: &[u8], movie_timescale: u32) -> Option<Mp4Track> {
 	track.samples = sample_table(stbl).unwrap_or_default();
 	track.delay_ms = edit_delay(trak, movie_timescale, track.timescale);
 	Some(track)
+}
+
+/// The header of a video or audio track: what `read_track` reads, without the samples.
+fn read_media_track(trak: &[u8]) -> Option<MediaTrack> {
+	let mdia = find(trak, b"mdia")?;
+	let hdlr = find(mdia, b"hdlr")?;
+	let video = match hdlr.get(8..12)? {
+		b"vide" => true,
+		b"soun" => false,
+		_ => return None,
+	};
+	let codec = find(find(find(mdia, b"minf")?, b"stbl")?, b"stsd")
+		.map(|stsd| String::from_utf8_lossy(stsd.get(12..16).unwrap_or_default()).into_owned())
+		.unwrap_or_default();
+	let tkhd = find(trak, b"tkhd")?;
+	let id = if tkhd.first() == Some(&1) {
+		u32_at(tkhd, 20)?
+	} else {
+		u32_at(tkhd, 12)?
+	};
+	let mdhd = find(mdia, b"mdhd")?;
+	let language = if mdhd.first() == Some(&1) {
+		u16_at(mdhd, 32)?
+	} else {
+		u16_at(mdhd, 20)?
+	};
+	let language = find(mdia, b"elng")
+		.map(|elng| text(&elng[4.min(elng.len())..]))
+		.unwrap_or_else(|| packed_language(language));
+	let name = text(hdlr.get(24..).unwrap_or_default());
+	let generic = name.contains("Handler") || name.starts_with("Core Media") || name.starts_with("GPAC");
+	Some(MediaTrack {
+		id,
+		video,
+		codec,
+		language,
+		name: if generic { String::new() } else { name },
+		enabled: u32_at(tkhd, 0).is_some_and(|flags| flags & 1 != 0),
+	})
 }
 
 /// Offset of the first sample, from an edit list: an empty edit first delays the track, and a

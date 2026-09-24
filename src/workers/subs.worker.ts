@@ -5,6 +5,7 @@
  */
 import type {
 	AttachmentInfo,
+	MediaTrackInfo,
 	SubtitleSourceRequest,
 	SubtitleSourceResponse,
 	SubtitleTrackInfo,
@@ -41,6 +42,17 @@ function tracksFrom(json: string): SubtitleTrackInfo[] {
 	}));
 }
 
+function mediaFrom(json: string): MediaTrackInfo[] {
+	return list(json).map((track) => ({
+		id: Number(track.id),
+		kind: track.kind === 'video' ? 'video' : 'audio',
+		codec: text(track.codec, ''),
+		language: text(track.language, 'und'),
+		name: text(track.name, ''),
+		default: track.default === true,
+	}));
+}
+
 function attachmentsFrom(json: string): AttachmentInfo[] {
 	return list(json).map((file) => ({
 		name: text(file.name, ''),
@@ -69,6 +81,7 @@ async function handle(message: SubtitleSourceRequest) {
 		post({
 			type: 'opened',
 			tracks: tracksFrom(source.tracks()),
+			media: mediaFrom(source.media_tracks()),
 			attachments: attachmentsFrom(source.attachments()),
 		});
 		return;

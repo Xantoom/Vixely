@@ -10,54 +10,54 @@ use std::io::{self, Read, Seek};
 
 use crate::ebml::{Header, UNKNOWN, read_bytes, read_float, read_header, read_string, read_uint, read_vint, skip_to};
 
-const EBML: u32 = 0x1A45_DFA3;
-const SEGMENT: u32 = 0x1853_8067;
-const SEEK_HEAD: u32 = 0x114D_9B74;
-const SEEK: u32 = 0x4DBB;
-const SEEK_ID: u32 = 0x53AB;
-const SEEK_POSITION: u32 = 0x53AC;
-const INFO: u32 = 0x1549_A966;
-const TIMESTAMP_SCALE: u32 = 0x2A_D7B1;
-const DURATION: u32 = 0x4489;
-const TRACKS: u32 = 0x1654_AE6B;
-const TRACK_ENTRY: u32 = 0xAE;
-const TRACK_NUMBER: u32 = 0xD7;
-const TRACK_TYPE: u32 = 0x83;
-const CODEC_ID: u32 = 0x86;
-const CODEC_PRIVATE: u32 = 0x63A2;
-const LANGUAGE: u32 = 0x22_B59C;
-const LANGUAGE_BCP47: u32 = 0x22_B59D;
-const NAME: u32 = 0x536E;
-const FLAG_DEFAULT: u32 = 0x88;
-const FLAG_FORCED: u32 = 0x55AA;
-const CONTENT_ENCODINGS: u32 = 0x6D80;
-const CONTENT_ENCODING: u32 = 0x6240;
-const CONTENT_ENCODING_TYPE: u32 = 0x5033;
-const CONTENT_COMPRESSION: u32 = 0x5034;
-const CONTENT_COMP_ALGO: u32 = 0x4254;
-const CONTENT_COMP_SETTINGS: u32 = 0x4255;
-const ATTACHMENTS: u32 = 0x1941_A469;
-const ATTACHED_FILE: u32 = 0x61A7;
-const FILE_NAME: u32 = 0x466E;
-const FILE_MIME_TYPE: u32 = 0x4660;
-const FILE_DATA: u32 = 0x465C;
-const CLUSTER: u32 = 0x1F43_B675;
-const CLUSTER_TIMESTAMP: u32 = 0xE7;
-const SIMPLE_BLOCK: u32 = 0xA3;
-const BLOCK_GROUP: u32 = 0xA0;
-const BLOCK: u32 = 0xA1;
-const BLOCK_DURATION: u32 = 0x9B;
-const CUES: u32 = 0x1C53_BB6B;
-const CUE_POINT: u32 = 0xBB;
-const CUE_TRACK_POSITIONS: u32 = 0xB7;
-const CUE_TRACK: u32 = 0xF7;
-const CUE_CLUSTER_POSITION: u32 = 0xF1;
-const CUE_RELATIVE_POSITION: u32 = 0xF0;
-const TAGS: u32 = 0x1254_C367;
-const CHAPTERS: u32 = 0x1043_A770;
+pub(crate) const EBML: u32 = 0x1A45_DFA3;
+pub(crate) const SEGMENT: u32 = 0x1853_8067;
+pub(crate) const SEEK_HEAD: u32 = 0x114D_9B74;
+pub(crate) const SEEK: u32 = 0x4DBB;
+pub(crate) const SEEK_ID: u32 = 0x53AB;
+pub(crate) const SEEK_POSITION: u32 = 0x53AC;
+pub(crate) const INFO: u32 = 0x1549_A966;
+pub(crate) const TIMESTAMP_SCALE: u32 = 0x2A_D7B1;
+pub(crate) const DURATION: u32 = 0x4489;
+pub(crate) const TRACKS: u32 = 0x1654_AE6B;
+pub(crate) const TRACK_ENTRY: u32 = 0xAE;
+pub(crate) const TRACK_NUMBER: u32 = 0xD7;
+pub(crate) const TRACK_TYPE: u32 = 0x83;
+pub(crate) const CODEC_ID: u32 = 0x86;
+pub(crate) const CODEC_PRIVATE: u32 = 0x63A2;
+pub(crate) const LANGUAGE: u32 = 0x22_B59C;
+pub(crate) const LANGUAGE_BCP47: u32 = 0x22_B59D;
+pub(crate) const NAME: u32 = 0x536E;
+pub(crate) const FLAG_DEFAULT: u32 = 0x88;
+pub(crate) const FLAG_FORCED: u32 = 0x55AA;
+pub(crate) const CONTENT_ENCODINGS: u32 = 0x6D80;
+pub(crate) const CONTENT_ENCODING: u32 = 0x6240;
+pub(crate) const CONTENT_ENCODING_TYPE: u32 = 0x5033;
+pub(crate) const CONTENT_COMPRESSION: u32 = 0x5034;
+pub(crate) const CONTENT_COMP_ALGO: u32 = 0x4254;
+pub(crate) const CONTENT_COMP_SETTINGS: u32 = 0x4255;
+pub(crate) const ATTACHMENTS: u32 = 0x1941_A469;
+pub(crate) const ATTACHED_FILE: u32 = 0x61A7;
+pub(crate) const FILE_NAME: u32 = 0x466E;
+pub(crate) const FILE_MIME_TYPE: u32 = 0x4660;
+pub(crate) const FILE_DATA: u32 = 0x465C;
+pub(crate) const CLUSTER: u32 = 0x1F43_B675;
+pub(crate) const CLUSTER_TIMESTAMP: u32 = 0xE7;
+pub(crate) const SIMPLE_BLOCK: u32 = 0xA3;
+pub(crate) const BLOCK_GROUP: u32 = 0xA0;
+pub(crate) const BLOCK: u32 = 0xA1;
+pub(crate) const BLOCK_DURATION: u32 = 0x9B;
+pub(crate) const CUES: u32 = 0x1C53_BB6B;
+pub(crate) const CUE_POINT: u32 = 0xBB;
+pub(crate) const CUE_TRACK_POSITIONS: u32 = 0xB7;
+pub(crate) const CUE_TRACK: u32 = 0xF7;
+pub(crate) const CUE_CLUSTER_POSITION: u32 = 0xF1;
+pub(crate) const CUE_RELATIVE_POSITION: u32 = 0xF0;
+pub(crate) const TAGS: u32 = 0x1254_C367;
+pub(crate) const CHAPTERS: u32 = 0x1043_A770;
 
 /// Elements found directly in the segment: in a cluster of unknown size, one of them ends it.
-const TOP_LEVEL: [u32; 8] = [CLUSTER, CUES, TAGS, CHAPTERS, ATTACHMENTS, SEEK_HEAD, INFO, TRACKS];
+pub(crate) const TOP_LEVEL: [u32; 8] = [CLUSTER, CUES, TAGS, CHAPTERS, ATTACHMENTS, SEEK_HEAD, INFO, TRACKS];
 
 /// Matroska track type of subtitles.
 pub const SUBTITLE_TRACK: u64 = 0x11;
@@ -98,10 +98,10 @@ pub struct Matroska {
 	pub duration_ms: Option<f64>,
 	pub tracks: Vec<Track>,
 	pub attachments: Vec<Attachment>,
-	segment_start: u64,
-	segment_end: u64,
-	first_cluster: Option<u64>,
-	cues: Option<(u64, u64)>,
+	pub(crate) segment_start: u64,
+	pub(crate) segment_end: u64,
+	pub(crate) first_cluster: Option<u64>,
+	pub(crate) cues: Option<(u64, u64)>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -111,12 +111,12 @@ pub struct Packet {
 	pub data: Vec<u8>,
 }
 
-fn invalid(message: &str) -> io::Error {
+pub(crate) fn invalid(message: &str) -> io::Error {
 	io::Error::new(io::ErrorKind::InvalidData, message.to_string())
 }
 
 /// Calls `f` for each child element between `start` and `end`.
-fn children<R: Read + Seek>(
+pub(crate) fn children<R: Read + Seek>(
 	r: &mut R,
 	start: u64,
 	end: u64,

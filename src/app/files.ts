@@ -14,8 +14,18 @@ export async function filesFromDrop(data: DataTransfer): Promise<File[]> {
 		.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 }
 
+// Chrome doesn't expose FileSystemFileEntry or FileSystemDirectoryEntry as globals: `instanceof`
+// throws there, so entries are told apart by their flags.
+function isFileEntry(entry: FileSystemEntry): entry is FileSystemFileEntry {
+	return entry.isFile;
+}
+
+function isDirectoryEntry(entry: FileSystemEntry): entry is FileSystemDirectoryEntry {
+	return entry.isDirectory;
+}
+
 async function walk(entry: FileSystemEntry, files: File[]): Promise<void> {
-	if (entry instanceof FileSystemFileEntry) {
+	if (isFileEntry(entry)) {
 		files.push(
 			await new Promise<File>((resolve, reject) => {
 				entry.file(resolve, reject);
@@ -23,7 +33,7 @@ async function walk(entry: FileSystemEntry, files: File[]): Promise<void> {
 		);
 		return;
 	}
-	if (!(entry instanceof FileSystemDirectoryEntry)) return;
+	if (!isDirectoryEntry(entry)) return;
 	const reader = entry.createReader();
 	// readEntries returns at most 100 entries per call; an empty batch means the folder is done.
 	for (;;) {

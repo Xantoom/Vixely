@@ -392,33 +392,27 @@ pub fn decode(set: &[u8]) -> Option<(Rect, Vec<u8>)> {
 	Some((rect, pixels))
 }
 
-/// A `.sup` file from pictures: each shown at its start and cleared at its end, unless the next
-/// one takes its place first.
-pub fn write_sup(pictures: &[(f64, f64, &[u8])]) -> Vec<u8> {
-	let mut out = Vec::new();
+/// Display sets to show pictures: each one's segments at its time, then a clearing set at its
+/// end unless the next picture replaces it. Times in milliseconds; segments as (kind, data).
+fn display_sets(pictures: &[(f64, f64, &[u8])]) -> Vec<(f64, Vec<(u8, Vec<u8>)>)> {
+	let mut sets = Vec::new();
 	let mut number = 0u16;
-	let header = |out: &mut Vec<u8>, time_ms: f64, kind: u8, data: &[u8]| {
-		out.extend(b"PG");
-		out.extend((((time_ms.max(0.0) * 90.0).round()) as u32).to_be_bytes());
-		out.extend(0u32.to_be_bytes());
-		out.push(kind);
-		out.extend((data.len() as u16).to_be_bytes());
-		out.extend_from_slice(data);
-	};
 	for (index, &(start, end, set)) in pictures.iter().enumerate() {
 		let segments = bare_segments(set);
 		let Some(pcs) = segments.iter().find(|s| s.kind == PCS).map(|s| s.data) else {
 			continue;
 		};
+		let mut shown = Vec::new();
 		for segment in &segments {
 			if segment.kind == PCS {
 				let mut composition = segment.data.to_vec();
 				composition[5..7].copy_from_slice(&number.to_be_bytes());
-				header(&mut out, start, PCS, &composition);
+				shown.push((PCS, composition));
 			} else {
-				header(&mut out, start, segment.kind, segment.data);
+				shown.push((segment.kind, segment.data.to_vec()));
 			}
 		}
+		sets.push((start, shown));
 		number = number.wrapping_add(1);
 		let next = pictures.get(index + 1).map(|p| p.0);
 		if next.is_some_and(|next| next <= end) {
@@ -430,14 +424,48 @@ pub fn write_sup(pictures: &[(f64, f64, &[u8])]) -> Vec<u8> {
 		clear[7] = 0;
 		clear[8] = 0;
 		clear[10] = 0;
-		header(&mut out, end, PCS, &clear);
+		let mut clearing = vec![(PCS, clear)];
 		if let Some(windows) = segments.iter().find(|s| s.kind == WDS) {
-			header(&mut out, end, WDS, windows.data);
+			clearing.push((WDS, windows.data.to_vec()));
 		}
-		header(&mut out, end, END, &[]);
+		clearing.push((END, Vec::new()));
+		sets.push((end, clearing));
 		number = number.wrapping_add(1);
 	}
+	sets
+}
+
+/// A `.sup` file from pictures: each shown at its start and cleared at its end, unless the next
+/// one takes its place first.
+pub fn write_sup(pictures: &[(f64, f64, &[u8])]) -> Vec<u8> {
+	let mut out = Vec::new();
+	for (time_ms, segments) in display_sets(pictures) {
+		for (kind, data) in segments {
+			out.extend(b"PG");
+			out.extend((((time_ms.max(0.0) * 90.0).round()) as u32).to_be_bytes());
+			out.extend(0u32.to_be_bytes());
+			out.push(kind);
+			out.extend((data.len() as u16).to_be_bytes());
+			out.extend(data);
+		}
+	}
 	out
+}
+
+/// The same display sets as Matroska blocks: one block per set, its segments one after another.
+pub fn mkv_blocks(pictures: &[(f64, f64, &[u8])]) -> Vec<(f64, Vec<u8>)> {
+	display_sets(pictures)
+		.into_iter()
+		.map(|(time_ms, segments)| {
+			let mut block = Vec::new();
+			for (kind, data) in segments {
+				block.push(kind);
+				block.extend((data.len() as u16).to_be_bytes());
+				block.extend(data);
+			}
+			(time_ms, block)
+		})
+		.collect()
 }
 
 #[cfg(test)]

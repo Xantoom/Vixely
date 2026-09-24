@@ -48,10 +48,11 @@ console.log('strip:', (await page.locator('section[aria-label="Batch"]').innerTe
 console.log('rail:', (await page.locator('nav[aria-label="Editing tools"]').innerText()).replace(/\n/g, ' '));
 await page.getByRole('button', { name: 'Export', exact: true }).click();
 await page.locator('aside').getByRole('radio', { name: /^WebP/ }).click();
-await page.getByLabel('Loop').selectOption({ label: 'Once' });
+await page.getByLabel('Loop').click();
+await page.getByRole('option', { name: 'Once' }).click();
 await page.locator('section[aria-label="Batch"]').getByRole('button', { name: 'two.gif', exact: true }).click();
 await page.waitForTimeout(1500);
-console.log('settings kept after switching file:', await page.locator('aside').getByRole('radio', { name: /^WebP/ }).isChecked(), await page.getByLabel('Loop').inputValue());
+console.log('settings kept after switching file:', await page.locator('aside').getByRole('radio', { name: /^WebP/ }).isChecked(), await page.getByLabel('Loop').innerText());
 const [download] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }), page.getByRole('button', { name: 'Export 3 files' }).click()]);
 const zip = unzipSync(readFileSync(await download.path()));
 console.log('zip', download.suggestedFilename(), Object.entries(zip).map(([name, data]) => `${name} ${data.length} B`).join(', '));

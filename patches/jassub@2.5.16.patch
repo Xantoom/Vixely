@@ -1,0 +1,48 @@
+diff --git a/dist/worker/renderers/2d-renderer.js b/dist/worker/renderers/2d-renderer.js
+index ef5925fb03103f6ad280e72c2f9b71c19c98504c..0cfbcf112aae4d27673f22d6be1fdef1275519d9 100644
+--- a/dist/worker/renderers/2d-renderer.js
++++ b/dist/worker/renderers/2d-renderer.js
+@@ -8,7 +8,7 @@ export class Canvas2DRenderer {
+     bufferCanvas = new OffscreenCanvas(1, 1);
+     bufferCtx = this.bufferCanvas.getContext('2d', {
+         alpha: true,
+-        desynchronized: true,
++        desynchronized: false,
+         willReadFrequently: false
+     });
+     colorMatrix = IDENTITY_MATRIX;
+@@ -24,7 +24,7 @@ export class Canvas2DRenderer {
+         this.canvas = canvas;
+         this.ctx = canvas.getContext('2d', {
+             alpha: true,
+-            desynchronized: true,
++            desynchronized: false,
+             willReadFrequently: false
+         });
+         if (!this.ctx)
+diff --git a/dist/worker/renderers/webgl1-renderer.js b/dist/worker/renderers/webgl1-renderer.js
+index 2a8934191c5648e7f39a937b08432ecbf2633778..7ae4caacb3ee236d404cc407280587ede56d03c6 100644
+--- a/dist/worker/renderers/webgl1-renderer.js
++++ b/dist/worker/renderers/webgl1-renderer.js
+@@ -133,7 +133,7 @@ export class WebGL1Renderer {
+             depth: false,
+             preserveDrawingBuffer: false,
+             stencil: false,
+-            desynchronized: true,
++            desynchronized: false,
+             powerPreference: 'high-performance'
+         });
+         if (!this.gl) {
+diff --git a/dist/worker/renderers/webgl2-renderer.js b/dist/worker/renderers/webgl2-renderer.js
+index 54b1ba10c81debc3230fb42f52481714a78130b0..e7a7393ad87aef36d502d17879d0b9290399caf1 100644
+--- a/dist/worker/renderers/webgl2-renderer.js
++++ b/dist/worker/renderers/webgl2-renderer.js
+@@ -143,7 +143,7 @@ export class WebGL2Renderer {
+             depth: false,
+             preserveDrawingBuffer: false,
+             stencil: false,
+-            desynchronized: true,
++            desynchronized: false,
+             powerPreference: 'high-performance'
+         });
+         if (!this.gl) {

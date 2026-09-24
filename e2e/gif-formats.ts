@@ -42,7 +42,8 @@ await page.locator('nav[aria-label="Editing tools"]').getByRole('button', { name
 await page.getByLabel('Start', { exact: true }).fill('1'); await page.keyboard.press('Enter');
 await page.getByLabel('End', { exact: true }).fill('2.5'); await page.keyboard.press('Enter');
 await page.getByRole('button', { name: 'Export', exact: true }).click();
-await page.getByLabel('Loop').selectOption({ label: 'Once' });
+await page.getByLabel('Loop').click();
+await page.getByRole('option', { name: 'Once' }).click();
 console.log('inert while original:', await aside.locator('[inert]').count());
 const original = await save();
 console.log('original:', original.name, original.data.length, 'bytes', `${original.ms} ms`, JSON.stringify(await inspect(original.data, 'gif')));
@@ -60,10 +61,12 @@ await aside.screenshot({ path: 'shots/gif-formats-aside.png' });
 
 // 2b. Size limit: 1 MB for a GIF that weighs 1.7 MB at full width.
 await aside.getByRole('radio', { name: /^GIF/ }).click();
-await page.getByLabel('Maximum size').selectOption({ label: '1.0 MB' });
+await page.getByLabel('Maximum size').click();
+await page.getByRole('option', { name: '1.0 MB' }).click();
 const fitted = await save();
 console.log('limited to 1 MB:', fitted.data.length, 'bytes', `${fitted.ms} ms`, JSON.stringify(await inspect(fitted.data, 'gif')), '|', (await page.locator('aside + div').innerText()).replace(/\n/g, ' | '));
-await page.getByLabel('Maximum size').selectOption({ label: 'No limit' });
+await page.getByLabel('Maximum size').click();
+await page.getByRole('option', { name: 'No limit' }).click();
 
 // 3. A speed change blocks the original.
 await page.locator('nav[aria-label="Editing tools"]').getByRole('button', { name: 'Speed' }).click();

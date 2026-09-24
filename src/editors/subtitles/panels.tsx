@@ -13,6 +13,8 @@ import type { SubtitleTrackInfo } from '@/media/subtitle-source';
 import { m } from '@/paraglide/messages.js';
 import { Button, IconButton } from '@/ui/Button';
 import { FieldRow, OptionList, Select, TimeField } from '@/ui/fields';
+import { muxContainer } from '../video/mux';
+import { MuxFooter, MuxTracks } from '../video/MuxPanel';
 import { FRAME_RATES, lastEnd, retime, shownCues, type SubtitleFormat, syncPoints } from './document';
 import { droppedCues, exportFormats, FORMAT_FILES, writeSubtitles } from './formats';
 import { ENCODINGS, type EncodingId } from './formats/encoding';
@@ -190,13 +192,13 @@ export function SubtitleInfoPanel({ opened }: { opened: OpenedFile }) {
 }
 
 /** `+1.500 s`, `−0.250 s`: a shift, with a true minus sign. */
-function signedSeconds(milliseconds: number): string {
+export function signedSeconds(milliseconds: number): string {
 	const sign = milliseconds > 0 ? '+' : milliseconds < 0 ? '\u2212' : '';
 	return `${sign}${(Math.abs(milliseconds) / 1000).toFixed(3)} s`;
 }
 
 /** Signed seconds, typed as `-1.5`, `+0,250` or `2`. */
-function OffsetField({ id, value, onChange }: { id: string; value: number; onChange: (value: number) => void }) {
+export function OffsetField({ id, value, onChange }: { id: string; value: number; onChange: (value: number) => void }) {
 	const [draft, setDraft] = useState<string | null>(null);
 	const commit = () => {
 		if (draft === null) return;
@@ -398,7 +400,38 @@ function Warning({ children }: { children: string }) {
 	);
 }
 
-export function SubtitleExportPanel() {
+export function SubtitleExportPanel({ opened }: { opened: OpenedFile }) {
+	const settings = useSubtitleEditor((state) => state.exportSettings);
+	const setExport = useSubtitleEditor((state) => state.setExport);
+	const fromVideo = useSubtitleProject((state) => state.source === 'video');
+	const intoVideo = fromVideo && settings.target === 'video';
+	return (
+		<>
+			<PanelTitle>{m.subs_export_title()}</PanelTitle>
+			{fromVideo && (
+				<OptionList
+					label={m.subs_export_target()}
+					value={settings.target}
+					options={[
+						{
+							value: 'file',
+							label: m.subs_export_file(),
+							detail: `.${FORMAT_FILES[settings.format].extension}`,
+						},
+						{ value: 'video', label: m.subs_export_video(), detail: `.${muxContainer(opened.format)}` },
+					]}
+					onChange={(target) => {
+						setExport({ target });
+					}}
+				/>
+			)}
+			{intoVideo ? <MuxTracks opened={opened} /> : <SubtitleFileSettings />}
+		</>
+	);
+}
+
+/** Format and character set of an exported subtitle file. */
+function SubtitleFileSettings() {
 	const doc = useSubtitleDoc();
 	const settings = useSubtitleEditor((state) => state.exportSettings);
 	const setExport = useSubtitleEditor((state) => state.setExport);
@@ -406,7 +439,6 @@ export function SubtitleExportPanel() {
 	const losesStyles = doc.format === 'ass' && settings.format !== 'ass';
 	return (
 		<>
-			<PanelTitle>{m.subs_export_title()}</PanelTitle>
 			<Section title={m.export_format()}>
 				<OptionList
 					label={m.export_format()}
@@ -432,7 +464,14 @@ export function SubtitleExportPanel() {
 	);
 }
 
-export function SubtitleExportFooter() {
+export function SubtitleExportFooter({ opened }: { opened: OpenedFile }) {
+	const target = useSubtitleEditor((state) => state.exportSettings.target);
+	const fromVideo = useSubtitleProject((state) => state.source === 'video');
+	if (fromVideo && target === 'video') return <MuxFooter opened={opened} />;
+	return <SubtitleFileFooter />;
+}
+
+function SubtitleFileFooter() {
 	const doc = useSubtitleDoc();
 	const settings = useSubtitleEditor((state) => state.exportSettings);
 	const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');

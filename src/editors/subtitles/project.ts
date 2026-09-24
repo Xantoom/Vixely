@@ -3,7 +3,7 @@ import { createHistory, type History } from '@/document/history';
 import { usePlayback } from '@/media/playback';
 import { outputName } from '@/media/save';
 import type { OpenedFile } from '@/media/session';
-import { SubtitleSource, type SubtitleTrackInfo } from '@/media/subtitle-source';
+import { type MediaTrackInfo, SubtitleSource, type SubtitleTrackInfo } from '@/media/subtitle-source';
 import type { SubtitleDoc } from './document';
 import { parseSubtitles } from './formats';
 import { decodeText, detectEncoding, type EncodingId } from './formats/encoding';
@@ -38,6 +38,8 @@ interface ProjectState {
 	current: TrackKey | null;
 	/** Fonts attached to the video, for ASS tracks. */
 	fonts: Uint8Array[];
+	/** Video and audio tracks of a Matroska video, for remuxing. */
+	media: MediaTrackInfo[];
 	/** Bytes of a subtitle file, to read it again with another character set. */
 	bytes: Uint8Array | null;
 
@@ -98,7 +100,7 @@ export const useSubtitleProject = create<ProjectState>((set, get) => {
 				return { key: info.id, info, original: index === -1 ? null : (docs[index] ?? null), history: null };
 			});
 			const preferred = preferredTrack(infos.filter((_, index) => tracks[index]?.original));
-			ready([...tracks, newTrack], preferred?.id ?? 'new', { fonts });
+			ready([...tracks, newTrack], preferred?.id ?? 'new', { fonts, media: source.media });
 		} catch {
 			if (mine !== run) return;
 			ready([newTrack], 'new', { listFailed: true });
@@ -116,6 +118,7 @@ export const useSubtitleProject = create<ProjectState>((set, get) => {
 		tracks: [],
 		current: null,
 		fonts: [],
+		media: [],
 		bytes: null,
 
 		open(opened) {
@@ -132,6 +135,7 @@ export const useSubtitleProject = create<ProjectState>((set, get) => {
 				tracks: [],
 				current: null,
 				fonts: [],
+				media: [],
 				bytes: null,
 			});
 			// A video plays under its own subtitles; a subtitle file starts without one.

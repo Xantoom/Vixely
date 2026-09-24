@@ -37,7 +37,7 @@ console.log(
 	'info:',
 	(await aside.innerText()).replace(/\n/g, ' | ').slice(0, 90),
 	'| read as',
-	await aside.getByLabel('Read as').inputValue(),
+	await aside.getByLabel('Read as').innerText(),
 	'| first row:',
 	(await grid.getByRole('row').nth(1).innerText()).replace(/\n/g, ' | '),
 );
@@ -87,7 +87,7 @@ await page.waitForFunction(() => document.querySelector('aside')?.textContent?.i
 	timeout: 15000,
 });
 await page.waitForTimeout(1500);
-console.log('with video:', await page.getByLabel('Audio track').inputValue(), '| url', page.url());
+console.log('with video:', await page.getByLabel('Audio track').innerText(), '| url', page.url());
 
 // Play for a moment: the playhead moves and the preview shows line 1 at 2.5 s.
 await page.getByRole('button', { name: 'Play', exact: true }).click();

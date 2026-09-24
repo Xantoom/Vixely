@@ -175,7 +175,14 @@ async function readTimed(input: Input, base: MediaInfo): Promise<Probe> {
 			videoTrack.getDisplayHeight(),
 		]);
 		video = { codec, width, height, fps, decodable };
-		if (decodable) poster = await pickPoster(videoTrack, duration);
+		if (decodable) {
+			// Some graphics drivers fail on files the browser says it can decode: the CPU tries next,
+			// and without a picture the file still opens.
+			poster = await pickPoster(videoTrack, duration).catch(async (error: unknown) => {
+				console.error('[probe] poster decoding failed (default decoder)', error);
+				return pickPoster(videoTrack, duration, 'prefer-software').catch(() => null);
+			});
+		}
 	}
 
 	let audio: AudioStream | null = null;
@@ -257,8 +264,12 @@ function luminance(source: CanvasImageSource): number {
  * Chooses the frame that represents the video. Many files open on black, so a few moments are
  * tried and the first one that is not dark wins; the brightest candidate is the fallback.
  */
-async function pickPoster(track: InputVideoTrack, duration: number): Promise<ImageBitmap | null> {
-	const sink = new CanvasSink(track, { poolSize: 1 });
+async function pickPoster(
+	track: InputVideoTrack,
+	duration: number,
+	hardwareAcceleration?: 'prefer-software',
+): Promise<ImageBitmap | null> {
+	const sink = new CanvasSink(track, { poolSize: 1, decoderOptions: { hardwareAcceleration } });
 	const start = await track.getFirstTimestamp();
 	let best: { bitmap: ImageBitmap; light: number } | null = null;
 	for (const fraction of [0.1, 0.25, 0.5]) {

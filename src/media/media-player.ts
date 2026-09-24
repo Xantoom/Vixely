@@ -1,4 +1,4 @@
-import { ALL_FORMATS, BlobSource, Input, type VideoSample, VideoSampleSink } from 'mediabunny';
+import { ALL_FORMATS, BlobSource, Input, type InputVideoTrack, type VideoSample, VideoSampleSink } from 'mediabunny';
 import { AudioPlayer } from './audio-player';
 import { type AudioTrackInfo, listAudioTracks } from './audio-tracks';
 
@@ -38,6 +38,9 @@ export class MediaPlayer {
 	private file: File;
 	private input: Input;
 	private sink: VideoSampleSink | null = null;
+	private videoTrack: InputVideoTrack | null = null;
+	/** Set once the default (often hardware) decoder failed: pictures are decoded by the CPU. */
+	private software = false;
 	/** Time of the first picture: it may come a little after zero. */
 	private firstPicture = 0;
 	private audio: AudioPlayer | null = null;
@@ -70,6 +73,7 @@ export class MediaPlayer {
 		this.duration = duration;
 		let size: MediaDetails['video'] = null;
 		if (video && (await video.canDecode())) {
+			this.videoTrack = video;
 			this.sink = new VideoSampleSink(video);
 			const [width, height, first] = await Promise.all([
 				video.getDisplayWidth(),
@@ -196,6 +200,18 @@ export class MediaPlayer {
 		this.input.dispose();
 	}
 
+	/**
+	 * Some graphics drivers fail to decode files the browser says it can: the first failure moves
+	 * decoding to the CPU, and the caller tries again. False when there is nothing left to try.
+	 */
+	private fallBack(error: unknown): boolean {
+		console.error('[player] decoding failed', this.software ? '(software)' : '(default decoder)', error);
+		if (this.software || !this.videoTrack || this.disposed) return false;
+		this.software = true;
+		this.sink = new VideoSampleSink(this.videoTrack, { hardwareAcceleration: 'prefer-software' });
+		return true;
+	}
+
 	private stopPictures() {
 		this.run += 1;
 	}
@@ -245,11 +261,12 @@ export class MediaPlayer {
 				next.close();
 				next = null;
 			}
-		} catch {
-			// A decoding error stops the pictures; sound and time carry on.
+		} catch (error) {
+			// Sound and time carry on; pictures start again from the CPU decoder, or stop.
+			if (this.fallBack(error) && run === this.run) void this.playPictures(run, this.time());
 		} finally {
 			next?.close();
-			await samples.return();
+			await samples.return().catch(() => undefined);
 		}
 	}
 
@@ -265,15 +282,20 @@ export class MediaPlayer {
 					// Before the first picture, the first picture shows, as in any player.
 					const at = Math.max(this.stillRequest, this.firstPicture);
 					this.stillRequest = null;
-					// oxlint-disable-next-line no-await-in-loop
-					const sample = await this.sink?.getSample(at);
-					if (sample) {
-						if (!this.playing) this.draw(sample);
-						sample.close();
+					try {
+						// oxlint-disable-next-line no-await-in-loop
+						const sample = await this.sink?.getSample(at);
+						if (sample) {
+							if (!this.playing) this.draw(sample);
+							sample.close();
+						}
+					} catch (error) {
+						// Tried again with the CPU decoder, unless a newer request came meanwhile.
+						if (this.fallBack(error)) this.stillRequest ??= at;
 					}
 				}
 			} catch {
-				// Nothing to show for that moment.
+				// The file couldn't be opened: there is no picture to show.
 			} finally {
 				this.stillBusy = false;
 			}

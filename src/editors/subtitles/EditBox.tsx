@@ -15,6 +15,7 @@ import { formatPreciseTime, parseTime } from '@/lib/format';
 import { usePlayback } from '@/media/playback';
 import { m } from '@/paraglide/messages.js';
 import { IconButton } from '@/ui/Button';
+import { Dropdown } from '@/ui/Dropdown';
 import {
 	type Cue,
 	duplicateCue,
@@ -215,24 +216,21 @@ export function EditBox() {
 					</span>
 				)}
 				{cue && styles.length > 0 && (
-					<select
-						aria-label={m.subs_style()}
-						title={m.subs_style()}
-						value={cue.fields?.style ?? 'Default'}
-						onChange={(event) => {
-							const style = event.target.value;
-							change((present, line) =>
-								updateCue(present, line.id, { fields: { ...line.fields, style } }),
-							);
-						}}
-						className="border-line-2 bg-bg text-ui hover:border-muted h-8 max-w-40 min-w-0 cursor-pointer rounded-xs border px-2"
-					>
-						{[...new Set([...styles, cue.fields?.style ?? 'Default'])].map((style) => (
-							<option key={style} value={style}>
-								{style}
-							</option>
-						))}
-					</select>
+					<div className="w-40 min-w-0">
+						<Dropdown
+							label={m.subs_style()}
+							value={cue.fields?.style ?? 'Default'}
+							options={[...new Set([...styles, cue.fields?.style ?? 'Default'])].map((style) => ({
+								value: style,
+								label: style,
+							}))}
+							onChange={(style) => {
+								change((present, line) =>
+									updateCue(present, line.id, { fields: { ...line.fields, style } }),
+								);
+							}}
+						/>
+					</div>
 				)}
 				{cue && doc.format === 'ass' && (
 					<input

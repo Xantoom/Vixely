@@ -7,6 +7,8 @@
 pub mod ebml;
 pub mod mkv;
 pub mod mp4;
+pub mod mp4_mux;
+pub mod mux;
 pub mod pgs;
 
 use std::io::{self, Read, Seek, SeekFrom};
@@ -17,6 +19,8 @@ use wasm_bindgen::prelude::*;
 /// Reads a little when jumping around (cues, attachments), then more and more when reading on.
 const SMALL_READ: usize = 64 << 10;
 const LARGE_READ: usize = 4 << 20;
+/// A jump forward this short still reads on.
+const SKIP_AHEAD: u64 = 1 << 20;
 
 /// The file, read through a JavaScript function `(offset, length) => Uint8Array`.
 struct JsSource {
@@ -42,7 +46,10 @@ impl JsSource {
 
 	fn fill(&mut self, wanted: usize) -> io::Result<()> {
 		let buffer_end = self.buffer_start + self.buffer.len() as u64;
-		self.chunk = if self.position == buffer_end && !self.buffer.is_empty() {
+		// Reading on, or skipping a little ahead (from block header to block header), counts as
+		// reading through: the next read is larger.
+		let onward = self.position >= buffer_end && self.position - buffer_end <= SKIP_AHEAD;
+		self.chunk = if onward && !self.buffer.is_empty() {
 			(self.chunk * 2).min(LARGE_READ)
 		} else {
 			SMALL_READ
@@ -178,6 +185,49 @@ impl SubtitleSource {
 				})
 				.collect(),
 		};
+		format!("[{}]", entries.join(","))
+	}
+
+	/// Video and audio tracks, as JSON: `[{ id, kind, codec, language, name, default }]`. Codecs are
+	/// Matroska codec IDs or MP4 sample entries.
+	pub fn media_tracks(&self) -> String {
+		let file = match &self.container {
+			Container::Matroska(file) => file,
+			Container::Mp4(file) => {
+				let entries: Vec<String> = file
+					.media
+					.iter()
+					.map(|track| {
+						format!(
+							"{{\"id\":{},\"kind\":\"{}\",\"codec\":{},\"language\":{},\"name\":{},\"default\":{}}}",
+							track.id,
+							if track.video { "video" } else { "audio" },
+							json_string(&track.codec),
+							json_string(&track.language),
+							json_string(&track.name),
+							track.enabled,
+						)
+					})
+					.collect();
+				return format!("[{}]", entries.join(","));
+			}
+		};
+		let entries: Vec<String> = file
+			.tracks
+			.iter()
+			.filter(|track| track.kind == 1 || track.kind == 2)
+			.map(|track| {
+				format!(
+					"{{\"id\":{},\"kind\":\"{}\",\"codec\":{},\"language\":{},\"name\":{},\"default\":{}}}",
+					track.number,
+					if track.kind == 1 { "video" } else { "audio" },
+					json_string(&track.codec),
+					json_string(&track.language),
+					json_string(&track.name),
+					track.default,
+				)
+			})
+			.collect();
 		format!("[{}]", entries.join(","))
 	}
 
@@ -413,4 +463,158 @@ pub fn pgs_write(starts: &[f64], ends: &[f64], offsets: &[u32], data: &[u8]) -> 
 		.map(|(k, &start)| (start, ends[k], &data[offsets[k] as usize..offsets[k + 1] as usize]))
 		.collect();
 	pgs::write_sup(&pictures)
+}
+
+/// PGS pictures as Matroska blocks: one display set per block, clearing sets included.
+#[wasm_bindgen]
+pub fn pgs_mkv_packets(starts: &[f64], ends: &[f64], offsets: &[u32], data: &[u8]) -> Packets {
+	let pictures: Vec<(f64, f64, &[u8])> = starts
+		.iter()
+		.enumerate()
+		.map(|(k, &start)| (start, ends[k], &data[offsets[k] as usize..offsets[k + 1] as usize]))
+		.collect();
+	let packets = pgs::mkv_blocks(&pictures)
+		.into_iter()
+		.map(|(start_ms, data)| mkv::Packet {
+			start_ms,
+			duration_ms: None,
+			data,
+		})
+		.collect::<Vec<_>>();
+	Packets::from(packets)
+}
+
+/// What to write: the subtitle streams, and what becomes of each track. Built from JavaScript,
+/// then handed to a `Remuxer`.
+#[wasm_bindgen]
+#[derive(Default)]
+pub struct RemuxPlan {
+	plan: mux::Plan,
+	streams: Vec<mux::Stream>,
+}
+
+#[wasm_bindgen]
+impl RemuxPlan {
+	#[wasm_bindgen(constructor)]
+	pub fn new() -> RemuxPlan {
+		RemuxPlan::default()
+	}
+
+	/// Adds the lines of a subtitle track; returns its index. Durations are NaN when there is none.
+	pub fn add_stream(
+		&mut self,
+		codec: String,
+		private: Vec<u8>,
+		starts: &[f64],
+		durations: &[f64],
+		offsets: &[u32],
+		data: &[u8],
+	) -> usize {
+		let packets = starts
+			.iter()
+			.enumerate()
+			.map(|(k, &start_ms)| mux::Packet {
+				start_ms,
+				duration_ms: durations.get(k).copied().filter(|d| d.is_finite()),
+				data: data[offsets[k] as usize..offsets[k + 1] as usize].to_vec(),
+			})
+			.collect();
+		self.streams.push(mux::Stream {
+			codec,
+			private,
+			packets,
+		});
+		self.streams.len() - 1
+	}
+
+	/// What becomes of a track of the source. `default` and `forced`: -1 unchanged, 0 or 1;
+	/// `stream`: -1 to keep its lines, else the stream replacing them.
+	#[allow(clippy::too_many_arguments)]
+	pub fn choose(
+		&mut self,
+		number: u32,
+		keep: bool,
+		language: Option<String>,
+		name: Option<String>,
+		default: i8,
+		forced: i8,
+		stream: i32,
+	) {
+		self.plan.choices.push(mux::Choice {
+			number: number as u64,
+			keep,
+			language,
+			name,
+			default: (default >= 0).then_some(default == 1),
+			forced: (forced >= 0).then_some(forced == 1),
+			stream: usize::try_from(stream).ok(),
+		});
+	}
+
+	/// A new subtitle track. `uid` identifies it in the file; any random number fits.
+	pub fn add_track(&mut self, stream: usize, language: String, name: String, default: bool, forced: bool, uid: f64) {
+		self.plan.added.push(mux::Added {
+			stream,
+			language,
+			name,
+			default,
+			forced,
+			uid: uid as u64,
+		});
+	}
+}
+
+enum Writer {
+	Matroska(mux::Muxer<JsSource>),
+	Mp4(mp4_mux::Mp4Muxer<JsSource>),
+}
+
+/// Writes a new Matroska or MP4 file from a source of the same kind and a plan, chunk by chunk.
+#[wasm_bindgen]
+pub struct Remuxer {
+	writer: Writer,
+}
+
+#[wasm_bindgen]
+impl Remuxer {
+	/// Lays the file out; `progress(share)` follows the reading of the source.
+	#[wasm_bindgen(constructor)]
+	pub fn new(read: Function, size: f64, plan: &RemuxPlan, progress: &Function) -> Result<Remuxer, JsError> {
+		let mut report = |share: f64| {
+			let _ = progress.call1(&JsValue::NULL, &JsValue::from_f64(share));
+		};
+		let mut source = JsSource::new(read, size as u64);
+		let mut head = [0u8; 12];
+		let count = source.read(&mut head).map_err(error)?;
+		let head = &head[..count];
+		let writer = if mkv::is_matroska(head) {
+			Writer::Matroska(
+				mux::Muxer::new(source, size as u64, &plan.plan, &plan.streams, &mut report).map_err(error)?,
+			)
+		} else if mp4::is_mp4(head) {
+			let muxer = mp4_mux::Mp4Muxer::new(source, size as u64, &plan.plan, &plan.streams).map_err(error)?;
+			report(1.0);
+			Writer::Mp4(muxer)
+		} else {
+			return Err(JsError::new("not a Matroska or MP4 file"));
+		};
+		Ok(Remuxer { writer })
+	}
+
+	/// Size of the file written, in bytes.
+	pub fn total(&self) -> f64 {
+		match &self.writer {
+			Writer::Matroska(muxer) => muxer.total() as f64,
+			Writer::Mp4(muxer) => muxer.total() as f64,
+		}
+	}
+
+	/// The next bytes of the file, a few megabytes at a time; empty at the end.
+	pub fn next_chunk(&mut self) -> Result<Vec<u8>, JsError> {
+		match &mut self.writer {
+			Writer::Matroska(muxer) => muxer.next_chunk(LARGE_READ),
+			Writer::Mp4(muxer) => muxer.next_chunk(LARGE_READ),
+		}
+		.map_err(error)
+	}
 }

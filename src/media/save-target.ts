@@ -3,7 +3,10 @@ import { download, isPickerCancel } from './save';
 
 /** Where an export is written while it is encoded, and how it becomes a file for the user. */
 export interface SaveTarget {
+	/** For Mediabunny outputs. */
 	target: Target;
+	/** For files written in order by other means, such as a remux: appends bytes. */
+	append: (data: Uint8Array) => Promise<void>;
 	/** Completes the file once the output is finalized. */
 	commit: () => Promise<void>;
 	/** Throws away what was written, after a failure or when the user stops the export. */
@@ -40,6 +43,7 @@ async function fileTarget(handle: FileSystemFileHandle, remove?: () => Promise<v
 	const writable = await handle.createWritable();
 	return {
 		target: new StreamTarget(forwardWrites(writable), { chunked: true, chunkSize: CHUNK_SIZE }),
+		append: async (data) => writable.write(data.slice()),
 		commit: async () => writable.close(),
 		discard: async () => {
 			await writable.abort();
@@ -61,6 +65,7 @@ async function downloadTarget(name: string, type: SaveType): Promise<SaveTarget>
 		const writable = await handle.createWritable();
 		return {
 			target: new StreamTarget(forwardWrites(writable), { chunked: true, chunkSize: CHUNK_SIZE }),
+			append: async (data) => writable.write(data.slice()),
 			commit: async () => {
 				await writable.close();
 				download(await handle.getFile(), name);
@@ -74,10 +79,16 @@ async function downloadTarget(name: string, type: SaveType): Promise<SaveTarget>
 		// No private storage: build the file in memory.
 	}
 	const target = new BufferTarget();
+	const parts: Uint8Array<ArrayBuffer>[] = [];
 	return {
 		target,
+		append: async (data) => {
+			parts.push(data.slice());
+			return Promise.resolve();
+		},
 		commit: async () => {
-			if (target.buffer) download(new Blob([target.buffer], { type: type.mime }), name);
+			const content: BlobPart[] = target.buffer ? [target.buffer] : parts;
+			if (content.length > 0) download(new Blob(content, { type: type.mime }), name);
 			return Promise.resolve();
 		},
 		discard: async () => Promise.resolve(),

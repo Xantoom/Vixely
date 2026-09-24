@@ -18,6 +18,17 @@ export interface SubtitleTrackInfo {
 	readable: boolean;
 }
 
+/** A video or audio track of a Matroska file, listed with the subtitles for remuxing. */
+export interface MediaTrackInfo {
+	/** Track number in the file. */
+	id: number;
+	kind: 'video' | 'audio';
+	codec: string;
+	language: string;
+	name: string;
+	default: boolean;
+}
+
 export interface AttachmentInfo {
 	name: string;
 	mime: string;
@@ -41,7 +52,7 @@ export type SubtitleSourceRequest =
 	| { type: 'attachments'; indices: number[] };
 
 export type SubtitleSourceResponse =
-	| { type: 'opened'; tracks: SubtitleTrackInfo[]; attachments: AttachmentInfo[] }
+	| { type: 'opened'; tracks: SubtitleTrackInfo[]; media: MediaTrackInfo[]; attachments: AttachmentInfo[] }
 	| { type: 'progress'; share: number }
 	| { type: 'extracted'; tracks: ExtractedTrack[] }
 	| { type: 'attachments'; files: Uint8Array[] }
@@ -54,14 +65,22 @@ export function isFont(attachment: AttachmentInfo): boolean {
 
 export class SubtitleSource {
 	readonly tracks: SubtitleTrackInfo[];
+	/** Video and audio tracks of Matroska files; empty for MP4. */
+	readonly media: MediaTrackInfo[];
 	readonly attachments: AttachmentInfo[];
 	private worker: Worker;
 	/** One request at a time: each waits for the previous one. */
 	private queue: Promise<unknown> = Promise.resolve();
 
-	private constructor(worker: Worker, tracks: SubtitleTrackInfo[], attachments: AttachmentInfo[]) {
+	private constructor(
+		worker: Worker,
+		tracks: SubtitleTrackInfo[],
+		media: MediaTrackInfo[],
+		attachments: AttachmentInfo[],
+	) {
 		this.worker = worker;
 		this.tracks = tracks;
+		this.media = media;
 		this.attachments = attachments;
 	}
 
@@ -70,7 +89,7 @@ export class SubtitleSource {
 		try {
 			const opened = await request(worker, { type: 'open', file });
 			if (opened.type !== 'opened') throw new Error('Unexpected answer.');
-			return new SubtitleSource(worker, opened.tracks, opened.attachments);
+			return new SubtitleSource(worker, opened.tracks, opened.media, opened.attachments);
 		} catch (error) {
 			worker.terminate();
 			throw error;

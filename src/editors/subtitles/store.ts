@@ -5,6 +5,8 @@ import type { EncodingId } from './formats/encoding';
 
 export interface SubtitleExportSettings {
 	format: SubtitleFormat;
+	/** A subtitle file, or the video the subtitles came from with its tracks. */
+	target: 'file' | 'video';
 }
 
 interface SubtitleEditorState {
@@ -43,7 +45,7 @@ export const useSubtitleEditor = create<SubtitleEditorState>((set, get) => ({
 	encoding: 'utf-8',
 	selection: new Set(),
 	active: null,
-	exportSettings: { format: 'srt' },
+	exportSettings: { format: 'srt', target: 'file' },
 
 	show(key, history, encoding) {
 		const first = history.present.cues.find((cue) => !cue.comment)?.id ?? null;
@@ -55,7 +57,7 @@ export const useSubtitleEditor = create<SubtitleEditorState>((set, get) => ({
 			selection: new Set(first === null ? [] : [first]),
 			active: first,
 			// Export defaults to the track's own format.
-			exportSettings: { format: history.present.format },
+			exportSettings: { format: history.present.format, target: get().exportSettings.target },
 		});
 	},
 

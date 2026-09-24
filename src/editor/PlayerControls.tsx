@@ -5,10 +5,11 @@ import { channelLayout, languageName } from '@/lib/language';
 import type { AudioTrackInfo } from '@/media/audio-tracks';
 import { usePlayback, usePlaybackLength } from '@/media/playback';
 import { m } from '@/paraglide/messages.js';
+import { Dropdown, type DropdownOption } from '@/ui/Dropdown';
 
 /** A compact menu of the player: an icon, then the choice. */
 export function PlayerMenu<T extends string>({
-	icon: Icon,
+	icon,
 	label,
 	value,
 	options,
@@ -17,37 +18,10 @@ export function PlayerMenu<T extends string>({
 	icon: LucideIcon;
 	label: string;
 	value: T;
-	options: { value: T; label: string; disabled?: boolean }[];
+	options: DropdownOption<T>[];
 	onChange: (value: T) => void;
 }) {
-	return (
-		<label
-			title={label}
-			className="text-ink-2 hover:text-ink hover:bg-surface relative flex h-8 max-w-56 min-w-0 cursor-pointer items-center gap-1.5 rounded-sm pr-6 pl-2 shadow-[inset_0_0_0_1px_var(--line-2)] transition-colors"
-		>
-			<Icon size={15} aria-hidden="true" className="flex-none" />
-			<span className="text-ui truncate">{options.find((option) => option.value === value)?.label}</span>
-			<select
-				aria-label={label}
-				value={value}
-				onChange={(event) => {
-					const next = options.find((option) => option.value === event.target.value);
-					if (next) onChange(next.value);
-				}}
-				className="absolute inset-0 cursor-pointer opacity-0"
-			>
-				{options.map((option) => (
-					<option key={option.value} value={option.value} disabled={option.disabled}>
-						{option.label}
-					</option>
-				))}
-			</select>
-			<span
-				className="border-muted pointer-events-none absolute top-1/2 right-2.5 size-1.5 -translate-y-[70%] rotate-45 border-r-[1.5px] border-b-[1.5px]"
-				aria-hidden="true"
-			/>
-		</label>
-	);
+	return <Dropdown variant="compact" icon={icon} label={label} value={value} options={options} onChange={onChange} />;
 }
 
 /** `English, Director's commentary (AAC 5.1)`. */

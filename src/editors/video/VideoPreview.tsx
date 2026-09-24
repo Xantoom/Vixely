@@ -53,7 +53,6 @@ function SubtitleMenu({ shown, onShown }: { shown: boolean; onShown: (shown: boo
 export function VideoPreview({ opened }: { opened: OpenedFile }) {
 	const time = usePlayback((state) => state.time);
 	const video = usePlayback((state) => state.details?.video ?? null);
-	const openProject = useSubtitleProject((state) => state.open);
 	const projectReady = useSubtitleProject((state) => state.file === opened.file && state.status === 'ready');
 	const fonts = useSubtitleProject((state) => state.fonts);
 	const tracks = useProjectTracks();
@@ -69,11 +68,6 @@ export function VideoPreview({ opened }: { opened: OpenedFile }) {
 	const scale = area.width && area.height ? Math.min(area.width / frame.width, area.height / frame.height) : 0;
 	const width = Math.floor(frame.width * scale);
 	const height = Math.floor(frame.height * scale);
-
-	useEffect(() => {
-		// The subtitle tracks are read with the video, like a player lists them.
-		openProject({ ...opened, kind: 'subtitles' });
-	}, [opened, openProject]);
 
 	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent) => {

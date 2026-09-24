@@ -48,5 +48,8 @@
 		"typescript": "^7.0.2",
 		"vite": "^8.3.0",
 		"vitest": "^5.0.1"
+	},
+	"patchedDependencies": {
+		"jassub@2.5.16": "patches/jassub@2.5.16.patch"
 	}
 }
