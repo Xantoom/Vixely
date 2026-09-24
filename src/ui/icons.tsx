@@ -7,10 +7,12 @@ import {
 	Image,
 	Info,
 	Layers,
+	ListVideo,
 	type LucideIcon,
 	type LucideProps,
 	Scissors,
 	SlidersHorizontal,
+	Timer,
 	Video,
 	Volume2,
 } from 'lucide-react';
@@ -57,5 +59,7 @@ export const TOOL_ICONS: Record<ToolId, LucideIcon> = {
 	audio: AudioLines,
 	subtitles: Captions,
 	speed: Gauge,
+	lines: ListVideo,
+	timing: Timer,
 	export: Download,
 };

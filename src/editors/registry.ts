@@ -3,7 +3,18 @@ import { m } from '@/paraglide/messages.js';
 export type MediaKind = 'video' | 'image' | 'gif' | 'audio' | 'subtitles';
 
 /** `export` opens from the app bar rather than the tool rail. */
-export type ToolId = 'info' | 'trim' | 'crop' | 'adjust' | 'volume' | 'audio' | 'subtitles' | 'speed' | 'export';
+export type ToolId =
+	| 'info'
+	| 'trim'
+	| 'crop'
+	| 'adjust'
+	| 'volume'
+	| 'audio'
+	| 'subtitles'
+	| 'speed'
+	| 'lines'
+	| 'timing'
+	| 'export';
 
 export interface EditorDefinition {
 	kind: MediaKind;
@@ -48,7 +59,7 @@ export const EDITORS: Record<MediaKind, EditorDefinition> = {
 		kind: 'subtitles',
 		path: '/subtitles',
 		label: () => m.media_subtitles(),
-		tools: ['info', 'trim', 'subtitles'],
+		tools: ['info', 'lines', 'timing'],
 		timed: true,
 	},
 };
@@ -68,5 +79,7 @@ export const TOOL_LABELS: Record<ToolId, () => string> = {
 	audio: () => m.tool_audio(),
 	subtitles: () => m.tool_subtitles(),
 	speed: () => m.tool_speed(),
+	lines: () => m.tool_lines(),
+	timing: () => m.tool_timing(),
 	export: () => m.export(),
 };

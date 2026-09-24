@@ -465,5 +465,130 @@
 			}
 		}
 	],
-	"batch_hint_gif": "Les réglages d'export s'appliquent à tous les fichiers."
+	"batch_hint_gif": "Les réglages d'export s'appliquent à tous les fichiers.",
+	"tool_lines": "Répliques",
+	"tool_timing": "Synchro",
+	"subs_add_line": "Ajouter une réplique",
+	"subs_line_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} réplique",
+				"countPlural=other": "{count} répliques"
+			}
+		}
+	],
+	"subs_track": "Répliques des sous-titres",
+	"subs_line_label": "Réplique à {time}",
+	"subs_showing": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} réplique à l'écran",
+				"countPlural=other": "{count} répliques à l'écran"
+			}
+		}
+	],
+	"subs_media_choose": "Choisir une vidéo pour l'aperçu",
+	"subs_media_choose_short": "Vidéo d'aperçu",
+	"subs_media_remove": "Retirer la vidéo d'aperçu",
+	"subs_media_failed": "Ce navigateur ne sait pas lire cette vidéo. Les sous-titres restent affichés sur fond noir.",
+	"subs_renderer_failed": "Le rendu des sous-titres n'a pas pu démarrer dans ce navigateur.",
+	"subs_unreadable": "Aucune réplique n'a été trouvée dans ce fichier.",
+	"subs_lines": "Répliques",
+	"subs_last_line": "Fin de la dernière réplique",
+	"subs_play_res": "Résolution du script",
+	"subs_styles": "Styles",
+	"subs_charset": "Jeu de caractères",
+	"subs_charset_read": "Lire en",
+	"subs_charset_hint": "Deviné à partir du fichier. Si les accents ou des mots entiers s'affichent mal, choisis le jeu de caractères de la langue.",
+	"subs_preview_media": "Aperçu",
+	"subs_preview_media_hint": "La vidéo joue sous les sous-titres et son son s'affiche sur la timeline. Elle reste sur ton appareil et n'est pas modifiée.",
+	"subs_lines_title": "Répliques",
+	"subs_lines_hint": "Choisis une réplique dans la liste ou sur la timeline pour la modifier. Double-clique sur la timeline pour en ajouter une.",
+	"subs_line_editor": "Réplique sélectionnée",
+	"subs_line_of": "Réplique {index} sur {total}",
+	"subs_delete_line": "Supprimer cette réplique",
+	"subs_start_here": "Début à la tête de lecture (I)",
+	"subs_end_here": "Fin à la tête de lecture (O)",
+	"subs_reading_speed": "Vitesse de lecture",
+	"subs_cps": "{value} car./s",
+	"subs_reading_fast": "Au-delà de 20 caractères par seconde, la plupart des gens n'ont pas le temps de lire : allonge la réplique ou raccourcis le texte.",
+	"subs_style": "Style",
+	"subs_text": "Texte",
+	"subs_markup_html": "<i>italique</i>, <b>gras</b>, <u>souligné</u>. Un retour à la ligne dans le texte en est un à l'écran.",
+	"subs_markup_ass": "\\{\\\\i1\\}italique\\{\\\\i0\\}, \\{\\\\b1\\}gras\\{\\\\b0\\}. \\\\N passe à la ligne.",
+	"subs_timing_title": "Synchro",
+	"subs_timing_hint": "Déplace les répliques dans le temps, quand les sous-titres arrivent trop tôt, trop tard, ou se décalent au fil du film.",
+	"subs_shift": "Décalage",
+	"subs_shift_by": "Décaler de",
+	"subs_apply_to": "Répliques",
+	"subs_all_lines": "Toutes les répliques",
+	"subs_selected_lines": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} réplique sélectionnée",
+				"countPlural=other": "{count} répliques sélectionnées"
+			}
+		}
+	],
+	"subs_shift_hint": "Une valeur positive fait apparaître les répliques plus tard, une valeur négative plus tôt.",
+	"subs_shift_apply": "Décaler de {offset}",
+	"subs_sync": "Synchro en deux points",
+	"subs_sync_hint": "Quand le décalage grandit au fil du film, donne le bon début de la première et de la dernière réplique : tout ce qui est entre les deux suit. Sélectionne deux répliques pour utiliser celles-là.",
+	"subs_sync_hint_selected": "Les deux répliques sélectionnées servent de repères : donne le moment où chacune doit commencer, tout le reste suit.",
+	"subs_should_start": "Doit commencer à",
+	"subs_use_playhead": "Prendre la tête de lecture",
+	"subs_sync_result": "Vitesse ×{scale}, puis {offset}",
+	"subs_sync_invalid": "La seconde réplique doit commencer après la première.",
+	"subs_sync_apply": "Synchroniser les répliques",
+	"subs_sync_listen": "Aller à la première réplique",
+	"subs_frame_rate": "Images par seconde",
+	"subs_rate_from": "Faits pour",
+	"subs_rate_to": "Lire à",
+	"subs_frame_rate_hint": "Pour des sous-titres faits pour une autre version du film : une version à 25 i/s (PAL) défile environ 4 % plus vite qu'une version à 23,976 i/s.",
+	"subs_frame_rate_apply": "Convertir (×{scale})",
+	"subs_export_title": "Exporter les sous-titres",
+	"subs_format_source": "d'origine",
+	"subs_format_srt": "Lu par tous les lecteurs, téléviseurs et sites vidéo. Garde l'italique, le gras, le souligné et la couleur.",
+	"subs_format_vtt": "Le format des lecteurs web (vidéo HTML5, YouTube). Garde l'italique, le gras et le souligné.",
+	"subs_format_ass": "Mise en forme complète : polices, couleurs, positions, effets. Lu par VLC, mpv, MPC et la plupart des media centers.",
+	"subs_loses_styles": "Les polices, positions et effets de ce fichier ASS n'existent pas dans ce format : seuls le texte et les styles simples sont gardés.",
+	"subs_dropped": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} réplique n'a pas de texte dans ce format (un dessin, un commentaire ou un effet) : elle est laissée de côté.",
+				"countPlural=other": "{count} répliques n'ont pas de texte dans ce format (dessins, commentaires ou effets) : elles sont laissées de côté."
+			}
+		}
+	],
+	"subs_to_ass_hint": "Les répliques reçoivent un style blanc avec un contour noir, en bas, à la taille de la vidéo d'aperçu ou du 1080p.",
+	"subs_utf8": "Enregistré en UTF-8, que tous les lecteurs et toutes les langues savent lire.",
+	"subs_export_failed": "Les sous-titres n'ont pas pu être enregistrés."
 }

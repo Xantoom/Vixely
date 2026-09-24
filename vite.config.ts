@@ -27,6 +27,18 @@ export default defineConfig({
 		}),
 	],
 	resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
+	// JASSUB finds its worker and WASM next to its own files: it must stay out of the pre-bundle,
+	// which only takes the packages it imports.
+	optimizeDeps: {
+		exclude: ['jassub'],
+		include: [
+			'jassub > abslink',
+			'jassub > abslink/w3c',
+			'jassub > lfa-ponyfill',
+			'jassub > rvfc-polyfill',
+			'jassub > throughput',
+		],
+	},
 	server: { headers: isolationHeaders },
 	preview: { headers: isolationHeaders },
 	build: { target: 'es2023' },

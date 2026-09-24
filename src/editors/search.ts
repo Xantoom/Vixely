@@ -1,6 +1,18 @@
 import type { ToolId } from './registry';
 
-const TOOLS = new Set<string>(['info', 'trim', 'crop', 'adjust', 'audio', 'subtitles', 'speed']);
+const TOOLS = new Set<string>([
+	'info',
+	'trim',
+	'crop',
+	'adjust',
+	'volume',
+	'audio',
+	'subtitles',
+	'speed',
+	'lines',
+	'timing',
+	'export',
+]);
 
 function isToolId(value: unknown): value is ToolId {
 	return typeof value === 'string' && TOOLS.has(value);

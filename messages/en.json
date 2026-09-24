@@ -465,5 +465,130 @@
 			}
 		}
 	],
-	"batch_hint_gif": "Export settings apply to every file."
+	"batch_hint_gif": "Export settings apply to every file.",
+	"tool_lines": "Lines",
+	"tool_timing": "Timing",
+	"subs_add_line": "Add a line",
+	"subs_line_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} line",
+				"countPlural=other": "{count} lines"
+			}
+		}
+	],
+	"subs_track": "Subtitle lines",
+	"subs_line_label": "Line at {time}",
+	"subs_showing": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} line on screen",
+				"countPlural=other": "{count} lines on screen"
+			}
+		}
+	],
+	"subs_media_choose": "Choose a video for the preview",
+	"subs_media_choose_short": "Preview video",
+	"subs_media_remove": "Remove the preview video",
+	"subs_media_failed": "This browser can't play this video. The subtitles still show on black.",
+	"subs_renderer_failed": "The subtitle renderer couldn't start in this browser.",
+	"subs_unreadable": "No subtitle lines were found in this file.",
+	"subs_lines": "Lines",
+	"subs_last_line": "Last line ends",
+	"subs_play_res": "Script resolution",
+	"subs_styles": "Styles",
+	"subs_charset": "Character set",
+	"subs_charset_read": "Read as",
+	"subs_charset_hint": "Guessed from the file. If accented letters or whole words look wrong, pick the language's character set.",
+	"subs_preview_media": "Preview",
+	"subs_preview_media_hint": "The video plays under the subtitles and its sound shows on the timeline. It stays on your device and isn't changed.",
+	"subs_lines_title": "Lines",
+	"subs_lines_hint": "Pick a line in the list or on the timeline to edit it. Double-click the timeline to add one.",
+	"subs_line_editor": "Selected line",
+	"subs_line_of": "Line {index} of {total}",
+	"subs_delete_line": "Delete this line",
+	"subs_start_here": "Start at playhead (I)",
+	"subs_end_here": "End at playhead (O)",
+	"subs_reading_speed": "Reading speed",
+	"subs_cps": "{value} chars/s",
+	"subs_reading_fast": "Over 20 characters per second, most viewers can't finish reading: lengthen the line or shorten the text.",
+	"subs_style": "Style",
+	"subs_text": "Text",
+	"subs_markup_html": "<i>italic</i>, <b>bold</b>, <u>underline</u>. A new line in the text is a new line on screen.",
+	"subs_markup_ass": "\\{\\\\i1\\}italic\\{\\\\i0\\}, \\{\\\\b1\\}bold\\{\\\\b0\\}. \\\\N starts a new line.",
+	"subs_timing_title": "Timing",
+	"subs_timing_hint": "Moves lines in time, when the subtitles come too early, too late, or drift away over the film.",
+	"subs_shift": "Shift",
+	"subs_shift_by": "Shift by",
+	"subs_apply_to": "Lines",
+	"subs_all_lines": "All lines",
+	"subs_selected_lines": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} selected line",
+				"countPlural=other": "{count} selected lines"
+			}
+		}
+	],
+	"subs_shift_hint": "Positive values make the lines appear later, negative ones earlier.",
+	"subs_shift_apply": "Shift {offset}",
+	"subs_sync": "Two-point sync",
+	"subs_sync_hint": "When the lines drift further off over time, give the right start of the first and the last line: everything in between follows. Select two lines to use those instead.",
+	"subs_sync_hint_selected": "The two selected lines are the sync points: give the time each should start at, everything else follows.",
+	"subs_should_start": "Should start at",
+	"subs_use_playhead": "Use the playhead",
+	"subs_sync_result": "Speed ×{scale}, then {offset}",
+	"subs_sync_invalid": "The second line must start after the first one.",
+	"subs_sync_apply": "Sync the lines",
+	"subs_sync_listen": "Go to the first line",
+	"subs_frame_rate": "Frame rate",
+	"subs_rate_from": "Made for",
+	"subs_rate_to": "Play at",
+	"subs_frame_rate_hint": "For subtitles made for another release of the film: a 25 fps (PAL) release runs about 4 % faster than a 23.976 fps one.",
+	"subs_frame_rate_apply": "Convert (×{scale})",
+	"subs_export_title": "Export subtitles",
+	"subs_format_source": "original",
+	"subs_format_srt": "Read by every player, TV and video site. Keeps italic, bold, underline and colour.",
+	"subs_format_vtt": "The format of web players (HTML5 video, YouTube). Keeps italic, bold and underline.",
+	"subs_format_ass": "Full styling: fonts, colours, positions, effects. Read by VLC, mpv, MPC and most media centres.",
+	"subs_loses_styles": "Fonts, positions and effects of this ASS file don't exist in this format: only the text and simple styles are kept.",
+	"subs_dropped": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} line has no text in this format (a drawing, a comment or an effect): it is left out.",
+				"countPlural=other": "{count} lines have no text in this format (drawings, comments or effects): they are left out."
+			}
+		}
+	],
+	"subs_to_ass_hint": "Lines get one white style with a black outline, at the bottom, sized for the preview video or for 1080p.",
+	"subs_utf8": "Saved as UTF-8, which every player and every language reads.",
+	"subs_export_failed": "The subtitles couldn't be saved."
 }

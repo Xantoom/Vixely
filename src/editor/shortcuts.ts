@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 
-function isTyping(target: EventTarget | null): boolean {
+/** Whether a key press goes to a text field rather than to the editor. */
+export function isTyping(target: EventTarget | null): boolean {
 	return (
 		(target instanceof HTMLInputElement && target.type !== 'range') ||
 		target instanceof HTMLTextAreaElement ||

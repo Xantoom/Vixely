@@ -65,8 +65,8 @@ const COLUMNS: Column[] = [
 		label: () => m.media_subtitles(),
 		to: 'subtitles',
 		tasks: [
-			{ id: 'resync', label: () => m.task_resync(), to: 'subtitles', tool: 'subtitles' },
-			{ id: 'convert', label: () => m.task_convert(), to: 'subtitles' },
+			{ id: 'resync', label: () => m.task_resync(), to: 'subtitles', tool: 'timing' },
+			{ id: 'convert', label: () => m.task_convert(), to: 'subtitles', tool: 'export' },
 			{ id: 'extract', label: () => m.task_extract(), to: 'subtitles' },
 		],
 	},
