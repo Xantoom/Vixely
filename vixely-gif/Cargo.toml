@@ -18,6 +18,13 @@ imgref = "1.11"
 rgb = "0.8"
 # Decodes GIF, APNG and animated WebP into full frames, disposal and blending applied.
 image = { version = "0.25", default-features = false, features = ["gif", "png", "webp"] }
+# APNG writing, and lossless WebP frames where the browser has no WebP encoder.
+png = "0.18"
+# Copying GIF frames as they are, for exports that keep the original encoding. Same versions as gifski.
+gif = { version = "0.13", default-features = false, features = ["std"] }
+gif-dispose = "5"
+imagequant = "4.3"
+image-webp = "0.2"
 
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = ["-O3", "--enable-bulk-memory", "--enable-nontrapping-float-to-int", "--enable-sign-ext", "--enable-mutable-globals", "--enable-reference-types", "--enable-multivalue", "--enable-simd"]

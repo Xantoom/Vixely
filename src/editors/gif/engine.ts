@@ -32,9 +32,10 @@ function startRate(sourceFps: number | null): number {
  * Opens the pictures of a file, a GIF or a video, and plays the output. Animations keep their own
  * frames and size by default; a video starts at 20 fps and 480 px wide, what most GIFs need.
  */
-export function useGifEngine(opened: OpenedFile | null): GifEngine {
+export function useGifEngine(opened: OpenedFile | null, batchKey: object | null): GifEngine {
 	const doc = useGifDoc();
 	const load = useGifEditor((state) => state.load);
+	const retarget = useGifEditor((state) => state.retarget);
 	const setPlayhead = useGifEditor((state) => state.setPlayhead);
 	const setPlaying = useGifEditor((state) => state.setPlaying);
 	const playing = useGifEditor((state) => state.playing);
@@ -60,7 +61,10 @@ export function useGifEngine(opened: OpenedFile | null): GifEngine {
 			}
 			const fps = next.timing ? null : startRate(next.fps);
 			const width = next.timing ? null : Math.min(next.width, VIDEO_WIDTH);
-			load(file, createGifDoc(next.duration, fps), width);
+			const doc = createGifDoc(next.duration, fps);
+			// A batch keeps its export settings from file to file; a single file starts afresh.
+			if (batchKey && useGifEditor.getState().owner === batchKey) retarget(doc);
+			else load(batchKey ?? file, doc, width, !batchKey && !isVideo && format === 'gif');
 			setSource(next);
 			setReading(null);
 		};
@@ -73,11 +77,15 @@ export function useGifEngine(opened: OpenedFile | null): GifEngine {
 		});
 		return () => {
 			controller.abort();
-			opening?.dispose();
 			setSource(null);
+			// Freed once the views have let go of it: they still draw it during this render.
+			const previous = opening;
+			setTimeout(() => {
+				previous?.dispose();
+			}, 0);
 			setPlaying(false);
 		};
-	}, [file, isVideo, format, videoFps, load, setPlaying]);
+	}, [file, isVideo, format, videoFps, batchKey, load, retarget, setPlaying]);
 
 	const frames = useMemo(() => (source && doc.duration > 0 ? outputFrames(doc, source.timing) : []), [source, doc]);
 	const length = outputLength(frames);

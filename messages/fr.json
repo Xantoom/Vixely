@@ -416,8 +416,6 @@
 	"direction_pingpong": "Aller-retour",
 	"fps_original": "Rythme d'origine",
 	"fps_hint": "Au-delà de 25 images par seconde, un GIF est rarement plus fluide et beaucoup plus lourd. Les navigateurs jouent 50 au maximum.",
-	"export_gif_title": "Exporter le GIF",
-	"export_gif_button": "Exporter le GIF",
 	"gif_width": "Largeur",
 	"gif_width_hint": "La hauteur suit. Un GIF large pèse lourd : 480 px convient aux messageries et aux réseaux sociaux.",
 	"loop": "Boucle",
@@ -431,5 +429,41 @@
 	"encoding_gif": "Encodage…",
 	"export_gif_failed": "Le GIF n'a pas pu être créé. Essaie une largeur plus petite ou un passage plus court.",
 	"make_gif": "Créer un GIF",
-	"make_gif_hint": "Ouvre la vidéo dans l'éditeur GIF, pour transformer un moment en GIF."
+	"make_gif_hint": "Ouvre la vidéo dans l'éditeur GIF, pour transformer un moment en GIF.",
+	"export_animation_title": "Exporter",
+	"export_as": "Exporter en {format}",
+	"anim_format_gif": "Se lit partout, messageries comprises. 256 couleurs par image, lissées par gifski.",
+	"anim_format_apng": "Sans perte, toutes les couleurs et la transparence. Se lit dans tous les navigateurs, pas dans toutes les applis.",
+	"anim_format_webp": "Bien plus léger que le GIF à qualité égale, avec la transparence. Se lit dans les navigateurs et la plupart des applis.",
+	"anim_format_video": "De loin le plus léger, pour les sites et applis qui acceptent les vidéos. Pas de transparence.",
+	"anim_video": "Vidéo",
+	"encoding_copy_gif": "Sans réencodage : les images du GIF sont gardées telles quelles, sans perte. Seuls la coupe et la boucle changent.",
+	"encoding_copy_frames": "La vitesse, le sens, les images par seconde, le recadrage et la largeur redessinent les images : ils demandent un réencodage.",
+	"encoding_copy_not_gif": "Seul un GIF peut garder ses images telles quelles.",
+	"webp_quality_hint": "La qualité WebP. De 80 à 90, on ne voit pas la différence avec l'original.",
+	"video_quality_hint": "La qualité vidéo. Plus haut garde plus de détails et pèse plus.",
+	"webp_lossless_note": "Ce navigateur ne sait pas encoder le WebP : les images sont enregistrées sans perte, ce qui est plus lourd.",
+	"video_webm_note": "Ce navigateur ne sait pas encoder le H.264 : la vidéo est enregistrée en WebM (VP9).",
+	"max_size": "Poids maximum",
+	"max_size_none": "Aucune limite",
+	"max_size_hint": "Discord accepte 10 Mo sans Nitro, beaucoup de messageries 8 Mo. Si c'est plus lourd, la largeur diminue jusqu'à ce que ça passe.",
+	"size_fitted": "Réduit à {width} px de large pour rester sous {size}.",
+	"size_unreachable": "Même en {width} px il pèse {size} : raccourcis le passage ou baisse les images par seconde.",
+	"exporting_retry": "Trop lourd, essai en {width} px…",
+	"batch_count_gif": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} animation",
+				"countPlural=other": "{count} animations"
+			}
+		}
+	],
+	"batch_hint_gif": "Les réglages d'export s'appliquent à tous les fichiers."
 }

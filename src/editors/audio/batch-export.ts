@@ -6,7 +6,8 @@ import type { BatchFile } from '@/media/session';
 import { type AudioDoc, envelope, keptRanges, resolveGain } from './document';
 import { type AudioExportSettings, exportAudio, outputType, readSourceFormat, type SourceFormat } from './export';
 
-export type ItemStatus = 'working' | 'done' | 'failed';
+export type { ItemStatus } from '@/editor/BatchList';
+import type { ItemStatus } from '@/editor/BatchList';
 
 export interface AudioBatchJob {
 	items: BatchFile[];

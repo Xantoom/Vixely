@@ -1,51 +1,11 @@
-import { zipSync } from 'fflate';
+import { openFileDestination } from '@/media/file-destination';
 import { uniqueName } from '@/media/save';
 import type { BatchFile } from '@/media/session';
 import { adaptDoc, type ImageDoc, type Size } from './document';
-import { exportImage, exportName, saveFile } from './export';
+import { exportImage, exportName } from './export';
 import type { ExportSettings } from './store';
 
 export type ItemStatus = 'working' | 'done' | 'failed';
-
-/** Where exported files go: a folder picked once, or a ZIP built at the end. */
-interface Destination {
-	write: (name: string, blob: Blob) => Promise<void>;
-	finish: () => Promise<void>;
-}
-
-async function folderDestination(): Promise<Destination | null> {
-	if (!window.showDirectoryPicker) return null;
-	let folder: FileSystemDirectoryHandle;
-	try {
-		folder = await window.showDirectoryPicker({ mode: 'readwrite', startIn: 'pictures' });
-	} catch (error) {
-		if (error instanceof DOMException && error.name === 'AbortError') throw error;
-		return null;
-	}
-	return {
-		async write(name, blob) {
-			const handle = await folder.getFileHandle(name, { create: true });
-			const writable = await handle.createWritable();
-			await writable.write(blob);
-			await writable.close();
-		},
-		async finish() {},
-	};
-}
-
-function zipDestination(): Destination {
-	const files: Record<string, Uint8Array> = {};
-	return {
-		async write(name, blob) {
-			files[name] = new Uint8Array(await blob.arrayBuffer());
-		},
-		async finish() {
-			// Images are already compressed: storing them is as small and much faster.
-			const zip = zipSync(files, { level: 0 });
-			await saveFile(new Blob([new Uint8Array(zip)], { type: 'application/zip' }), 'vixely-images.zip');
-		},
-	};
-}
 
 export interface BatchJob {
 	items: BatchFile[];
@@ -72,7 +32,7 @@ export async function exportBatch({
 	onStatus,
 	signal,
 }: BatchJob): Promise<number> {
-	const destination = (await folderDestination()) ?? zipDestination();
+	const destination = await openFileDestination('pictures', 'vixely-images.zip');
 	const { decodeStill, readPhotoMetadata } = await import('@/media/probe');
 	const taken = new Set<string>();
 	let exported = 0;

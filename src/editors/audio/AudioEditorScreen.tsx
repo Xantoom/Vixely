@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
+import { BatchList } from '@/editor/BatchList';
 import { EditorLayout } from '@/editor/EditorLayout';
 import { FilePanel, ToolLater } from '@/editor/Inspector';
 import { useEditorShortcuts } from '@/editor/shortcuts';
 import { Viewer } from '@/editor/Viewer';
 import type { ToolId } from '@/editors/registry';
 import { useSession } from '@/media/session';
-import { AudioBatchStrip } from './AudioBatchStrip';
+import { m } from '@/paraglide/messages.js';
 import { AudioTimeline } from './AudioTimeline';
 import type { ItemStatus } from './batch-export';
 import { cut, setTrim } from './document';
@@ -210,7 +211,16 @@ export function AudioEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 			timeline={
 				editable ? (
 					<>
-						{batch && <AudioBatchStrip statuses={statuses} locked={running} />}
+						{batch && (
+							<BatchList
+								statuses={statuses}
+								locked={running}
+								count={(count) => m.batch_count_audio({ count })}
+								hint={m.batch_hint_audio()}
+								addLabel={m.batch_add_audio()}
+								accept="audio/*,video/*,.mka,.mkv,.opus,.flac"
+							/>
+						)}
 						<AudioTimeline engine={engine} trimmable={!batch} />
 					</>
 				) : undefined

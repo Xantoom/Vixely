@@ -4,7 +4,13 @@
  */
 
 export interface EncodeOptions {
-	/** 1 to 100. */
+	/** GIF through gifski, or lossless APNG. */
+	format: 'gif' | 'apng';
+	width: number;
+	height: number;
+	/** Number of frames that will be added. APNG needs it up front. */
+	frames: number;
+	/** 1 to 100, GIF only. */
 	quality: number;
 	/** 1 to 100; 100 adds no lossy compression. */
 	lossy: number;
@@ -15,14 +21,17 @@ export interface EncodeOptions {
 export type GifRequest =
 	| { type: 'decode'; bytes: ArrayBuffer; format: string }
 	| ({ type: 'begin' } & EncodeOptions)
-	| { type: 'frame'; rgba: ArrayBuffer; width: number; height: number; pts: number }
-	| { type: 'finish' };
+	| { type: 'frame'; rgba: ArrayBuffer; width: number; height: number; pts: number; duration: number }
+	| { type: 'finish' }
+	| { type: 'webp-still'; id: number; rgba: ArrayBuffer; width: number; height: number }
+	| { type: 'trim'; bytes: ArrayBuffer; start: number; end: number; repeat: number };
 
 export type GifResponse =
 	| { type: 'size'; width: number; height: number }
 	| { type: 'frame'; bitmap: ImageBitmap; delay: number }
 	| { type: 'done' }
 	| { type: 'gif'; bytes: Uint8Array }
+	| { type: 'webp-still'; id: number; bytes: Uint8Array }
 	| { type: 'error'; message: string };
 
 function spawn(): Worker {
@@ -66,7 +75,7 @@ export async function decodeAnimation(
 	});
 }
 
-/** Writes a GIF with gifski in a worker. Frames are handed over as they are drawn. */
+/** Writes a GIF with gifski, or an APNG, in a worker. Frames are handed over as they are drawn. */
 export class GifEncoder {
 	private worker = spawn();
 	private result: Promise<Uint8Array>;
@@ -87,9 +96,9 @@ export class GifEncoder {
 		this.worker.postMessage(begin);
 	}
 
-	/** Adds a frame shown from `pts` seconds. The pixels are transferred, not copied. */
-	addFrame(rgba: Uint8ClampedArray<ArrayBuffer>, width: number, height: number, pts: number) {
-		const request: GifRequest = { type: 'frame', rgba: rgba.buffer, width, height, pts };
+	/** Adds a frame shown from `pts` for `duration` seconds. The pixels are transferred, not copied. */
+	addFrame(rgba: Uint8ClampedArray<ArrayBuffer>, width: number, height: number, pts: number, duration: number) {
+		const request: GifRequest = { type: 'frame', rgba: rgba.buffer, width, height, pts, duration };
 		this.worker.postMessage(request, [rgba.buffer]);
 	}
 
@@ -103,4 +112,57 @@ export class GifEncoder {
 	cancel() {
 		this.worker.terminate();
 	}
+}
+
+/** Encodes lossless WebP stills in a worker, for browsers that can't encode WebP themselves. */
+export class WebpStillEncoder {
+	private worker = spawn();
+	private next = 0;
+	private pending = new Map<number, { resolve: (bytes: Uint8Array) => void; reject: (error: Error) => void }>();
+
+	constructor() {
+		this.worker.onmessage = (event: MessageEvent<GifResponse>) => {
+			const message = event.data;
+			if (message.type === 'webp-still') {
+				this.pending.get(message.id)?.resolve(message.bytes);
+				this.pending.delete(message.id);
+			} else if (message.type === 'error') {
+				for (const { reject } of this.pending.values()) reject(new Error(message.message));
+				this.pending.clear();
+			}
+		};
+	}
+
+	async encode(rgba: Uint8ClampedArray<ArrayBuffer>, width: number, height: number): Promise<Uint8Array> {
+		const id = this.next++;
+		const result = new Promise<Uint8Array>((resolve, reject) => {
+			this.pending.set(id, { resolve, reject });
+		});
+		const request: GifRequest = { type: 'webp-still', id, rgba: rgba.buffer, width, height };
+		this.worker.postMessage(request, [rgba.buffer]);
+		return result;
+	}
+
+	close() {
+		this.worker.terminate();
+	}
+}
+
+/**
+ * Cuts a GIF between two times, in seconds, without re-encoding its frames. See `trim_gif` in
+ * vixely-gif.
+ */
+export async function trimGif(file: File, start: number, end: number, repeat: number): Promise<Uint8Array> {
+	const bytes = await file.arrayBuffer();
+	const worker = spawn();
+	return new Promise((resolve, reject) => {
+		worker.onmessage = (event: MessageEvent<GifResponse>) => {
+			const message = event.data;
+			if (message.type === 'gif') resolve(message.bytes);
+			else if (message.type === 'error') reject(new Error(message.message));
+			worker.terminate();
+		};
+		const request: GifRequest = { type: 'trim', bytes, start, end, repeat };
+		worker.postMessage(request, [bytes]);
+	});
 }

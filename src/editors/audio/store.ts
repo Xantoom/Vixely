@@ -1,13 +1,12 @@
 import { create } from 'zustand';
 import { canRedo, canUndo, commit, createHistory, type History, redo, replace, undo } from '@/document/history';
-import type { Range } from '@/document/timemap';
+import { clampView, type Range } from '@/document/timemap';
 import { type AudioDoc, createAudioDoc } from './document';
 import { AUDIO_FORMATS, type AudioExportSettings, settingsFromSource, type SourceFormat } from './export';
 
 export type AudioTags = NonNullable<AudioExportSettings['tags']>;
 
-/** Shortest span the timeline zooms to, in seconds. */
-export const MIN_VIEW = 1;
+export { MIN_VIEW } from '@/document/timemap';
 
 interface AudioEditorState {
 	/** The file the history belongs to. Another file starts a fresh history. */
@@ -55,13 +54,6 @@ function defaultExport(tags: AudioTags): AudioExportSettings {
 		tags,
 		cover: 'keep',
 	};
-}
-
-/** Keeps a view within the source and at least MIN_VIEW long, preserving its length when possible. */
-export function clampView(view: Range, duration: number): Range {
-	const length = Math.min(duration, Math.max(MIN_VIEW, view.end - view.start));
-	const start = Math.min(Math.max(0, view.start), duration - length);
-	return { start, end: start + length };
 }
 
 export const useAudioEditor = create<AudioEditorState>((set, get) => ({

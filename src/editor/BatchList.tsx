@@ -2,7 +2,8 @@ import { Check, Plus, X } from 'lucide-react';
 import { useRef } from 'react';
 import { useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
-import type { ItemStatus } from './batch-export';
+/** Where a file of a batch is while it exports. */
+export type ItemStatus = 'working' | 'done' | 'failed';
 
 function StatusMark({ status }: { status: ItemStatus | undefined }) {
 	if (status === 'working')
@@ -14,11 +15,22 @@ function StatusMark({ status }: { status: ItemStatus | undefined }) {
 	return null;
 }
 
+interface BatchListProps {
+	statuses: ReadonlyMap<number, ItemStatus>;
+	/** True while exporting: files can't be added or removed. */
+	locked: boolean;
+	count: (count: number) => string;
+	hint: string;
+	addLabel: string;
+	/** File types the add button offers. */
+	accept: string;
+}
+
 /**
- * The files of an audio batch, above the timeline. The one shown in the timeline is the one being
- * listened to; volume, fades and export settings apply to all of them.
+ * The files of a batch, as named chips above the timeline. The one shown is the one being edited;
+ * the batch's settings apply to all of them.
  */
-export function AudioBatchStrip({ statuses, locked }: { statuses: ReadonlyMap<number, ItemStatus>; locked: boolean }) {
+export function BatchList({ statuses, locked, count, hint, addLabel, accept }: BatchListProps) {
 	const batch = useSession((state) => state.batch) ?? [];
 	const current = useSession((state) => state.current);
 	const select = useSession((state) => state.select);
@@ -31,8 +43,8 @@ export function AudioBatchStrip({ statuses, locked }: { statuses: ReadonlyMap<nu
 		<section aria-label={m.batch_label()} className="border-line grid gap-2 border-t px-4 pt-3 pb-1">
 			<div className="flex items-center justify-between gap-3">
 				<span className="text-ui">
-					<span className="font-semibold">{m.batch_count_audio({ count: batch.length })}</span>{' '}
-					<span className="text-muted max-sm:hidden">{m.batch_hint_audio()}</span>
+					<span className="font-semibold">{count(batch.length)}</span>{' '}
+					<span className="text-muted max-sm:hidden">{hint}</span>
 				</span>
 				<button
 					type="button"
@@ -41,12 +53,12 @@ export function AudioBatchStrip({ statuses, locked }: { statuses: ReadonlyMap<nu
 					className="text-ui text-ink-2 enabled:hover:bg-surface enabled:hover:text-ink flex h-8 flex-none items-center gap-1.5 rounded-sm px-2.5 font-medium transition-colors disabled:opacity-40"
 				>
 					<Plus size={15} aria-hidden="true" />
-					{m.batch_add_audio()}
+					{addLabel}
 				</button>
 				<input
 					ref={inputRef}
 					type="file"
-					accept="audio/*,video/*,.mka,.mkv,.opus,.flac"
+					accept={accept}
 					multiple
 					className="hidden"
 					tabIndex={-1}

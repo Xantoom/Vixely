@@ -68,3 +68,13 @@ export function junctions(ranges: readonly Range[]): number[] {
 export function sameRanges(a: readonly Range[], b: readonly Range[]): boolean {
 	return a.length === b.length && a.every((range, i) => range.start === b[i]?.start && range.end === b[i]?.end);
 }
+
+/** Shortest span a timeline zooms to, in seconds. */
+export const MIN_VIEW = 1;
+
+/** Keeps a timeline view within the source and at least MIN_VIEW long, preserving its length when possible. */
+export function clampView(view: Range, duration: number): Range {
+	const length = Math.min(duration, Math.max(MIN_VIEW, view.end - view.start));
+	const start = Math.min(Math.max(0, view.start), duration - length);
+	return { start, end: start + length };
+}

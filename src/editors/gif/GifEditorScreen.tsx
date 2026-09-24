@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { type ItemStatus, BatchList } from '@/editor/BatchList';
 import { EditorLayout } from '@/editor/EditorLayout';
 import { FilePanel, ToolLater } from '@/editor/Inspector';
 import { useEditorShortcuts } from '@/editor/shortcuts';
@@ -42,9 +43,17 @@ export function GifEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	const undo = useGifEditor((state) => state.undo);
 	const redo = useGifEditor((state) => state.redo);
 	const { canUndo, canRedo } = useGifUndoState();
-	const [tool, setTool] = useState<ToolId>(initialTool ?? 'info');
-	const engine = useGifEngine(opened);
+	// A batch of GIFs shares its export settings; cutting and cropping belong to one file.
+	const batch = useSession((state) => (state.batchKind === 'gif' ? state.batch : null));
+	const batchKey = useSession((state) => (state.batchKind === 'gif' ? state.batchKey : null));
+	const [statuses, setStatuses] = useState<ReadonlyMap<number, ItemStatus>>(new Map());
+	const [running, setRunning] = useState(false);
+	const [chosenTool, setTool] = useState<ToolId>(initialTool ?? 'info');
+	const tool = batch && chosenTool !== 'export' ? 'info' : chosenTool;
+	const engine = useGifEngine(opened, batchKey);
 	const { source } = engine;
+	// Only a GIF file can keep its frames: not a video, an APNG or a WebP.
+	const isGif = opened?.format === 'gif' && !opened.info?.video;
 
 	useEditorShortcuts({ undo, redo });
 	usePlayShortcut(engine.togglePlay);
@@ -54,7 +63,7 @@ export function GifEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 		if (tool === 'trim') return <TrimPanel engine={engine} />;
 		if (tool === 'crop') return <CropPanel width={source.width} height={source.height} />;
 		if (tool === 'speed') return <SpeedPanel animated={source.timing !== null} />;
-		if (tool === 'export') return <ExportPanel width={source.width} height={source.height} />;
+		if (tool === 'export') return <ExportPanel engine={engine} isGif={isGif} />;
 		return <ToolLater kind="gif" tool={tool} />;
 	};
 
@@ -70,9 +79,10 @@ export function GifEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	return (
 		<EditorLayout
 			kind="gif"
-			fileName={opened?.file.name}
+			fileName={batch ? undefined : opened?.file.name}
 			tool={tool}
 			onTool={setTool}
+			tools={batch ? ['info'] : undefined}
 			actions={{
 				canUndo,
 				canRedo,
@@ -86,10 +96,42 @@ export function GifEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 				exportActive: tool === 'export',
 			}}
 			viewer={viewer()}
-			timeline={source ? <GifTimeline engine={engine} /> : undefined}
+			timeline={
+				source ? (
+					<>
+						{batch && (
+							<BatchList
+								statuses={statuses}
+								locked={running}
+								count={(count) => m.batch_count_gif({ count })}
+								hint={m.batch_hint_gif()}
+								addLabel={m.batch_add_audio()}
+								accept="image/gif,image/png,image/webp,.gif,.apng,.webp"
+							/>
+						)}
+						{!batch && <GifTimeline engine={engine} />}
+					</>
+				) : undefined
+			}
 			inspector={inspector()}
 			inspectorFooter={
-				tool === 'export' && source && opened ? <ExportFooter engine={engine} file={opened.file} /> : undefined
+				tool === 'export' && source && opened ? (
+					<ExportFooter
+						engine={engine}
+						file={opened.file}
+						isGif={isGif}
+						batch={batch}
+						onRunning={setRunning}
+						onStatus={(id, status) => {
+							setStatuses((previous) => {
+								const next = new Map(previous);
+								if (status) next.set(id, status);
+								else next.delete(id);
+								return next;
+							});
+						}}
+					/>
+				) : undefined
 			}
 		/>
 	);

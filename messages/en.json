@@ -416,8 +416,6 @@
 	"direction_pingpong": "Back and forth",
 	"fps_original": "Original timing",
 	"fps_hint": "Above 25 fps a GIF rarely looks smoother and gets much heavier. Browsers play 50 fps at most.",
-	"export_gif_title": "Export GIF",
-	"export_gif_button": "Export GIF",
 	"gif_width": "Width",
 	"gif_width_hint": "The height follows. Wide GIFs weigh a lot: 480 px suits chats and social networks.",
 	"loop": "Loop",
@@ -431,5 +429,41 @@
 	"encoding_gif": "Encoding…",
 	"export_gif_failed": "The GIF couldn't be made. Try a smaller width or a shorter part.",
 	"make_gif": "Make a GIF",
-	"make_gif_hint": "Opens the video in the GIF editor, to turn a moment into a GIF."
+	"make_gif_hint": "Opens the video in the GIF editor, to turn a moment into a GIF.",
+	"export_animation_title": "Export",
+	"export_as": "Export {format}",
+	"anim_format_gif": "Plays everywhere, messaging apps included. 256 colours per frame, smoothed by gifski.",
+	"anim_format_apng": "Lossless, full colour and transparency. Plays in every browser, not in every app.",
+	"anim_format_webp": "Much lighter than GIF at the same quality, with transparency. Plays in browsers and most apps.",
+	"anim_format_video": "The lightest by far, for sites and apps that take videos. No transparency.",
+	"anim_video": "Video",
+	"encoding_copy_gif": "No re-encoding: the GIF's own frames are kept, with no loss. Only the cut and the loop change.",
+	"encoding_copy_frames": "Speed, direction, frame rate, crop and width redraw the frames: they need re-encoding.",
+	"encoding_copy_not_gif": "Only a GIF can keep its frames as they are.",
+	"webp_quality_hint": "WebP quality. 80 to 90 looks like the original.",
+	"video_quality_hint": "Video quality. Higher keeps more detail and weighs more.",
+	"webp_lossless_note": "This browser can't encode WebP itself: frames are saved lossless, which is heavier.",
+	"video_webm_note": "This browser can't encode H.264: the video is saved as WebM (VP9).",
+	"max_size": "Maximum size",
+	"max_size_none": "No limit",
+	"max_size_hint": "Discord takes 10 MB without Nitro, many chats 8 MB. When it's heavier, the width shrinks until it fits.",
+	"size_fitted": "Made {width} px wide to stay under {size}.",
+	"size_unreachable": "Even at {width} px it weighs {size}: shorten the part or lower the frame rate.",
+	"exporting_retry": "Too heavy, trying {width} px…",
+	"batch_count_gif": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} animation",
+				"countPlural=other": "{count} animations"
+			}
+		}
+	],
+	"batch_hint_gif": "Export settings apply to every file."
 }

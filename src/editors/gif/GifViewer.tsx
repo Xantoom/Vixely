@@ -50,6 +50,8 @@ export function GifViewer({ engine, cropping }: { engine: GifEngine; cropping: b
 			const factor = pictureWidth / source.width;
 			context.imageSmoothingQuality = 'high';
 			context.clearRect(0, 0, pixelWidth, pixelHeight);
+			// A picture freed while switching files is skipped; the next one draws.
+			if (picture instanceof ImageBitmap && picture.width === 0) return;
 			context.drawImage(
 				picture,
 				region.x * factor,

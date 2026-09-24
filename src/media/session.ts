@@ -75,7 +75,11 @@ async function read(file: File, kind: MediaKind, format: string): Promise<Opened
 let nextBatchId = 1;
 
 /** Kinds that can be batched. Audio batches also take videos: their audio is what gets processed. */
-const BATCH_KINDS: Partial<Record<MediaKind, MediaKind[]>> = { image: ['image'], audio: ['audio', 'video'] };
+const BATCH_KINDS: Partial<Record<MediaKind, MediaKind[]>> = {
+	image: ['image'],
+	gif: ['gif'],
+	audio: ['audio', 'video'],
+};
 
 /** Identifies files and keeps those a batch of `kind` accepts. */
 async function identifyBatch(files: File[], kind: MediaKind): Promise<{ items: BatchFile[]; skipped: number }> {
@@ -97,7 +101,7 @@ async function batchKindOf(files: File[], prefer: MediaKind | undefined): Promis
 		// oxlint-disable-next-line no-await-in-loop
 		const result = await identify(file);
 		if (!result.ok) continue;
-		if (result.value.kind === 'image' || result.value.kind === 'audio') return result.value.kind;
+		if (BATCH_KINDS[result.value.kind]) return result.value.kind;
 	}
 	return null;
 }

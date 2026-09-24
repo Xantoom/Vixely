@@ -40,7 +40,11 @@ async function decode(bytes: ArrayBuffer, format: string) {
 	post({ type: 'done' });
 }
 
-let writer: InstanceType<GifModule['GifWriter']> | null = null;
+type Writer =
+	| { format: 'gif'; writer: InstanceType<GifModule['GifWriter']> }
+	| { format: 'apng'; writer: InstanceType<GifModule['ApngWriter']> };
+
+let writer: Writer | null = null;
 /** Messages are handled in order, even though loading the module is asynchronous. */
 let queue: Promise<void> = Promise.resolve();
 
@@ -49,12 +53,29 @@ async function handle(request: GifRequest) {
 		await decode(request.bytes, request.format);
 	} else if (request.type === 'begin') {
 		const gif = await load();
-		writer = new gif.GifWriter(request.quality, request.lossy, request.repeat, false);
+		writer =
+			request.format === 'gif'
+				? { format: 'gif', writer: new gif.GifWriter(request.quality, request.lossy, request.repeat, false) }
+				: {
+						format: 'apng',
+						writer: new gif.ApngWriter(request.width, request.height, request.frames, request.repeat),
+					};
 	} else if (request.type === 'frame') {
-		writer?.add_frame(new Uint8Array(request.rgba), request.width, request.height, request.pts);
+		const pixels = new Uint8Array(request.rgba);
+		if (writer?.format === 'gif') writer.writer.add_frame(pixels, request.width, request.height, request.pts);
+		else writer?.writer.add_frame(pixels, request.duration * 1000);
+	} else if (request.type === 'trim') {
+		const gif = await load();
+		const bytes = gif.trim_gif(new Uint8Array(request.bytes), request.start, request.end, request.repeat);
+		post({ type: 'gif', bytes }, [bytes.buffer]);
+	} else if (request.type === 'webp-still') {
+		const gif = await load();
+		const bytes = gif.encode_webp_lossless(new Uint8Array(request.rgba), request.width, request.height);
+		post({ type: 'webp-still', id: request.id, bytes }, [bytes.buffer]);
 	} else if (writer) {
-		const bytes = writer.finish();
-		writer.free();
+		// `finish` consumes the APNG writer; the GIF writer is freed after.
+		const bytes = writer.writer.finish();
+		if (writer.format === 'gif') writer.writer.free();
 		writer = null;
 		post({ type: 'gif', bytes }, [bytes.buffer]);
 	}
