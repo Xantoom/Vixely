@@ -4,13 +4,15 @@ WORKDIR /app
 
 # Rust and wasm-pack compile vixely-core to WebAssembly.
 # clang and llvm compile the C parts of the image codecs (libdeflate) to WebAssembly.
+# The path comes first: wasm-pack's installer looks for Rust.
+ENV PATH="/root/.cargo/bin:${PATH}"
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates build-essential clang llvm && \
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --target wasm32-unknown-unknown && \
     curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
-ENV PATH="/root/.cargo/bin:${PATH}"
 
 COPY package.json bun.lock ./
+COPY patches ./patches
 RUN bun install --frozen-lockfile
 
 COPY . .
