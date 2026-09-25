@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { Range } from '@/document/timemap';
 import type { MediaDetails, MediaPlayer } from './media-player';
 
 /** Plays nothing, keeps time: the preview of subtitles without a video. */
@@ -67,6 +68,8 @@ interface PlaybackState {
 	audioTrack: number | null;
 	/** Length of the silent clock, in seconds, when no file plays. */
 	clockLength: number;
+	/** Parts of the file played, in order, when an editor removed passages; null plays it all. */
+	ranges: Range[] | null;
 
 	/**
 	 * Plays another file, or none. The same file keeps its player, its position and its audio
@@ -81,6 +84,8 @@ interface PlaybackState {
 	playRange: (from: number, to: number) => void;
 	setAudioTrack: (id: number | null) => void;
 	setClockLength: (length: number) => void;
+	/** Plays only these parts of the file: the video editor's trim and cuts. Null plays it all. */
+	setRanges: (ranges: Range[] | null) => void;
 }
 
 const clock = new Clock();
@@ -123,6 +128,7 @@ export const usePlayback = create<PlaybackState>((set, get) => {
 		playing: false,
 		audioTrack: null,
 		clockLength: 0,
+		ranges: null,
 
 		load(file) {
 			if (file === get().file) return;
@@ -146,6 +152,7 @@ export const usePlayback = create<PlaybackState>((set, get) => {
 					(details) => {
 						if (get().player !== player) return;
 						set({ details });
+						player.setRanges(get().ranges);
 						player.seek(get().time);
 					},
 					() => {
@@ -188,6 +195,11 @@ export const usePlayback = create<PlaybackState>((set, get) => {
 
 		setAudioTrack(id) {
 			void get().player?.setAudioTrack(id);
+		},
+
+		setRanges(ranges) {
+			set({ ranges });
+			get().player?.setRanges(ranges);
 		},
 
 		setClockLength(length) {

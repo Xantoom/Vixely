@@ -1,4 +1,5 @@
 import { ALL_FORMATS, BlobSource, Input, type InputVideoTrack, type VideoSample, VideoSampleSink } from 'mediabunny';
+import { type Range, toOutput, toSource, totalLength } from '@/document/timemap';
 import { AudioPlayer } from './audio-player';
 import { type AudioTrackInfo, listAudioTracks } from './audio-tracks';
 
@@ -10,6 +11,12 @@ export interface MediaDetails {
 	/** Every audio track of the file, playable or not. */
 	audioTracks: AudioTrackInfo[];
 }
+
+/** Draws one picture; the sample is closed right after. */
+export type Painter = (sample: VideoSample) => void;
+
+/** How far pictures may lag behind the clock before decoding jumps ahead, in seconds. */
+const CATCH_UP = 0.5;
 
 async function nextFrame(): Promise<void> {
 	await new Promise((resolve) => requestAnimationFrame(resolve));
@@ -47,8 +54,12 @@ export class MediaPlayer {
 	private audioTrackId: number | null = null;
 	private canvas: HTMLCanvasElement | null = null;
 	private duration = 0;
-	/** Page clock, for files without sound. */
-	private anchor = { page: 0, time: 0 };
+	/** Parts of the file played, in order; the whole file unless an editor removed passages. */
+	private ranges: Range[] | null = null;
+	/** Draws a picture on the canvas; the default fits it in, as it comes. */
+	private painter: Painter | null = null;
+	/** Page clock, for files without sound: page time at which an output time played. */
+	private anchor = { page: 0, output: 0 };
 	private position = 0;
 	private clockPlaying = false;
 	/** Incremented on every start and stop: a loop from an older run ends itself. */
@@ -100,7 +111,9 @@ export class MediaPlayer {
 	time(): number {
 		if (this.audio) return this.audio.time();
 		if (!this.clockPlaying) return this.position;
-		return Math.min(this.duration, this.anchor.time + (performance.now() - this.anchor.page) / 1000);
+		const ranges = this.played();
+		const output = this.anchor.output + (performance.now() - this.anchor.page) / 1000;
+		return toSource(ranges, Math.min(totalLength(ranges), output));
 	}
 
 	/** Plays another audio track from the same moment, or none (null). */
@@ -123,7 +136,7 @@ export class MediaPlayer {
 		if (id !== null) {
 			const audio = new AudioPlayer(this.file, id);
 			if (await audio.playable()) {
-				audio.setPlan({ ranges: [{ start: 0, end: this.duration }], envelope: [] });
+				audio.setPlan({ ranges: this.played(), envelope: [] });
 				audio.onTime = (time) => {
 					this.onTime(time);
 				};
@@ -141,9 +154,14 @@ export class MediaPlayer {
 		this.onAudioTrack(this.audioTrackId);
 	}
 
-	/** Where pictures are drawn. The caller sizes it; `redraw` shows the current frame again. */
-	attach(canvas: HTMLCanvasElement | null) {
+	/**
+	 * Where pictures are drawn. The caller sizes it; `redraw` shows the current frame again. A
+	 * painter draws each picture its own way (the video editor's, with its edits); by default a
+	 * picture is fitted in the canvas as it comes.
+	 */
+	attach(canvas: HTMLCanvasElement | null, painter: Painter | null = null) {
 		this.canvas = canvas;
+		this.painter = painter;
 		this.redraw();
 	}
 
@@ -158,8 +176,9 @@ export class MediaPlayer {
 			await this.audio.play();
 		} else {
 			// At the end, play starts again from the beginning, like any player.
-			const from = this.position >= this.duration - 0.01 ? 0 : this.position;
-			this.anchor = { page: performance.now(), time: from };
+			const ranges = this.played();
+			const output = toOutput(ranges, this.position);
+			this.anchor = { page: performance.now(), output: output >= totalLength(ranges) - 0.01 ? 0 : output };
 			this.clockPlaying = true;
 			this.onStateChange(true);
 			void this.tick(this.run);
@@ -189,7 +208,7 @@ export class MediaPlayer {
 			return;
 		}
 		this.stopPictures();
-		if (!this.audio) this.anchor = { page: performance.now(), time: target };
+		if (!this.audio) this.anchor = { page: performance.now(), output: toOutput(this.played(), target) };
 		void this.playPictures(this.run, target);
 	}
 
@@ -221,8 +240,9 @@ export class MediaPlayer {
 		while (run === this.run && this.clockPlaying) {
 			const time = this.time();
 			this.onTime(time);
-			if (time >= this.duration) {
-				this.position = this.duration;
+			const ranges = this.played();
+			if (toOutput(ranges, time) >= totalLength(ranges)) {
+				this.position = ranges.at(-1)?.end ?? this.duration;
 				this.clockPlaying = false;
 				this.stopPictures();
 				this.onStateChange(false);
@@ -234,7 +254,26 @@ export class MediaPlayer {
 		}
 	}
 
+	/**
+	 * Plays only these parts of the file, in order: an editor's trim and cuts. Null plays it all.
+	 * Playing goes on from the same moment; the removed passages are skipped.
+	 */
+	setRanges(ranges: Range[] | null) {
+		const time = this.time();
+		this.ranges = ranges;
+		this.audio?.setPlan({ ranges: this.played(), envelope: [] });
+		if (this.clockPlaying) this.anchor = { page: performance.now(), output: toOutput(this.played(), time) };
+	}
+
+	private played(): Range[] {
+		return this.ranges ?? [{ start: 0, end: this.duration }];
+	}
+
 	private draw(sample: VideoSample) {
+		if (this.painter) {
+			this.painter(sample);
+			return;
+		}
 		const context = this.canvas?.getContext('2d');
 		if (!context || !this.canvas) return;
 		context.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -247,10 +286,16 @@ export class MediaPlayer {
 		if (!sink) return;
 		const samples = sink.samples(Math.max(from, this.firstPicture));
 		let next: VideoSample | null = null;
+		let behind = false;
 		try {
 			// Pictures come one after the other, each waiting for its time.
 			// oxlint-disable-next-line no-await-in-loop
 			while (run === this.run && (next = (await samples.next()).value ?? null)) {
+				// The clock jumped past a removed passage: decoding starts again where it is.
+				if (next.timestamp + next.duration < this.time() - CATCH_UP) {
+					behind = true;
+					break;
+				}
 				while (run === this.run && next.timestamp > this.time() + 0.004) {
 					// oxlint-disable-next-line no-await-in-loop
 					await nextFrame();
@@ -268,6 +313,7 @@ export class MediaPlayer {
 			next?.close();
 			await samples.return().catch(() => undefined);
 		}
+		if (behind && run === this.run) void this.playPictures(run, this.time());
 	}
 
 	/** Shows the frame at a time while paused. Requests made while one is decoding collapse into the last. */

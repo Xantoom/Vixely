@@ -10,6 +10,8 @@ import { spawnSync } from 'node:child_process';
  *   and an embedded font; live.mkv has no cues; film.mp4 carries the SRT as timed text. Made with
  *   FFmpeg when the FFMPEG variable points to it (a static build is enough).
  * - h264.mp4: 12 s of 1080p H.264 with B-frames and two audio tracks (English, French commentary).
+ * - rotated.mp4: the same, stored turned as phones do (a display matrix of 90°); silent.mp4: the
+ *   same without sound.
  */
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { chromium } from 'playwright-core';
@@ -246,4 +248,20 @@ if (!existsSync('samples/h264.mp4') && ffmpeg) {
 		{ stdio: 'inherit' },
 	);
 	console.log('samples/h264.mp4');
+}
+
+if (existsSync('samples/h264.mp4') && ffmpeg) {
+	// Phones store portrait video turned, with a rotation for players to apply.
+	if (!existsSync('samples/rotated.mp4')) {
+		spawnSync(ffmpeg, ['-v', 'error', '-y', '-display_rotation:v:0', '90', '-i', 'samples/h264.mp4', '-map', '0', '-c', 'copy', 'samples/rotated.mp4'], {
+			stdio: 'inherit',
+		});
+		console.log('samples/rotated.mp4');
+	}
+	if (!existsSync('samples/silent.mp4')) {
+		spawnSync(ffmpeg, ['-v', 'error', '-y', '-i', 'samples/h264.mp4', '-an', '-c', 'copy', 'samples/silent.mp4'], {
+			stdio: 'inherit',
+		});
+		console.log('samples/silent.mp4');
+	}
 }

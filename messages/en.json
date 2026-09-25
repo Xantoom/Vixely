@@ -249,7 +249,6 @@
 	"trim_handle_start": "Start of the kept audio",
 	"trim_handle_end": "End of the kept audio",
 	"selection_title": "Selection",
-	"selection_none": "Drag across the waveform to select a passage.",
 	"selection_length": "Length",
 	"selection_delete": "Delete",
 	"selection_keep": "Keep only this",
@@ -558,5 +557,10 @@
 		}
 	],
 	"subs_first_line": "First line",
-	"subs_batch_title": "Batch"
+	"subs_batch_title": "Batch",
+	"capture_picture": "Open this picture in the image editor",
+	"timeline_tracks": "Tracks",
+	"video_final_length": "Final length",
+	"copy_blocked_picture": "Crop, turns and colours need the video encoded again",
+	"mux_cuts_later": "Cuts without re-encoding come with the next export step"
 }

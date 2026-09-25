@@ -1,23 +1,10 @@
-import { RotateCcw } from 'lucide-react';
 import { type ReactNode, useId } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
-import { formatPreciseTime } from '@/lib/format';
+import { KeptPanel } from '@/editor/KeptPanel';
 import { m } from '@/paraglide/messages.js';
-import { Button, IconButton } from '@/ui/Button';
-import { FieldRow, Select, Slider, TimeField } from '@/ui/fields';
-import {
-	createAudioDoc,
-	cut,
-	GAIN_RANGE,
-	keepOnly,
-	normalizationGain,
-	outputDuration,
-	restoreCut,
-	setFades,
-	setGain,
-	setTrim,
-	TRUE_PEAK_CEILING,
-} from './document';
+import { Button } from '@/ui/Button';
+import { FieldRow, Select, Slider } from '@/ui/fields';
+import { GAIN_RANGE, normalizationGain, outputDuration, setFades, setGain, TRUE_PEAK_CEILING } from './document';
 import type { AudioEngine } from './engine';
 import { useAudioDoc, useAudioEditor } from './store';
 
@@ -45,139 +32,8 @@ export function TrimPanel() {
 	const playhead = useAudioEditor((state) => state.playhead);
 	const selection = useAudioEditor((state) => state.selection);
 	const setSelection = useAudioEditor((state) => state.setSelection);
-	const startId = useId();
-	const endId = useId();
-	const edited = doc.cuts.length > 0 || doc.trim.start > 0 || doc.trim.end < doc.duration;
-
 	return (
-		<>
-			<PanelTitle
-				action={
-					edited ? (
-						<button
-							type="button"
-							onClick={() => {
-								apply((current) => ({
-									...current,
-									trim: createAudioDoc(current.duration).trim,
-									cuts: [],
-								}));
-							}}
-							className="text-ui text-muted hover:text-ink transition-colors"
-						>
-							{m.reset()}
-						</button>
-					) : undefined
-				}
-			>
-				{m.trim_title()}
-			</PanelTitle>
-
-			<div className="grid gap-3.5">
-				<FieldRow label={m.trim_start()} htmlFor={startId}>
-					<TimeField
-						id={startId}
-						value={doc.trim.start}
-						min={0}
-						max={doc.duration}
-						onCommit={(start) => {
-							apply((current) => setTrim(current, { ...current.trim, start }));
-						}}
-					/>
-				</FieldRow>
-				<FieldRow label={m.trim_end()} htmlFor={endId}>
-					<TimeField
-						id={endId}
-						value={doc.trim.end}
-						min={0}
-						max={doc.duration}
-						onCommit={(end) => {
-							apply((current) => setTrim(current, { ...current.trim, end }));
-						}}
-					/>
-				</FieldRow>
-				<ValueRow label={m.audio_final_length()} value={formatPreciseTime(outputDuration(doc))} />
-				<div className="grid grid-cols-2 gap-2">
-					<Button
-						title="I"
-						onClick={() => {
-							apply((current) => setTrim(current, { ...current.trim, start: playhead }));
-						}}
-					>
-						{m.trim_start_here()}
-					</Button>
-					<Button
-						title="O"
-						onClick={() => {
-							apply((current) => setTrim(current, { ...current.trim, end: playhead }));
-						}}
-					>
-						{m.trim_end_here()}
-					</Button>
-				</div>
-			</div>
-
-			<Section title={m.selection_title()}>
-				{selection ? (
-					<>
-						<ValueRow label={m.trim_start()} value={formatPreciseTime(selection.start)} />
-						<ValueRow label={m.trim_end()} value={formatPreciseTime(selection.end)} />
-						<ValueRow
-							label={m.selection_length()}
-							value={formatPreciseTime(selection.end - selection.start)}
-						/>
-						<div className="grid grid-cols-2 gap-2">
-							<Button
-								onClick={() => {
-									apply((current) => cut(current, selection));
-									setSelection(null);
-								}}
-							>
-								{m.selection_delete()}
-							</Button>
-							<Button
-								onClick={() => {
-									apply((current) => keepOnly(current, selection));
-									setSelection(null);
-								}}
-							>
-								{m.selection_keep()}
-							</Button>
-						</div>
-					</>
-				) : (
-					<p className="text-small text-muted">{m.selection_none()}</p>
-				)}
-			</Section>
-
-			{doc.cuts.length > 0 && (
-				<Section title={m.removed_title()}>
-					<ul className="-mt-1 grid">
-						{doc.cuts.map((removed, index) => (
-							<li
-								key={`${removed.start}-${removed.end}`}
-								className="border-line flex items-center justify-between gap-3 border-b py-1 last:border-b-0"
-							>
-								<span className="tabular font-mono text-[12.5px]">
-									{formatPreciseTime(removed.start)} → {formatPreciseTime(removed.end)}
-								</span>
-								<IconButton
-									label={m.removed_restore_label({
-										start: formatPreciseTime(removed.start),
-										end: formatPreciseTime(removed.end),
-									})}
-									onClick={() => {
-										apply((current) => restoreCut(current, index));
-									}}
-								>
-									<RotateCcw size={15} />
-								</IconButton>
-							</li>
-						))}
-					</ul>
-				</Section>
-			)}
-		</>
+		<KeptPanel editing={{ doc, apply, playhead, selection, setSelection, lengthLabel: m.audio_final_length() }} />
 	);
 }
 

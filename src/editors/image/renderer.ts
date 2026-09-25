@@ -1,11 +1,27 @@
 import {
 	type Adjustments,
+	createImageDoc,
 	type ImageDoc,
 	NEUTRAL_ADJUSTMENTS,
+	orientedSize,
 	type Rect,
+	type Rotation,
 	type Size,
 	sourceTransform,
 } from './document';
+
+/** `a` after `b`, for column-major 3×3 matrices: a point goes through `b`, then `a`. */
+function multiply(a: Float32Array, b: Float32Array): Float32Array {
+	const out = new Float32Array(9);
+	for (let column = 0; column < 3; column++) {
+		for (let row = 0; row < 3; row++) {
+			let sum = 0;
+			for (let k = 0; k < 3; k++) sum += (a[k * 3 + row] ?? 0) * (b[column * 3 + k] ?? 0);
+			out[column * 3 + row] = sum;
+		}
+	}
+	return out;
+}
 
 const VERTEX = `#version 300 es
 in vec2 aPosition;
@@ -104,7 +120,10 @@ export class ImageRenderer {
 	private readonly program: WebGLProgram;
 	private readonly uniforms = new Map<Uniform, WebGLUniformLocation | null>();
 	private texture: WebGLTexture | null = null;
+	/** Size of the picture the document's coordinates refer to: a video's once turned upright. */
 	private sourceSize: Size | null = null;
+	/** Maps the upright picture to the texture, for videos stored turned (phones). */
+	private base: Float32Array | null = null;
 
 	constructor(private readonly canvas: HTMLCanvasElement | OffscreenCanvas) {
 		const gl = canvas.getContext('webgl2', {
@@ -149,9 +168,34 @@ export class ImageRenderer {
 	}
 
 	setSource(source: ImageBitmap): void {
+		this.upload(source);
+		this.sourceSize = { width: source.width, height: source.height };
+		this.base = null;
+	}
+
+	/**
+	 * A picture of a video, `size` as stored (square pixels) and `rotation` the video's own, applied
+	 * before the document's: the document sees the picture upright, as players show it.
+	 */
+	setFrame(source: TexImageSource, size: Size, rotation: Rotation): void {
+		this.upload(source);
+		const upright = orientedSize(size, rotation);
+		this.sourceSize = upright;
+		this.base =
+			rotation === 0
+				? null
+				: sourceTransform({ ...createImageDoc(), rotation }, size, { x: 0, y: 0, ...upright });
+	}
+
+	/** Whether a picture was given: until then, nothing is drawn. */
+	get ready(): boolean {
+		return this.texture !== null;
+	}
+
+	private upload(source: TexImageSource): void {
 		const gl = this.gl;
-		if (this.texture) gl.deleteTexture(this.texture);
-		this.texture = gl.createTexture();
+		// Video pictures come one after the other: the same texture takes each.
+		this.texture ??= gl.createTexture();
 		gl.bindTexture(gl.TEXTURE_2D, this.texture);
 		gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
 		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, source);
@@ -161,7 +205,6 @@ export class ImageRenderer {
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-		this.sourceSize = { width: source.width, height: source.height };
 	}
 
 	render(doc: ImageDoc, { region, original = false, opaque = false, flipY = false }: RenderOptions): void {
@@ -175,7 +218,8 @@ export class ImageRenderer {
 		gl.activeTexture(gl.TEXTURE0);
 		gl.bindTexture(gl.TEXTURE_2D, this.texture);
 		gl.uniform1i(u('uSource'), 0);
-		gl.uniformMatrix3fv(u('uTransform'), false, sourceTransform(doc, this.sourceSize, region));
+		const transform = sourceTransform(doc, this.sourceSize, region);
+		gl.uniformMatrix3fv(u('uTransform'), false, this.base ? multiply(this.base, transform) : transform);
 		gl.uniform1f(u('uExposure'), adjust.exposure / 50);
 		gl.uniform1f(u('uBrightness'), adjust.brightness / 100);
 		gl.uniform1f(u('uContrast'), adjust.contrast < 0 ? adjust.contrast / 125 : adjust.contrast / 100);

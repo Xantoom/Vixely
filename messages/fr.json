@@ -249,7 +249,6 @@
 	"trim_handle_start": "Début de l'audio gardé",
 	"trim_handle_end": "Fin de l'audio gardé",
 	"selection_title": "Sélection",
-	"selection_none": "Glisse sur la forme d'onde pour sélectionner un passage.",
 	"selection_length": "Durée",
 	"selection_delete": "Supprimer",
 	"selection_keep": "Garder seulement",
@@ -558,5 +557,10 @@
 		}
 	],
 	"subs_first_line": "Première réplique",
-	"subs_batch_title": "Traitement par lot"
+	"subs_batch_title": "Traitement par lot",
+	"capture_picture": "Ouvrir cette image dans l'éditeur d'images",
+	"timeline_tracks": "Pistes",
+	"video_final_length": "Durée finale",
+	"copy_blocked_picture": "Le recadrage, la rotation et les couleurs demandent de réencoder la vidéo",
+	"mux_cuts_later": "Les coupes sans réencodage arrivent avec la prochaine étape de l'export"
 }

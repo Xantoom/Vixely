@@ -20,4 +20,5 @@ git).
 | `subtitles-editor.ts` | A Windows-1252 SRT, a preview video dropped on it, grid, edit box and audio box (Aegisub layout), shift, two-point sync, ASS ↔ SRT             |
 | `subtitles-tracks.ts` | Subtitle tracks of MKV and MP4 files, embedded fonts, PGS pictures read and written; `bun subtitles-tracks.ts big.mkv` also times a large file |
 | `subtitles-mux.ts`    | Subtitles back into MKV and MP4 files (edited SRT, new timed text, shifted PGS), reopened; `bun subtitles-mux.ts big.mkv` times a large export |
+| `video-editor.ts`     | Video editor: crop and colours on every picture, undo, timeline pictures, a removed passage skipped with and without sound, a phone video shown upright, a picture opened in the image editor |
 | `subtitles-batch.ts`  | SRT, ASS and .sup files shifted together and written as WebVTT into a ZIP                                                                      |

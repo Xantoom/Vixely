@@ -17,6 +17,7 @@ import {
 	type Rect,
 	rotate,
 } from './document';
+import type { PictureEditing } from './editing';
 import { canEncodeWebp, outputSize, usesQuality } from './export';
 import {
 	ASPECTS,
@@ -28,11 +29,9 @@ import {
 	useImageEditor,
 } from './store';
 
-export function CropPanel({ source }: { source: ImageBitmap }) {
-	const doc = useImageDoc();
-	const apply = useImageEditor((state) => state.apply);
-	const aspect = useImageEditor((state) => state.cropAspect);
-	const setAspect = useImageEditor((state) => state.setCropAspect);
+/** Crop, rotation and mirrors of a picture: an image, or the frames of a video. */
+export function CropPanel({ editing }: { editing: PictureEditing }) {
+	const { doc, apply, aspect, setAspect, size: source } = editing;
 	const bounds = orientedSize(source, doc.rotation);
 	const crop = effectiveCrop(doc, source);
 	const full: Rect = { x: 0, y: 0, ...bounds };
@@ -194,11 +193,9 @@ const ADJUSTMENT_LABELS: Record<AdjustmentId, () => string> = {
 const LIGHT: AdjustmentId[] = ['exposure', 'brightness', 'contrast'];
 const COLOR: AdjustmentId[] = ['saturation', 'temperature', 'tint'];
 
-export function AdjustPanel() {
-	const doc = useImageDoc();
-	const apply = useImageEditor((state) => state.apply);
-	const preview = useImageEditor((state) => state.preview);
-	const settle = useImageEditor((state) => state.settle);
+/** Light and colour of a picture: an image, or the frames of a video. */
+export function AdjustPanel({ editing }: { editing: PictureEditing }) {
+	const { doc, apply, preview, settle } = editing;
 
 	const slider = (id: AdjustmentId) => (
 		<Slider

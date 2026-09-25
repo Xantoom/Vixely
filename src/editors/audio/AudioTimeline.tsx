@@ -3,6 +3,7 @@ import { ALL_FORMATS, BlobSource, Input } from 'mediabunny';
 import { type PointerEvent as ReactPointerEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Range } from '@/document/timemap';
 import { audioTrackLabel, PlayerMenu } from '@/editor/PlayerControls';
+import { percent, timeAt, zoomView } from '@/editor/timeline-view';
 import { TimeRuler } from '@/editor/TimeRuler';
 import { TrimHandle } from '@/editor/TrimHandle';
 import { ViewScroll } from '@/editor/ViewScroll';
@@ -19,21 +20,6 @@ import { MIN_VIEW, useAudioDoc, useAudioEditor } from './store';
 
 /** Waveform, removed audio, and audio pushed past full scale. */
 const WAVE_COLORS = ['--audio-1', '--line-2', '--danger'] as const;
-
-function percent(time: number, view: Range): string {
-	return `${((time - view.start) / (view.end - view.start)) * 100}%`;
-}
-
-/** Source time under a pointer, within the source. */
-function timeAt(element: HTMLElement, clientX: number, view: Range, duration: number): number {
-	const rect = element.getBoundingClientRect();
-	const x = (clientX - rect.left) / rect.width;
-	return Math.min(duration, Math.max(0, view.start + x * (view.end - view.start)));
-}
-
-function zoomView(view: Range, factor: number, anchor: number): Range {
-	return { start: anchor - (anchor - view.start) * factor, end: anchor + (view.end - anchor) * factor };
-}
 
 /** Which audio track of a video is edited, when it has several. */
 function AudioTrackPicker() {

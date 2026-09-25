@@ -1,20 +1,16 @@
 import { type GainPoint, gainAt } from '@/document/gain-curve';
+import { type Kept, keptRanges } from '@/document/kept';
 import { junctions, type Range, toOutput, totalLength } from '@/document/timemap';
 import type { LoudnessReading } from '@/media/loudness';
 
 export { type GainPoint, gainAt };
+export { cut, keepOnly, keptRanges, MIN_OUTPUT, outputDuration, restoreCut, setTrim } from '@/document/kept';
 
 /**
  * The edits of an audio file. The source is never modified: the document says which part of it
  * is kept and how it sounds. Playback and export both read it, so what is heard is what is saved.
  */
-export interface AudioDoc {
-	/** Length of the source, in seconds. */
-	duration: number;
-	/** Part of the source kept, in source seconds. */
-	trim: Range;
-	/** Passages removed inside the trim, in source seconds: sorted, never touching each other. */
-	cuts: readonly Range[];
+export interface AudioDoc extends Kept {
 	/** Volume change, in decibels. */
 	gain: number;
 	/** Fade lengths, in seconds of the output. */
@@ -23,9 +19,6 @@ export interface AudioDoc {
 	/** Target loudness in LUFS. When set, the gain is computed from the measured loudness instead. */
 	normalize: number | null;
 }
-
-/** Shortest output allowed: a trim or a cut never leaves less than this. */
-export const MIN_OUTPUT = 0.05;
 
 /** Length of the fade applied on each side of a cut, so the jump doesn't click. */
 export const DECLICK = 0.004;
@@ -36,81 +29,8 @@ export function createAudioDoc(duration: number): AudioDoc {
 	return { duration, trim: { start: 0, end: duration }, cuts: [], gain: 0, fadeIn: 0, fadeOut: 0, normalize: null };
 }
 
-/** The source ranges heard in the output, in order. */
-export function keptRanges(doc: AudioDoc): Range[] {
-	const ranges: Range[] = [];
-	let start = doc.trim.start;
-	for (const cut of doc.cuts) {
-		if (cut.start > start) ranges.push({ start, end: cut.start });
-		start = Math.max(start, cut.end);
-	}
-	if (doc.trim.end > start) ranges.push({ start, end: doc.trim.end });
-	return ranges;
-}
-
-export function outputDuration(doc: AudioDoc): number {
-	return totalLength(keptRanges(doc));
-}
-
 function clamp(value: number, min: number, max: number): number {
 	return Math.min(max, Math.max(min, value));
-}
-
-/** Sorts cuts, merges those that touch and drops what falls outside the trim. */
-function normaliseCuts(cuts: readonly Range[], trim: Range): Range[] {
-	const inside = cuts
-		.map((cut) => ({ start: Math.max(cut.start, trim.start), end: Math.min(cut.end, trim.end) }))
-		.filter((cut) => cut.end > cut.start)
-		.toSorted((a, b) => a.start - b.start);
-	const merged: Range[] = [];
-	for (const cut of inside) {
-		const last = merged.at(-1);
-		if (last && cut.start <= last.end) last.end = Math.max(last.end, cut.end);
-		else merged.push({ ...cut });
-	}
-	return merged;
-}
-
-/** Applies a new trim and cuts, unless they would leave almost nothing to hear. */
-function withRanges(doc: AudioDoc, trim: Range, cuts: readonly Range[]): AudioDoc {
-	const next = { ...doc, trim, cuts: normaliseCuts(cuts, trim) };
-	return outputDuration(next) < MIN_OUTPUT ? doc : next;
-}
-
-/** Moves the start and end of the kept part. Cuts outside it are dropped. */
-export function setTrim(doc: AudioDoc, trim: Range): AudioDoc {
-	const start = clamp(trim.start, 0, doc.duration - MIN_OUTPUT);
-	const end = clamp(trim.end, start + MIN_OUTPUT, doc.duration);
-	return withRanges(doc, { start, end }, doc.cuts);
-}
-
-/**
- * Removes a passage. A passage that reaches the start or the end of the kept part moves the trim
- * instead, so the handles stay where the sound starts and stops.
- */
-export function cut(doc: AudioDoc, passage: Range): AudioDoc {
-	const start = Math.max(passage.start, doc.trim.start);
-	const end = Math.min(passage.end, doc.trim.end);
-	if (end - start <= 0) return doc;
-	const trim = {
-		start: start <= doc.trim.start ? end : doc.trim.start,
-		end: end >= doc.trim.end ? start : doc.trim.end,
-	};
-	if (trim.end - trim.start < MIN_OUTPUT) return doc;
-	const touchesEdge = trim.start !== doc.trim.start || trim.end !== doc.trim.end;
-	return withRanges(doc, trim, touchesEdge ? doc.cuts : [...doc.cuts, { start, end }]);
-}
-
-/** Keeps only a passage: the trim becomes the passage, cuts inside it stay. */
-export function keepOnly(doc: AudioDoc, passage: Range): AudioDoc {
-	const start = clamp(passage.start, 0, doc.duration);
-	const end = clamp(passage.end, 0, doc.duration);
-	if (end - start < MIN_OUTPUT) return doc;
-	return withRanges(doc, { start, end }, doc.cuts);
-}
-
-export function restoreCut(doc: AudioDoc, index: number): AudioDoc {
-	return { ...doc, cuts: doc.cuts.filter((_, i) => i !== index) };
 }
 
 export function setGain(doc: AudioDoc, gain: number): AudioDoc {

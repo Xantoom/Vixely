@@ -195,8 +195,8 @@ export function MuxTracks({ opened }: { opened: OpenedFile }) {
 	);
 }
 
-/** Writes the video with the chosen tracks, nothing re-encoded. */
-export function MuxFooter({ opened }: { opened: OpenedFile }) {
+/** Writes the video with the chosen tracks, nothing re-encoded; `blocked` when edits need encoding. */
+export function MuxFooter({ opened, blocked = false }: { opened: OpenedFile; blocked?: boolean }) {
 	const listed = useMuxTracks(opened.file, opened.format);
 	const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
 	const [progress, setProgress] = useState(0);
@@ -264,7 +264,7 @@ export function MuxFooter({ opened }: { opened: OpenedFile }) {
 				<Button
 					variant="primary"
 					className="h-11 flex-1"
-					disabled={!listed || status === 'saving'}
+					disabled={!listed || blocked || status === 'saving'}
 					onClick={() => void run()}
 				>
 					{status === 'saving' ? (

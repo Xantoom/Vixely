@@ -8,6 +8,7 @@ import { useSession } from '@/media/session';
 import type { ItemStatus } from './batch-export';
 import { BatchStrip } from './BatchStrip';
 import type { Size } from './document';
+import { useImagePictureEditing } from './editing';
 import { ExportFooter } from './ExportFooter';
 import { ImageViewer } from './ImageViewer';
 import { AdjustPanel, CropPanel, ExportPanel } from './panels';
@@ -48,12 +49,13 @@ export function ImageEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	}, [source, batchKey, retarget]);
 
 	useEditorShortcuts({ undo, redo });
+	const editing = useImagePictureEditing({ width: source?.width ?? 1, height: source?.height ?? 1 });
 
 	const inspector = () => {
 		if (tool === 'info' || !opened) return <FilePanel opened={opened} />;
 		if (!source) return <ToolLater kind="image" tool={tool} />;
-		if (tool === 'crop') return <CropPanel source={source} />;
-		if (tool === 'adjust') return <AdjustPanel />;
+		if (tool === 'crop') return <CropPanel editing={editing} />;
+		if (tool === 'adjust') return <AdjustPanel editing={editing} />;
 		if (tool === 'export') return <ExportPanel source={source} photo={opened.info?.photo ?? null} />;
 		return <ToolLater kind="image" tool={tool} />;
 	};
