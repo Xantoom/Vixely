@@ -4,6 +4,7 @@ import { EDITOR_ORDER, EDITORS, type MediaKind } from '@/editors/registry';
 import { useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { filesFromDrop } from './files';
+import { taskBySlug } from './tasks';
 
 /**
  * Lets an editor take dropped files its own way, such as a video dropped on subtitles becoming
@@ -40,7 +41,9 @@ export function GlobalDrop() {
 	const open = useSession((state) => state.open);
 	const navigate = useNavigate();
 	const path = useRouterState({ select: (state) => state.location.pathname });
-	const editor: MediaKind | undefined = EDITOR_ORDER.find((kind) => EDITORS[kind].path === path);
+	const editor: MediaKind | undefined =
+		EDITOR_ORDER.find((kind) => EDITORS[kind].path === path) ??
+		(path.startsWith('/tools/') ? taskBySlug(path.slice('/tools/'.length))?.editor : undefined);
 
 	useEffect(() => {
 		const onDragEnter = (event: DragEvent) => {
@@ -68,7 +71,7 @@ export function GlobalDrop() {
 				if (files.length === 0) return;
 				if (handler && (await handler(files))) return;
 				const kind = await open(files, editor);
-				if (kind) await navigate({ to: EDITORS[kind].path });
+				if (kind && kind !== editor) await navigate({ to: EDITORS[kind].path });
 			});
 		};
 		window.addEventListener('dragenter', onDragEnter);

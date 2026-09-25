@@ -14,6 +14,9 @@ COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 
 COPY . .
+# GoatCounter code for counting visits (see src/app/analytics.ts); empty leaves it off.
+ARG VITE_GOATCOUNTER=""
+ENV VITE_GOATCOUNTER=${VITE_GOATCOUNTER}
 RUN bun run build
 
 # ── Stage 2: serve ──

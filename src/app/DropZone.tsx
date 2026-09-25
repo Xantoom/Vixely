@@ -26,7 +26,8 @@ export function DropZone({ compact = false, prefer }: { compact?: boolean; prefe
 
 	const openFiles = async (files: File[]) => {
 		const kind = await open(files, prefer);
-		if (kind) await navigate({ to: EDITORS[kind].path });
+		// Already in its editor (a task page included): it opens right here.
+		if (kind && kind !== prefer) await navigate({ to: EDITORS[kind].path });
 	};
 
 	return (

@@ -1,15 +1,18 @@
 import { Link } from '@tanstack/react-router';
-import { EDITORS, type MediaKind, type ToolId } from '@/editors/registry';
+import { EDITORS, type MediaKind } from '@/editors/registry';
 import { m } from '@/paraglide/messages.js';
 import { Tile } from '@/ui/Tile';
 import { AppBar } from './AppBar';
 import { DropZone } from './DropZone';
+import { usePageHead } from './head';
+import { SiteFooter } from './SiteFooter';
 
 interface Task {
 	id: string;
 	label: () => string;
 	to: MediaKind;
-	tool?: ToolId;
+	/** The task page it opens, else the editor itself. */
+	slug?: string;
 }
 
 interface Column {
@@ -25,9 +28,9 @@ const COLUMNS: Column[] = [
 		label: () => m.media_video(),
 		to: 'video',
 		tasks: [
-			{ id: 'trim', label: () => m.task_trim(), to: 'video', tool: 'trim' },
-			{ id: 'compress', label: () => m.task_compress(), to: 'video' },
-			{ id: 'convert', label: () => m.task_convert(), to: 'video' },
+			{ id: 'trim', label: () => m.task_trim(), to: 'video', slug: 'trim-video' },
+			{ id: 'compress', label: () => m.task_compress(), to: 'video', slug: 'compress-video' },
+			{ id: 'convert', label: () => m.task_convert(), to: 'video', slug: 'convert-video' },
 		],
 	},
 	{
@@ -35,9 +38,9 @@ const COLUMNS: Column[] = [
 		label: () => m.media_image(),
 		to: 'image',
 		tasks: [
-			{ id: 'resize', label: () => m.task_resize(), to: 'image', tool: 'crop' },
-			{ id: 'compress', label: () => m.task_compress(), to: 'image' },
-			{ id: 'convert', label: () => m.task_convert(), to: 'image' },
+			{ id: 'resize', label: () => m.task_resize(), to: 'image', slug: 'resize-image' },
+			{ id: 'compress', label: () => m.task_compress(), to: 'image', slug: 'compress-image' },
+			{ id: 'convert', label: () => m.task_convert(), to: 'image', slug: 'convert-image' },
 		],
 	},
 	{
@@ -45,9 +48,9 @@ const COLUMNS: Column[] = [
 		label: () => m.media_gif(),
 		to: 'gif',
 		tasks: [
-			{ id: 'from-video', label: () => m.task_video_to_gif(), to: 'gif', tool: 'trim' },
-			{ id: 'optimize', label: () => m.task_optimize(), to: 'gif' },
-			{ id: 'convert', label: () => m.task_convert(), to: 'gif' },
+			{ id: 'from-video', label: () => m.task_video_to_gif(), to: 'gif', slug: 'video-to-gif' },
+			{ id: 'optimize', label: () => m.task_optimize(), to: 'gif', slug: 'optimize-gif' },
+			{ id: 'convert', label: () => m.task_gif_to_mp4(), to: 'gif', slug: 'gif-to-mp4' },
 		],
 	},
 	{
@@ -55,9 +58,9 @@ const COLUMNS: Column[] = [
 		label: () => m.media_audio(),
 		to: 'audio',
 		tasks: [
-			{ id: 'trim', label: () => m.task_trim(), to: 'audio', tool: 'trim' },
-			{ id: 'normalize', label: () => m.task_normalize(), to: 'audio', tool: 'audio' },
-			{ id: 'convert', label: () => m.task_convert(), to: 'audio' },
+			{ id: 'trim', label: () => m.task_trim(), to: 'audio', slug: 'trim-audio' },
+			{ id: 'normalize', label: () => m.task_normalize(), to: 'audio', slug: 'normalize-audio' },
+			{ id: 'convert', label: () => m.task_convert(), to: 'audio', slug: 'convert-audio' },
 		],
 	},
 	{
@@ -65,9 +68,9 @@ const COLUMNS: Column[] = [
 		label: () => m.media_subtitles(),
 		to: 'subtitles',
 		tasks: [
-			{ id: 'resync', label: () => m.task_resync(), to: 'subtitles', tool: 'timing' },
-			{ id: 'convert', label: () => m.task_convert(), to: 'subtitles', tool: 'export' },
-			{ id: 'extract', label: () => m.task_extract(), to: 'subtitles' },
+			{ id: 'resync', label: () => m.task_resync(), to: 'subtitles', slug: 'resync-subtitles' },
+			{ id: 'convert', label: () => m.task_convert(), to: 'subtitles', slug: 'convert-subtitles' },
+			{ id: 'extract', label: () => m.task_extract(), to: 'subtitles', slug: 'extract-subtitles' },
 		],
 	},
 	{
@@ -83,6 +86,7 @@ const COLUMNS: Column[] = [
 ];
 
 export function HomeScreen() {
+	usePageHead(null);
 	return (
 		<div className="flex min-h-full flex-col">
 			<AppBar />
@@ -110,8 +114,8 @@ export function HomeScreen() {
 								{column.tasks.map((task) => (
 									<li key={task.id}>
 										<Link
-											to={EDITORS[task.to].path}
-											search={task.tool ? { tool: task.tool } : {}}
+											to={task.slug ? '/tools/$task' : EDITORS[task.to].path}
+											params={task.slug ? { task: task.slug } : {}}
 											className="text-body text-muted hover:text-ed-text underline-offset-[3px] transition-colors hover:underline"
 										>
 											{task.label()}
@@ -123,11 +127,7 @@ export function HomeScreen() {
 					))}
 				</nav>
 
-				<footer className="border-line text-ui text-muted border-t pt-6">
-					<Link to="/system" className="hover:text-ink underline-offset-[3px] hover:underline">
-						{m.home_capabilities()}
-					</Link>
-				</footer>
+				<SiteFooter />
 			</main>
 		</div>
 	);

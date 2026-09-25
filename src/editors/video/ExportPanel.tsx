@@ -46,7 +46,9 @@ export function useExportSource(opened: OpenedFile | null, upright: Size | null)
 		let alive = true;
 		void Promise.all([readVideoSource(opened.file, opened.format), encodableCodecs({ width, height })]).then(
 			([source, encodable]) => {
-				if (alive && source) adoptSource({ owner: opened.file, source, encodable });
+				if (alive && source) {
+					adoptSource({ owner: opened.file, source, encodable, shortSide: Math.min(width, height) });
+				}
 			},
 		);
 		return () => {

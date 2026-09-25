@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router';
 import { Moon, Redo2, Sun, Undo2 } from 'lucide-react';
 import type { MediaKind } from '@/editors/registry';
 import { m } from '@/paraglide/messages.js';
+import { getLocale, setLocale } from '@/paraglide/runtime.js';
 import { Button, IconButton } from '@/ui/Button';
 import { LogoMark } from '@/ui/Logo';
 import { EditorSwitcher } from './EditorSwitcher';
@@ -22,6 +23,25 @@ interface AppBarProps {
 	editor?: MediaKind;
 	fileName?: string;
 	actions?: EditorActions;
+}
+
+/** Switches between English and French; the page reloads in the other language. */
+function LanguageButton() {
+	const next = getLocale() === 'fr' ? 'en' : 'fr';
+	return (
+		<button
+			type="button"
+			lang={next}
+			aria-label={next === 'fr' ? 'Français' : 'English'}
+			title={next === 'fr' ? 'Français' : 'English'}
+			onClick={() => {
+				void setLocale(next);
+			}}
+			className="text-ui text-ink-2 hover:bg-surface hover:text-ink grid h-9 min-w-9 place-items-center rounded-sm px-2 font-mono font-medium uppercase transition-colors"
+		>
+			{next}
+		</button>
+	);
 }
 
 export function AppBar({ editor, fileName, actions }: AppBarProps) {
@@ -61,6 +81,8 @@ export function AppBar({ editor, fileName, actions }: AppBarProps) {
 					</IconButton>
 				</div>
 			)}
+
+			<LanguageButton />
 
 			<IconButton label={theme === 'dark' ? m.theme_to_light() : m.theme_to_dark()} onClick={toggleTheme}>
 				{theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}

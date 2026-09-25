@@ -7,7 +7,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "bun run build:wasm && vite",
-		"build": "bun run build:wasm && vite build",
+		"build": "bun run build:wasm && vite build && bun scripts/prerender.ts",
 		"build:wasm": "bun scripts/build-wasm.ts",
 		"preview": "vite preview",
 		"typecheck": "tsc --noEmit",

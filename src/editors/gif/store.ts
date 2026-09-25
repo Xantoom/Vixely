@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { peekTaskIntent } from '@/app/tasks';
 import { canRedo, canUndo, commit, createHistory, type History, redo, replace, undo } from '@/document/history';
 import type { AspectId } from '@/editors/image/store';
 import { createGifDoc, type GifDoc } from './document';
@@ -50,9 +51,11 @@ interface GifEditorState {
 }
 
 function defaultExport(width: number | null, copyable: boolean): GifExportSettings {
+	// Opened from "GIF to MP4": saved as a video.
+	const video = peekTaskIntent()?.animationVideo === true;
 	return {
-		mode: copyable ? 'copy' : 'encode',
-		format: 'gif',
+		mode: copyable && !video ? 'copy' : 'encode',
+		format: video ? 'video' : 'gif',
 		width,
 		repeat: 0,
 		quality: 90,

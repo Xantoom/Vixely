@@ -1,6 +1,7 @@
 import { AudioLines } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { DropZone } from '@/app/DropZone';
+import { useTask } from '@/app/task-context';
 import type { MediaKind } from '@/editors/registry';
 import { formatTimecode } from '@/lib/format';
 import type { OpenedFile } from '@/media/session';
@@ -23,14 +24,24 @@ function Message({ children }: { children: string }) {
 }
 
 /** The largest element of every editor. Everything else stays out of its way. */
+/** An editor with no file yet: where to drop one, and on a task page, what the page is for. */
+export function EmptyViewer({ kind }: { kind: MediaKind }) {
+	const task = useTask();
+	return (
+		<div className="grid w-full max-w-[680px] gap-6">
+			{task && (
+				<div className="grid gap-2">
+					<h1 className="text-title font-bold tracking-[-0.03em] text-balance">{task.title()}</h1>
+					<p className="text-body text-muted">{task.description()}</p>
+				</div>
+			)}
+			<DropZone compact prefer={kind} />
+		</div>
+	);
+}
+
 export function Viewer({ kind, opened }: { kind: MediaKind; opened: OpenedFile | null }) {
-	if (!opened) {
-		return (
-			<div className="w-full max-w-[680px]">
-				<DropZone compact prefer={kind} />
-			</div>
-		);
-	}
+	if (!opened) return <EmptyViewer kind={kind} />;
 
 	if (kind === 'audio') {
 		const tags = opened.info?.tags;

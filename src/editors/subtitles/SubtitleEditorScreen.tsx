@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { DropZone } from '@/app/DropZone';
 import { useDropHandler } from '@/app/GlobalDrop';
 import { EditorLayout } from '@/editor/EditorLayout';
 import { FilePanel } from '@/editor/Inspector';
 import { isTyping, useEditorShortcuts } from '@/editor/shortcuts';
+import { EmptyViewer } from '@/editor/Viewer';
 import type { ToolId } from '@/editors/registry';
 import { identify } from '@/media/identify';
 import { usePlayback } from '@/media/playback';
@@ -163,13 +163,7 @@ function SingleSubtitleScreen({ initialTool }: { initialTool?: ToolId }) {
 	};
 
 	const waiting = () => {
-		if (!opened) {
-			return (
-				<div className="w-full max-w-[680px]">
-					<DropZone compact prefer="subtitles" />
-				</div>
-			);
-		}
+		if (!opened) return <EmptyViewer kind="subtitles" />;
 		if (status === 'unreadable') return <p className="text-body text-danger">{m.subs_unreadable()}</p>;
 		return (
 			<p className="text-body text-muted tabular">

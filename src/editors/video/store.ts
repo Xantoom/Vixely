@@ -1,11 +1,18 @@
 import { create } from 'zustand';
+import { peekTaskIntent } from '@/app/tasks';
 import { canRedo, canUndo, commit, createHistory, type History, redo, replace, undo } from '@/document/history';
 import { clampView, type Range } from '@/document/timemap';
 import type { ImageDoc } from '../image/document';
 import type { PictureEditing } from '../image/editing';
 import type { AspectId } from '../image/store';
 import { createVideoDoc, type VideoDoc } from './document';
-import { settingsFromSource, type VideoCodecId, type VideoExportSettings, type VideoSource } from './export';
+import {
+	presetSettings,
+	settingsFromSource,
+	type VideoCodecId,
+	type VideoExportSettings,
+	type VideoSource,
+} from './export';
 
 /** What the export starts from, read once per file. */
 export interface ExportSource {
@@ -13,6 +20,16 @@ export interface ExportSource {
 	source: VideoSource;
 	/** Codecs this browser encodes at the video's size. */
 	encodable: VideoCodecId[];
+	/** Shorter side of the upright pictures, which presets bring down. */
+	shortSide: number;
+}
+
+/** The settings a video starts from: the source's, or those of the task page it was opened from. */
+function startingSettings({ source, encodable, shortSide }: ExportSource): VideoExportSettings {
+	const settings = settingsFromSource(source, encodable);
+	const intent = peekTaskIntent();
+	if (intent?.preset) return { ...settings, ...presetSettings(intent.preset, source, encodable, shortSide) };
+	return intent?.encode ? { ...settings, mode: 'encode' } : settings;
 }
 
 interface VideoEditorState {
@@ -82,10 +99,7 @@ export const useVideoEditor = create<VideoEditorState>((set, get) => ({
 
 	adoptSource(exportSource) {
 		if (get().exportSource?.owner === exportSource.owner) return;
-		set({
-			exportSource,
-			exportSettings: get().exportSettings ?? settingsFromSource(exportSource.source, exportSource.encodable),
-		});
+		set({ exportSource, exportSettings: get().exportSettings ?? startingSettings(exportSource) });
 	},
 
 	setCopied(copied) {
