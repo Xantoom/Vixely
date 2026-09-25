@@ -562,5 +562,14 @@
 	"timeline_tracks": "Tracks",
 	"video_final_length": "Final length",
 	"copy_blocked_picture": "Crop, turns and colours need the video encoded again",
-	"mux_cuts_later": "Cuts without re-encoding come with the next export step"
+	"mux_cuts_later": "Cuts without re-encoding come with the next export step",
+	"export_container": "Container",
+	"export_codec": "Codec",
+	"export_original": "Original ({value})",
+	"codec_unavailable": "This browser can't encode {codec}",
+	"audio_copy_cuts": "Removed passages need the sound encoded again",
+	"audio_copy_container": "This sound can't go as it is in a {container} file",
+	"mux_blocked_webm": "WebM files don't hold these subtitles",
+	"convert_no_video_encoder": "This browser can't encode the pictures with these settings. Try another codec or a smaller height.",
+	"convert_no_audio_encoder": "This browser can't encode the sound with these settings. Try another codec."
 }

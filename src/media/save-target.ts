@@ -95,6 +95,50 @@ async function downloadTarget(name: string, type: SaveType): Promise<SaveTarget>
 	};
 }
 
+/** A file written in steps: first by Mediabunny, then read back to be completed by another pass. */
+export interface ScratchFile {
+	target: Target;
+	/** The file once the output is finalized. */
+	file: () => Promise<File>;
+	remove: () => Promise<void>;
+}
+
+/**
+ * A file in the browser's private storage for an intermediate result, such as a converted video
+ * that the remuxer then completes with subtitles; in memory when there is no private storage.
+ */
+export async function openScratchFile(name: string): Promise<ScratchFile> {
+	try {
+		const root = await navigator.storage.getDirectory();
+		const entry = `${TEMPORARY_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2)}`;
+		const handle = await root.getFileHandle(entry, { create: true });
+		const writable = await handle.createWritable();
+		let closed = false;
+		return {
+			target: new StreamTarget(forwardWrites(writable), { chunked: true, chunkSize: CHUNK_SIZE }),
+			file: async () => {
+				if (!closed) await writable.close();
+				closed = true;
+				const file = await handle.getFile();
+				return new File([file], name, { type: file.type });
+			},
+			remove: async () => {
+				if (!closed) await writable.abort().catch(() => undefined);
+				closed = true;
+				await root.removeEntry(entry).catch(() => undefined);
+			},
+		};
+	} catch {
+		// No private storage: built in memory.
+	}
+	const target = new BufferTarget();
+	return {
+		target,
+		file: async () => Promise.resolve(new File(target.buffer ? [target.buffer] : [], name)),
+		remove: async () => Promise.resolve(),
+	};
+}
+
 /**
  * Opens the destination of an export before encoding starts, so a file of several gigabytes is
  * written as it is produced and never held in memory:

@@ -1,7 +1,7 @@
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { cut, isShortened, keptRanges, setTrim } from '@/document/kept';
-import { EditorLayout, PanelTitle } from '@/editor/EditorLayout';
+import { EditorLayout } from '@/editor/EditorLayout';
 import { FilePanel, ToolLater } from '@/editor/Inspector';
 import { KeptPanel } from '@/editor/KeptPanel';
 import { isTyping, useEditorShortcuts } from '@/editor/shortcuts';
@@ -9,15 +9,15 @@ import { Timeline } from '@/editor/Timeline';
 import { Viewer } from '@/editor/Viewer';
 import { EDITORS, type ToolId } from '@/editors/registry';
 import { usePlayback } from '@/media/playback';
-import { type OpenedFile, useSession } from '@/media/session';
+import { useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { Button } from '@/ui/Button';
-import { OptionList } from '@/ui/fields';
 import { MEDIA_ICONS } from '@/ui/icons';
 import { AdjustPanel, CropPanel } from '../image/panels';
 import { useSubtitleProject } from '../subtitles/project';
-import { isPictureEdited } from './document';
-import { MuxFooter, MuxTracks } from './MuxPanel';
+import { resolveAudio } from './export';
+import { exportTarget, useCopyBlocker, useExportMode, useExportSource, VideoExportPanel } from './ExportPanel';
+import { MuxFooter } from './MuxPanel';
 import { useVideoDoc, useVideoEditor, useVideoPictureEditing, useVideoUndoState } from './store';
 import { VideoPreview } from './VideoPreview';
 import { VideoTimeline } from './VideoTimeline';
@@ -46,43 +46,6 @@ function OpenIn({ kind }: { kind: 'audio' | 'gif' | 'subtitles' }) {
 			<Icon size={16} aria-hidden="true" />
 			{OPEN_IN[kind]()}
 		</Button>
-	);
-}
-
-/** Why the video can't be written as it is, without encoding it again; null when it can. */
-function useCopyBlocker(): string | null {
-	const doc = useVideoDoc();
-	if (isPictureEdited(doc.picture)) return m.copy_blocked_picture();
-	if (isShortened(doc)) return m.mux_cuts_later();
-	return null;
-}
-
-/**
- * Export of the video as it is: its tracks copied, nothing re-encoded, the subtitles as the
- * subtitle editor left them. Converting comes with the export step of the video editor.
- */
-function VideoExportPanel({ opened }: { opened: OpenedFile }) {
-	const blocker = useCopyBlocker();
-	return (
-		<>
-			<PanelTitle>{m.export_video_title()}</PanelTitle>
-			<OptionList
-				label={m.export_encoding()}
-				value="copy"
-				options={[
-					{
-						value: 'copy',
-						label: m.encoding_copy(),
-						detail: opened.format.toUpperCase(),
-						disabled: blocker !== null,
-						reason: blocker ?? undefined,
-					},
-					{ value: 'encode', label: m.encoding_convert(), disabled: true, reason: m.mux_convert_later() },
-				]}
-				onChange={() => {}}
-			/>
-			<MuxTracks opened={opened} />
-		</>
 	);
 }
 
@@ -205,6 +168,9 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	const redo = useVideoEditor((state) => state.redo);
 	const { canUndo, canRedo } = useVideoUndoState();
 	const blocker = useCopyBlocker();
+	const mode = useExportMode();
+	const exportSettings = useVideoEditor((state) => state.exportSettings);
+	const exportSource = useVideoEditor((state) => state.exportSource);
 	const upright = details?.video ?? { width: 16, height: 9 };
 	const editing = useVideoPictureEditing(upright);
 	const playable = Boolean(opened?.info?.video?.decodable);
@@ -235,11 +201,18 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 		[],
 	);
 
+	useExportSource(ready ? opened : null, details?.video ?? null);
 	useVideoShortcuts();
 	useEditorShortcuts({ undo, redo });
 
 	const inspector = () => {
-		if (opened && tool === 'export') return <VideoExportPanel opened={opened} />;
+		if (opened && tool === 'export') {
+			return ready ? (
+				<VideoExportPanel opened={opened} upright={upright} />
+			) : (
+				<ToolLater kind="video" tool={tool} />
+			);
+		}
 		if (tool === 'info' || !opened) {
 			return (
 				<>
@@ -301,7 +274,37 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 			}
 			inspector={inspector()}
 			inspectorFooter={
-				opened && tool === 'export' ? <MuxFooter opened={opened} blocked={blocker !== null} /> : undefined
+				opened && tool === 'export' ? (
+					<MuxFooter
+						opened={opened}
+						blocked={mode === 'copy' ? blocker !== null : !exportSettings || !exportSource}
+						convert={
+							exportSettings &&
+							exportSource &&
+							exportTarget(mode, exportSettings, exportSource.source, isShortened(doc))
+								? {
+										settings:
+											mode === 'encode'
+												? {
+														...exportSettings,
+														audio: resolveAudio(
+															exportSettings,
+															exportSource.source,
+															doc.cuts.length > 0,
+														),
+													}
+												: {
+														...exportSettings,
+														mode: 'copy',
+														container: exportSource.source.container,
+													},
+										doc,
+										upright,
+									}
+								: null
+						}
+					/>
+				) : undefined
 			}
 		/>
 	);

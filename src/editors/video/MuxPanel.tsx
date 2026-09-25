@@ -9,7 +9,17 @@ import { m } from '@/paraglide/messages.js';
 import { Button } from '@/ui/Button';
 import { Dropdown } from '@/ui/Dropdown';
 import { useSubtitleEditor } from '../subtitles/store';
-import { exportVideo, type MuxKind, type MuxTrack, muxContainer, useMuxSettings, useMuxTracks } from './mux';
+import type { VideoDoc } from './document';
+import { CONTAINERS, EncoderMissing, type VideoContainer, type VideoExportSettings } from './export';
+import {
+	exportConverted,
+	exportVideo,
+	type MuxKind,
+	type MuxTrack,
+	muxContainer,
+	useMuxSettings,
+	useMuxTracks,
+} from './mux';
 
 const KIND_ICONS: Record<MuxKind, typeof Film> = { video: Film, audio: AudioLines, subtitle: Captions };
 /** Each kind in the colour of its editor, as everywhere in the app. */
@@ -85,7 +95,8 @@ function TrackRow({ file, track }: { file: File; track: MuxTrack }) {
 	const change = (patch: Parameters<typeof set>[2]) => {
 		set(file, track.key, patch);
 	};
-	const blockedReason = track.blocked === 'pgs-mp4' ? m.mux_blocked_pgs() : undefined;
+	const blockedReason =
+		track.blocked === 'pgs-mp4' ? m.mux_blocked_pgs() : track.blocked === 'webm' ? m.mux_blocked_webm() : undefined;
 	const languages = [...new Set([track.language, ...LANGUAGES])];
 	return (
 		<li className={`grid gap-1 ${track.include ? '' : 'opacity-50'}`} title={blockedReason}>
@@ -181,8 +192,8 @@ function TrackRow({ file, track }: { file: File; track: MuxTrack }) {
  * The tracks of the video to export, as in MKVToolNix: every track of the file and the subtitles
  * made or edited here, each kept or left out, with its language, name and flags.
  */
-export function MuxTracks({ opened }: { opened: OpenedFile }) {
-	const tracks = useMuxTracks(opened.file, opened.format)?.tracks;
+export function MuxTracks({ opened, target = null }: { opened: OpenedFile; target?: VideoContainer | null }) {
+	const tracks = useMuxTracks(opened.file, opened.format, target)?.tracks;
 	if (!tracks) return <p className="text-ui text-muted">{m.subs_reading_track({ percent: 0 })}</p>;
 	return (
 		<Section title={m.mux_tracks()}>
@@ -195,13 +206,34 @@ export function MuxTracks({ opened }: { opened: OpenedFile }) {
 	);
 }
 
-/** Writes the video with the chosen tracks, nothing re-encoded; `blocked` when edits need encoding. */
-export function MuxFooter({ opened, blocked = false }: { opened: OpenedFile; blocked?: boolean }) {
-	const listed = useMuxTracks(opened.file, opened.format);
+/** A conversion to run instead of copying the tracks. */
+export interface ConvertOrder {
+	settings: VideoExportSettings;
+	doc: VideoDoc;
+	upright: { width: number; height: number };
+}
+
+/**
+ * Writes the video with the chosen tracks: copied as they are, or converted with the edits when
+ * `convert` is given. `blocked` when neither can be done.
+ */
+export function MuxFooter({
+	opened,
+	blocked = false,
+	convert = null,
+}: {
+	opened: OpenedFile;
+	blocked?: boolean;
+	convert?: ConvertOrder | null;
+}) {
+	const target = convert?.settings.container ?? null;
+	const listed = useMuxTracks(opened.file, opened.format, target);
 	const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
+	const [failure, setFailure] = useState<string | null>(null);
 	const [progress, setProgress] = useState(0);
 	const abort = useRef<AbortController | null>(null);
-	const container = muxContainer(opened.format);
+	const container = target ?? muxContainer(opened.format);
+	const kind = CONTAINERS[container];
 
 	useEffect(() => {
 		if (status !== 'saved') return;
@@ -215,11 +247,10 @@ export function MuxFooter({ opened, blocked = false }: { opened: OpenedFile; blo
 
 	const run = async () => {
 		if (!listed) return;
-		const extension = container;
-		const save = await openSaveTarget(outputName(opened.file.name, extension), {
-			mime: container === 'mkv' ? 'video/x-matroska' : 'video/mp4',
-			extension,
-			description: container.toUpperCase(),
+		const save = await openSaveTarget(outputName(opened.file.name, kind.extension), {
+			mime: kind.mime,
+			extension: kind.extension,
+			description: kind.label,
 		});
 		if (!save) return;
 		const controller = new AbortController();
@@ -227,23 +258,29 @@ export function MuxFooter({ opened, blocked = false }: { opened: OpenedFile; blo
 		setProgress(0);
 		setStatus('saving');
 		try {
-			await exportVideo(
-				{
-					file: opened.file,
-					format: opened.format,
-					tracks: listed.tracks,
-					shown: () => useSubtitleEditor.getState().history.present,
-					title: opened.file.name.replace(/\.[^.]+$/, ''),
-				},
-				listed.originals,
-				save,
-				setProgress,
-				controller.signal,
-			);
+			const job = {
+				file: opened.file,
+				format: opened.format,
+				tracks: listed.tracks,
+				shown: () => useSubtitleEditor.getState().history.present,
+				title: opened.file.name.replace(/\.[^.]+$/, ''),
+			};
+			if (convert) {
+				await exportConverted({ ...job, ...convert }, save, setProgress, controller.signal);
+			} else {
+				await exportVideo(job, listed.originals, save, setProgress, controller.signal);
+			}
 			await save.commit();
 			setStatus('saved');
 		} catch (error) {
 			await save.discard().catch(() => undefined);
+			setFailure(
+				error instanceof EncoderMissing
+					? error.kind === 'video'
+						? m.convert_no_video_encoder()
+						: m.convert_no_audio_encoder()
+					: null,
+			);
 			setStatus(error instanceof DOMException && error.name === 'AbortError' ? 'idle' : 'failed');
 		} finally {
 			abort.current = null;
@@ -275,7 +312,7 @@ export function MuxFooter({ opened, blocked = false }: { opened: OpenedFile; blo
 							{m.saved()}
 						</>
 					) : (
-						m.export_as({ format: container.toUpperCase() })
+						m.export_as({ format: kind.label })
 					)}
 				</Button>
 				{status === 'saving' && (
@@ -286,7 +323,7 @@ export function MuxFooter({ opened, blocked = false }: { opened: OpenedFile; blo
 			</div>
 			{status === 'failed' && (
 				<p role="alert" className="text-small text-danger">
-					{m.mux_failed()}
+					{failure ?? m.mux_failed()}
 				</p>
 			)}
 		</>

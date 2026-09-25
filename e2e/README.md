@@ -21,4 +21,5 @@ git).
 | `subtitles-tracks.ts` | Subtitle tracks of MKV and MP4 files, embedded fonts, PGS pictures read and written; `bun subtitles-tracks.ts big.mkv` also times a large file |
 | `subtitles-mux.ts`    | Subtitles back into MKV and MP4 files (edited SRT, new timed text, shifted PGS), reopened; `bun subtitles-mux.ts big.mkv` times a large export |
 | `video-editor.ts`     | Video editor: crop and colours on every picture, undo, timeline pictures, a removed passage skipped with and without sound, a phone video shown upright, a picture opened in the image editor |
+| `video-export.ts`     | Video export: an MKV with a passage removed and colours changed (subtitles moved up, fonts kept), an MP4 with timed text, a 480p WebM, and a trimmed MKV copied without re-encoding; `FFPROBE=…/ffprobe` checks each file |
 | `subtitles-batch.ts`  | SRT, ASS and .sup files shifted together and written as WebVTT into a ZIP                                                                      |

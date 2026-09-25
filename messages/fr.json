@@ -562,5 +562,14 @@
 	"timeline_tracks": "Pistes",
 	"video_final_length": "Durée finale",
 	"copy_blocked_picture": "Le recadrage, la rotation et les couleurs demandent de réencoder la vidéo",
-	"mux_cuts_later": "Les coupes sans réencodage arrivent avec la prochaine étape de l'export"
+	"mux_cuts_later": "Les coupes sans réencodage arrivent avec la prochaine étape de l'export",
+	"export_container": "Conteneur",
+	"export_codec": "Codec",
+	"export_original": "Original ({value})",
+	"codec_unavailable": "Ce navigateur ne sait pas encoder en {codec}",
+	"audio_copy_cuts": "Les passages supprimés demandent de réencoder le son",
+	"audio_copy_container": "Ce son ne peut pas aller tel quel dans un fichier {container}",
+	"mux_blocked_webm": "Les fichiers WebM ne peuvent pas contenir ces sous-titres",
+	"convert_no_video_encoder": "Ce navigateur ne sait pas encoder l'image avec ces réglages. Essaie un autre codec ou une hauteur plus petite.",
+	"convert_no_audio_encoder": "Ce navigateur ne sait pas encoder le son avec ces réglages. Essaie un autre codec."
 }

@@ -102,6 +102,8 @@ pub struct Matroska {
 	pub(crate) segment_end: u64,
 	pub(crate) first_cluster: Option<u64>,
 	pub(crate) cues: Option<(u64, u64)>,
+	/// Where the content of the Attachments element lies, when there is one.
+	pub(crate) attachments_at: Option<(u64, u64)>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -166,6 +168,7 @@ pub fn probe<R: Read + Seek>(r: &mut R, file_size: u64) -> io::Result<Matroska> 
 		segment_end,
 		first_cluster: None,
 		cues: None,
+		attachments_at: None,
 	};
 	let mut seeks: Vec<(u32, u64)> = Vec::new();
 	let mut seen: Vec<u32> = Vec::new();
@@ -250,31 +253,34 @@ fn read_top_level<R: Read + Seek>(
 			}
 			Ok(())
 		}),
-		ATTACHMENTS => children(r, element.start, end, |r, attached| {
-			if attached.id != ATTACHED_FILE {
-				return Ok(());
-			}
-			let mut attachment = Attachment {
-				name: String::new(),
-				mime: String::new(),
-				offset: 0,
-				size: 0,
-			};
-			children(r, attached.start, attached.end(), |r, field| {
-				match field.id {
-					FILE_NAME => attachment.name = read_string(r, field.size)?,
-					FILE_MIME_TYPE => attachment.mime = read_string(r, field.size)?,
-					FILE_DATA => {
-						attachment.offset = field.start;
-						attachment.size = field.size;
-					}
-					_ => {}
+		ATTACHMENTS => {
+			file.attachments_at = Some((element.start, end));
+			children(r, element.start, end, |r, attached| {
+				if attached.id != ATTACHED_FILE {
+					return Ok(());
 				}
+				let mut attachment = Attachment {
+					name: String::new(),
+					mime: String::new(),
+					offset: 0,
+					size: 0,
+				};
+				children(r, attached.start, attached.end(), |r, field| {
+					match field.id {
+						FILE_NAME => attachment.name = read_string(r, field.size)?,
+						FILE_MIME_TYPE => attachment.mime = read_string(r, field.size)?,
+						FILE_DATA => {
+							attachment.offset = field.start;
+							attachment.size = field.size;
+						}
+						_ => {}
+					}
+					Ok(())
+				})?;
+				file.attachments.push(attachment);
 				Ok(())
-			})?;
-			file.attachments.push(attachment);
-			Ok(())
-		}),
+			})
+		}
 		CUES => {
 			file.cues = Some((element.start, end));
 			Ok(())

@@ -38,9 +38,14 @@ async function start(job: RemuxJob) {
 		plan.add_track(track.stream, track.language, track.name, track.default, track.forced, uid);
 	}
 	const reader = new FileReaderSync();
-	const { file } = job;
-	const read = (offset: number, length: number) =>
+	const reading = (file: File) => (offset: number, length: number) =>
 		new Uint8Array(reader.readAsArrayBuffer(file.slice(offset, offset + length)));
+	if (job.attachmentsFrom) {
+		const element = subs.attachments_element(reading(job.attachmentsFrom), job.attachmentsFrom.size);
+		if (element) plan.set_attachments(element);
+	}
+	const { file } = job;
+	const read = reading(file);
 	let last = 0;
 	remuxer = new subs.Remuxer(read, file.size, plan, (share: number) => {
 		if (share - last < 0.01 && share < 1) return;

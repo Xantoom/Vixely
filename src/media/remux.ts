@@ -42,6 +42,8 @@ export interface RemuxJob {
 	choices: TrackChoice[];
 	added: AddedTrack[];
 	streams: StreamData[];
+	/** A Matroska file whose attachments (fonts) go into the new file, as they are. */
+	attachmentsFrom?: File;
 }
 
 export type RemuxRequest = { type: 'start'; job: RemuxJob } | { type: 'next' };

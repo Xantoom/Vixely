@@ -5,6 +5,15 @@ import type { ImageDoc } from '../image/document';
 import type { PictureEditing } from '../image/editing';
 import type { AspectId } from '../image/store';
 import { createVideoDoc, type VideoDoc } from './document';
+import { settingsFromSource, type VideoCodecId, type VideoExportSettings, type VideoSource } from './export';
+
+/** What the export starts from, read once per file. */
+export interface ExportSource {
+	owner: object;
+	source: VideoSource;
+	/** Codecs this browser encodes at the video's size. */
+	encodable: VideoCodecId[];
+}
 
 interface VideoEditorState {
 	/** The file the history belongs to. Another file starts a fresh history. */
@@ -18,6 +27,9 @@ interface VideoEditorState {
 	view: Range;
 	/** Crop aspect constraint. A tool setting, not part of the document. */
 	cropAspect: AspectId;
+	exportSource: ExportSource | null;
+	/** Starts from the source's own settings once it is read. */
+	exportSettings: VideoExportSettings | null;
 
 	load: (owner: object, duration: number) => void;
 	apply: (change: (doc: VideoDoc) => VideoDoc) => void;
@@ -28,6 +40,9 @@ interface VideoEditorState {
 	setSelection: (selection: Range | null) => void;
 	setView: (view: Range) => void;
 	setCropAspect: (aspect: AspectId) => void;
+	/** Takes the export settings from the source, once per file. */
+	adoptSource: (source: ExportSource) => void;
+	setExport: (settings: Partial<VideoExportSettings>) => void;
 }
 
 export const useVideoEditor = create<VideoEditorState>((set, get) => ({
@@ -37,6 +52,8 @@ export const useVideoEditor = create<VideoEditorState>((set, get) => ({
 	selection: null,
 	view: { start: 0, end: 0 },
 	cropAspect: 'free',
+	exportSource: null,
+	exportSettings: null,
 
 	load(owner, duration) {
 		if (get().owner === owner) return;
@@ -47,7 +64,19 @@ export const useVideoEditor = create<VideoEditorState>((set, get) => ({
 			selection: null,
 			view: { start: 0, end: duration },
 			cropAspect: 'free',
+			exportSource: null,
+			exportSettings: null,
 		});
+	},
+
+	adoptSource(exportSource) {
+		if (get().exportSource?.owner === exportSource.owner) return;
+		set({ exportSource, exportSettings: settingsFromSource(exportSource.source, exportSource.encodable) });
+	},
+
+	setExport(settings) {
+		const current = get().exportSettings;
+		if (current) set({ exportSettings: { ...current, ...settings } });
 	},
 
 	apply(change) {

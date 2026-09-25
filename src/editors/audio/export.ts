@@ -290,7 +290,7 @@ const registered = new Set<AudioCodec>();
  * Makes an encoder available for the codec. The browser's own encoder is used when it has one;
  * otherwise a WebAssembly encoder is loaded, only for the formats that need it.
  */
-async function ensureEncoder(
+export async function ensureEncoder(
 	codec: AudioCodec,
 	options: { numberOfChannels: number; sampleRate: number; bitrate?: number },
 ) {

@@ -551,6 +551,11 @@ impl RemuxPlan {
 		});
 	}
 
+	/// Writes this whole Attachments element (from `attachments_element`) in the new file.
+	pub fn set_attachments(&mut self, element: Vec<u8>) {
+		self.plan.attachments = Some(element);
+	}
+
 	/// A new subtitle track. `uid` identifies it in the file; any random number fits.
 	pub fn add_track(&mut self, stream: usize, language: String, name: String, default: bool, forced: bool, uid: f64) {
 		self.plan.added.push(mux::Added {
@@ -562,6 +567,26 @@ impl RemuxPlan {
 			uid: uid as u64,
 		});
 	}
+}
+
+/// The whole Attachments element of a Matroska file (fonts, covers), to carry into another file;
+/// undefined when it has none or isn't Matroska.
+#[wasm_bindgen]
+pub fn attachments_element(read: Function, size: f64) -> Result<Option<Vec<u8>>, JsError> {
+	let mut source = JsSource::new(read, size as u64);
+	let mut head = [0u8; 12];
+	let count = source.read(&mut head).map_err(error)?;
+	if !mkv::is_matroska(&head[..count]) {
+		return Ok(None);
+	}
+	let file = mkv::probe(&mut source, size as u64).map_err(error)?;
+	let Some((start, end)) = file.attachments_at else {
+		return Ok(None);
+	};
+	let mut content = vec![0u8; (end - start) as usize];
+	source.seek(SeekFrom::Start(start)).map_err(error)?;
+	source.read_exact(&mut content).map_err(error)?;
+	Ok(Some(mux::attachments(&content)))
 }
 
 enum Writer {

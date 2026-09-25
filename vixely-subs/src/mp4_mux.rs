@@ -700,6 +700,7 @@ mod tests {
 			],
 		};
 		let plan = Plan {
+			attachments: None,
 			choices: vec![Choice {
 				number: 1,
 				keep: true,

@@ -75,6 +75,9 @@ pub struct Added {
 pub struct Plan {
 	pub choices: Vec<Choice>,
 	pub added: Vec<Added>,
+	/// A whole Attachments element written in place of the source's, such as the fonts of the
+	/// file a converted video came from.
+	pub attachments: Option<Vec<u8>>,
 }
 
 // --- Writing EBML ---------------------------------------------------------------------------
@@ -104,6 +107,11 @@ fn size8(size: u64) -> Vec<u8> {
 
 fn header_length(id: u32, size: u64) -> u64 {
 	(id_bytes(id).len() + size_length(size)) as u64
+}
+
+/// An Attachments element around the given content (its AttachedFile children).
+pub fn attachments(content: &[u8]) -> Vec<u8> {
+	element(ATTACHMENTS, content)
 }
 
 fn element(id: u32, content: &[u8]) -> Vec<u8> {
@@ -485,9 +493,12 @@ impl<R: Read + Seek> Muxer<R> {
 
 		// Layout: SeekHead, Info, Tracks, Chapters, Attachments, Tags, Cues, then the clusters.
 		let copied_ids = [INFO, CHAPTERS, ATTACHMENTS, TAGS];
+		let given = plan.attachments.as_ref();
 		let seek_ids: Vec<u32> = [INFO, TRACKS, CHAPTERS, ATTACHMENTS, TAGS, CUES]
 			.into_iter()
-			.filter(|&id| id == TRACKS || id == CUES || elements.contains_key(&id))
+			.filter(|&id| {
+				id == TRACKS || id == CUES || (id == ATTACHMENTS && given.is_some()) || elements.contains_key(&id)
+			})
 			.collect();
 		let seek_head_size = element(SEEK_HEAD, &seek_entries(&seek_ids, &[0; 6])).len() as u64;
 		let mut offsets = Vec::new();
@@ -497,6 +508,7 @@ impl<R: Read + Seek> Muxer<R> {
 			at += match id {
 				TRACKS => tracks.len() as u64,
 				CUES => cues_size(&original_cues, &clusters),
+				ATTACHMENTS if given.is_some() => given.map_or(0, |bytes| bytes.len() as u64),
 				_ => elements.get(&id).map_or(0, |(from, to)| to - from),
 			};
 		}
@@ -521,6 +533,7 @@ impl<R: Read + Seek> Muxer<R> {
 			match id {
 				TRACKS => pieces.push(Piece::Bytes(tracks.clone())),
 				CUES => pieces.push(Piece::Bytes(cues.clone())),
+				ATTACHMENTS if given.is_some() => pieces.push(Piece::Bytes(given.cloned().unwrap_or_default())),
 				_ if copied_ids.contains(&id) => {
 					if let Some(&(from, to)) = elements.get(&id) {
 						pieces.push(Piece::Copy(from, to));
@@ -958,8 +971,31 @@ mod tests {
 	}
 
 	#[test]
+	fn writes_given_attachments() {
+		let font = [
+			element(mkv::FILE_NAME, b"font.ttf"),
+			element(mkv::FILE_MIME_TYPE, b"font/ttf"),
+			element(mkv::FILE_DATA, b"glyphs"),
+		]
+		.concat();
+		let plan = Plan {
+			attachments: Some(attachments(&element(mkv::ATTACHED_FILE, &font))),
+			..Plan::default()
+		};
+		let out = mux(source(), &plan, &[]);
+		let size = out.len() as u64;
+		let mut reader = Cursor::new(out);
+		let file = mkv::probe(&mut reader, size).unwrap();
+		assert_eq!(file.attachments.len(), 1);
+		assert_eq!(file.attachments[0].name, "font.ttf");
+		assert_eq!(mkv::attachment(&mut reader, &file.attachments[0]).unwrap(), b"glyphs");
+		assert_eq!(read_back(reader.into_inner(), 2).len(), 2);
+	}
+
+	#[test]
 	fn replaces_adds_and_drops_tracks() {
 		let plan = Plan {
+			attachments: None,
 			choices: vec![Choice {
 				number: 2,
 				keep: true,
@@ -1005,6 +1041,7 @@ mod tests {
 		);
 
 		let dropped = Plan {
+			attachments: None,
 			choices: vec![Choice {
 				number: 2,
 				keep: false,
