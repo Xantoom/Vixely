@@ -5,11 +5,9 @@
  */
 import {
 	ALL_FORMATS,
-	AudioSample,
 	type AudioCodec,
 	BlobSource,
 	Conversion,
-	EncodedPacketSink,
 	type ConversionAudioOptions,
 	type ConversionVideoOptions,
 	getEncodableVideoCodecs,
@@ -28,10 +26,12 @@ import {
 	WebMOutputFormat,
 } from 'mediabunny';
 import { isShortened, keptRanges } from '@/document/kept';
-import { isKept, type Range, toOutput } from '@/document/timemap';
+import { isKept, toOutput } from '@/document/timemap';
 import { ensureEncoder } from '../audio/export';
 import { effectiveCrop, type ImageDoc, orientedSize, type Size } from '../image/document';
 import { ImageRenderer } from '../image/renderer';
+import { gainOf, placeAudio, placeRanges } from './audio-pieces';
+import { type BurnJob, type Box, createBurner, type SubtitleBurner } from './burn';
 import { isPictureEdited, type VideoDoc } from './document';
 
 export type VideoContainer = 'mp4' | 'mov' | 'mkv' | 'webm';
@@ -53,6 +53,8 @@ export interface VideoExportSettings {
 	audio: AudioChoice;
 	/** Audio bitrate per track, in kb/s, when encoded again. */
 	audioBitrate: number;
+	/** The subtitle track burned into the pictures, by its key in the track list. */
+	burn: string | null;
 }
 
 export const CONTAINERS: Record<
@@ -191,6 +193,7 @@ export function settingsFromSource(source: VideoSource, encodable: VideoCodecId[
 		bitrate: source.bitrate ?? 5000,
 		audio: audioFits(source, container) ? 'copy' : container === 'webm' ? 'opus' : 'aac',
 		audioBitrate: Math.min(320, Math.max(64, source.audioBitrate ?? 160)),
+		burn: null,
 	};
 }
 
@@ -213,70 +216,51 @@ export const HEIGHTS = [2160, 1440, 1080, 720, 540, 480, 360];
 export const FRAME_RATES = [60, 50, 30, 25, 24];
 
 /**
- * The part of an audio sample kept by the edit, as samples placed at their output times: none
- * when it lies in a removed passage, several when a cut falls inside it.
+ * Where the whole picture lies on the exported one, for burned subtitles: offset and scaled by
+ * the crop, as the preview lays them. Once turned or mirrored, they simply cover the picture.
  */
-function keptAudio(sample: AudioSample, ranges: readonly Range[], offset: number): AudioSample[] {
-	const start = sample.timestamp + offset;
-	const end = start + sample.duration;
-	const pieces: AudioSample[] = [];
-	for (const range of ranges) {
-		const from = Math.max(start, range.start);
-		const to = Math.min(end, range.end);
-		if (to <= from) continue;
-		if (from === start && to === end) {
-			const whole = sample.clone();
-			whole.setTimestamp(toOutput(ranges, from));
-			return [whole];
-		}
-		const frameOffset = Math.round((from - start) * sample.sampleRate);
-		const frameCount = Math.min(sample.numberOfFrames - frameOffset, Math.round((to - from) * sample.sampleRate));
-		if (frameCount <= 0) continue;
-		const channels = sample.numberOfChannels;
-		const data = new Float32Array(frameCount * channels);
-		for (let plane = 0; plane < channels; plane++) {
-			sample.copyTo(data.subarray(plane * frameCount, (plane + 1) * frameCount), {
-				planeIndex: plane,
-				format: 'f32-planar',
-				frameOffset,
-				frameCount,
-			});
-		}
-		pieces.push(
-			new AudioSample({
-				data,
-				format: 'f32-planar',
-				numberOfChannels: channels,
-				sampleRate: sample.sampleRate,
-				timestamp: toOutput(ranges, from),
-			}),
-		);
-	}
-	return pieces;
+export function burnBox(picture: ImageDoc, upright: Size, size: Size): Box {
+	if (picture.rotation !== 0 || picture.flipX || picture.flipY) return { x: 0, y: 0, ...size };
+	const crop = effectiveCrop(picture, upright);
+	const scale = size.width / crop.width;
+	return { x: -crop.x * scale, y: -crop.y * scale, width: upright.width * scale, height: upright.height * scale };
 }
 
-/** Draws each picture with the edits, at the output size, as the preview does. */
+/** Draws each picture with the edits, at the output size, as the preview does, subtitles on top. */
 class PictureProcessor {
 	private readonly canvas: OffscreenCanvas;
 	private readonly renderer: ImageRenderer;
+	/** Where the subtitles are drawn over the picture, when some are burned in. */
+	private readonly composite: { canvas: OffscreenCanvas; context: OffscreenCanvasRenderingContext2D } | null;
 
 	constructor(
 		private readonly picture: ImageDoc,
 		private readonly upright: Size,
 		size: Size,
+		private readonly burner: SubtitleBurner | null,
 	) {
 		this.canvas = new OffscreenCanvas(size.width, size.height);
 		this.renderer = new ImageRenderer(this.canvas);
+		const canvas = burner ? new OffscreenCanvas(size.width, size.height) : null;
+		const context = canvas?.getContext('2d');
+		this.composite = canvas && context ? { canvas, context } : null;
 	}
 
-	draw(sample: VideoSample, timestamp: number): VideoSample {
+	/** The picture at `timestamp` in the output, `time` in the source. */
+	async draw(sample: VideoSample, timestamp: number, time: number): Promise<VideoSample> {
 		this.renderer.setFrame(
 			sample.toCanvasImageSource(),
 			{ width: sample.squarePixelWidth, height: sample.squarePixelHeight },
 			sample.rotation,
 		);
 		this.renderer.render(this.picture, { region: effectiveCrop(this.picture, this.upright) });
-		return new VideoSample(this.canvas, { timestamp, duration: sample.duration });
+		if (!this.composite || !this.burner)
+			return new VideoSample(this.canvas, { timestamp, duration: sample.duration });
+		const { canvas, context } = this.composite;
+		context.clearRect(0, 0, canvas.width, canvas.height);
+		context.drawImage(this.canvas, 0, 0);
+		await this.burner.draw(context, time);
+		return new VideoSample(canvas, { timestamp, duration: sample.duration });
 	}
 
 	dispose() {
@@ -299,21 +283,10 @@ async function run(conversion: Conversion, onProgress: (share: number) => void, 
 	if (signal.aborted) throw new DOMException('Stopped', 'AbortError');
 }
 
-/**
- * Where a copied video really starts, in source seconds: Matroska has no edit list, so the copy
- * begins at the key frame at or before the trim; MP4 begins exactly at it.
- */
-export async function copiedStart(file: File, container: VideoContainer, trim: number): Promise<number> {
-	if (container !== 'mkv' && container !== 'webm') return trim;
-	const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
-	try {
-		const video = await input.getPrimaryVideoTrack();
-		if (!video) return trim;
-		const key = await new EncodedPacketSink(video).getKeyPacket(trim, { metadataOnly: true });
-		return key?.timestamp ?? trim;
-	} finally {
-		input.dispose();
-	}
+/** Whether some sound will be encoded in AAC: asked for, or chosen for the container. */
+function encodesAac(settings: VideoExportSettings, reencoded: boolean): boolean {
+	if (settings.audio === 'aac') return true;
+	return settings.audio === 'copy' && reencoded && settings.container !== 'webm';
 }
 
 /** This browser can't encode a track with the chosen settings. */
@@ -330,8 +303,10 @@ export interface ConvertJob {
 	settings: VideoExportSettings;
 	/** Size of the source's pictures, upright. */
 	upright: Size;
-	/** Audio tracks kept, by the IDs the file gives them. */
-	audioTracks: ReadonlySet<number>;
+	/** Audio tracks kept, by the IDs the file gives them, with the change of their level in dB. */
+	audioTracks: ReadonlyMap<number, number>;
+	/** Subtitles burned into the pictures. */
+	burn?: BurnJob | null;
 }
 
 /**
@@ -349,7 +324,16 @@ export async function convertVideo(
 	const output = new Output({ format: CONTAINERS[settings.container].create(), target });
 	const ranges = keptRanges(doc);
 	const cuts = doc.cuts.length > 0;
-	const edited = isPictureEdited(doc.picture);
+	// Burned subtitles are drawn over the pictures, which then go through the renderer too.
+	const burner =
+		job.burn && settings.mode === 'encode'
+			? await createBurner(
+					job.burn,
+					job.upright,
+					burnBox(doc.picture, job.upright, outputSize(doc.picture, job.upright, settings.height)),
+				)
+			: null;
+	const drawn = isPictureEdited(doc.picture) || burner !== null;
 	const size = outputSize(doc.picture, job.upright, settings.height);
 	// Conversion times start at the trim; the edit's ranges are in source time.
 	const offset = isShortened(doc) ? doc.trim.start : 0;
@@ -363,9 +347,9 @@ export async function convertVideo(
 			frameRate: settings.frameRate ?? undefined,
 			forceTranscode: true,
 		};
-		if (!edited && !cuts) return { ...options, width: size.width, height: size.height, fit: 'fill' };
-		if (edited) {
-			processor = new PictureProcessor(doc.picture, job.upright, size);
+		if (!drawn && !cuts) return { ...options, width: size.width, height: size.height, fit: 'fill' };
+		if (drawn) {
+			processor = new PictureProcessor(doc.picture, job.upright, size, burner);
 			options.processedWidth = size.width;
 			options.processedHeight = size.height;
 			// The renderer turns the pictures itself; the file carries no rotation.
@@ -375,11 +359,11 @@ export async function convertVideo(
 			options.height = size.height;
 			options.fit = 'fill';
 		}
-		options.process = (sample) => {
+		options.process = async (sample) => {
 			const time = sample.timestamp + offset;
 			if (cuts && !isKept(ranges, time)) return null;
 			const timestamp = cuts ? toOutput(ranges, time) : sample.timestamp;
-			if (processor) return processor.draw(sample, timestamp);
+			if (processor) return processor.draw(sample, timestamp, time);
 			const moved = sample.clone();
 			moved.setTimestamp(timestamp);
 			return moved;
@@ -387,10 +371,12 @@ export async function convertVideo(
 		return options;
 	};
 
+	const placed = placeRanges(ranges);
 	const audio = (track: InputAudioTrack): ConversionAudioOptions => {
-		if (!job.audioTracks.has(track.id)) return { discard: true };
-		// Removed passages are taken out of decoded sound: it is then encoded again.
-		const copy = settings.audio === 'copy' && !cuts;
+		const decibels = job.audioTracks.get(track.id);
+		if (decibels === undefined) return { discard: true };
+		// Removed passages and level changes are made on decoded sound: it is then encoded again.
+		const copy = settings.audio === 'copy' && !cuts && decibels === 0;
 		const options: ConversionAudioOptions = copy
 			? {}
 			: {
@@ -398,13 +384,14 @@ export async function convertVideo(
 						settings.audio === 'copy' ? (settings.container === 'webm' ? 'opus' : 'aac') : settings.audio,
 					quality: new Quality({ bitrate: settings.audioBitrate * 1000 }),
 				};
-		if (cuts) options.process = (sample) => keptAudio(sample, ranges, offset);
+		const gain = gainOf(decibels);
+		if (cuts || gain !== 1) options.process = (sample) => placeAudio(sample, placed, offset, gain);
 		return options;
 	};
 
 	if (settings.mode === 'copy') {
-		// Packets copied as they are: only the trim applies. MP4 starts exactly at it (an edit list
-		// hides the pictures before); Matroska starts at the key frame before it.
+		// Packets copied as they are: only the trim applies. MP4 starts exactly at it, an edit list
+		// hiding the pictures before.
 		const copy = (track: InputVideoTrack | InputAudioTrack) =>
 			(track.isVideoTrack() && track.number > 1) || (track.isAudioTrack() && !job.audioTracks.has(track.id))
 				? { discard: true }
@@ -427,7 +414,7 @@ export async function convertVideo(
 
 	try {
 		// Browsers without their own AAC encoder (Chromium) get the WebAssembly one.
-		if (settings.audio === 'aac' || (settings.audio === 'copy' && cuts && settings.container !== 'webm')) {
+		if (encodesAac(settings, cuts || [...job.audioTracks.values()].some((decibels) => decibels !== 0))) {
 			await ensureEncoder('aac', { numberOfChannels: 2, sampleRate: 48_000 });
 		}
 		const conversion = await Conversion.init({
@@ -446,6 +433,7 @@ export async function convertVideo(
 		await run(conversion, onProgress, signal);
 	} finally {
 		(processor as PictureProcessor | null)?.dispose();
+		burner?.dispose();
 		input.dispose();
 	}
 }

@@ -1,6 +1,7 @@
 import { type ReactNode, useId } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { KeptPanel } from '@/editor/KeptPanel';
+import { formatDb, signedDb } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
 import { Button } from '@/ui/Button';
 import { FieldRow, Select, Slider } from '@/ui/fields';
@@ -35,16 +36,6 @@ export function TrimPanel() {
 	return (
 		<KeptPanel editing={{ doc, apply, playhead, selection, setSelection, lengthLabel: m.audio_final_length() }} />
 	);
-}
-
-/** Signed decibels with a true minus sign: `+3.0`, `−1.2`, `0.0`. */
-function signedDb(db: number): string {
-	const rounded = Math.round(db * 10) / 10;
-	return `${rounded > 0 ? '+' : rounded < 0 ? '−' : ''}${Math.abs(rounded).toFixed(1)}`;
-}
-
-function formatDb(db: number): string {
-	return `${signedDb(db)} dB`;
 }
 
 /** Loudness targets of the places audio ends up, in LUFS. */

@@ -124,3 +124,13 @@ export function formatCoordinates(latitude: number, longitude: number): string {
 	const lon = `${Math.abs(longitude).toFixed(4)}° ${longitude < 0 ? 'W' : 'E'}`;
 	return `${lat}, ${lon}`;
 }
+
+/** Signed decibels with a true minus sign: `+3.0`, `−1.2`, `0.0`. */
+export function signedDb(db: number): string {
+	const rounded = Math.round(db * 10) / 10;
+	return `${rounded > 0 ? '+' : rounded < 0 ? '−' : ''}${Math.abs(rounded).toFixed(1)}`;
+}
+
+export function formatDb(db: number): string {
+	return `${signedDb(db)} dB`;
+}

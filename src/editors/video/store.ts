@@ -30,6 +30,8 @@ interface VideoEditorState {
 	exportSource: ExportSource | null;
 	/** Starts from the source's own settings once it is read. */
 	exportSettings: VideoExportSettings | null;
+	/** Source ranges an export as it is will really hold, once widened to key frames. */
+	copied: Range[] | null;
 
 	load: (owner: object, duration: number) => void;
 	apply: (change: (doc: VideoDoc) => VideoDoc) => void;
@@ -43,6 +45,7 @@ interface VideoEditorState {
 	/** Takes the export settings from the source, once per file. */
 	adoptSource: (source: ExportSource) => void;
 	setExport: (settings: Partial<VideoExportSettings>) => void;
+	setCopied: (copied: Range[] | null) => void;
 }
 
 export const useVideoEditor = create<VideoEditorState>((set, get) => ({
@@ -54,6 +57,7 @@ export const useVideoEditor = create<VideoEditorState>((set, get) => ({
 	cropAspect: 'free',
 	exportSource: null,
 	exportSettings: null,
+	copied: null,
 
 	load(owner, duration) {
 		if (get().owner === owner) return;
@@ -66,12 +70,17 @@ export const useVideoEditor = create<VideoEditorState>((set, get) => ({
 			cropAspect: 'free',
 			exportSource: null,
 			exportSettings: null,
+			copied: null,
 		});
 	},
 
 	adoptSource(exportSource) {
 		if (get().exportSource?.owner === exportSource.owner) return;
 		set({ exportSource, exportSettings: settingsFromSource(exportSource.source, exportSource.encodable) });
+	},
+
+	setCopied(copied) {
+		set({ copied });
 	},
 
 	setExport(settings) {

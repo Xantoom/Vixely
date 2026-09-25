@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createImageDoc } from '../image/document';
 import type { SubtitleDoc } from '../subtitles/document';
+import { mergeParts } from './copy-tracks';
 import { outputSize, resolveAudio, settingsFromSource, type VideoSource } from './export';
 import { cutSubtitles } from './mux';
 
@@ -61,6 +62,21 @@ describe('subtitles of a cut video', () => {
 			['before', 1000, 2000],
 			['across', 9500, 10_000],
 			['after', 11_000, 12_000],
+		]);
+	});
+});
+
+describe('mergeParts', () => {
+	it('merges parts widened onto each other', () => {
+		expect(
+			mergeParts([
+				{ start: 20, end: 32.9, stop: 33 },
+				{ start: 0, end: 12, stop: 12 },
+				{ start: 30, end: 60, stop: 60 },
+			]),
+		).toEqual([
+			{ start: 0, end: 12, stop: 12 },
+			{ start: 20, end: 60, stop: 60 },
 		]);
 	});
 });

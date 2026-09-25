@@ -16,7 +16,8 @@ import { MEDIA_ICONS } from '@/ui/icons';
 import { AdjustPanel, CropPanel } from '../image/panels';
 import { useSubtitleProject } from '../subtitles/project';
 import { resolveAudio } from './export';
-import { exportTarget, useCopyBlocker, useExportMode, useExportSource, VideoExportPanel } from './ExportPanel';
+import { useCopiedRanges, useCopyBlocker, useExportMode, useExportSource, VideoExportPanel } from './ExportPanel';
+import { muxContainer } from './mux';
 import { MuxFooter } from './MuxPanel';
 import { useVideoDoc, useVideoEditor, useVideoPictureEditing, useVideoUndoState } from './store';
 import { VideoPreview } from './VideoPreview';
@@ -202,6 +203,7 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	);
 
 	useExportSource(ready ? opened : null, details?.video ?? null);
+	useCopiedRanges(ready ? opened.file : null, tool === 'export');
 	useVideoShortcuts();
 	useEditorShortcuts({ undo, redo });
 
@@ -279,9 +281,7 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 						opened={opened}
 						blocked={mode === 'copy' ? blocker !== null : !exportSettings || !exportSource}
 						convert={
-							exportSettings &&
-							exportSource &&
-							exportTarget(mode, exportSettings, exportSource.source, isShortened(doc))
+							exportSettings && exportSource
 								? {
 										settings:
 											mode === 'encode'
@@ -296,7 +296,7 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 												: {
 														...exportSettings,
 														mode: 'copy',
-														container: exportSource.source.container,
+														container: muxContainer(opened.format),
 													},
 										doc,
 										upright,

@@ -112,5 +112,88 @@ if (ffprobe) {
 	console.log('  first video packets:', packets(copied));
 }
 
+// 5. MKV with two passages removed, copied: the parts widened to key frames, lines moved with them.
+await open('samples/film.mkv');
+await removePassage(12, 21, 60);
+await removePassage(33, 44, 60);
+const cutCopy = await convert(
+	'cut-copy.mkv',
+	async () => {
+		await page.waitForTimeout(1200);
+		await page.screenshot({ path: 'shots/cut-copy-timeline.png' });
+	},
+	/Original/,
+);
+probe(cutCopy);
+firstLines(cutCopy, '0:s:0');
+
+// 6. The same in an MP4.
+await open('samples/film.mp4');
+await removePassage(12, 21, 60);
+probe(await convert('cut-copy.mp4', async () => {}, /Original/));
+
+const loudness = (path: string, stream: string) => {
+	if (!ffprobe) return;
+	const ffmpeg = ffprobe.replace(/ffprobe$/, 'ffmpeg');
+	const out = spawnSync(ffmpeg, ['-i', path, '-map', stream, '-t', '20', '-af', 'volumedetect', '-f', 'null', '-'], { encoding: 'utf8' }).stderr;
+	console.log(`  ${stream} mean volume:`, /mean_volume: (\S+ dB)/.exec(out)?.[1]);
+};
+
+// 7. MKV as it is, its sound 6 dB louder and a WAV added: pictures copied, sound encoded again.
+await open('samples/film.mkv');
+const louder = await convert(
+	'louder.mkv',
+	async () => {
+		await aside.getByRole('button', { name: 'Volume' }).first().click();
+		await aside.getByLabel('Gain').focus();
+		for (let i = 0; i < 12; i++) await page.keyboard.press('ArrowRight');
+		await aside.locator('input[type=file]').setInputFiles('samples/long.wav');
+		await aside.getByText('Audio, long').waitFor();
+	},
+	/Original/,
+);
+probe(louder);
+loudness('samples/film.mkv', '0:a:0');
+loudness(louder, '0:a:0');
+
+// 8. MP4 converted with a passage removed and a WAV added: the sound added follows the cut.
+await open('samples/film.mp4');
+await removePassage(10, 20, 60);
+const dubbed = await convert('dubbed.mp4', async () => {
+	await aside.locator('input[type=file]').setInputFiles('samples/long.wav');
+	await aside.getByText('Audio, long').waitFor();
+});
+probe(dubbed);
+
+const frames = (path: string, times: number[], name: string) => {
+	if (!ffprobe) return;
+	const ffmpeg = ffprobe.replace(/ffprobe$/, 'ffmpeg');
+	times.forEach((time, index) => {
+		spawnSync(ffmpeg, ['-v', 'error', '-y', '-ss', String(time), '-i', path, '-frames:v', '1', '-vf', 'scale=640:-2', `shots/${name}-${index}.png`]);
+	});
+};
+
+// 9. MKV converted to MP4 with its styled English subtitles burned in.
+await open('samples/film.mkv');
+const burned = await convert('burned.mp4', async () => {
+	await aside.getByLabel('Container').click();
+	await page.getByRole('option', { name: 'MP4' }).click();
+	await aside.getByLabel('Track', { exact: true }).click();
+	await page.getByRole('option', { name: /English \(styled\)/ }).click();
+});
+probe(burned);
+frames(burned, [12.5, 20.5], 'burned');
+
+// 10. PGS burned in.
+await open('samples/sample.mkv');
+const pgs = await convert('burned-pgs.mp4', async () => {
+	await aside.getByLabel('Container').click();
+	await page.getByRole('option', { name: 'MP4' }).click();
+	await aside.getByLabel('Track', { exact: true }).click();
+	await page.getByRole('option').nth(1).click();
+});
+probe(pgs);
+frames(pgs, [1, 3, 5, 7], 'burned-pgs');
+
 console.log(errors.length ? `errors: ${errors.join(' | ')}` : 'no errors');
 await browser.close();

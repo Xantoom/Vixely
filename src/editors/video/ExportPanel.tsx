@@ -1,5 +1,5 @@
 import { useEffect, useId } from 'react';
-import { isShortened } from '@/document/kept';
+import { isShortened, keptRanges } from '@/document/kept';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { Section } from '@/editor/panel-parts';
 import { codecName } from '@/lib/format';
@@ -7,6 +7,7 @@ import type { OpenedFile } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { FieldRow, NumberField, OptionList, Select } from '@/ui/fields';
 import type { Size } from '../image/document';
+import { copiedRanges, copiesParts } from './copy-tracks';
 import { isPictureEdited } from './document';
 import {
 	type AudioChoice,
@@ -22,9 +23,9 @@ import {
 	type VideoContainer,
 	type VideoCodecId,
 	type VideoExportSettings,
-	type VideoSource,
 } from './export';
-import { MuxTracks } from './MuxPanel';
+import { useMuxTracks } from './mux';
+import { MuxTracks, trackLabel } from './MuxPanel';
 import { useVideoDoc, useVideoEditor } from './store';
 
 /** Reads what the export starts from, once per file: the source's codec, bitrate and rate. */
@@ -51,10 +52,45 @@ export function useExportSource(opened: OpenedFile | null, upright: Size | null)
 /** Why the video can't be written as it is, without encoding it again; null when it can. */
 export function useCopyBlocker(): string | null {
 	const doc = useVideoDoc();
-	if (isPictureEdited(doc.picture)) return m.copy_blocked_picture();
-	// A trim is copied as it is; passages removed inside need the video encoded again for now.
-	if (doc.cuts.length > 0) return m.mux_cuts_later();
-	return null;
+	return isPictureEdited(doc.picture) ? m.copy_blocked_picture() : null;
+}
+
+/**
+ * While exporting as it is, reads what the copy will really hold, for the timeline to show what
+ * the key frames keep of the passages removed.
+ */
+export function useCopiedRanges(file: File | null, active: boolean) {
+	const doc = useVideoDoc();
+	const mode = useExportMode();
+	const container = useVideoEditor((state) => state.exportSource?.source.container ?? null);
+	const setCopied = useVideoEditor((state) => state.setCopied);
+	const wanted =
+		active &&
+		mode === 'copy' &&
+		container !== null &&
+		isShortened(doc) &&
+		copiesParts(container, doc.cuts.length > 0);
+	const key = wanted ? JSON.stringify(keptRanges(doc)) : null;
+	useEffect(() => {
+		if (!file || key === null) {
+			setCopied(null);
+			return;
+		}
+		let alive = true;
+		// The key stands for these ranges.
+		const ranges = keptRanges(useVideoEditor.getState().history.present);
+		const timer = setTimeout(() => {
+			void copiedRanges(file, ranges)
+				.then((copied) => {
+					if (alive) setCopied(copied);
+				})
+				.catch(() => undefined);
+		}, 250);
+		return () => {
+			alive = false;
+			clearTimeout(timer);
+		};
+	}, [file, key, setCopied]);
 }
 
 /** Copy or convert: converting whenever the edits leave no choice. */
@@ -65,17 +101,11 @@ export function useExportMode(): 'copy' | 'encode' {
 }
 
 /**
- * The container written: the chosen one when converting, the source's own when copying a trimmed
- * video (it goes through the converter), none when the tracks are simply copied.
+ * The container written when converting; copying keeps the source's kind (MKV for Matroska and
+ * WebM, MP4 for MP4 and QuickTime).
  */
-export function exportTarget(
-	mode: 'copy' | 'encode',
-	settings: VideoExportSettings | null,
-	source: VideoSource | null,
-	shortened: boolean,
-): VideoContainer | null {
-	if (mode === 'encode') return settings?.container ?? null;
-	return shortened ? (source?.container ?? null) : null;
+export function exportTarget(mode: 'copy' | 'encode', settings: VideoExportSettings | null): VideoContainer | null {
+	return mode === 'encode' ? (settings?.container ?? null) : null;
 }
 
 const SOURCE = 'source';
@@ -249,6 +279,38 @@ function AudioSettings() {
 	);
 }
 
+const NONE = 'none';
+
+/** A subtitle track drawn into the pictures, for players that show no subtitles. */
+function BurnSettings({ opened }: { opened: OpenedFile }) {
+	const settings = useVideoEditor((state) => state.exportSettings);
+	const set = useVideoEditor((state) => state.setExport);
+	const id = useId();
+	const subtitles = useMuxTracks(opened.file, opened.format)?.originals.filter((track) => track.kind === 'subtitle');
+	if (!settings || !subtitles || subtitles.length === 0) return null;
+	return (
+		<Section title={m.export_burn()}>
+			<FieldRow label={m.export_burn_track()} htmlFor={id}>
+				<Select
+					id={id}
+					value={settings.burn ?? NONE}
+					options={[
+						{ value: NONE, label: m.burn_none() },
+						...subtitles.map((track) => ({
+							value: track.key,
+							label: trackLabel(track),
+							detail: track.codec,
+						})),
+					]}
+					onChange={(value) => {
+						set({ burn: value === NONE ? null : value });
+					}}
+				/>
+			</FieldRow>
+		</Section>
+	);
+}
+
 /**
  * Export of the video: as it is (its tracks copied, nothing re-encoded, the subtitles as the
  * subtitle editor left them), or converted with the edits. Every setting starts from the source.
@@ -257,9 +319,7 @@ export function VideoExportPanel({ opened, upright }: { opened: OpenedFile; upri
 	const blocker = useCopyBlocker();
 	const mode = useExportMode();
 	const settings = useVideoEditor((state) => state.exportSettings);
-	const source = useVideoEditor((state) => state.exportSource);
 	const set = useVideoEditor((state) => state.setExport);
-	const doc = useVideoDoc();
 	return (
 		<>
 			<PanelTitle>{m.export_video_title()}</PanelTitle>
@@ -291,11 +351,13 @@ export function VideoExportPanel({ opened, upright }: { opened: OpenedFile; upri
 				<>
 					<VideoSettings upright={upright} />
 					<AudioSettings />
+					<BurnSettings opened={opened} />
 				</>
 			)}
 			<MuxTracks
 				opened={opened}
-				target={exportTarget(mode, settings, source?.source ?? null, isShortened(doc))}
+				target={exportTarget(mode, settings)}
+				burned={mode === 'encode' ? (settings?.burn ?? null) : null}
 			/>
 		</>
 	);

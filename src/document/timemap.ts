@@ -65,6 +65,21 @@ export function junctions(ranges: readonly Range[]): number[] {
 	return times;
 }
 
+/** What `ranges` cover beyond `within`: both sorted, neither overlapping itself. */
+export function beyond(ranges: readonly Range[], within: readonly Range[]): Range[] {
+	const left: Range[] = [];
+	for (const range of ranges) {
+		let start = range.start;
+		for (const other of within) {
+			if (other.end <= start || other.start >= range.end) continue;
+			if (other.start > start) left.push({ start, end: other.start });
+			start = Math.max(start, other.end);
+		}
+		if (range.end > start) left.push({ start, end: range.end });
+	}
+	return left;
+}
+
 export function sameRanges(a: readonly Range[], b: readonly Range[]): boolean {
 	return a.length === b.length && a.every((range, i) => range.start === b[i]?.start && range.end === b[i]?.end);
 }

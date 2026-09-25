@@ -1,8 +1,8 @@
 import { ChevronsLeftRight, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
 import { type PointerEvent as ReactPointerEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { outputDuration, restoreCut, setTrim } from '@/document/kept';
+import { keptRanges, outputDuration, restoreCut, setTrim } from '@/document/kept';
 import type { Range } from '@/document/timemap';
-import { MIN_VIEW } from '@/document/timemap';
+import { beyond, MIN_VIEW, totalLength } from '@/document/timemap';
 import { usePlaybackPeaks, Waveform } from '@/editor/PlaybackWaveform';
 import { isVisible, percent, rangeBox, timeAt, zoomView } from '@/editor/timeline-view';
 import { TimeRuler } from '@/editor/TimeRuler';
@@ -190,6 +190,10 @@ function Lanes({ file, aspect, audio }: { file: File; aspect: number; audio: boo
 		if (current && !current.moved) setSelection(null);
 	};
 
+	const copied = useVideoEditor((state) => state.copied);
+	// What the key frames keep of the passages left out, when the video is copied as it is.
+	const kept = copied ? beyond(copied, keptRanges(doc)).filter((range) => isVisible(range, view)) : [];
+
 	const outside = [
 		{ start: 0, end: doc.trim.start },
 		{ start: doc.trim.end, end: doc.duration },
@@ -257,6 +261,14 @@ function Lanes({ file, aspect, audio }: { file: File; aspect: number; audio: boo
 					</div>
 				) : null,
 			)}
+			{kept.map((range) => (
+				<div
+					key={range.start}
+					title={m.copy_keyframe_kept()}
+					className="absolute inset-y-0 bg-[color-mix(in_srgb,var(--video-1)_22%,transparent)] shadow-[inset_0_2px_0_var(--video-1)]"
+					style={rangeBox(range, view)}
+				/>
+			))}
 			{selection && isVisible(selection, view) && (
 				<div
 					className="bg-ink/10 pointer-events-none absolute inset-y-0 shadow-[inset_1px_0_0_var(--ink),inset_-1px_0_0_var(--ink)]"
@@ -274,6 +286,7 @@ function Toolbar() {
 	const doc = useVideoDoc();
 	const view = useVideoEditor((state) => state.view);
 	const setView = useVideoEditor((state) => state.setView);
+	const copied = useVideoEditor((state) => state.copied);
 	const time = usePlayback((state) => state.time);
 	const span = view.end - view.start;
 	// Zoom around the playhead when it is visible, around the middle otherwise.
@@ -281,7 +294,9 @@ function Toolbar() {
 	return (
 		<div className="flex items-center gap-3">
 			<span className="text-ui text-muted">{m.video_final_length()}</span>
-			<span className="tabular font-mono text-[12.5px]">{formatPreciseTime(outputDuration(doc))}</span>
+			<span className="tabular font-mono text-[12.5px]">
+				{formatPreciseTime(copied ? totalLength(copied) : outputDuration(doc))}
+			</span>
 			<div className="flex-1" />
 			<div className="flex gap-0.5">
 				<IconButton
