@@ -36,7 +36,7 @@
 	--image-1: light-dark(#ff6b1f, #ff8540);
 	--image-2: light-dark(#ffae1f, #ffc14a);
 	--image-ink: #1c1206;
-	--image-text: light-dark(#c2470b, #ffa46e);
+	--image-text: light-dark(#b03f07, #ffa46e);
 
 	--gif-1: light-dark(#0fa968, #2dcb85);
 	--gif-2: light-dark(#7ad651, #a0ea6e);
@@ -194,6 +194,11 @@
 
 	button:disabled {
 		cursor: not-allowed;
+	}
+
+	/* A button busy with its own work (Button's `busy`). */
+	button[aria-disabled='true'] {
+		cursor: progress;
 	}
 }
 

@@ -2,6 +2,7 @@ import { Check } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ItemStatus } from '@/editor/BatchList';
 import { PanelTitle } from '@/editor/EditorLayout';
+import { ExportAnnounce } from '@/editor/ExportAnnounce';
 import { ASPECT_LABELS, ResetButton, Section } from '@/editor/panel-parts';
 import { fitRatio } from '@/editors/image/crop';
 import type { Rect } from '@/editors/image/document';
@@ -522,7 +523,8 @@ export function ExportFooter({
 					variant="primary"
 					className="h-11 flex-1"
 					onClick={() => void run()}
-					disabled={status === 'saving' || !engine.source}
+					disabled={!engine.source}
+					busy={status === 'saving'}
 				>
 					{label()}
 				</Button>
@@ -532,6 +534,7 @@ export function ExportFooter({
 					</Button>
 				)}
 			</div>
+			<ExportAnnounce status={status} />
 			{status === 'failed' && (
 				<p role="alert" className="text-small text-danger">
 					{m.export_gif_failed()}

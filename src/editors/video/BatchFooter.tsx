@@ -1,6 +1,7 @@
 import { Check } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { ItemStatus } from '@/editor/BatchList';
+import { ExportAnnounce } from '@/editor/ExportAnnounce';
 import { type FolderTargets, openFolderTargets } from '@/media/save-target';
 import type { BatchFile } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
@@ -81,7 +82,8 @@ export function VideoBatchFooter({
 				<Button
 					variant="primary"
 					className="h-11 flex-1"
-					disabled={!settings || status === 'saving'}
+					disabled={!settings}
+					busy={status === 'saving'}
 					onClick={() => void run()}
 				>
 					{status === 'saving' ? (
@@ -101,6 +103,7 @@ export function VideoBatchFooter({
 					</Button>
 				)}
 			</div>
+			<ExportAnnounce status={status} />
 			{status === 'failed' && (
 				<p role="alert" className="text-small text-danger">
 					{m.mux_failed()}

@@ -1,5 +1,6 @@
 import { Check } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { ExportAnnounce } from '@/editor/ExportAnnounce';
 import type { PhotoMetadata } from '@/media/probe';
 import type { BatchFile } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
@@ -113,7 +114,7 @@ export function ExportFooter({ source, file, photo, batch, onStatus, onRunning }
 					variant="primary"
 					className="h-11 flex-1"
 					onClick={() => void (batch ? saveAll(batch) : saveOne())}
-					disabled={status === 'saving'}
+					busy={status === 'saving'}
 				>
 					{label()}
 				</Button>
@@ -123,6 +124,7 @@ export function ExportFooter({ source, file, photo, batch, onStatus, onRunning }
 					</Button>
 				)}
 			</div>
+			<ExportAnnounce status={status} />
 			{status === 'failed' && (
 				<p role="alert" className="text-small text-danger">
 					{m.export_failed()}

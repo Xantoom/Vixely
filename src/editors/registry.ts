@@ -20,6 +20,8 @@ export interface EditorDefinition {
 	kind: MediaKind;
 	path: `/${MediaKind}`;
 	label: () => string;
+	/** The editor's page title. */
+	page: () => string;
 	/** Tools shown in the rail, in order. `info` is always first. */
 	tools: ToolId[];
 	/** Whether the media has a time dimension, which brings the transport and the timeline. */
@@ -31,6 +33,7 @@ export const EDITORS: Record<MediaKind, EditorDefinition> = {
 		kind: 'video',
 		path: '/video',
 		label: () => m.media_video(),
+		page: () => m.editor_page_video(),
 		tools: ['info', 'trim', 'crop', 'adjust', 'audio', 'subtitles'],
 		timed: true,
 	},
@@ -38,6 +41,7 @@ export const EDITORS: Record<MediaKind, EditorDefinition> = {
 		kind: 'image',
 		path: '/image',
 		label: () => m.media_image(),
+		page: () => m.editor_page_image(),
 		tools: ['info', 'crop', 'adjust'],
 		timed: false,
 	},
@@ -45,6 +49,7 @@ export const EDITORS: Record<MediaKind, EditorDefinition> = {
 		kind: 'gif',
 		path: '/gif',
 		label: () => m.media_gif(),
+		page: () => m.editor_page_gif(),
 		tools: ['info', 'trim', 'crop', 'speed'],
 		timed: true,
 	},
@@ -52,6 +57,7 @@ export const EDITORS: Record<MediaKind, EditorDefinition> = {
 		kind: 'audio',
 		path: '/audio',
 		label: () => m.media_audio(),
+		page: () => m.editor_page_audio(),
 		tools: ['info', 'trim', 'volume'],
 		timed: true,
 	},
@@ -59,6 +65,7 @@ export const EDITORS: Record<MediaKind, EditorDefinition> = {
 		kind: 'subtitles',
 		path: '/subtitles',
 		label: () => m.media_subtitles(),
+		page: () => m.editor_page_subtitles(),
 		tools: ['info', 'timing'],
 		timed: true,
 	},

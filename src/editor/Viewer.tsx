@@ -23,7 +23,6 @@ function Message({ children }: { children: string }) {
 	return <p className="text-body text-muted">{children}</p>;
 }
 
-/** The largest element of every editor. Everything else stays out of its way. */
 /** An editor with no file yet: where to drop one, and on a task page, what the page is for. */
 export function EmptyViewer({ kind }: { kind: MediaKind }) {
 	const task = useTask();
@@ -31,7 +30,10 @@ export function EmptyViewer({ kind }: { kind: MediaKind }) {
 		<div className="grid w-full max-w-[680px] gap-6">
 			{task && (
 				<div className="grid gap-2">
-					<h1 className="text-title font-bold tracking-[-0.03em] text-balance">{task.title()}</h1>
+					{/* The page's heading is the editor's own (EditorLayout), read once. */}
+					<p className="text-title font-bold tracking-[-0.03em] text-balance" aria-hidden="true">
+						{task.title()}
+					</p>
 					<p className="text-body text-muted">{task.description()}</p>
 				</div>
 			)}
@@ -40,6 +42,7 @@ export function EmptyViewer({ kind }: { kind: MediaKind }) {
 	);
 }
 
+/** The largest element of every editor. Everything else stays out of its way. */
 export function Viewer({ kind, opened }: { kind: MediaKind; opened: OpenedFile | null }) {
 	if (!opened) return <EmptyViewer kind={kind} />;
 

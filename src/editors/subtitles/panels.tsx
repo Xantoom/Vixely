@@ -2,6 +2,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { ArrowDownToLine, ArrowLeft, Ban, Check, Plus, TriangleAlert } from 'lucide-react';
 import { useEffect, useId, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
+import { ExportAnnounce } from '@/editor/ExportAnnounce';
 import { Section } from '@/editor/panel-parts';
 import { saveFile } from '@/editors/image/export';
 import { EDITORS } from '@/editors/registry';
@@ -512,7 +513,7 @@ function SubtitleFileFooter() {
 
 	return (
 		<>
-			<Button variant="primary" className="h-11" disabled={status === 'saving'} onClick={() => void run()}>
+			<Button variant="primary" className="h-11" busy={status === 'saving'} onClick={() => void run()}>
 				{status === 'saved' ? (
 					<>
 						<Check size={17} strokeWidth={2.4} aria-hidden="true" />
@@ -522,6 +523,7 @@ function SubtitleFileFooter() {
 					m.export_as({ format: FORMAT_FILES[settings.format].label })
 				)}
 			</Button>
+			<ExportAnnounce status={status} />
 			{status === 'failed' && (
 				<p role="alert" className="text-small text-danger">
 					{m.subs_export_failed()}

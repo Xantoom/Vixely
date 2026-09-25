@@ -3,19 +3,7 @@ import { useEffect } from 'react';
 import { usePageHead } from '@/app/head';
 import { TaskContext } from '@/app/task-context';
 import { setTaskIntent, taskBySlug } from '@/app/tasks';
-import { AudioEditorScreen } from '@/editors/audio/AudioEditorScreen';
-import { GifEditorScreen } from '@/editors/gif/GifEditorScreen';
-import { ImageEditorScreen } from '@/editors/image/ImageEditorScreen';
-import { SubtitleEditorScreen } from '@/editors/subtitles/SubtitleEditorScreen';
-import { VideoEditorScreen } from '@/editors/video/VideoEditorScreen';
-
-const SCREENS = {
-	video: VideoEditorScreen,
-	image: ImageEditorScreen,
-	gif: GifEditorScreen,
-	audio: AudioEditorScreen,
-	subtitles: SubtitleEditorScreen,
-};
+import { EditorScreen } from '@/editor/EditorScreen';
 
 export const Route = createFileRoute('/tools/$task')({
 	beforeLoad: ({ params }) => {
@@ -37,10 +25,9 @@ export const Route = createFileRoute('/tools/$task')({
 		}, [intent]);
 		usePageHead(task?.title() ?? null, task?.description());
 		if (!task) return null;
-		const Screen = SCREENS[task.editor];
 		return (
 			<TaskContext value={task}>
-				<Screen key={slug} initialTool={task.tool} />
+				<EditorScreen key={slug} kind={task.editor} initialTool={task.tool} />
 			</TaskContext>
 		);
 	},

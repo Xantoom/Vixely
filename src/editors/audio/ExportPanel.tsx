@@ -1,6 +1,7 @@
 import { Check } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
+import { ExportAnnounce } from '@/editor/ExportAnnounce';
 import { codecName, formatSampleRate, groupDigits } from '@/lib/format';
 import { outputName } from '@/media/save';
 import { openBatchDestination, openSaveTarget } from '@/media/save-target';
@@ -472,7 +473,8 @@ export function ExportFooter({
 					variant="primary"
 					className="h-11 flex-1"
 					onClick={() => void (batch ? exportAll(batch) : exportOne())}
-					disabled={status === 'saving' || !ready}
+					disabled={!ready}
+					busy={status === 'saving'}
 				>
 					{label()}
 				</Button>
@@ -482,6 +484,7 @@ export function ExportFooter({
 					</Button>
 				)}
 			</div>
+			<ExportAnnounce status={status} />
 			{status === 'failed' && (
 				<p role="alert" className="text-small text-danger">
 					{m.export_audio_failed()}

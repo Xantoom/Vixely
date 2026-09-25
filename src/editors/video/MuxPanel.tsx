@@ -3,6 +3,7 @@ import { ALL_FORMATS, type AudioCodec, BlobSource, Input } from 'mediabunny';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useDropHandler } from '@/app/GlobalDrop';
 import { isShortened } from '@/document/kept';
+import { ExportAnnounce } from '@/editor/ExportAnnounce';
 import { Section } from '@/editor/panel-parts';
 import { formatDb } from '@/lib/format';
 import { languageName } from '@/lib/language';
@@ -434,7 +435,8 @@ export function MuxFooter({
 				<Button
 					variant="primary"
 					className="h-11 flex-1"
-					disabled={!listed || blocked || status === 'saving'}
+					disabled={!listed || blocked}
+					busy={status === 'saving'}
 					onClick={() => void run()}
 				>
 					{status === 'saving' ? (
@@ -454,6 +456,7 @@ export function MuxFooter({
 					</Button>
 				)}
 			</div>
+			<ExportAnnounce status={status} />
 			{status === 'failed' && (
 				<p role="alert" className="text-small text-danger">
 					{failure ?? m.mux_failed()}

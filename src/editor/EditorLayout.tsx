@@ -1,5 +1,6 @@
-import { type ReactNode, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import { AppBar, type EditorActions } from '@/app/AppBar';
+import { useTask } from '@/app/task-context';
 import { EDITORS, type MediaKind, TOOL_LABELS, type ToolId } from '@/editors/registry';
 import { m } from '@/paraglide/messages.js';
 import { TOOL_ICONS } from '@/ui/icons';
@@ -66,40 +67,41 @@ export function EditorLayout({
 	inspectorFooter,
 }: EditorLayoutProps) {
 	const editor = EDITORS[kind];
-
-	useEffect(() => {
-		document.title = `${editor.label()}, Vixely`;
-		return () => {
-			document.title = 'Vixely';
-		};
-	}, [editor]);
+	const task = useTask();
 
 	return (
-		<div data-media={kind} className="flex h-full min-h-0 flex-col">
+		// On small screens the page scrolls, so every setting gets its room; the tools stay at the bottom.
+		<div data-media={kind} className="flex min-h-full flex-col lg:h-full lg:min-h-0">
 			<AppBar editor={kind} fileName={fileName} actions={actions} />
 			<div className="grid min-h-0 flex-1 max-lg:grid-rows-[auto_auto_auto_auto] lg:grid-cols-[76px_minmax(0,1fr)_320px] lg:grid-rows-[minmax(0,1fr)_auto]">
-				<div className="max-lg:order-4 lg:row-span-2">
+				<div className="bg-bg max-lg:sticky max-lg:bottom-0 max-lg:z-20 max-lg:order-4 lg:row-span-2">
 					<Rail tools={tools ?? editor.tools} current={tool} onSelect={onTool} />
 				</div>
-				{workspace ? (
-					<section
-						aria-label={m.preview()}
-						className="bg-canvas min-w-0 overflow-hidden max-lg:order-1 max-lg:h-[64dvh] lg:row-span-2"
-					>
-						{workspace}
-					</section>
-				) : (
-					<>
+				{/* Laid out by the grid around it, as if it weren't there. */}
+				<main className="contents">
+					<h1 className="sr-only">{task ? task.title() : editor.page()}</h1>
+					{workspace ? (
 						<section
 							aria-label={m.preview()}
-							className="bg-canvas relative min-w-0 overflow-hidden max-lg:order-1 max-lg:h-[max(280px,min(56vw,460px))]"
+							className="bg-canvas min-w-0 overflow-hidden max-lg:order-1 max-lg:h-[64dvh] lg:row-span-2"
 						>
-							{/* A box with a definite size, so the media can be contained in it whatever its resolution. */}
-							<div className="absolute inset-4 flex items-center justify-center sm:inset-6">{viewer}</div>
+							{workspace}
 						</section>
-						<div className="max-lg:order-2 lg:col-start-2 lg:row-start-2">{timeline}</div>
-					</>
-				)}
+					) : (
+						<>
+							<section
+								aria-label={m.preview()}
+								className="bg-canvas relative min-w-0 overflow-hidden max-lg:order-1 max-lg:h-[max(280px,min(56vw,460px))]"
+							>
+								{/* A box with a definite size, so the media can be contained in it whatever its resolution. */}
+								<div className="absolute inset-4 flex items-center justify-center sm:inset-6">
+									{viewer}
+								</div>
+							</section>
+							<div className="max-lg:order-2 lg:col-start-2 lg:row-start-2">{timeline}</div>
+						</>
+					)}
+				</main>
 				<div className="border-line flex min-h-0 flex-col max-lg:order-3 max-lg:border-t lg:col-start-3 lg:row-span-2 lg:row-start-1 lg:border-l">
 					<aside
 						aria-label={m.inspector()}

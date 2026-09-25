@@ -2,6 +2,7 @@ import { ArrowRight, Check, Plus, X } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ItemStatus } from '@/editor/BatchList';
 import { EditorLayout, PanelTitle } from '@/editor/EditorLayout';
+import { ExportAnnounce } from '@/editor/ExportAnnounce';
 import { Section } from '@/editor/panel-parts';
 import { formatPreciseTime } from '@/lib/format';
 import { openFileDestination } from '@/media/file-destination';
@@ -324,7 +325,8 @@ export function SubtitleBatchScreen({ batch }: { batch: readonly BatchFile[] }) 
 					<Button
 						variant="primary"
 						className="h-11"
-						disabled={!ready || status === 'saving'}
+						disabled={!ready}
+						busy={status === 'saving'}
 						onClick={() => void run()}
 					>
 						{status === 'saved' ? (
@@ -336,6 +338,7 @@ export function SubtitleBatchScreen({ batch }: { batch: readonly BatchFile[] }) 
 							m.export_batch_audio_button({ count: batch.length })
 						)}
 					</Button>
+					<ExportAnnounce status={status} />
 					{status === 'failed' && (
 						<p role="alert" className="text-small text-danger">
 							{m.subs_export_failed()}

@@ -2,28 +2,54 @@ import { useEffect, useState } from 'react';
 import { type ItemStatus, BatchList } from '@/editor/BatchList';
 import { EditorLayout } from '@/editor/EditorLayout';
 import { FilePanel, ToolLater } from '@/editor/Inspector';
-import { useEditorShortcuts } from '@/editor/shortcuts';
+import { isTyping, useEditorShortcuts } from '@/editor/shortcuts';
 import { Viewer } from '@/editor/Viewer';
 import type { ToolId } from '@/editors/registry';
 import { useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
-import { useGifEngine } from './engine';
+import { frameAt } from './document';
+import { type GifEngine, useGifEngine } from './engine';
 import { GifTimeline } from './GifTimeline';
 import { GifViewer } from './GifViewer';
 import { CropPanel, ExportFooter, ExportPanel, SpeedPanel, TrimPanel } from './panels';
 import { useGifEditor, useGifUndoState } from './store';
 
-/** Space plays and pauses, like everywhere else; Enter still presses a focused button. */
-function usePlayShortcut(toggle: () => void) {
+/**
+ * Space plays and pauses, like everywhere else (Enter still presses a focused button); the arrows
+ * step one frame (ten with Shift), Home and End go to the first and last frame.
+ */
+function useGifShortcuts(engine: GifEngine) {
+	const { togglePlay, frames, seek } = engine;
 	useEffect(() => {
-		const typing = (target: EventTarget | null) =>
-			(target instanceof HTMLInputElement && target.type !== 'range') ||
-			target instanceof HTMLTextAreaElement ||
-			target instanceof HTMLSelectElement;
 		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key !== ' ' || event.ctrlKey || event.metaKey || typing(event.target)) return;
+			if (event.ctrlKey || event.metaKey || event.altKey || isTyping(event.target)) return;
+			// A focused trim handle moves with the arrows itself.
+			const slider = event.target instanceof HTMLElement && event.target.getAttribute('role') === 'slider';
+			if (slider && event.key !== ' ') return;
+			const shown = frameAt(frames, useGifEditor.getState().playhead);
+			const index = shown ? frames.indexOf(shown) : 0;
+			const go = (to: number) => {
+				const frame = frames[Math.min(frames.length - 1, Math.max(0, to))];
+				if (frame) seek(frame.start);
+			};
+			switch (event.key) {
+				case ' ':
+					togglePlay();
+					break;
+				case 'ArrowLeft':
+				case 'ArrowRight':
+					go(index + (event.shiftKey ? 10 : 1) * (event.key === 'ArrowLeft' ? -1 : 1));
+					break;
+				case 'Home':
+					go(0);
+					break;
+				case 'End':
+					go(frames.length - 1);
+					break;
+				default:
+					return;
+			}
 			event.preventDefault();
-			toggle();
 		};
 		const onKeyUp = (event: KeyboardEvent) => {
 			if (event.key === ' ' && event.target instanceof HTMLButtonElement) event.preventDefault();
@@ -34,7 +60,7 @@ function usePlayShortcut(toggle: () => void) {
 			window.removeEventListener('keydown', onKeyDown);
 			window.removeEventListener('keyup', onKeyUp);
 		};
-	}, [toggle]);
+	}, [togglePlay, frames, seek]);
 }
 
 export function GifEditorScreen({ initialTool }: { initialTool?: ToolId }) {
@@ -56,7 +82,7 @@ export function GifEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	const isGif = opened?.format === 'gif' && !opened.info?.video;
 
 	useEditorShortcuts({ undo, redo });
-	usePlayShortcut(engine.togglePlay);
+	useGifShortcuts(engine);
 
 	const inspector = () => {
 		if (tool === 'info' || !source) return <FilePanel opened={opened} />;

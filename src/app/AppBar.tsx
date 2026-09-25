@@ -48,7 +48,9 @@ export function AppBar({ editor, fileName, actions }: AppBarProps) {
 	const [theme, toggleTheme] = useTheme();
 
 	return (
-		<header className="border-line relative flex h-14 flex-none items-center gap-2 border-b pr-3 pl-4">
+		<header
+			className={`border-line bg-bg relative flex h-14 flex-none items-center gap-2 border-b pr-3 pl-4 ${editor ? 'max-lg:sticky max-lg:top-0 max-lg:z-20' : ''}`}
+		>
 			<Link
 				to="/"
 				aria-label={m.app_home()}
@@ -72,7 +74,7 @@ export function AppBar({ editor, fileName, actions }: AppBarProps) {
 			<div className="flex-1" />
 
 			{editor && (
-				<div className="mr-1.5 flex gap-0.5 max-md:hidden">
+				<div className="mr-1.5 flex gap-0.5">
 					<IconButton label={m.undo()} disabled={!actions?.canUndo} onClick={actions?.onUndo}>
 						<Undo2 size={18} />
 					</IconButton>
@@ -82,11 +84,13 @@ export function AppBar({ editor, fileName, actions }: AppBarProps) {
 				</div>
 			)}
 
-			<LanguageButton />
-
-			<IconButton label={theme === 'dark' ? m.theme_to_light() : m.theme_to_dark()} onClick={toggleTheme}>
-				{theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-			</IconButton>
+			{/* On a phone, the editor keeps its room for undo and export; both are on every other page. */}
+			<div className={`flex gap-2 ${editor ? 'max-sm:hidden' : ''}`}>
+				<LanguageButton />
+				<IconButton label={theme === 'dark' ? m.theme_to_light() : m.theme_to_dark()} onClick={toggleTheme}>
+					{theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+				</IconButton>
+			</div>
 
 			{editor && (
 				<Button

@@ -55,7 +55,9 @@ export function EditorSwitcher({ current }: { current: MediaKind }) {
 				className="hover:bg-surface flex h-[38px] items-center gap-2.5 rounded-sm pr-2.5 pl-1.5 transition-colors"
 			>
 				<Tile kind={current} size="sm" />
-				<span className="text-[15px] font-semibold tracking-[-0.015em]">{EDITORS[current].label()}</span>
+				<span className="text-[15px] font-semibold tracking-[-0.015em] max-sm:sr-only">
+					{EDITORS[current].label()}
+				</span>
 				<ChevronDown size={14} className="text-muted" aria-hidden="true" />
 			</button>
 
