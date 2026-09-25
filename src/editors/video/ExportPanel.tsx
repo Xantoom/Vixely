@@ -1,5 +1,5 @@
 import { useEffect, useId } from 'react';
-import { isShortened, keptRanges } from '@/document/kept';
+import { isShortened, keptRanges, outputDuration } from '@/document/kept';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { Section } from '@/editor/panel-parts';
 import { codecName } from '@/lib/format';
@@ -12,14 +12,20 @@ import { isPictureEdited } from './document';
 import {
 	type AudioChoice,
 	audioFits,
+	bitrateForSize,
 	CODEC_LABELS,
 	CONTAINERS,
 	encodableCodecs,
 	FRAME_RATES,
 	HEIGHTS,
 	outputSize,
+	PRESET_ORDER,
+	PRESETS,
+	presetSettings,
 	readVideoSource,
 	resolveAudio,
+	shortSide,
+	SIZE_LIMITS,
 	type VideoContainer,
 	type VideoCodecId,
 	type VideoExportSettings,
@@ -112,17 +118,80 @@ const SOURCE = 'source';
 
 const CONTAINER_ORDER: VideoContainer[] = ['mp4', 'mkv', 'webm', 'mov'];
 
-/** Pictures: container, codec, size, rate and bitrate. */
-function VideoSettings({ upright }: { upright: Size }) {
+const NONE = 'none';
+
+/** Below this video bitrate (kb/s), pictures come out blurry. */
+const LOW_BITRATE = 300;
+
+/** A setting changed by hand: the settings are no longer a platform's. */
+function useChangeExport() {
+	const set = useVideoEditor((state) => state.setExport);
+	return (change: Partial<VideoExportSettings>) => {
+		set({ ...change, preset: null });
+	};
+}
+
+/** Settings made for the places videos are sent to, filled in with one choice. */
+function PresetSettings({ upright }: { upright: Size }) {
 	const settings = useVideoEditor((state) => state.exportSettings);
 	const exportSource = useVideoEditor((state) => state.exportSource);
 	const set = useVideoEditor((state) => state.setExport);
 	const picture = useVideoDoc().picture;
-	const ids = { container: useId(), codec: useId(), height: useId(), rate: useId(), bitrate: useId() };
+	const id = useId();
+	if (!settings || !exportSource) return null;
+	const height = shortSide(outputSize(picture, upright, null));
+	return (
+		<Section title={m.export_preset()}>
+			<FieldRow label={m.export_preset_for()} htmlFor={id}>
+				<Select
+					id={id}
+					value={settings.preset ?? NONE}
+					options={[
+						{ value: NONE, label: m.preset_custom() },
+						...PRESET_ORDER.map((preset) => {
+							const { sizeLimit, maxHeight } = PRESETS[preset];
+							return {
+								value: preset,
+								label: PRESETS[preset].label,
+								detail: sizeLimit ? m.size_mb({ size: sizeLimit }) : `${Math.min(height, maxHeight)} p`,
+							};
+						}),
+					]}
+					onChange={(value) => {
+						if (value === NONE) set({ preset: null });
+						else set(presetSettings(value, exportSource.source, exportSource.encodable, height));
+					}}
+				/>
+			</FieldRow>
+		</Section>
+	);
+}
+
+/** Pictures: container, codec, size, rate and bitrate. */
+function VideoSettings({ upright }: { upright: Size }) {
+	const settings = useVideoEditor((state) => state.exportSettings);
+	const exportSource = useVideoEditor((state) => state.exportSource);
+	const set = useChangeExport();
+	const doc = useVideoDoc();
+	const picture = doc.picture;
+	const ids = {
+		container: useId(),
+		codec: useId(),
+		height: useId(),
+		rate: useId(),
+		limit: useId(),
+		bitrate: useId(),
+	};
 	if (!settings || !exportSource) return null;
 	const { source, encodable } = exportSource;
 	const full = outputSize(picture, upright, null);
 	const size = outputSize(picture, upright, settings.height);
+	// What a size limit leaves the pictures, the main sound track taking its share.
+	const sound = settings.audio === 'copy' ? (source.audioBitrate ?? settings.audioBitrate) : settings.audioBitrate;
+	const limited =
+		settings.sizeLimit === null
+			? null
+			: bitrateForSize(settings.sizeLimit, outputDuration(doc), source.audioCodec ? sound : 0);
 
 	const chooseContainer = (container: VideoContainer) => {
 		const codecs = CONTAINERS[container].codecs;
@@ -165,17 +234,20 @@ function VideoSettings({ upright }: { upright: Size }) {
 						}}
 					/>
 				</FieldRow>
-				<FieldRow label={m.field_height()} htmlFor={ids.height}>
+				<FieldRow label={m.export_resolution()} htmlFor={ids.height}>
 					<Select
 						id={ids.height}
 						value={settings.height === null ? SOURCE : String(settings.height)}
 						options={[
-							{ value: SOURCE, label: `${full.height} p`, detail: m.encoding_copy() },
-							...HEIGHTS.filter((height) => height < full.height).map((height) => ({
-								value: String(height),
-								label: `${height} p`,
-								detail: `${outputSize(picture, upright, height).width} × ${height}`,
-							})),
+							{ value: SOURCE, label: `${shortSide(full)} p`, detail: m.encoding_copy() },
+							...HEIGHTS.filter((height) => height < shortSide(full)).map((height) => {
+								const scaled = outputSize(picture, upright, height);
+								return {
+									value: String(height),
+									label: `${height} p`,
+									detail: `${scaled.width} × ${scaled.height}`,
+								};
+							}),
 						]}
 						onChange={(value) => {
 							set({ height: value === SOURCE ? null : Number(value) });
@@ -199,18 +271,46 @@ function VideoSettings({ upright }: { upright: Size }) {
 						}}
 					/>
 				</FieldRow>
-				<FieldRow label={m.export_bitrate()} htmlFor={ids.bitrate}>
-					<NumberField
-						id={ids.bitrate}
-						value={settings.bitrate}
-						unit="kb/s"
-						min={100}
-						max={200_000}
-						onCommit={(bitrate) => {
-							set({ bitrate });
+				<FieldRow label={m.export_size_limit()} htmlFor={ids.limit}>
+					<Select
+						id={ids.limit}
+						value={settings.sizeLimit === null ? NONE : String(settings.sizeLimit)}
+						options={[
+							{ value: NONE, label: m.size_limit_none() },
+							...SIZE_LIMITS.map((limit) => ({
+								value: String(limit),
+								label: m.size_mb({ size: limit }),
+							})),
+						]}
+						onChange={(value) => {
+							set({ sizeLimit: value === NONE ? null : Number(value) });
 						}}
 					/>
 				</FieldRow>
+				{limited === null ? (
+					<FieldRow label={m.export_bitrate()} htmlFor={ids.bitrate}>
+						<NumberField
+							id={ids.bitrate}
+							value={settings.bitrate}
+							unit="kb/s"
+							min={100}
+							max={200_000}
+							onCommit={(bitrate) => {
+								set({ bitrate });
+							}}
+						/>
+					</FieldRow>
+				) : (
+					<div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
+						<span className="text-ui text-ink-2">{m.export_bitrate()}</span>
+						<span
+							className={`tabular font-mono text-[12.5px] ${limited < LOW_BITRATE ? 'text-danger' : ''}`}
+							title={limited < LOW_BITRATE ? m.bitrate_low() : undefined}
+						>
+							{limited} kb/s
+						</span>
+					</div>
+				)}
 				<div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
 					<span className="text-ui text-ink-2">{m.export_size()}</span>
 					<span className="tabular font-mono text-[12.5px]">
@@ -226,7 +326,7 @@ function VideoSettings({ upright }: { upright: Size }) {
 function AudioSettings() {
 	const settings = useVideoEditor((state) => state.exportSettings);
 	const exportSource = useVideoEditor((state) => state.exportSource);
-	const set = useVideoEditor((state) => state.setExport);
+	const set = useChangeExport();
 	const cuts = useVideoDoc().cuts.length > 0;
 	const ids = { codec: useId(), bitrate: useId() };
 	if (!settings || !exportSource) return null;
@@ -278,8 +378,6 @@ function AudioSettings() {
 		</Section>
 	);
 }
-
-const NONE = 'none';
 
 /** A subtitle track drawn into the pictures, for players that show no subtitles. */
 function BurnSettings({ opened }: { opened: OpenedFile }) {
@@ -349,6 +447,7 @@ export function VideoExportPanel({ opened, upright }: { opened: OpenedFile; upri
 			/>
 			{mode === 'encode' && (
 				<>
+					<PresetSettings upright={upright} />
 					<VideoSettings upright={upright} />
 					<AudioSettings />
 					<BurnSettings opened={opened} />
@@ -359,6 +458,24 @@ export function VideoExportPanel({ opened, upright }: { opened: OpenedFile; upri
 				target={exportTarget(mode, settings)}
 				burned={mode === 'encode' ? (settings?.burn ?? null) : null}
 			/>
+		</>
+	);
+}
+
+/** The settings every video of a batch is converted with; tracks and edits stay each file's own. */
+export function VideoBatchPanel({ upright }: { upright: Size }) {
+	const settings = useVideoEditor((state) => state.exportSettings);
+	const set = useVideoEditor((state) => state.setExport);
+	// A batch is always converted: copied as they are, the files would come out unchanged.
+	useEffect(() => {
+		if (settings && settings.mode !== 'encode') set({ mode: 'encode' });
+	}, [settings, set]);
+	return (
+		<>
+			<PanelTitle>{m.export_video_title()}</PanelTitle>
+			<PresetSettings upright={upright} />
+			<VideoSettings upright={upright} />
+			<AudioSettings />
 		</>
 	);
 }

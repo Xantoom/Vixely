@@ -33,7 +33,10 @@ interface VideoEditorState {
 	/** Source ranges an export as it is will really hold, once widened to key frames. */
 	copied: Range[] | null;
 
-	load: (owner: object, duration: number) => void;
+	/** The batch the export settings belong to: they stay while going through its files. */
+	batchKey: object | null;
+
+	load: (owner: object, duration: number, batchKey?: object | null) => void;
 	apply: (change: (doc: VideoDoc) => VideoDoc) => void;
 	preview: (change: (doc: VideoDoc) => VideoDoc) => void;
 	settle: () => void;
@@ -58,10 +61,13 @@ export const useVideoEditor = create<VideoEditorState>((set, get) => ({
 	exportSource: null,
 	exportSettings: null,
 	copied: null,
+	batchKey: null,
 
-	load(owner, duration) {
+	load(owner, duration, batchKey = null) {
 		if (get().owner === owner) return;
+		const sameBatch = batchKey !== null && get().batchKey === batchKey;
 		set({
+			batchKey,
 			owner,
 			history: createHistory(createVideoDoc(duration)),
 			gestureStart: null,
@@ -69,14 +75,17 @@ export const useVideoEditor = create<VideoEditorState>((set, get) => ({
 			view: { start: 0, end: duration },
 			cropAspect: 'free',
 			exportSource: null,
-			exportSettings: null,
+			exportSettings: sameBatch ? get().exportSettings : null,
 			copied: null,
 		});
 	},
 
 	adoptSource(exportSource) {
 		if (get().exportSource?.owner === exportSource.owner) return;
-		set({ exportSource, exportSettings: settingsFromSource(exportSource.source, exportSource.encodable) });
+		set({
+			exportSource,
+			exportSettings: get().exportSettings ?? settingsFromSource(exportSource.source, exportSource.encodable),
+		});
 	},
 
 	setCopied(copied) {

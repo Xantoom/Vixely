@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { createImageDoc } from '../image/document';
 import type { SubtitleDoc } from '../subtitles/document';
 import { mergeParts } from './copy-tracks';
-import { outputSize, resolveAudio, settingsFromSource, type VideoSource } from './export';
+import {
+	bitrateForSize,
+	outputSize,
+	presetSettings,
+	resolveAudio,
+	settingsFromSource,
+	type VideoSource,
+} from './export';
 import { cutSubtitles } from './mux';
 
 const source: VideoSource = {
@@ -78,5 +85,24 @@ describe('mergeParts', () => {
 			{ start: 0, end: 12, stop: 12 },
 			{ start: 20, end: 60, stop: 60 },
 		]);
+	});
+});
+
+describe('size limit', () => {
+	it('leaves the pictures what the sound does not take, with a margin', () => {
+		// 10 MB over 60 s with 96 kb/s of sound: 10e6 × 8 × 0.94 / 1000 / 60 − 96.
+		expect(bitrateForSize(10, 60, 96)).toBe(1157);
+		expect(bitrateForSize(1, 600, 128)).toBe(50);
+	});
+});
+
+describe('presets', () => {
+	it('never enlarge the pictures nor speed them up', () => {
+		const discord = presetSettings('discord', { ...source, frameRate: 59.94 }, ['avc'], 1080);
+		expect(discord).toMatchObject({ container: 'mp4', codec: 'avc', height: 720, frameRate: 30, sizeLimit: 10 });
+		const small = presetSettings('discord', source, ['avc'], 480);
+		expect(small).toMatchObject({ height: null, frameRate: null });
+		expect(presetSettings('youtube', source, ['avc'], 1080).bitrate).toBe(8000);
+		expect(presetSettings('web', source, ['avc', 'av1'], 1080).codec).toBe('av1');
 	});
 });

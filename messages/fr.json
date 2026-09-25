@@ -548,6 +548,29 @@
 	"export_burn_track": "Piste",
 	"burn_none": "Aucune",
 	"mux_burned": "Incrustés dans l'image",
+	"export_preset": "Préréglage",
+	"export_preset_for": "Pour",
+	"preset_custom": "Personnalisé",
+	"export_size_limit": "Taille maximale",
+	"size_limit_none": "Aucune",
+	"size_mb": "{size} Mo",
+	"bitrate_low": "Débit très bas : l'image sera floue",
+	"batch_count_video": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} vidéo",
+				"countPlural=other": "{count} vidéos"
+			}
+		}
+	],
+	"export_resolution": "Définition",
 	"mux_edit_track": "Langue et nom",
 	"batch_count_subtitles": [
 		{

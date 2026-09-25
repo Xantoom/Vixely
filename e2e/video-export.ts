@@ -90,7 +90,7 @@ probe(
 	await convert('converted.webm', async () => {
 		await aside.getByLabel('Container').click();
 		await page.getByRole('option', { name: 'WebM' }).click();
-		await aside.getByLabel('Height').click();
+		await aside.getByLabel('Resolution').click();
 		await page.getByRole('option', { name: /^480 p/ }).click();
 	}),
 );

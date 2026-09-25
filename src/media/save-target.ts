@@ -56,7 +56,7 @@ async function fileTarget(handle: FileSystemFileHandle, remove?: () => Promise<v
  * A file that ends up in the downloads: written to the browser's private storage on disk first,
  * or built in memory when there is none (private browsing in some browsers).
  */
-async function downloadTarget(name: string, type: SaveType): Promise<SaveTarget> {
+export async function downloadTarget(name: string, type: SaveType): Promise<SaveTarget> {
 	try {
 		const root = await navigator.storage.getDirectory();
 		await removeLeftovers(root);
@@ -187,4 +187,31 @@ export async function openBatchDestination(startIn: 'music' | 'pictures'): Promi
 		}
 	}
 	return downloadTarget;
+}
+
+/** Files of a batch written one after the other into a folder, each as it is encoded. */
+export interface FolderTargets {
+	open: (name: string) => Promise<SaveTarget>;
+}
+
+/**
+ * A folder the user picks, where the browser allows it (Chrome, Edge); null otherwise, each file
+ * then going to the downloads. Throws an AbortError when the user closes the picker. Must be
+ * called from the click.
+ */
+export async function openFolderTargets(startIn: 'videos' | 'music'): Promise<FolderTargets | null> {
+	if (!window.showDirectoryPicker) return null;
+	let folder: FileSystemDirectoryHandle;
+	try {
+		folder = await window.showDirectoryPicker({ mode: 'readwrite', startIn });
+	} catch (error) {
+		if (isPickerCancel(error)) throw error;
+		return null;
+	}
+	return {
+		async open(name) {
+			const handle = await folder.getFileHandle(name, { create: true });
+			return fileTarget(handle, async () => folder.removeEntry(name).catch(() => undefined));
+		},
+	};
 }

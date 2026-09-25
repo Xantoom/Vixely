@@ -548,6 +548,29 @@
 	"export_burn_track": "Track",
 	"burn_none": "None",
 	"mux_burned": "Burned into the picture",
+	"export_preset": "Preset",
+	"export_preset_for": "Made for",
+	"preset_custom": "Custom",
+	"export_size_limit": "Size limit",
+	"size_limit_none": "None",
+	"size_mb": "{size} MB",
+	"bitrate_low": "Very low bitrate: the picture will be blurry",
+	"batch_count_video": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} video",
+				"countPlural=other": "{count} videos"
+			}
+		}
+	],
+	"export_resolution": "Resolution",
 	"mux_edit_track": "Language and name",
 	"batch_count_subtitles": [
 		{

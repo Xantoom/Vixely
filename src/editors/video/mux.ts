@@ -1,6 +1,6 @@
 import type { AudioCodec } from 'mediabunny';
 import { create } from 'zustand';
-import { isShortened, keptRanges } from '@/document/kept';
+import { isShortened, keptRanges, outputDuration } from '@/document/kept';
 import { type Range, toOutput } from '@/document/timemap';
 import { type AddedTrack, remux, type StreamData, type TrackChoice } from '@/media/remux';
 import { openScratchFile, type SaveTarget, type ScratchFile } from '@/media/save-target';
@@ -12,7 +12,14 @@ import { codecLabel } from '../subtitles/tracks';
 import type { BurnJob } from './burn';
 import { type AudioPlan, copiesParts, copyTracks } from './copy-tracks';
 import type { VideoDoc } from './document';
-import { CONTAINERS, convertVideo, type VideoContainer, type VideoExportSettings } from './export';
+import {
+	audioBitrates,
+	bitrateForSize,
+	CONTAINERS,
+	convertVideo,
+	type VideoContainer,
+	type VideoExportSettings,
+} from './export';
 
 export type MuxKind = 'video' | 'audio' | 'subtitle';
 
@@ -279,9 +286,14 @@ export interface MuxJob {
 	/** The document shown in the subtitle editor, which may not be saved in its track yet. */
 	shown: () => SubtitleDoc;
 	title: string;
+	/** Subtitles read for this export alone, by track key, rather than those of the subtitle editor. */
+	docs?: ReadonlyMap<string, SubtitleDoc>;
+	/** Fonts of these subtitles, rather than those of the subtitle editor. */
+	fonts?: readonly Uint8Array[];
 }
 
 function currentDoc(job: MuxJob, track: MuxTrack): SubtitleDoc | null {
+	if (job.docs) return job.docs.get(track.key) ?? null;
 	if (track.subtitle !== null && track.subtitle === useSubtitleProject.getState().current) return job.shown();
 	return docOf(track);
 }
@@ -374,7 +386,30 @@ function burnJob(job: ConvertedJob): BurnJob | null {
 	const track = job.tracks.find((candidate) => candidate.key === job.settings.burn);
 	const doc = track ? currentDoc(job, track) : null;
 	if (!doc) return null;
-	return { doc, title: job.title, fonts: useSubtitleProject.getState().fonts };
+	return { doc, title: job.title, fonts: job.fonts ?? useSubtitleProject.getState().fonts };
+}
+
+/**
+ * The settings with the video bitrate a size limit leaves: the length of the output, less what
+ * the sound takes (copied tracks at their own bitrate).
+ */
+async function withSizeLimit(job: ConvertedJob): Promise<VideoExportSettings> {
+	const { settings, doc } = job;
+	if (settings.mode !== 'encode' || settings.sizeLimit === null) return settings;
+	const sound = job.tracks.filter((track) => track.kind === 'audio' && track.include);
+	const copied = sound.flatMap((track) =>
+		settings.audio === 'copy' && track.decibels === 0 && track.number !== null ? [track.number] : [],
+	);
+	const measured = copied.length > 0 ? await audioBitrates(job.file, copied) : new Map<number, number>();
+	const audio = sound.reduce(
+		(total, track) =>
+			total +
+			(track.number !== null && measured.has(track.number)
+				? (measured.get(track.number) ?? 0)
+				: settings.audioBitrate),
+		0,
+	);
+	return { ...settings, bitrate: bitrateForSize(settings.sizeLimit, outputDuration(doc), audio) };
 }
 
 /** Splits the progress bar between passes, by weight. */
@@ -401,7 +436,8 @@ export async function exportConverted(
 	onProgress: (share: number) => void,
 	signal: AbortSignal,
 ): Promise<void> {
-	const { doc, settings } = job;
+	const { doc } = job;
+	const settings = await withSizeLimit(job);
 	const { container } = settings;
 	const shortened = isShortened(doc);
 	const kept = shortened ? keptRanges(doc) : null;

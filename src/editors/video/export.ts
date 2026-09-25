@@ -44,7 +44,7 @@ export interface VideoExportSettings {
 	mode: 'copy' | 'encode';
 	container: VideoContainer;
 	codec: VideoCodecId;
-	/** Height of the output; null keeps the crop's. */
+	/** Shorter side of the output, as in "720p"; null keeps the crop's. */
 	height: number | null;
 	/** Pictures per second; null keeps the source's. */
 	frameRate: number | null;
@@ -55,6 +55,10 @@ export interface VideoExportSettings {
 	audioBitrate: number;
 	/** The subtitle track burned into the pictures, by its key in the track list. */
 	burn: string | null;
+	/** Largest file wanted, in MB: the video bitrate then follows from the length. */
+	sizeLimit: number | null;
+	/** The platform the settings were chosen for, until one of them changes. */
+	preset: PresetId | null;
 }
 
 export const CONTAINERS: Record<
@@ -194,7 +198,179 @@ export function settingsFromSource(source: VideoSource, encodable: VideoCodecId[
 		audio: audioFits(source, container) ? 'copy' : container === 'webm' ? 'opus' : 'aac',
 		audioBitrate: Math.min(320, Math.max(64, source.audioBitrate ?? 160)),
 		burn: null,
+		sizeLimit: null,
+		preset: null,
 	};
+}
+
+/** Size limits offered, in MB: those of the places videos are sent to, and round figures. */
+export const SIZE_LIMITS = [8, 10, 16, 25, 50, 100, 250, 500, 1000];
+
+/** Share of a size limit given to the pictures and sound, the rest left to the container and to encoders overshooting. */
+const SIZE_MARGIN = 0.94;
+
+/** Lowest video bitrate a size limit leads to, in kb/s. */
+export const MIN_BITRATE = 50;
+
+/**
+ * The video bitrate (kb/s) that keeps a file of `seconds` under `megabytes`, the sound taking
+ * `audio` kb/s. MB are counted in millions of bytes, below what services mean by it either way.
+ */
+export function bitrateForSize(megabytes: number, seconds: number, audio: number): number {
+	if (seconds <= 0) return MIN_BITRATE;
+	const kilobits = (megabytes * 1_000_000 * 8 * SIZE_MARGIN) / 1000;
+	return Math.max(MIN_BITRATE, Math.floor(kilobits / seconds - audio));
+}
+
+export type PresetId = 'discord' | 'whatsapp' | 'email' | 'x' | 'instagram' | 'youtube' | 'web';
+
+interface Preset {
+	label: string;
+	container: VideoContainer;
+	codec: VideoCodecId;
+	/** Highest picture height; smaller pictures keep theirs. */
+	maxHeight: number;
+	/** Highest frame rate; slower videos keep theirs. */
+	maxFrameRate: number;
+	/** Video bitrate in kb/s, when no size limit applies. */
+	bitrate: number;
+	sizeLimit: number | null;
+	audio: 'aac' | 'opus';
+	audioBitrate: number;
+}
+
+/**
+ * Settings for the places videos go, from their published limits: Discord and WhatsApp cap files
+ * at 10 and 16 MB, mail at 25 MB; X, Instagram and YouTube take H.264 in MP4 and re-encode it.
+ */
+export const PRESETS: Record<PresetId, Preset> = {
+	discord: {
+		label: 'Discord',
+		container: 'mp4',
+		codec: 'avc',
+		maxHeight: 720,
+		maxFrameRate: 30,
+		bitrate: 2500,
+		sizeLimit: 10,
+		audio: 'aac',
+		audioBitrate: 96,
+	},
+	whatsapp: {
+		label: 'WhatsApp',
+		container: 'mp4',
+		codec: 'avc',
+		maxHeight: 720,
+		maxFrameRate: 30,
+		bitrate: 2500,
+		sizeLimit: 16,
+		audio: 'aac',
+		audioBitrate: 96,
+	},
+	email: {
+		label: 'E-mail',
+		container: 'mp4',
+		codec: 'avc',
+		maxHeight: 720,
+		maxFrameRate: 30,
+		bitrate: 2500,
+		sizeLimit: 25,
+		audio: 'aac',
+		audioBitrate: 96,
+	},
+	x: {
+		label: 'X',
+		container: 'mp4',
+		codec: 'avc',
+		maxHeight: 1080,
+		maxFrameRate: 60,
+		bitrate: 8000,
+		sizeLimit: null,
+		audio: 'aac',
+		audioBitrate: 128,
+	},
+	instagram: {
+		label: 'Instagram',
+		container: 'mp4',
+		codec: 'avc',
+		maxHeight: 1080,
+		maxFrameRate: 30,
+		bitrate: 5000,
+		sizeLimit: null,
+		audio: 'aac',
+		audioBitrate: 128,
+	},
+	youtube: {
+		label: 'YouTube',
+		container: 'mp4',
+		codec: 'avc',
+		maxHeight: 2160,
+		maxFrameRate: 60,
+		bitrate: 12000,
+		sizeLimit: null,
+		audio: 'aac',
+		audioBitrate: 192,
+	},
+	web: {
+		label: 'Web',
+		container: 'webm',
+		codec: 'vp9',
+		maxHeight: 1080,
+		maxFrameRate: 60,
+		bitrate: 2500,
+		sizeLimit: null,
+		audio: 'opus',
+		audioBitrate: 128,
+	},
+};
+
+export const PRESET_ORDER: PresetId[] = ['discord', 'whatsapp', 'email', 'x', 'instagram', 'youtube', 'web'];
+
+/** YouTube's recommended bitrates for H.264 uploads, by height (at 30 fps; half again above). */
+function uploadBitrate(height: number, frameRate: number): number {
+	const base = height >= 2160 ? 40000 : height >= 1440 ? 16000 : height >= 1080 ? 8000 : height >= 720 ? 5000 : 2500;
+	return frameRate > 30 ? Math.round(base * 1.5) : base;
+}
+
+/**
+ * The settings a preset gives a video whose pictures are `height` high: never enlarged, never
+ * faster than the source. A codec this browser can't encode falls back to one it can.
+ */
+export function presetSettings(
+	id: PresetId,
+	source: VideoSource,
+	encodable: readonly VideoCodecId[],
+	height: number,
+): Partial<VideoExportSettings> {
+	const preset = PRESETS[id];
+	const codecs = CONTAINERS[preset.container].codecs.filter((codec) => encodable.includes(codec));
+	const outHeight = Math.min(height, preset.maxHeight);
+	const rate = source.frameRate ?? 30;
+	return {
+		mode: 'encode',
+		container: preset.container,
+		codec: codecs.includes(preset.codec) ? preset.codec : (codecs[0] ?? preset.codec),
+		height: height > preset.maxHeight ? (HEIGHTS.find((candidate) => candidate <= preset.maxHeight) ?? null) : null,
+		frameRate: rate > preset.maxFrameRate + 0.5 ? preset.maxFrameRate : null,
+		bitrate: id === 'youtube' ? uploadBitrate(outHeight, Math.min(rate, preset.maxFrameRate)) : preset.bitrate,
+		sizeLimit: preset.sizeLimit,
+		audio: preset.audio,
+		audioBitrate: preset.audioBitrate,
+		preset: id,
+	};
+}
+
+/** Average bitrates of sound tracks, in kb/s, by track ID, read from their first packets. */
+export async function audioBitrates(file: File, ids: readonly number[]): Promise<Map<number, number>> {
+	const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
+	try {
+		const tracks = (await input.getAudioTracks()).filter((track) => ids.includes(track.id));
+		const stats = await Promise.all(
+			tracks.map(async (track) => [track.id, await track.computePacketStats(300).catch(() => null)] as const),
+		);
+		return new Map(stats.map(([id, found]) => [id, Math.round((found?.averageBitrate ?? 0) / 1000)]));
+	} finally {
+		input.dispose();
+	}
 }
 
 /** Encoders want even sizes. */
@@ -202,10 +378,18 @@ function even(value: number): number {
 	return Math.max(2, Math.round(value / 2) * 2);
 }
 
-/** Size of the exported pictures: the crop, brought down to the chosen height. */
+/** The shorter side of a picture: what "720p" measures, upright or on its side. */
+export function shortSide(size: Size): number {
+	return Math.min(size.width, size.height);
+}
+
+/**
+ * Size of the exported pictures: the crop, brought down so its shorter side is the chosen
+ * height, as "720p" means 1280 × 720 across and 720 × 1280 upright.
+ */
 export function outputSize(picture: ImageDoc, upright: Size, height: number | null): Size {
 	const crop = effectiveCrop(picture, upright);
-	const scale = height === null ? 1 : Math.min(1, height / crop.height);
+	const scale = height === null ? 1 : Math.min(1, height / shortSide(crop));
 	return { width: even(crop.width * scale), height: even(crop.height * scale) };
 }
 
@@ -343,7 +527,11 @@ export async function convertVideo(
 		if (track.number > 1) return { discard: true };
 		const options: ConversionVideoOptions = {
 			codec: settings.codec,
-			quality: new Quality({ bitrate: settings.bitrate * 1000 }),
+			// A size limit wants the bitrate kept to, not averaged over the file.
+			quality: new Quality({
+				bitrate: settings.bitrate * 1000,
+				bitrateMode: settings.sizeLimit === null ? 'variable' : 'constant',
+			}),
 			frameRate: settings.frameRate ?? undefined,
 			forceTranscode: true,
 		};

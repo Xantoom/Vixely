@@ -1,6 +1,7 @@
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { cut, isShortened, keptRanges, setTrim } from '@/document/kept';
+import { type ItemStatus, BatchList } from '@/editor/BatchList';
 import { EditorLayout } from '@/editor/EditorLayout';
 import { FilePanel, ToolLater } from '@/editor/Inspector';
 import { KeptPanel } from '@/editor/KeptPanel';
@@ -15,8 +16,16 @@ import { Button } from '@/ui/Button';
 import { MEDIA_ICONS } from '@/ui/icons';
 import { AdjustPanel, CropPanel } from '../image/panels';
 import { useSubtitleProject } from '../subtitles/project';
+import { VideoBatchFooter } from './BatchFooter';
 import { resolveAudio } from './export';
-import { useCopiedRanges, useCopyBlocker, useExportMode, useExportSource, VideoExportPanel } from './ExportPanel';
+import {
+	useCopiedRanges,
+	useCopyBlocker,
+	useExportMode,
+	useExportSource,
+	VideoBatchPanel,
+	VideoExportPanel,
+} from './ExportPanel';
 import { muxContainer } from './mux';
 import { MuxFooter } from './MuxPanel';
 import { useVideoDoc, useVideoEditor, useVideoPictureEditing, useVideoUndoState } from './store';
@@ -157,9 +166,15 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	const editor = EDITORS.video;
 	const current = useSession((state) => state.current);
 	const opened = current?.kind === 'video' ? current : null;
-	const [tool, setTool] = useState<ToolId>(
+	const [chosenTool, setTool] = useState<ToolId>(
 		initialTool && (editor.tools.includes(initialTool) || initialTool === 'export') ? initialTool : 'info',
 	);
+	// A batch of videos shares its export settings; edits belong to one file.
+	const batch = useSession((state) => (state.batchKind === 'video' ? state.batch : null));
+	const batchKey = useSession((state) => (state.batchKind === 'video' ? state.batchKey : null));
+	const [statuses, setStatuses] = useState<ReadonlyMap<number, ItemStatus>>(new Map());
+	const [running, setRunning] = useState(false);
+	const tool = batch && chosenTool !== 'export' ? 'info' : chosenTool;
 	const openProject = useSubtitleProject((state) => state.open);
 	const details = usePlayback((state) => (opened && state.file === opened.file ? state.details : null));
 	const load = useVideoEditor((state) => state.load);
@@ -184,8 +199,8 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	}, [opened, openProject]);
 
 	useEffect(() => {
-		if (opened && details) load(opened.file, details.duration);
-	}, [opened, details, load]);
+		if (opened && details) load(opened.file, details.duration, batchKey);
+	}, [opened, details, load, batchKey]);
 
 	// Playback skips what the timeline removed; other editors play the whole file.
 	const { trim, cuts } = doc;
@@ -203,12 +218,13 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	);
 
 	useExportSource(ready ? opened : null, details?.video ?? null);
-	useCopiedRanges(ready ? opened.file : null, tool === 'export');
+	useCopiedRanges(ready ? opened.file : null, tool === 'export' && !batch);
 	useVideoShortcuts();
 	useEditorShortcuts({ undo, redo });
 
 	const inspector = () => {
 		if (opened && tool === 'export') {
+			if (batch && ready) return <VideoBatchPanel upright={upright} />;
 			return ready ? (
 				<VideoExportPanel opened={opened} upright={upright} />
 			) : (
@@ -239,9 +255,10 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	return (
 		<EditorLayout
 			kind="video"
-			fileName={opened?.file.name}
+			fileName={batch ? undefined : opened?.file.name}
 			tool={tool}
 			onTool={setTool}
+			tools={batch ? ['info'] : undefined}
 			actions={
 				opened
 					? {
@@ -264,7 +281,15 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 				)
 			}
 			timeline={
-				opened && ready ? (
+				batch ? (
+					<BatchList
+						statuses={statuses}
+						locked={running}
+						count={(count) => m.batch_count_video({ count })}
+						addLabel={m.batch_add_audio()}
+						accept="video/*,.mkv,.mov,.webm"
+					/>
+				) : opened && ready ? (
 					<VideoTimeline
 						file={opened.file}
 						aspect={upright.width / upright.height}
@@ -276,7 +301,20 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 			}
 			inspector={inspector()}
 			inspectorFooter={
-				opened && tool === 'export' ? (
+				batch && tool === 'export' ? (
+					<VideoBatchFooter
+						batch={batch}
+						onRunning={setRunning}
+						onStatus={(id, status) => {
+							setStatuses((previous) => {
+								const next = new Map(previous);
+								if (status) next.set(id, status);
+								else next.delete(id);
+								return next;
+							});
+						}}
+					/>
+				) : opened && tool === 'export' ? (
 					<MuxFooter
 						opened={opened}
 						blocked={mode === 'copy' ? blocker !== null : !exportSettings || !exportSource}
