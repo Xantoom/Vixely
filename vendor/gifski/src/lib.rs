@@ -97,6 +97,8 @@ struct SettingsExt {
     pub motion_quality: u8,
     pub giflossy_quality: u8,
     pub matte: Option<RGB8>,
+    // Vixely: flat colours, for pixel art and small emotes where dithering noise shows.
+    pub no_dithering: bool,
 }
 
 impl Settings {
@@ -124,6 +126,10 @@ impl SettingsExt {
     }
 
     pub(crate) fn dithering_level(&self) -> f32 {
+        // Vixely: dithering can be turned off.
+        if self.no_dithering {
+            return 0.;
+        }
         let gifsicle_quality = if cfg!(feature = "gifsicle") { self.giflossy_quality } else { 100 };
         debug_assert!(gifsicle_quality <= 100);
         // lossy LZW adds its own dithering, so the input could be less nosiy to compensate
@@ -270,6 +276,8 @@ pub fn new(settings: Settings) -> GifResult<(Collector, Writer)> {
                 motion_quality: settings.quality,
                 giflossy_quality: settings.quality,
                 extra_effort: false,
+                // Vixely: dithering on by default, as in gifski.
+                no_dithering: false,
                 matte: None,
             },
             fixed_colors: Vec::new(),
@@ -441,6 +449,11 @@ impl Writer {
         if self.fixed_colors.len() < 255 {
             self.fixed_colors.push(col);
         }
+    }
+
+    // Vixely: turns dithering off, for flat colours.
+    pub fn set_dithering(&mut self, enabled: bool) {
+        self.settings.no_dithering = !enabled;
     }
 
     #[deprecated(note = "please don't use, it will be in Settings eventually")]

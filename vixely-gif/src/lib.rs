@@ -94,9 +94,9 @@ pub struct GifWriter {
 #[wasm_bindgen]
 impl GifWriter {
 	/// `quality` 1 to 100. `lossy` 0 to 100 (100 is no lossy compression). `repeat` −1 plays once,
-	/// 0 loops forever, n loops n more times.
+	/// 0 loops forever, n loops n more times. `dither` false keeps flat colours.
 	#[wasm_bindgen(constructor)]
-	pub fn new(quality: u8, lossy: u8, repeat: i32, fast: bool) -> Result<GifWriter, JsError> {
+	pub fn new(quality: u8, lossy: u8, repeat: i32, fast: bool, dither: bool) -> Result<GifWriter, JsError> {
 		let repeat = match repeat {
 			0 => Repeat::Infinite,
 			n if n < 0 => Repeat::Finite(0),
@@ -107,6 +107,7 @@ impl GifWriter {
 		// gifski plans to move this into `Settings`; until then, this is the way to set it.
 		#[allow(deprecated)]
 		writer.set_lossy_quality(lossy.clamp(1, 100));
+		writer.set_dithering(dither);
 		Ok(GifWriter { collector: Some(collector), writer: Some(writer), count: 0 })
 	}
 

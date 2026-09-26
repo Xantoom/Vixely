@@ -1,19 +1,31 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLeaveGuard } from '@/app/leave-guard';
 import { type ItemStatus, BatchList } from '@/editor/BatchList';
 import { EditorLayout } from '@/editor/EditorLayout';
-import { FilePanel, ToolLater } from '@/editor/Inspector';
+import { ToolLater } from '@/editor/Inspector';
+import { StickersPanel, TextPanel } from '@/editor/overlays/panels';
 import { isTyping, useEditorShortcuts } from '@/editor/shortcuts';
 import { Viewer } from '@/editor/Viewer';
+import { overlayEditing } from '@/editors/image/editing';
+import { AdjustPanel, CropPanel } from '@/editors/image/panels';
 import type { ToolId } from '@/editors/registry';
 import { useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { frameAt } from './document';
 import { type GifEngine, useGifEngine } from './engine';
+import { FramesPanel } from './FramesPanel';
 import { GifTimeline } from './GifTimeline';
 import { GifStatus, GifViewer } from './GifViewer';
-import { CropPanel, ExportFooter, ExportPanel, SpeedPanel, TrimPanel } from './panels';
-import { useGifEditor, useGifUndoState } from './store';
+import {
+	BandsSection,
+	ExportFooter,
+	ExportPanel,
+	GifInfoPanel,
+	GifPresetsPanel,
+	SpeedPanel,
+	TrimPanel,
+} from './panels';
+import { useGifEditor, useGifPictureEditing, useGifUndoState } from './store';
 
 /**
  * Space plays and pauses, like everywhere else (Enter still presses a focused button); the arrows
@@ -64,6 +76,17 @@ function useGifShortcuts(engine: GifEngine) {
 	}, [togglePlay, frames, seek]);
 }
 
+/**
+ * The first picture, for the looks' thumbnails: an animation's first frame, or a video's poster.
+ */
+function useFirstPicture(engine: GifEngine, poster: ImageBitmap | null): ImageBitmap | null {
+	const { source } = engine;
+	if (!source) return null;
+	if (!source.timing) return poster;
+	const first = source.peek(source.timing[0]?.start ?? 0);
+	return first instanceof ImageBitmap ? first : poster;
+}
+
 export function GifEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	const current = useSession((state) => state.current);
 	const opened = current?.kind === 'gif' ? current : null;
@@ -83,21 +106,48 @@ export function GifEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	const { source } = engine;
 	// Only a GIF file can keep its frames: not a video, an APNG or a WebP.
 	const isGif = opened?.format === 'gif' && !opened.info?.video;
+	const textRef = useRef<HTMLTextAreaElement>(null);
+	const still = useFirstPicture(engine, opened?.poster ?? null);
+	const editing = useGifPictureEditing({ width: source?.width ?? 1, height: source?.height ?? 1 }, still);
 
 	useEditorShortcuts({ undo, redo });
 	useGifShortcuts(engine);
 
 	const inspector = () => {
-		if (tool === 'info' || !source) return <FilePanel opened={opened} />;
+		if (tool === 'info' || !source) return <GifInfoPanel engine={engine} opened={opened} />;
+		if (tool === 'presets') return <GifPresetsPanel engine={engine} />;
 		if (tool === 'trim') return <TrimPanel engine={engine} />;
-		if (tool === 'crop') return <CropPanel width={source.width} height={source.height} />;
+		if (tool === 'crop')
+			return (
+				<>
+					<CropPanel editing={editing} />
+					<BandsSection width={source.width} height={source.height} />
+				</>
+			);
+		if (tool === 'adjust') return <AdjustPanel editing={editing} />;
+		if (tool === 'text') return <TextPanel editing={overlayEditing(editing)} textRef={textRef} />;
+		if (tool === 'stickers') return <StickersPanel editing={overlayEditing(editing)} />;
 		if (tool === 'speed') return <SpeedPanel animated={source.timing !== null} />;
+		if (tool === 'frames') return <FramesPanel engine={engine} fileName={opened?.file.name ?? 'animation'} />;
 		if (tool === 'export') return <ExportPanel engine={engine} isGif={isGif} />;
 		return <ToolLater kind="gif" tool={tool} />;
 	};
 
 	const viewer = () => {
-		if (source) return <GifViewer engine={engine} cropping={tool === 'crop'} />;
+		if (source)
+			return (
+				<GifViewer
+					engine={engine}
+					cropping={tool === 'crop'}
+					overlays={tool === 'text' || tool === 'stickers' ? overlayEditing(editing) : undefined}
+					onEditText={() => {
+						setTool('text');
+						requestAnimationFrame(() => {
+							textRef.current?.focus();
+						});
+					}}
+				/>
+			);
 		if (engine.failed) return <p className="text-body text-danger">{m.gif_failed()}</p>;
 		if (engine.reading !== null && engine.reading > 0) {
 			return <p className="text-body text-muted">{m.gif_reading({ count: engine.reading })}</p>;

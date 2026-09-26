@@ -8,6 +8,7 @@ const TOOLS = new Set<string>([
 	'presets',
 	'text',
 	'stickers',
+	'frames',
 	'volume',
 	'audio',
 	'subtitles',

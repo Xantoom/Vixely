@@ -11,6 +11,7 @@ export type ToolId =
 	| 'presets'
 	| 'text'
 	| 'stickers'
+	| 'frames'
 	| 'volume'
 	| 'audio'
 	| 'subtitles'
@@ -53,7 +54,7 @@ export const EDITORS: Record<MediaKind, EditorDefinition> = {
 		path: '/gif',
 		label: () => m.media_gif(),
 		page: () => m.editor_page_gif(),
-		tools: ['info', 'trim', 'crop', 'speed'],
+		tools: ['info', 'presets', 'trim', 'crop', 'adjust', 'text', 'stickers', 'speed', 'frames'],
 		timed: true,
 	},
 	audio: {
@@ -88,6 +89,7 @@ export const TOOL_LABELS: Record<ToolId, () => string> = {
 	presets: () => m.tool_presets(),
 	text: () => m.tool_text(),
 	stickers: () => m.tool_stickers(),
+	frames: () => m.tool_frames(),
 	volume: () => m.tool_volume(),
 	audio: () => m.tool_audio(),
 	subtitles: () => m.tool_subtitles(),

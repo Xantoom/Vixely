@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { createGifDoc, frameAt, outputFrames, outputLength, setTrim } from './document';
+import {
+	createGifDoc,
+	fadeAmount,
+	frameAt,
+	frameKey,
+	frameLayout,
+	framesUntouched,
+	outputFrames,
+	outputLength,
+	setTrim,
+} from './document';
 
 /** Ten frames of 100 ms. */
 const timing = Array.from({ length: 10 }, (_, i) => ({ start: i / 10, duration: 0.1 }));
@@ -46,5 +56,49 @@ describe('gif document', () => {
 		expect(frameAt(frames, 0.55)?.source).toBeCloseTo(0.5);
 		expect(frameAt(frames, 5)?.source).toBeCloseTo(0.9);
 		expect(frameAt(frames, -1)?.source).toBe(0);
+	});
+
+	it('leaves out removed frames and keeps one in n, each as long as those it stands for', () => {
+		const doc = { ...createGifDoc(1, null), removed: [frameKey(0.3)] };
+		expect(outputFrames(doc, timing)).toHaveLength(9);
+		expect(outputLength(outputFrames(doc, timing))).toBeCloseTo(0.9);
+		const skipped = outputFrames({ ...createGifDoc(1, null), skip: 3 }, timing);
+		expect(skipped.map((frame) => frame.source)).toEqual([0, 0.3, 0.6, 0.9]);
+		expect(skipped[0]?.duration).toBeCloseTo(0.3);
+		expect(skipped[3]?.duration).toBeCloseTo(0.1);
+		expect(outputLength(skipped)).toBeCloseTo(1);
+	});
+
+	it('fades in and out over their lengths', () => {
+		const fade = { in: 0.5, out: 1, color: 'black' as const };
+		expect(fadeAmount(fade, 0, 4)).toBe(1);
+		expect(fadeAmount(fade, 0.25, 4)).toBeCloseTo(0.5);
+		expect(fadeAmount(fade, 2, 4)).toBe(0);
+		expect(fadeAmount(fade, 3.5, 4)).toBeCloseTo(0.5);
+	});
+
+	it('lays the picture out in bands, scaled to the width', () => {
+		const doc = { ...createGifDoc(1, null), bands: { ratio: 1, color: null } };
+		const layout = frameLayout(doc, { width: 400, height: 200 }, 200);
+		expect(layout).toEqual({ width: 200, height: 200, content: { x: 0, y: 50, width: 200, height: 100 } });
+		// A quarter turn makes the picture tall: the bands go to the sides.
+		const turned = frameLayout(
+			{ ...doc, picture: { ...doc.picture, rotation: 90 } },
+			{ width: 400, height: 200 },
+			null,
+		);
+		expect(turned).toEqual({ width: 400, height: 400, content: { x: 100, y: 0, width: 200, height: 400 } });
+		expect(frameLayout(createGifDoc(1, null), { width: 301, height: 151 }, null, true)).toMatchObject({
+			width: 300,
+			height: 150,
+		});
+	});
+
+	it('knows when the frames are still the source’s own', () => {
+		const doc = createGifDoc(1, null);
+		expect(framesUntouched(doc)).toBe(true);
+		expect(framesUntouched({ ...doc, skip: 2 })).toBe(false);
+		expect(framesUntouched({ ...doc, picture: { ...doc.picture, flipX: true } })).toBe(false);
+		expect(framesUntouched({ ...doc, fade: { ...doc.fade, out: 1 } })).toBe(false);
 	});
 });

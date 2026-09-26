@@ -16,6 +16,8 @@ export interface EncodeOptions {
 	lossy: number;
 	/** −1 plays once, 0 loops forever, n loops n more times. */
 	repeat: number;
+	/** GIF only: false keeps flat colours, without dithering noise. */
+	dither: boolean;
 }
 
 export type GifRequest =

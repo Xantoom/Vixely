@@ -18,6 +18,7 @@ import {
 	Proportions,
 	Smile,
 	Type,
+	GalleryHorizontalEnd,
 } from 'lucide-react';
 import type { MediaKind, ToolId } from '@/editors/registry';
 
@@ -61,6 +62,7 @@ export const TOOL_ICONS: Record<ToolId, LucideIcon> = {
 	presets: Proportions,
 	text: Type,
 	stickers: Smile,
+	frames: GalleryHorizontalEnd,
 	volume: Volume2,
 	audio: AudioLines,
 	subtitles: Captions,

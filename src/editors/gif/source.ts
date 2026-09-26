@@ -1,5 +1,4 @@
 import { ALL_FORMATS, BlobSource, CanvasSink, Input, type InputVideoTrack } from 'mediabunny';
-import type { Rect } from '@/editors/image/document';
 import { decodeAnimation } from '@/media/gif-codec';
 import type { SourceTiming } from './document';
 
@@ -21,19 +20,12 @@ export interface FrameSource {
 	fetch: (time: number) => Promise<CanvasImageSource | null>;
 	/** Reads pictures ahead of playback, in order. A new call replaces the previous one. */
 	prefetch: (times: readonly number[]) => void;
-	/** The output pixels of each time, cropped and resized, in order. */
-	render: (times: readonly number[], crop: Rect, width: number, height: number) => AsyncGenerator<ImageData>;
+	/**
+	 * The picture at each time, in order, at least `scale` times the source's size (a video is
+	 * decoded no larger than needed). Valid until the next one is asked for.
+	 */
+	render: (times: readonly number[], scale: number) => AsyncGenerator<TexImageSource & CanvasImageSource>;
 	dispose: () => void;
-}
-
-/** Draws a region of a picture at a size and reads the pixels back. */
-function pixels(canvas: OffscreenCanvas, picture: CanvasImageSource, crop: Rect, width: number, height: number) {
-	const context = canvas.getContext('2d', { willReadFrequently: true });
-	if (!context) throw new Error('No 2D canvas.');
-	context.imageSmoothingQuality = 'high';
-	context.clearRect(0, 0, width, height);
-	context.drawImage(picture, crop.x, crop.y, crop.width, crop.height, 0, 0, width, height);
-	return context.getImageData(0, 0, width, height);
 }
 
 interface Frame extends SourceTiming {
@@ -80,7 +72,6 @@ export async function openAnimation(
 		},
 		signal,
 	);
-	const canvas = new OffscreenCanvas(1, 1);
 	const at = (time: number) => frames[frameIndex(frames, time)]?.bitmap ?? null;
 	return {
 		width,
@@ -93,12 +84,10 @@ export async function openAnimation(
 		prefetch: () => {},
 		// The frames are already in memory; the method is asynchronous for video sources.
 		// oxlint-disable-next-line require-await
-		async *render(times, crop, outWidth, outHeight) {
-			canvas.width = outWidth;
-			canvas.height = outHeight;
+		async *render(times) {
 			for (const time of times) {
 				const picture = at(time);
-				if (picture) yield pixels(canvas, picture, crop, outWidth, outHeight);
+				if (picture) yield picture;
 			}
 		},
 		dispose: () => {
@@ -176,19 +165,17 @@ export async function openVideo(file: File, fps: number | null): Promise<FrameSo
 				}
 			})().catch(() => undefined);
 		},
-		async *render(times, crop, outWidth, outHeight) {
-			// Read at the output size, cropped by the decoder: no full-size copy is ever made.
+		async *render(times, scale) {
+			// Decoded no larger than the output needs: a 4K video made into a small GIF stays light.
+			const factor = Math.min(1, scale);
 			const sink = new CanvasSink(track, {
-				width: outWidth,
-				height: outHeight,
+				width: Math.max(2, Math.round(width * factor)),
+				height: Math.max(2, Math.round(height * factor)),
 				fit: 'fill',
-				crop: { left: crop.x, top: crop.y, width: crop.width, height: crop.height },
 				poolSize: 2,
 			});
-			const canvas = new OffscreenCanvas(outWidth, outHeight);
-			const full = { x: 0, y: 0, width: outWidth, height: outHeight };
 			for await (const frame of sink.canvasesAtTimestamps(times.map((time) => Math.max(start, time)))) {
-				if (frame) yield pixels(canvas, frame.canvas, full, outWidth, outHeight);
+				if (frame) yield frame.canvas;
 			}
 		},
 		dispose() {

@@ -310,3 +310,34 @@ export function OptionList<T extends string>({
 		</div>
 	);
 }
+
+/** An on and off setting, its label on the left. */
+export function Switch({
+	label,
+	checked,
+	onChange,
+}: {
+	label: string;
+	checked: boolean;
+	onChange: (checked: boolean) => void;
+}) {
+	return (
+		<button
+			type="button"
+			role="switch"
+			aria-checked={checked}
+			onClick={() => {
+				onChange(!checked);
+			}}
+			className="group text-ui text-ink-2 flex items-center justify-between gap-3 py-1 text-left"
+		>
+			{label}
+			<span
+				aria-hidden="true"
+				className="bg-(--track-base) group-aria-checked:bg-ed ease-spring relative h-6 w-10 flex-none rounded-full transition-colors duration-200"
+			>
+				<span className="ease-spring absolute top-0.5 left-0.5 size-5 rounded-full bg-white shadow-sm transition-transform duration-200 group-aria-checked:translate-x-4" />
+			</span>
+		</button>
+	);
+}

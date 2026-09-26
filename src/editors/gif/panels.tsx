@@ -3,23 +3,25 @@ import { useEffect, useId, useRef, useState } from 'react';
 import type { ItemStatus } from '@/editor/BatchList';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { ExportAnnounce } from '@/editor/ExportAnnounce';
-import { ASPECT_LABELS, ResetButton, Section } from '@/editor/panel-parts';
+import { FilePanel } from '@/editor/Inspector';
+import { Group, ResetButton, Section } from '@/editor/panel-parts';
 import { fitRatio } from '@/editors/image/crop';
-import type { Rect } from '@/editors/image/document';
+import { orientedSize } from '@/editors/image/document';
 import { saveFile } from '@/editors/image/export';
-import { ASPECTS, type AspectId, cropRatio } from '@/editors/image/store';
 import { formatBytes, formatPreciseTime } from '@/lib/format';
 import { type FileDestination, openFileDestination } from '@/media/file-destination';
+import { type GifInfo, readGifInfo } from '@/media/gif-info';
 import { outputName } from '@/media/save';
-import type { BatchFile } from '@/media/session';
+import type { BatchFile, OpenedFile } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { getLocale } from '@/paraglide/runtime.js';
 import { Button } from '@/ui/Button';
-import { FieldRow, OptionList, Select, Slider, TimeField } from '@/ui/fields';
+import { FieldRow, OptionList, Select, Slider, Switch, TimeField } from '@/ui/fields';
 import { exportGifBatch } from './batch-export';
-import { type Direction, FRAME_RATES, SPEEDS, setTrim } from './document';
+import { type Direction, type FadeColor, FRAME_RATES, frameLayout, NO_FADE, SPEEDS, setTrim } from './document';
 import type { GifEngine } from './engine';
-import { browserEncodesWebp, copyBlocker, exportWithinLimit, FORMAT_FILES, outputSize, videoCodec } from './export';
+import { browserEncodesWebp, copyBlocker, exportLayout, exportWithinLimit, FORMAT_FILES, videoCodec } from './export';
+import { GIF_PRESETS, type GifPreset } from './presets';
 import { type AnimationFormat, useGifDoc, useGifEditor } from './store';
 
 export function TrimPanel({ engine }: { engine: GifEngine }) {
@@ -66,59 +68,133 @@ export function TrimPanel({ engine }: { engine: GifEngine }) {
 				</FieldRow>
 				<div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
 					<span className="text-ui text-ink-2">{m.audio_final_length()}</span>
-					<span className="tabular font-mono text-[12.5px]">{formatPreciseTime(engine.length)}</span>
+					<span className="tabular text-small font-mono">{formatPreciseTime(engine.length)}</span>
 				</div>
 			</div>
+			<FadeSection length={engine.length} />
 		</>
 	);
 }
 
-export function CropPanel({ width, height }: { width: number; height: number }) {
+const FADE_COLORS: { value: FadeColor; label: () => string }[] = [
+	{ value: 'black', label: () => m.color_black() },
+	{ value: 'white', label: () => m.color_white() },
+	{ value: 'transparent', label: () => m.color_transparent() },
+];
+
+/** Fades in from a colour at the start and out to it at the end. */
+function FadeSection({ length }: { length: number }) {
 	const doc = useGifDoc();
 	const apply = useGifEditor((state) => state.apply);
-	const aspect = useGifEditor((state) => state.cropAspect);
-	const setAspect = useGifEditor((state) => state.setCropAspect);
-	const bounds = { width, height };
-	const full: Rect = { x: 0, y: 0, width, height };
-	const crop = doc.crop ?? full;
-
-	const chooseAspect = (next: AspectId) => {
-		setAspect(next);
-		const ratio = cropRatio(next, bounds);
-		if (next === 'original') apply((current) => ({ ...current, crop: null }));
-		else if (ratio !== null) apply((current) => ({ ...current, crop: fitRatio(full, ratio) }));
-	};
-
+	const preview = useGifEditor((state) => state.preview);
+	const settle = useGifEditor((state) => state.settle);
+	// Tenths of a second, at most half the animation each.
+	const most = Math.max(1, Math.min(50, Math.floor((length / 2) * 10)));
+	const slider = (edge: 'in' | 'out', label: string) => (
+		<Slider
+			label={label}
+			value={Math.round(doc.fade[edge] * 10)}
+			min={0}
+			max={most}
+			format={(tenths) => `${(tenths / 10).toFixed(1)} s`}
+			onChange={(tenths) => {
+				preview((current) => ({ ...current, fade: { ...current.fade, [edge]: tenths / 10 } }));
+			}}
+			onEnd={settle}
+		/>
+	);
 	return (
-		<>
-			<PanelTitle
-				action={
-					<ResetButton
-						disabled={doc.crop === null}
-						onClick={() => {
-							setAspect('free');
-							apply((current) => ({ ...current, crop: null }));
-						}}
-					/>
-				}
-			>
-				{m.tool_crop()}
-			</PanelTitle>
-			<Section title={m.crop_aspect()}>
-				<OptionList
-					label={m.crop_aspect()}
-					value={aspect}
-					onChange={chooseAspect}
-					options={ASPECTS.map((id) => {
-						const ratio = cropRatio(id, bounds);
-						const size = id === 'free' ? crop : ratio === null ? bounds : fitRatio(full, ratio);
-						return { value: id, label: ASPECT_LABELS[id](), detail: `${size.width} × ${size.height}` };
-					})}
-				/>
-			</Section>
-		</>
+		<Group
+			title={m.fade_title()}
+			changed={doc.fade.in > 0 || doc.fade.out > 0}
+			onReset={() => {
+				apply((current) => ({ ...current, fade: NO_FADE }));
+			}}
+		>
+			{slider('in', m.fade_in())}
+			{slider('out', m.fade_out())}
+			<OptionList
+				label={m.fade_color()}
+				value={doc.fade.color}
+				options={FADE_COLORS.map((color) => ({ value: color.value, label: color.label() }))}
+				onChange={(color) => {
+					apply((current) => ({ ...current, fade: { ...current.fade, color } }));
+				}}
+			/>
+		</Group>
 	);
 }
+
+const BAND_SHAPES = ['1:1', '4:5', '9:16', '16:9', '21:9'] as const;
+
+const BAND_COLORS: { value: string; label: () => string; color: string | null }[] = [
+	{ value: 'black', label: () => m.color_black(), color: '#000000' },
+	{ value: 'white', label: () => m.color_white(), color: '#ffffff' },
+	{ value: 'transparent', label: () => m.color_transparent(), color: null },
+];
+
+function ratioOf(aspect: string): number {
+	const [w = 1, h = 1] = aspect.split(':').map(Number);
+	return w / h;
+}
+
+/**
+ * Bands around the picture to give the frame another shape without cutting anything: a square
+ * for a sticker, a tall frame for a story.
+ */
+export function BandsSection({ width, height }: { width: number; height: number }) {
+	const doc = useGifDoc();
+	const apply = useGifEditor((state) => state.apply);
+	const shapeId = useId();
+	const colorId = useId();
+	const current = doc.bands;
+	const shape = current ? (BAND_SHAPES.find((id) => ratioOf(id) === current.ratio) ?? 'none') : 'none';
+	const colour = current ? (BAND_COLORS.find((option) => option.color === current.color)?.value ?? 'black') : 'black';
+	const layout = frameLayout(doc, { width, height }, null);
+	return (
+		<Section title={m.bands_title()}>
+			<FieldRow label={m.bands_shape()} htmlFor={shapeId}>
+				<Select
+					id={shapeId}
+					value={shape}
+					options={[
+						{ value: 'none', label: m.bands_none() },
+						...BAND_SHAPES.map((id) => ({ value: id, label: id })),
+					]}
+					onChange={(value) => {
+						apply((doc) => ({
+							...doc,
+							bands:
+								value === 'none'
+									? null
+									: { ratio: ratioOf(value), color: doc.bands ? doc.bands.color : '#000000' },
+						}));
+					}}
+				/>
+			</FieldRow>
+			{current && (
+				<FieldRow label={m.bands_color()} htmlFor={colorId}>
+					<Select
+						id={colorId}
+						value={colour}
+						options={BAND_COLORS.map((option) => ({ value: option.value, label: option.label() }))}
+						onChange={(value) => {
+							const color = BAND_COLORS.find((option) => option.value === value)?.color ?? null;
+							apply((doc) => ({ ...doc, bands: doc.bands && { ...doc.bands, color } }));
+						}}
+					/>
+				</FieldRow>
+			)}
+			{current && (
+				<p className="text-small text-muted tabular font-mono">
+					{layout.width} × {layout.height} px
+				</p>
+			)}
+		</Section>
+	);
+}
+
+const SKIPS = [1, 2, 3, 4];
 
 const DIRECTIONS: { value: Direction; label: () => string }[] = [
 	{ value: 'forward', label: () => m.direction_forward() },
@@ -136,6 +212,7 @@ export function SpeedPanel({ animated }: { animated: boolean }) {
 	const preview = useGifEditor((state) => state.preview);
 	const settle = useGifEditor((state) => state.settle);
 	const rateId = useId();
+	const skipId = useId();
 	const speedIndex = Math.max(0, SPEEDS.indexOf(doc.speed));
 
 	return (
@@ -165,7 +242,7 @@ export function SpeedPanel({ animated }: { animated: boolean }) {
 					}}
 				/>
 			</Section>
-			<div className="grid gap-1.5">
+			<div className="grid gap-3.5">
 				<FieldRow label={m.info_frame_rate()} htmlFor={rateId}>
 					<Select
 						id={rateId}
@@ -176,6 +253,19 @@ export function SpeedPanel({ animated }: { animated: boolean }) {
 						]}
 						onChange={(value) => {
 							apply((current) => ({ ...current, fps: value === 'original' ? null : Number(value) }));
+						}}
+					/>
+				</FieldRow>
+				<FieldRow label={m.skip_frames()} htmlFor={skipId}>
+					<Select
+						id={skipId}
+						value={String(doc.skip)}
+						options={SKIPS.map((skip) => ({
+							value: String(skip),
+							label: skip === 1 ? m.skip_none() : m.skip_one_in({ count: skip }),
+						}))}
+						onChange={(value) => {
+							apply((current) => ({ ...current, skip: Number(value) }));
 						}}
 					/>
 				</FieldRow>
@@ -195,6 +285,7 @@ const FORMATS: { value: AnimationFormat; label: () => string }[] = [
 	{ value: 'apng', label: () => 'APNG' },
 	{ value: 'webp', label: () => 'WebP' },
 	{ value: 'video', label: () => m.anim_video() },
+	{ value: 'frames', label: () => m.anim_frames() },
 ];
 
 /** What this browser can encode: WebP itself, and H.264 for video. Both change a note, not a choice. */
@@ -222,12 +313,11 @@ export function ExportPanel({ engine, isGif }: { engine: GifEngine; isGif: boole
 	const source = engine.source;
 	const width = source?.width ?? 1;
 	const height = source?.height ?? 1;
-	const crop = doc.crop ?? { x: 0, y: 0, width, height };
-	const output = outputSize(crop, settings.width, settings.format);
+	// Widths are those of the whole frame, bands included.
+	const natural = frameLayout(doc, { width, height }, null).width;
+	const output = exportLayout(doc, { width, height }, settings);
 	const encoders = useEncoders(output.width, output.height);
-	const widths = [...new Set([...WIDTHS.filter((value) => value < crop.width), crop.width])].toSorted(
-		(a, b) => a - b,
-	);
+	const widths = [...new Set([...WIDTHS.filter((value) => value < natural), natural])].toSorted((a, b) => a - b);
 	const blocker = source ? copyBlocker(doc, settings, source, isGif) : 'source';
 	const copying = settings.mode === 'copy' && blocker === null;
 	const note =
@@ -277,7 +367,7 @@ export function ExportPanel({ engine, isGif }: { engine: GifEngine; isGif: boole
 							label: option.label(),
 							detail:
 								option.value === 'video'
-									? encoders.h264
+									? encoders.h264 && !settings.alpha
 										? '.mp4'
 										: '.webm'
 									: `.${FORMAT_FILES[option.value].extension}`,
@@ -294,16 +384,16 @@ export function ExportPanel({ engine, isGif }: { engine: GifEngine; isGif: boole
 						<FieldRow label={m.gif_width()} htmlFor={widthId}>
 							<Select
 								id={widthId}
-								value={String(Math.min(settings.width ?? crop.width, crop.width))}
+								value={String(Math.min(settings.width ?? natural, natural))}
 								options={widths.map((value) => ({ value: String(value), label: `${value} px` }))}
 								onChange={(value) => {
 									const chosen = Number(value);
-									setExport({ width: chosen === crop.width ? null : chosen });
+									setExport({ width: chosen === natural ? null : chosen });
 								}}
 							/>
 						</FieldRow>
 					</div>
-					{settings.format !== 'apng' && (
+					{settings.format !== 'apng' && settings.format !== 'frames' && (
 						<Slider
 							label={m.export_quality()}
 							value={settings.quality}
@@ -331,6 +421,24 @@ export function ExportPanel({ engine, isGif }: { engine: GifEngine; isGif: boole
 							onEnd={() => {}}
 						/>
 					)}
+					{settings.format === 'gif' && (
+						<Switch
+							label={m.gif_dither()}
+							checked={settings.dither}
+							onChange={(dither) => {
+								setExport({ dither });
+							}}
+						/>
+					)}
+					{settings.format === 'video' && (
+						<Switch
+							label={m.video_alpha()}
+							checked={settings.alpha}
+							onChange={(alpha) => {
+								setExport({ alpha });
+							}}
+						/>
+					)}
 					<div className="grid gap-1.5">
 						<FieldRow label={m.max_size()} htmlFor={limitId}>
 							<Select
@@ -352,7 +460,7 @@ export function ExportPanel({ engine, isGif }: { engine: GifEngine; isGif: boole
 				</div>
 			</div>
 
-			{(copying || settings.format !== 'video') && (
+			{(copying || (settings.format !== 'video' && settings.format !== 'frames')) && (
 				<FieldRow label={m.loop()} htmlFor={loopId}>
 					<Select
 						id={loopId}
@@ -504,7 +612,9 @@ export function ExportFooter({
 			? 'GIF'
 			: settings.format === 'video'
 				? m.anim_video()
-				: settings.format.toUpperCase().replace('WEBP', 'WebP');
+				: settings.format === 'frames'
+					? m.anim_frames()
+					: settings.format.toUpperCase().replace('WEBP', 'WebP');
 		return m.export_as({ format: name });
 	};
 
@@ -546,6 +656,143 @@ export function ExportFooter({
 						? m.size_fitted({ width: fit.width, size: formatBytes(settings.maxBytes ?? fit.size) })
 						: m.size_unreachable({ width: fit.width, size: formatBytes(fit.size) })}
 				</p>
+			)}
+		</>
+	);
+}
+
+/**
+ * What platforms ask for, one click each: the frame's width, a square crop for emotes and
+ * stickers, the format and the size limit.
+ */
+export function GifPresetsPanel({ engine }: { engine: GifEngine }) {
+	const chosen = useGifEditor((state) => state.exportSettings.preset);
+	const setExport = useGifEditor((state) => state.setExport);
+	const apply = useGifEditor((state) => state.apply);
+	const setAspect = useGifEditor((state) => state.setCropAspect);
+	const { source } = engine;
+
+	const choose = (preset: GifPreset) => {
+		if (!source) return;
+		apply((doc) => {
+			const bounds = orientedSize(source, doc.picture.rotation);
+			const crop = preset.square ? fitRatio({ x: 0, y: 0, ...bounds }, 1) : doc.picture.crop;
+			// A video is sampled at the preset's rate; an animation keeps its own frames.
+			return {
+				...doc,
+				picture: { ...doc.picture, crop },
+				bands: null,
+				fps: source.timing ? doc.fps : preset.fps,
+			};
+		});
+		if (preset.square) setAspect('1:1');
+		setExport({
+			mode: 'encode',
+			format: preset.format,
+			width: preset.width,
+			maxBytes: preset.maxBytes,
+			preset: preset.id,
+		});
+	};
+
+	return (
+		<>
+			<PanelTitle>{m.tool_presets()}</PanelTitle>
+			<div className="grid gap-1.5">
+				{GIF_PRESETS.map((preset) => {
+					const name = preset.platform ? `${preset.platform} · ${preset.label()}` : preset.label();
+					return (
+						<button
+							key={preset.id}
+							type="button"
+							aria-pressed={chosen === preset.id}
+							onClick={() => {
+								choose(preset);
+							}}
+							className="bg-surface hover:bg-surface-2 aria-pressed:bg-ed-soft aria-pressed:shadow-[inset_0_0_0_1.5px_var(--ed)] ease-spring grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-sm px-3.5 py-2.5 text-left transition-[background-color,transform] duration-200 active:scale-[0.98]"
+						>
+							<span className="text-ui truncate font-medium">{name}</span>
+							<span className="text-small text-muted tabular text-right font-mono">
+								{preset.square ? `${preset.width} × ${preset.width}` : `${preset.width} px`}
+								<span className="text-caption block">
+									{FORMAT_FILES[preset.format].extension.toUpperCase()}
+									{preset.maxBytes ? ` · ≤ ${formatBytes(preset.maxBytes)}` : ''}
+								</span>
+							</span>
+						</button>
+					);
+				})}
+			</div>
+		</>
+	);
+}
+
+/** The file's details, and for an animation, how its frames are timed and, for a GIF, coloured. */
+export function GifInfoPanel({ engine, opened }: { engine: GifEngine; opened: OpenedFile | null }) {
+	const [info, setInfo] = useState<GifInfo | null>(null);
+	const file = opened?.file ?? null;
+	const isGif = opened?.format === 'gif';
+	useEffect(() => {
+		setInfo(null);
+		if (!file || !isGif) return;
+		let live = true;
+		void file.arrayBuffer().then((buffer) => {
+			if (live) setInfo(readGifInfo(new Uint8Array(buffer)));
+		});
+		return () => {
+			live = false;
+		};
+	}, [file, isGif]);
+	const timing = engine.source?.timing ?? null;
+	const delays = timing?.map((frame) => Math.round(frame.duration * 1000)) ?? [];
+	const total = timing ? timing.reduce((sum, frame) => sum + frame.duration, 0) : 0;
+	const rows: [string, string][] = [];
+	if (timing && delays.length > 0) {
+		rows.push(
+			[m.analysis_frames(), String(delays.length)],
+			[
+				m.analysis_delays(),
+				`${Math.min(...delays)} / ${Math.round((total * 1000) / delays.length)} / ${Math.max(...delays)} ms`,
+			],
+			[m.analysis_rate(), `${(delays.length / Math.max(total, 1e-3)).toFixed(2)} fps`],
+		);
+	}
+	if (info) {
+		rows.push(
+			[
+				m.analysis_palette(),
+				info.localPalettes > 0
+					? m.analysis_palette_local({ colors: info.globalColors, count: info.localPalettes })
+					: String(info.globalColors),
+			],
+			[m.analysis_transparency(), info.transparent ? m.yes() : m.no()],
+			[
+				m.loop(),
+				info.loops === null
+					? m.loop_once()
+					: info.loops === 0
+						? m.loop_forever()
+						: m.loop_times({ count: info.loops + 1 }),
+			],
+		);
+		// Browsers show delays under 20 ms as 100 ms.
+		const slowed = info.delays.filter((delay) => delay < 20).length;
+		if (slowed > 0) rows.push([m.analysis_slowed(), String(slowed)]);
+	}
+	return (
+		<>
+			<FilePanel opened={opened} />
+			{rows.length > 0 && (
+				<Section title={m.analysis_title()}>
+					<dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2">
+						{rows.map(([label, value]) => (
+							<div key={label} className="contents">
+								<dt className="text-ui text-ink-2">{label}</dt>
+								<dd className="text-small tabular text-right font-mono">{value}</dd>
+							</div>
+						))}
+					</dl>
+				</Section>
 			)}
 		</>
 	);

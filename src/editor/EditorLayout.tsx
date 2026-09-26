@@ -16,6 +16,36 @@ import { useStageZoom } from './ZoomStage';
 /** Lets the panel's own title close the panel. */
 const PanelContext = createContext<(() => void) | null>(null);
 
+/**
+ * Which ends of a scrolling row or column have more beyond them, to fade those edges: the cue that
+ * the tools go on past the screen.
+ */
+function useOverflowEdges<T extends HTMLElement>() {
+	const ref = useRef<T>(null);
+	const [edges, setEdges] = useState({ start: false, end: false });
+	useEffect(() => {
+		const element = ref.current;
+		if (!element) return;
+		const measure = () => {
+			const across = element.scrollWidth > element.clientWidth + 1;
+			const position = across ? element.scrollLeft : element.scrollTop;
+			const room = across
+				? element.scrollWidth - element.clientWidth
+				: element.scrollHeight - element.clientHeight;
+			setEdges({ start: room > 1 && position > 1, end: room > 1 && position < room - 1 });
+		};
+		measure();
+		const observer = new ResizeObserver(measure);
+		observer.observe(element);
+		element.addEventListener('scroll', measure, { passive: true });
+		return () => {
+			observer.disconnect();
+			element.removeEventListener('scroll', measure);
+		};
+	}, []);
+	return { ref, edges };
+}
+
 function Rail({
 	tools,
 	current,
@@ -27,33 +57,46 @@ function Rail({
 	open: boolean;
 	onSelect: (tool: ToolId) => void;
 }) {
+	const { ref, edges } = useOverflowEdges<HTMLDivElement>();
+	const fade = (edge: 'start' | 'end') => (edges[edge] ? 'transparent' : '#000');
 	return (
 		<nav
 			aria-label={m.editing_tools()}
-			className="border-line bg-bg flex gap-1 max-md:overflow-x-auto max-md:border-t max-md:px-1.5 max-md:pt-1.5 max-md:pb-[calc(0.375rem+env(safe-area-inset-bottom,0px))] md:h-full md:flex-col md:items-stretch md:border-r md:px-2 md:py-3"
+			className="border-line bg-bg max-md:border-t max-md:pb-[env(safe-area-inset-bottom,0px)] md:h-full md:border-r"
 		>
-			{tools.map((tool) => {
-				const Icon = TOOL_ICONS[tool];
-				const pressed = open && tool === current;
-				return (
-					<button
-						key={tool}
-						type="button"
-						aria-pressed={pressed}
-						onClick={() => {
-							onSelect(tool);
-						}}
-						className="group text-caption text-muted hover:bg-surface hover:text-ink aria-pressed:bg-ed-soft aria-pressed:text-ed-text grid min-w-15 flex-1 justify-items-center gap-1.5 rounded-md px-1 pt-3 pb-2.5 font-medium transition-colors duration-200 md:flex-none"
-					>
-						<Icon
-							strokeWidth={1.75}
-							aria-hidden="true"
-							className="ease-spring size-[1.4rem] transition-transform duration-300 group-hover:-translate-y-px"
-						/>
-						<span>{TOOL_LABELS[tool]()}</span>
-					</button>
-				);
-			})}
+			<div
+				ref={ref}
+				style={{ '--fade-start': fade('start'), '--fade-end': fade('end') }}
+				className="flex gap-1 [scrollbar-width:none] max-md:overflow-x-auto max-md:px-1.5 max-md:py-1.5 max-md:[mask-image:linear-gradient(90deg,var(--fade-start),#000_2.5rem,#000_calc(100%-2.5rem),var(--fade-end))] md:h-full md:flex-col md:items-stretch md:overflow-y-auto md:px-2 md:py-3 md:[mask-image:linear-gradient(180deg,var(--fade-start),#000_2.5rem,#000_calc(100%-2.5rem),var(--fade-end))]"
+			>
+				{tools.map((tool) => {
+					const Icon = TOOL_ICONS[tool];
+					const pressed = open && tool === current;
+					return (
+						<button
+							key={tool}
+							type="button"
+							aria-pressed={pressed}
+							onClick={(event) => {
+								onSelect(tool);
+								event.currentTarget.scrollIntoView({
+									block: 'nearest',
+									inline: 'nearest',
+									behavior: 'smooth',
+								});
+							}}
+							className="group text-caption text-muted hover:bg-surface hover:text-ink aria-pressed:bg-ed-soft aria-pressed:text-ed-text grid min-w-15 flex-1 justify-items-center gap-1.5 rounded-md px-1 pt-3 pb-2.5 font-medium transition-colors duration-200 md:flex-none"
+						>
+							<Icon
+								strokeWidth={1.75}
+								aria-hidden="true"
+								className="ease-spring size-[1.4rem] transition-transform duration-300 group-hover:-translate-y-px"
+							/>
+							<span>{TOOL_LABELS[tool]()}</span>
+						</button>
+					);
+				})}
+			</div>
 		</nav>
 	);
 }

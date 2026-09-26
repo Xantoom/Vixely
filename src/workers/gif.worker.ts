@@ -55,7 +55,16 @@ async function handle(request: GifRequest) {
 		const gif = await load();
 		writer =
 			request.format === 'gif'
-				? { format: 'gif', writer: new gif.GifWriter(request.quality, request.lossy, request.repeat, false) }
+				? {
+						format: 'gif',
+						writer: new gif.GifWriter(
+							request.quality,
+							request.lossy,
+							request.repeat,
+							false,
+							request.dither,
+						),
+					}
 				: {
 						format: 'apng',
 						writer: new gif.ApngWriter(request.width, request.height, request.frames, request.repeat),

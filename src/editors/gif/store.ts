@@ -1,11 +1,13 @@
 import { create } from 'zustand';
 import { peekTaskIntent } from '@/app/tasks';
 import { canRedo, canUndo, commit, createHistory, type History, redo, replace, undo } from '@/document/history';
+import type { ImageDoc, Size } from '@/editors/image/document';
+import type { PictureEditing } from '@/editors/image/editing';
 import type { AspectId } from '@/editors/image/store';
 import { createGifDoc, type GifDoc } from './document';
 
-/** GIF through gifski, lossless APNG, animated WebP, or a short video (MP4 or WebM). */
-export type AnimationFormat = 'gif' | 'apng' | 'webp' | 'video';
+/** GIF through gifski, lossless APNG, animated WebP, a short video (MP4 or WebM), or PNG frames. */
+export type AnimationFormat = 'gif' | 'apng' | 'webp' | 'video' | 'frames';
 
 export interface GifExportSettings {
 	/**
@@ -24,6 +26,12 @@ export interface GifExportSettings {
 	compression: number;
 	/** Largest file allowed, in bytes; null for no limit. The width shrinks until it fits. */
 	maxBytes: number | null;
+	/** GIF only: dithering blends colours the palette lacks; off keeps flat colours. */
+	dither: boolean;
+	/** Video only: keeps transparency, as a VP9 WebM. */
+	alpha: boolean;
+	/** The preset last chosen, while its settings are unchanged. */
+	preset: string | null;
 }
 
 interface GifEditorState {
@@ -61,6 +69,9 @@ function defaultExport(width: number | null, copyable: boolean): GifExportSettin
 		quality: 90,
 		compression: 0,
 		maxBytes: null,
+		dither: true,
+		alpha: false,
+		preset: null,
 	};
 }
 
@@ -129,7 +140,8 @@ export const useGifEditor = create<GifEditorState>((set, get) => ({
 	},
 
 	setExport(settings) {
-		set({ exportSettings: { ...get().exportSettings, ...settings } });
+		// A change by hand means the settings are no longer the preset's.
+		set({ exportSettings: { ...get().exportSettings, preset: null, ...settings } });
 	},
 }));
 
@@ -140,4 +152,33 @@ export function useGifDoc(): GifDoc {
 export function useGifUndoState(): { canUndo: boolean; canRedo: boolean } {
 	const history = useGifEditor((state) => state.history);
 	return { canUndo: canUndo(history), canRedo: canRedo(history) };
+}
+
+/** Changes the pictures only, through the animation's history. */
+const onPicture =
+	(change: (picture: ImageDoc) => ImageDoc) =>
+	(doc: GifDoc): GifDoc => ({ ...doc, picture: change(doc.picture) });
+
+/** Every frame's picture, for the crop, adjustment, text and sticker panels shared with images. */
+export function useGifPictureEditing(size: Size, still: ImageBitmap | null): PictureEditing {
+	const picture = useGifEditor((state) => state.history.present.picture);
+	const apply = useGifEditor((state) => state.apply);
+	const preview = useGifEditor((state) => state.preview);
+	const settle = useGifEditor((state) => state.settle);
+	const aspect = useGifEditor((state) => state.cropAspect);
+	const setAspect = useGifEditor((state) => state.setCropAspect);
+	return {
+		doc: picture,
+		size,
+		apply: (change) => {
+			apply(onPicture(change));
+		},
+		preview: (change) => {
+			preview(onPicture(change));
+		},
+		settle,
+		aspect,
+		setAspect,
+		still,
+	};
 }

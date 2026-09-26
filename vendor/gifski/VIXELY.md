@@ -7,4 +7,7 @@ unbounded channels. Every change is behind `#[cfg(target_arch = "wasm32")]` and 
 `// Vixely:`; native builds are the original code.
 
 Changed files: `src/lib.rs` (`new`, `write_frames`, `write_inner`) and `src/minipool.rs`.
+
+Also added, on every target: `Writer::set_dithering(false)` turns dithering off (flat colours for
+pixel art and emotes), through a `no_dithering` field of `SettingsExt`.
 Updating: copy a newer gifski release over this folder and reapply the marked blocks.

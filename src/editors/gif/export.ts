@@ -1,3 +1,4 @@
+import { zipSync } from 'fflate';
 import {
 	BufferTarget,
 	CanvasSource,
@@ -8,27 +9,21 @@ import {
 	type VideoCodec,
 	WebMOutputFormat,
 } from 'mediabunny';
-import type { Rect } from '@/editors/image/document';
+import { effectiveCrop, type Size } from '@/editors/image/document';
 import { GifEncoder, trimGif, WebpStillEncoder } from '@/media/gif-codec';
 import { assembleWebp, type WebpFrame } from '@/media/webp-animation';
-import { type GifDoc, type OutputFrame, outputFrames } from './document';
+import { FrameComposer } from './compose';
+import {
+	type FrameLayout,
+	frameLayout,
+	framesUntouched,
+	type GifDoc,
+	type OutputFrame,
+	outputFrames,
+	outputLength,
+} from './document';
 import type { FrameSource } from './source';
 import type { AnimationFormat, GifExportSettings } from './store';
-
-/**
- * Size of the output: the chosen width, never wider than the crop (a GIF gains nothing from being
- * enlarged), the height following the crop's proportions. Video encoders need even sizes.
- */
-export function outputSize(
-	crop: Rect,
-	width: number | null,
-	format: AnimationFormat = 'gif',
-): { width: number; height: number } {
-	const outWidth = Math.max(1, Math.round(Math.min(width ?? crop.width, crop.width)));
-	const outHeight = Math.max(1, Math.round((crop.height * outWidth) / crop.width));
-	if (format !== 'video') return { width: outWidth, height: outHeight };
-	return { width: Math.max(2, outWidth - (outWidth % 2)), height: Math.max(2, outHeight - (outHeight % 2)) };
-}
 
 /** File type of each format. APNG keeps the .png extension, which every program opens. */
 export const FORMAT_FILES: Record<AnimationFormat, { extension: string; mime: string }> = {
@@ -36,13 +31,23 @@ export const FORMAT_FILES: Record<AnimationFormat, { extension: string; mime: st
 	apng: { extension: 'png', mime: 'image/apng' },
 	webp: { extension: 'webp', mime: 'image/webp' },
 	video: { extension: 'mp4', mime: 'video/mp4' },
+	frames: { extension: 'zip', mime: 'application/zip' },
 };
 
-/** The video codec this browser can write: H.264 in MP4 plays everywhere; VP9 in WebM otherwise. */
-export async function videoCodec(width: number, height: number): Promise<VideoCodec | null> {
+/**
+ * The video codec this browser can write: H.264 in MP4 plays everywhere; VP9 in WebM otherwise.
+ * With transparency, only VP9 in WebM keeps it.
+ */
+export async function videoCodec(width: number, height: number, alpha = false): Promise<VideoCodec | null> {
+	if (alpha) return (await canEncodeVideo('vp9', { width, height, alpha: 'keep' })) ? 'vp9' : null;
 	if (await canEncodeVideo('avc', { width, height })) return 'avc';
 	if (await canEncodeVideo('vp9', { width, height })) return 'vp9';
 	return null;
+}
+
+/** The frame's size and layout for these settings. */
+export function exportLayout(doc: GifDoc, source: Size, settings: Pick<GifExportSettings, 'width' | 'format'>) {
+	return frameLayout(doc, source, settings.width, settings.format === 'video');
 }
 
 let webpSupport: Promise<boolean> | null = null;
@@ -71,7 +76,7 @@ export function copyBlocker(
 ): 'frames' | 'source' | null {
 	if (!isGif || !source.timing) return 'source';
 	const resized = settings.width !== null && settings.width < source.width;
-	if (doc.speed !== 1 || doc.direction !== 'forward' || doc.fps !== null || doc.crop !== null || resized)
+	if (doc.speed !== 1 || doc.direction !== 'forward' || doc.fps !== null || !framesUntouched(doc) || resized)
 		return 'frames';
 	return null;
 }
@@ -93,28 +98,43 @@ function stopped(): DOMException {
 	return new DOMException('The export was stopped.', 'AbortError');
 }
 
-/** Draws every output frame, cropped and resized, and hands it to `add` in order. */
+/**
+ * Draws every output frame, in order, through the same composer as the preview, and hands its
+ * pixels to `add`.
+ */
 async function drawFrames(
 	{ source, doc, signal, onProgress }: ExportGifOptions,
 	frames: readonly OutputFrame[],
-	size: { width: number; height: number },
+	layout: FrameLayout,
 	add: (image: ImageData, frame: OutputFrame) => Promise<void> | void,
 ) {
-	const crop = doc.crop ?? { x: 0, y: 0, width: source.width, height: source.height };
+	const composer = new FrameComposer();
+	const canvas = new OffscreenCanvas(layout.width, layout.height);
+	const context = canvas.getContext('2d', { willReadFrequently: true });
+	if (!context) throw new Error('No 2D canvas.');
+	const crop = effectiveCrop(doc.picture, source);
+	const length = outputLength(frames);
+	// The source is read no larger than the picture's place in the frame needs.
+	const scale = Math.max(layout.content.width / crop.width, layout.content.height / crop.height);
 	let index = 0;
-	for await (const image of source.render(
-		frames.map((frame) => frame.source),
-		crop,
-		size.width,
-		size.height,
-	)) {
-		if (signal.aborted) throw stopped();
-		const frame = frames[index];
-		// Frames are drawn and encoded in order; each waits for the previous one.
-		// oxlint-disable-next-line no-await-in-loop
-		if (frame) await add(image, frame);
-		index += 1;
-		onProgress(index / frames.length);
+	try {
+		for await (const picture of source.render(
+			frames.map((frame) => frame.source),
+			scale,
+		)) {
+			if (signal.aborted) throw stopped();
+			const frame = frames[index];
+			if (frame) {
+				composer.draw(context, picture, source, doc, layout, { time: frame.start, length });
+				// Frames are drawn and encoded in order; each waits for the previous one.
+				// oxlint-disable-next-line no-await-in-loop
+				await add(context.getImageData(0, 0, layout.width, layout.height), frame);
+			}
+			index += 1;
+			onProgress(index / frames.length);
+		}
+	} finally {
+		composer.dispose();
 	}
 }
 
@@ -123,8 +143,8 @@ async function drawFrames(
  */
 async function exportPalette(options: ExportGifOptions, frames: readonly OutputFrame[], format: 'gif' | 'apng') {
 	const { source, doc, settings, signal } = options;
-	const crop = doc.crop ?? { x: 0, y: 0, width: source.width, height: source.height };
-	const size = outputSize(crop, settings.width, format);
+	const layout = exportLayout(doc, source, settings);
+	const size = { width: layout.width, height: layout.height };
 	const encoder = new GifEncoder({
 		format,
 		...size,
@@ -132,13 +152,14 @@ async function exportPalette(options: ExportGifOptions, frames: readonly OutputF
 		quality: settings.quality,
 		lossy: Math.max(1, 100 - settings.compression),
 		repeat: settings.repeat,
+		dither: settings.dither,
 	});
 	const stop = () => {
 		encoder.cancel();
 	};
 	signal.addEventListener('abort', stop, { once: true });
 	try {
-		await drawFrames(options, frames, size, (image, frame) => {
+		await drawFrames(options, frames, layout, (image, frame) => {
 			encoder.addFrame(image.data, size.width, size.height, frame.start, frame.duration);
 		});
 		options.onProgress(null);
@@ -156,15 +177,15 @@ async function exportPalette(options: ExportGifOptions, frames: readonly OutputF
  */
 async function exportWebp(options: ExportGifOptions, frames: readonly OutputFrame[]) {
 	const { source, doc, settings } = options;
-	const crop = doc.crop ?? { x: 0, y: 0, width: source.width, height: source.height };
-	const size = outputSize(crop, settings.width);
+	const layout = exportLayout(doc, source, settings);
+	const size = { width: layout.width, height: layout.height };
 	const lossy = await browserEncodesWebp();
 	const canvas = new OffscreenCanvas(size.width, size.height);
 	const context = canvas.getContext('2d');
 	const fallback = lossy ? null : new WebpStillEncoder();
 	const stills: WebpFrame[] = [];
 	try {
-		await drawFrames(options, frames, size, async (image, frame) => {
+		await drawFrames(options, frames, layout, async (image, frame) => {
 			let still: Uint8Array;
 			if (fallback) {
 				still = await fallback.encode(image.data, size.width, size.height);
@@ -185,13 +206,13 @@ async function exportWebp(options: ExportGifOptions, frames: readonly OutputFram
 
 /**
  * A short video: H.264 in MP4 where the browser encodes it, VP9 in WebM otherwise. Frames keep
- * their own durations, so a GIF's rhythm survives.
+ * their own durations, so a GIF's rhythm survives. With `alpha`, a WebM that keeps transparency.
  */
 async function exportVideo(options: ExportGifOptions, frames: readonly OutputFrame[]) {
 	const { source, doc, settings } = options;
-	const crop = doc.crop ?? { x: 0, y: 0, width: source.width, height: source.height };
-	const size = outputSize(crop, settings.width, 'video');
-	const codec = await videoCodec(size.width, size.height);
+	const layout = exportLayout(doc, source, settings);
+	const size = { width: layout.width, height: layout.height };
+	const codec = await videoCodec(size.width, size.height, settings.alpha);
 	if (!codec) throw new Error('This browser has no video encoder.');
 	const canvas = new OffscreenCanvas(size.width, size.height);
 	const context = canvas.getContext('2d');
@@ -200,18 +221,24 @@ async function exportVideo(options: ExportGifOptions, frames: readonly OutputFra
 		format: codec === 'avc' ? new Mp4OutputFormat({ fastStart: 'in-memory' }) : new WebMOutputFormat(),
 		target,
 	});
-	const video = new CanvasSource(canvas, { codec, quality: new Quality(settings.quality / 100) });
+	const video = new CanvasSource(canvas, {
+		codec,
+		quality: new Quality(settings.quality / 100),
+		...(settings.alpha && { alpha: 'keep' as const }),
+	});
 	output.addVideoTrack(video);
 	await output.start();
 	try {
-		await drawFrames(options, frames, size, async (image, frame) => {
+		await drawFrames(options, frames, layout, async (image, frame) => {
 			if (!context) return;
-			// Video has no transparency: transparent areas show white, as on most pages.
 			context.putImageData(image, 0, 0);
-			context.globalCompositeOperation = 'destination-over';
-			context.fillStyle = '#fff';
-			context.fillRect(0, 0, size.width, size.height);
-			context.globalCompositeOperation = 'source-over';
+			if (!settings.alpha) {
+				// Without transparency, transparent areas show white, as on most pages.
+				context.globalCompositeOperation = 'destination-over';
+				context.fillStyle = '#fff';
+				context.fillRect(0, 0, size.width, size.height);
+				context.globalCompositeOperation = 'source-over';
+			}
 			await video.add(frame.start, frame.duration);
 		});
 		options.onProgress(null);
@@ -223,6 +250,31 @@ async function exportVideo(options: ExportGifOptions, frames: readonly OutputFra
 	const buffer = target.buffer;
 	if (!buffer) throw new Error('The video is empty.');
 	return new Blob([buffer], { type: codec === 'avc' ? 'video/mp4' : 'video/webm' });
+}
+
+/** Every frame as a PNG, numbered in order, in one ZIP; the delays go in a text file beside them. */
+async function exportFrames(options: ExportGifOptions, frames: readonly OutputFrame[]) {
+	const { source, doc, settings } = options;
+	const layout = exportLayout(doc, source, settings);
+	const canvas = new OffscreenCanvas(layout.width, layout.height);
+	const context = canvas.getContext('2d');
+	const files: Record<string, Uint8Array> = {};
+	const digits = String(frames.length).length;
+	const delays: string[] = [];
+	let index = 0;
+	await drawFrames(options, frames, layout, async (image, frame) => {
+		context?.putImageData(image, 0, 0);
+		const blob = await canvas.convertToBlob({ type: 'image/png' });
+		index += 1;
+		const name = `frame-${String(index).padStart(digits, '0')}.png`;
+		files[name] = new Uint8Array(await blob.arrayBuffer());
+		delays.push(`${name}\t${Math.round(frame.duration * 1000)} ms`);
+	});
+	options.onProgress(null);
+	files['delays.txt'] = new TextEncoder().encode(`${delays.join('\n')}\n`);
+	// PNGs are already compressed: stored as they are.
+	const bytes = zipSync(files, { level: 0 });
+	return new Blob([bytes.slice()], { type: 'application/zip' });
 }
 
 /**
@@ -240,6 +292,7 @@ export async function exportGif(options: ExportGifOptions): Promise<Blob> {
 	const format = options.settings.format;
 	if (format === 'webp') return exportWebp(options, frames);
 	if (format === 'video') return exportVideo(options, frames);
+	if (format === 'frames') return exportFrames(options, frames);
 	return exportPalette(options, frames, format);
 }
 
@@ -270,8 +323,7 @@ export async function exportWithinLimit(
 	let blob = await exportGif(options);
 	const copying = settings.mode === 'copy' && copyBlocker(doc, settings, source, options.isGif) === null;
 	if (limit === null || copying || blob.size <= limit) return { blob, fittedWidth: null, fits: true };
-	const crop = doc.crop ?? { x: 0, y: 0, width: source.width, height: source.height };
-	let width = outputSize(crop, settings.width, settings.format).width;
+	let width = exportLayout(doc, source, settings).width;
 	for (let attempt = 1; attempt < FIT_ATTEMPTS && width > FIT_MIN_WIDTH; attempt++) {
 		width = Math.max(FIT_MIN_WIDTH, Math.floor(width * Math.sqrt(limit / blob.size) * 0.92));
 		onRetry(width);
