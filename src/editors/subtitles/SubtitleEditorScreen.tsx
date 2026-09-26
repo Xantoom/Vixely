@@ -19,6 +19,7 @@ import { useProjectReady, useSubtitleProject } from './project';
 import { useSubtitleDoc, useSubtitleEditor, useSubtitleUndoState } from './store';
 import { SubtitleBatchScreen } from './SubtitleBatchScreen';
 import { SubtitleViewer } from './SubtitleViewer';
+import { OcrPanel, TranscribePanel, TranslatePanel } from './tools';
 
 /** Room after the last line when there is no video, so lines can be placed after it. */
 const TAIL = 10;
@@ -126,6 +127,16 @@ function SingleSubtitleScreen({ initialTool }: { initialTool?: ToolId }) {
 	const [tool, setTool] = useState<ToolId>(initialTool && initialTool !== 'lines' ? initialTool : 'info');
 	const projectReady = useProjectReady();
 	const ready = opened !== null && projectFile === opened.file && projectReady;
+	// Transcription needs sound to listen to; text recognition, subtitles made of pictures.
+	const media = usePlayback((state) => state.file !== null);
+	const pictures = useSubtitleProject((state) => state.tracks.some((track) => track.original?.format === 'pgs'));
+	const tools: ToolId[] = [
+		'info',
+		'timing',
+		...(media ? (['transcribe'] as const) : []),
+		...(pictures ? (['ocr'] as const) : []),
+		'translate',
+	];
 
 	useEffect(() => {
 		if (opened) open(opened);
@@ -161,6 +172,9 @@ function SingleSubtitleScreen({ initialTool }: { initialTool?: ToolId }) {
 	const inspector = () => {
 		if (!opened || !ready) return <FilePanel opened={opened} />;
 		if (tool === 'timing') return <TimingPanel />;
+		if (tool === 'translate') return <TranslatePanel fileName={opened.file.name} />;
+		if (tool === 'transcribe') return <TranscribePanel />;
+		if (tool === 'ocr') return <OcrPanel fileName={opened.file.name} />;
 		if (tool === 'export') return <SubtitleExportPanel opened={opened} />;
 		return <SubtitleInfoPanel opened={opened} />;
 	};
@@ -183,6 +197,7 @@ function SingleSubtitleScreen({ initialTool }: { initialTool?: ToolId }) {
 			fileName={opened?.file.name}
 			tool={tool}
 			onTool={setTool}
+			tools={tools}
 			actions={{
 				canUndo,
 				canRedo,

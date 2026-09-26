@@ -19,6 +19,10 @@ import {
 	Smile,
 	Type,
 	GalleryHorizontalEnd,
+	AudioWaveform,
+	Speech,
+	Languages,
+	ScanText,
 } from 'lucide-react';
 import type { MediaKind, ToolId } from '@/editors/registry';
 
@@ -64,6 +68,10 @@ export const TOOL_ICONS: Record<ToolId, LucideIcon> = {
 	stickers: Smile,
 	frames: GalleryHorizontalEnd,
 	volume: Volume2,
+	sound: AudioWaveform,
+	transcribe: Speech,
+	translate: Languages,
+	ocr: ScanText,
 	audio: AudioLines,
 	subtitles: Captions,
 	speed: Gauge,

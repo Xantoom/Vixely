@@ -2,6 +2,7 @@ import { type GainPoint, gainAt } from '@/document/gain-curve';
 import { type Kept, keptRanges } from '@/document/kept';
 import { junctions, type Range, toOutput, totalLength } from '@/document/timemap';
 import type { LoudnessReading } from '@/media/loudness';
+import { FLAT_EQ } from '@/media/sound';
 
 export { type GainPoint, gainAt };
 export { cut, keepOnly, keptRanges, MIN_OUTPUT, outputDuration, restoreCut, setTrim } from '@/document/kept';
@@ -18,6 +19,10 @@ export interface AudioDoc extends Kept {
 	fadeOut: number;
 	/** Target loudness in LUFS. When set, the gain is computed from the measured loudness instead. */
 	normalize: number | null;
+	/** Gain of each equalizer band, in dB. */
+	eq: readonly number[];
+	/** Share of the sound with its background noise reduced, 0 to 1; 0 for none. */
+	denoise: number;
 }
 
 /** Length of the fade applied on each side of a cut, so the jump doesn't click. */
@@ -26,7 +31,17 @@ export const DECLICK = 0.004;
 export const GAIN_RANGE = { min: -24, max: 24 } as const;
 
 export function createAudioDoc(duration: number): AudioDoc {
-	return { duration, trim: { start: 0, end: duration }, cuts: [], gain: 0, fadeIn: 0, fadeOut: 0, normalize: null };
+	return {
+		duration,
+		trim: { start: 0, end: duration },
+		cuts: [],
+		gain: 0,
+		fadeIn: 0,
+		fadeOut: 0,
+		normalize: null,
+		eq: FLAT_EQ,
+		denoise: 0,
+	};
 }
 
 function clamp(value: number, min: number, max: number): number {

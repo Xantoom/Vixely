@@ -82,7 +82,14 @@ export function useAudioEngine(file: File | null, duration: number, track: numbe
 	}, [complete, loudness, trim, cuts, fadeIn, fadeOut, length]);
 	const resolved = useMemo(() => resolveGain(doc, reading), [doc, reading]);
 
-	const plan = useMemo(() => ({ ranges: keptRanges(resolved), envelope: envelope(resolved) }), [resolved]);
+	const plan = useMemo(
+		() => ({
+			ranges: keptRanges(resolved),
+			envelope: envelope(resolved),
+			sound: { eq: resolved.eq, denoise: resolved.denoise },
+		}),
+		[resolved],
+	);
 	useEffect(() => {
 		player?.setPlan(plan);
 	}, [player, plan]);

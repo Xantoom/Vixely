@@ -320,7 +320,13 @@ export type PresetId =
 	| 'tiktok'
 	| 'reels'
 	| 'shorts'
-	| 'instagram-feed';
+	| 'instagram-feed'
+	| 'discord-nitro'
+	| 'twitch'
+	| 'bluesky'
+	| 'x-premium'
+	| 'square'
+	| 'uhd';
 
 interface Preset {
 	label: string;
@@ -458,6 +464,73 @@ export const PRESETS: Record<PresetId, Preset> = {
 		audio: 'aac',
 		audioBitrate: 128,
 	},
+	'discord-nitro': {
+		label: 'Discord Nitro',
+		container: 'mp4',
+		codec: 'avc',
+		maxHeight: 1080,
+		maxFrameRate: 60,
+		bitrate: 8000,
+		sizeLimit: 500,
+		audio: 'aac',
+		audioBitrate: 160,
+	},
+	twitch: {
+		label: 'Twitch',
+		container: 'mp4',
+		codec: 'avc',
+		maxHeight: 1080,
+		maxFrameRate: 60,
+		bitrate: 6000,
+		sizeLimit: null,
+		audio: 'aac',
+		audioBitrate: 160,
+	},
+	bluesky: {
+		label: 'Bluesky',
+		container: 'mp4',
+		codec: 'avc',
+		maxHeight: 1080,
+		maxFrameRate: 60,
+		bitrate: 5000,
+		sizeLimit: 100,
+		audio: 'aac',
+		audioBitrate: 128,
+	},
+	'x-premium': {
+		label: 'X Premium',
+		container: 'mp4',
+		codec: 'avc',
+		maxHeight: 1080,
+		maxFrameRate: 60,
+		bitrate: 12000,
+		sizeLimit: null,
+		audio: 'aac',
+		audioBitrate: 192,
+	},
+	square: {
+		label: '1:1',
+		aspect: '1:1',
+		container: 'mp4',
+		codec: 'avc',
+		maxHeight: 1080,
+		maxFrameRate: 30,
+		bitrate: 5000,
+		sizeLimit: null,
+		audio: 'aac',
+		audioBitrate: 128,
+	},
+	uhd: {
+		label: '4K UHD',
+		container: 'mp4',
+		codec: 'hevc',
+		maxHeight: 2160,
+		maxFrameRate: 60,
+		bitrate: 30000,
+		sizeLimit: null,
+		audio: 'aac',
+		audioBitrate: 192,
+	},
 	web: {
 		label: 'Web',
 		container: 'webm',
@@ -473,6 +546,7 @@ export const PRESETS: Record<PresetId, Preset> = {
 
 export const PRESET_ORDER: PresetId[] = [
 	'discord',
+	'discord-nitro',
 	'whatsapp',
 	'email',
 	'tiktok',
@@ -481,7 +555,12 @@ export const PRESET_ORDER: PresetId[] = [
 	'instagram-feed',
 	'instagram',
 	'x',
+	'x-premium',
+	'bluesky',
 	'youtube',
+	'twitch',
+	'square',
+	'uhd',
 	'web',
 ];
 

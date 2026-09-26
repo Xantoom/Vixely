@@ -8,7 +8,7 @@ import { type PageContent, TextLink } from './SitePage';
 
 const ISSUES = 'https://github.com/Xantoom/Vixely/issues';
 const SOURCE = 'https://github.com/Xantoom/Vixely';
-const UPDATED = { en: 'Last updated September 25, 2026', fr: 'Mis à jour le 25 septembre 2026' };
+const UPDATED = { en: 'Last updated September 26, 2026', fr: 'Mis à jour le 26 septembre 2026' };
 
 type Locale = 'en' | 'fr';
 
@@ -19,6 +19,9 @@ function locale(): Locale {
 const CREDITS = [
 	['Mediabunny', 'https://mediabunny.dev'],
 	['FFmpeg (AC-3, E-AC-3, DTS and AAC coders)', 'https://ffmpeg.org'],
+	['RNNoise / nnnoiseless', 'https://github.com/jneem/nnnoiseless'],
+	['Whisper / transformers.js / ONNX Runtime', 'https://huggingface.co/docs/transformers.js'],
+	['Tesseract / tesseract.js-core', 'https://github.com/naptha/tesseract.js-core'],
 	['LAME', 'https://lame.sourceforge.io'],
 	['libFLAC', 'https://xiph.org/flac/'],
 	['gifski', 'https://gif.ski'],
@@ -182,6 +185,19 @@ function privacy(lang: Locale): PageContent {
 						</p>
 					),
 				},
+				{
+					title: 'Downloaded when needed',
+					body: (
+						<p>
+							Two tools need data too large to come with the site, downloaded the first time they are used
+							and then kept by your browser: speech recognition models (Whisper, from{' '}
+							<TextLink href="https://huggingface.co">Hugging Face</TextLink>) and text recognition
+							languages (Tesseract, from <TextLink href="https://www.jsdelivr.com">jsDelivr</TextLink>).
+							These servers see a download, like any web request; your files and what is said or written
+							in them stay on your device.
+						</p>
+					),
+				},
 				...(analyticsEnabled ? [counting.en] : []),
 				{
 					title: 'Hosting',
@@ -227,6 +243,20 @@ function privacy(lang: Locale): PageContent {
 						<p>
 							Vixely retient votre thème et votre langue dans le stockage local de votre navigateur. Il ne
 							dépose aucun cookie. Vous pouvez effacer ces réglages à tout moment depuis votre navigateur.
+						</p>
+					),
+				},
+				{
+					title: 'Téléchargé au besoin',
+					body: (
+						<p>
+							Deux outils ont besoin de données trop lourdes pour venir avec le site, téléchargées à leur
+							première utilisation puis gardées par votre navigateur : les modèles de reconnaissance de la
+							parole (Whisper, depuis <TextLink href="https://huggingface.co">Hugging Face</TextLink>) et
+							les langues de reconnaissance de texte (Tesseract, depuis{' '}
+							<TextLink href="https://www.jsdelivr.com">jsDelivr</TextLink>). Ces serveurs voient un
+							téléchargement, comme toute requête web ; vos fichiers et ce qui s'y dit ou s'y lit restent
+							sur votre appareil.
 						</p>
 					),
 				},

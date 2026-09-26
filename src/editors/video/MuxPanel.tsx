@@ -34,7 +34,7 @@ const KIND_ICONS: Record<MuxKind, typeof Film> = { video: Film, audio: AudioLine
 const KIND_MEDIA: Record<MuxKind, string> = { video: 'video', audio: 'audio', subtitle: 'subtitles' };
 
 /** Languages offered for subtitle tracks, as ISO 639-2 codes; the track's own is added. */
-const LANGUAGES = [
+export const LANGUAGES = [
 	'fre',
 	'eng',
 	'ger',

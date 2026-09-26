@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router';
-import { AudioLines, Camera, Captions, Film, ImagePlus, Trash2 } from 'lucide-react';
+import { AudioLines, Camera, Captions, Film, ImagePlus, Speech, Trash2 } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { Section } from '@/editor/panel-parts';
@@ -42,6 +42,23 @@ export function OpenIn({ kind }: { kind: 'audio' | 'gif' | 'subtitles' }) {
 		>
 			<Icon size={16} aria-hidden="true" />
 			{OPEN_IN[kind]()}
+		</Button>
+	);
+}
+
+/** Opens the subtitle editor on the Transcribe tool, to make subtitles from what is said. */
+function GenerateSubtitles() {
+	const openAs = useSession((state) => state.openAs);
+	const navigate = useNavigate();
+	return (
+		<Button
+			onClick={() => {
+				openAs('subtitles');
+				void navigate({ to: EDITORS.subtitles.path, search: { tool: 'transcribe' } });
+			}}
+		>
+			<Speech size={16} aria-hidden="true" />
+			{m.subs_generate()}
 		</Button>
 	);
 }
@@ -109,6 +126,7 @@ export function VideoSubtitlesPanel({ opened }: { opened: OpenedFile }) {
 			<SubtitleTrackList opened={opened} target={target} burned={burned} />
 			<BurnSection opened={opened} />
 			<OpenIn kind="subtitles" />
+			{opened.info?.audio && <GenerateSubtitles />}
 		</>
 	);
 }

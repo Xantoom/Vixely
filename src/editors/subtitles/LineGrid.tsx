@@ -6,6 +6,7 @@ import { useBoxSize } from '@/ui/use-box-size';
 import { gridLines } from './document';
 import { FAST_READING, readingSpeed } from './EditBox';
 import { cueLabel } from './labels';
+import { useOrigin } from './project';
 import { useSubtitleDoc, useSubtitleEditor } from './store';
 
 const ROW = 28;
@@ -32,6 +33,8 @@ export function LineGrid() {
 	const active = useSubtitleEditor((state) => state.active);
 	const select = useSubtitleEditor((state) => state.select);
 	const lines = useMemo(() => gridLines(doc), [doc]);
+	// A translation shows the original line beside the one typed.
+	const origin = useOrigin();
 	const current = useLineAtPlayhead(lines);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const { width, height } = useBoxSize(scrollRef);
@@ -42,9 +45,11 @@ export function LineGrid() {
 	const ass = doc.format === 'ass' && !narrow;
 	const pictures = doc.format === 'pgs';
 	const speedShown = !pictures && !narrow;
+	const originShown = origin !== null;
+	const text = originShown ? 'minmax(0,1fr) minmax(0,1fr)' : 'minmax(0,1fr)';
 	const columns = narrow
-		? '40px 84px 84px minmax(0,1fr)'
-		: `52px 96px 96px ${speedShown ? '64px ' : ''}${ass ? 'minmax(64px,120px) ' : ''}minmax(0,1fr)`;
+		? `40px 84px 84px ${text}`
+		: `52px 96px 96px ${speedShown ? '64px ' : ''}${ass ? 'minmax(64px,120px) ' : ''}${text}`;
 
 	const activeIndex = lines.findIndex((line) => line.id === active);
 
@@ -109,7 +114,8 @@ export function LineGrid() {
 		m.trim_end(),
 		...(speedShown ? [m.subs_cps_short()] : []),
 		...(ass ? [m.subs_style()] : []),
-		pictures ? m.subs_picture() : m.subs_text(),
+		...(originShown ? [m.subs_original()] : []),
+		pictures ? m.subs_picture() : originShown ? m.subs_translation() : m.subs_text(),
 	];
 
 	return (
@@ -182,6 +188,13 @@ export function LineGrid() {
 							{ass && (
 								<span role="gridcell" className="text-muted flex items-center truncate px-2">
 									{line.fields?.style ?? ''}
+								</span>
+							)}
+							{originShown && (
+								<span role="gridcell" className="text-muted flex min-w-0 items-center px-2">
+									<span className="truncate">
+										{(origin.get(line.id) ?? '').replace(/\n/g, ' \u23CE ')}
+									</span>
 								</span>
 							)}
 							<span role="gridcell" className="flex min-w-0 items-center px-2">

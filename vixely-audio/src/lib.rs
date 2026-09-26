@@ -5,8 +5,48 @@
 //! reports those blocks one by one instead of a single figure, so the page can measure any part of
 //! the file (the audio left after cuts, with its gain and fades) without decoding it again.
 
+mod denoise;
+
 use ebur128::{EbuR128, Mode};
 use wasm_bindgen::prelude::*;
+
+/// Reduces background noise (hiss, hum, fans, street) and keeps voices, as a stream of planar
+/// audio at any rate. The output lines up with the input and is exactly as long.
+#[wasm_bindgen]
+pub struct NoiseReducer {
+	inner: denoise::Denoiser,
+	channels: usize,
+	frames: usize,
+}
+
+#[wasm_bindgen]
+impl NoiseReducer {
+	/// `amount` is the share of denoised sound, 0 to 1.
+	#[wasm_bindgen(constructor)]
+	pub fn new(channels: u32, rate: u32, amount: f32) -> NoiseReducer {
+		NoiseReducer { inner: denoise::Denoiser::new(channels as usize, rate, amount), channels: channels as usize, frames: 0 }
+	}
+
+	/// Adds `frames` frames of planar input and returns the planar output ready so far; its
+	/// frame count is `ready_frames()`.
+	pub fn process(&mut self, planar: &[f32], frames: usize) -> Vec<f32> {
+		let (out, ready) = self.inner.process(planar, frames.min(planar.len() / self.channels.max(1)));
+		self.frames = ready;
+		out
+	}
+
+	/// The rest of the output, once all the input has been added.
+	pub fn finish(&mut self) -> Vec<f32> {
+		let (out, ready) = self.inner.finish();
+		self.frames = ready;
+		out
+	}
+
+	/// Frames in what `process` or `finish` last returned.
+	pub fn ready_frames(&self) -> usize {
+		self.frames
+	}
+}
 
 /// Measures the momentary loudness and the true peak of audio fed in 100 ms steps.
 #[wasm_bindgen]

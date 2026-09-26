@@ -25,6 +25,7 @@ import { totalLength } from '@/document/timemap';
 import { findAudioTrack } from '@/media/audio-tracks';
 import { DECODER_PREROLL } from '@/media/decoder';
 import type { SaveTarget } from '@/media/save-target';
+import { changesSound, type Planar, SoundProcessor } from '@/media/sound';
 import { envelope, keptRanges, type AudioDoc } from './document';
 
 export type AudioFormat = 'mp3' | 'aac' | 'opus' | 'flac' | 'wav';
@@ -259,7 +260,9 @@ export function outputType(
  */
 export function copyBlocker(doc: AudioDoc, source: SourceFormat | null): 'volume' | 'codec' | null {
 	if (!source?.codec || !copyTarget(source.codec)) return 'codec';
-	if (doc.gain !== 0 || doc.normalize !== null || doc.fadeIn > 0 || doc.fadeOut > 0) return 'volume';
+	if (doc.gain !== 0 || doc.normalize !== null || doc.fadeIn > 0 || doc.fadeOut > 0 || changesSound(doc)) {
+		return 'volume';
+	}
 	return null;
 }
 
@@ -502,11 +505,42 @@ async function encodeAudio({
 		const curve = new CurveReader(envelope(doc));
 		// Rounding to 16 bits after a volume change leaves a faint distortion on quiet passages;
 		// a little triangular noise (dither) turns it into an inaudible hiss, as mastering tools do.
-		const dither = depth === 16 && info.bitDepth && (doc.gain !== 0 || doc.fadeIn > 0 || doc.fadeOut > 0);
+		const dither =
+			depth === 16 && info.bitDepth && (doc.gain !== 0 || doc.fadeIn > 0 || doc.fadeOut > 0 || changesSound(doc));
 		const lsb = 1 / 32_768;
 		const sink = new AudioSampleSink(track);
+		let processor: SoundProcessor | null = null;
+		let sampleRate = 0;
+		let planes = 0;
 		let written = 0;
-		let outputTime = 0;
+
+		/** Applies the volume curve to processed audio and hands it to the encoder. */
+		const emit = async ({ data, frames }: Planar) => {
+			if (frames === 0) return;
+			const outputTime = written / sampleRate;
+			for (let i = 0; i < frames; i++) {
+				const gain = curve.at(outputTime + i / sampleRate);
+				for (let c = 0; c < planes; c++) {
+					const at = c * frames + i;
+					let value = (data[at] ?? 0) * gain;
+					if (dither) value += (Math.random() - Math.random()) * lsb;
+					data[at] = value;
+				}
+			}
+			const edited = new AudioSample({
+				data,
+				format: 'f32-planar',
+				numberOfChannels: planes,
+				sampleRate,
+				timestamp: written / sampleRate,
+			});
+			written += frames;
+			// Waits for the encoder and the disk, so decoding never runs far ahead of them.
+			await encoder.add(edited);
+			edited.close();
+			onProgress(Math.min(1, written / sampleRate / total));
+		};
+
 		for (const range of ranges) {
 			const from = Math.max(0, range.start - DECODER_PREROLL);
 			// Ranges are encoded in order, each after the previous one.
@@ -516,7 +550,8 @@ async function encodeAudio({
 					sample.close();
 					throw new DOMException('The export was stopped.', 'AbortError');
 				}
-				const sampleRate = sample.sampleRate;
+				sampleRate = sample.sampleRate;
+				planes = sample.numberOfChannels;
 				const frames = sample.numberOfFrames;
 				const first = Math.max(0, Math.round((range.start - sample.timestamp) * sampleRate));
 				const last = Math.min(frames, Math.round((range.end - sample.timestamp) * sampleRate));
@@ -525,7 +560,6 @@ async function encodeAudio({
 					continue;
 				}
 				const count = last - first;
-				const planes = sample.numberOfChannels;
 				const data = new Float32Array(count * planes);
 				for (let c = 0; c < planes; c++) {
 					sample.copyTo(data.subarray(c * count, (c + 1) * count), {
@@ -536,32 +570,16 @@ async function encodeAudio({
 					});
 				}
 				sample.close();
-
-				for (let i = 0; i < count; i++) {
-					const gain = curve.at(outputTime + i / sampleRate);
-					for (let c = 0; c < planes; c++) {
-						const at = c * count + i;
-						let value = (data[at] ?? 0) * gain;
-						if (dither) value += (Math.random() - Math.random()) * lsb;
-						data[at] = value;
-					}
-				}
-
-				const edited = new AudioSample({
-					data,
-					format: 'f32-planar',
-					numberOfChannels: planes,
-					sampleRate,
-					timestamp: written / sampleRate,
-				});
-				written += count;
-				outputTime = written / sampleRate;
-				// Waits for the encoder and the disk, so decoding never runs far ahead of them.
+				// The noise reduction and the equalizer run on the kept audio, end to end.
 				// oxlint-disable-next-line no-await-in-loop
-				await encoder.add(edited);
-				edited.close();
-				onProgress(Math.min(1, outputTime / total));
+				processor ??= await SoundProcessor.create(doc, planes, sampleRate);
+				// oxlint-disable-next-line no-await-in-loop
+				await emit(processor.push({ data, frames: count }));
 			}
+		}
+		if (processor) {
+			await emit(processor.finish());
+			processor.dispose();
 		}
 		await output.finalize();
 		await save.commit();

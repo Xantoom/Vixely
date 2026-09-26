@@ -14,7 +14,9 @@ import { spawnSync } from 'node:child_process';
  *   same without sound.
  * - ac3.mkv, dts.mkv: 8 s of test pattern with Dolby Digital 5.1 and DTS sound, which browsers
  *   don't decode; vfr.mp4: 6 s whose pictures come at irregular times, as phones record them;
- *   extra.fr.srt: a subtitle file to add to a video.
+ *   extra.fr.srt: a subtitle file to add to a video; noisy.wav: a voice-like buzz in white noise.
+ * - jfk.wav, speech.mp4: eleven seconds of John F. Kennedy's inaugural address (public domain), as
+ *   Whisper's own examples use it, alone and under a test pattern.
  */
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { chromium } from 'playwright-core';
@@ -277,6 +279,21 @@ if (ffmpeg) {
 	};
 	const pattern = ['-f', 'lavfi', '-i', 'testsrc2=s=640x360:r=25:d=8'];
 	const h264 = ['-c:v', 'libx264', '-pix_fmt', 'yuv420p'];
+	// A voice-like buzz, on for 0.6 s every second, in white noise.
+	make('noisy.wav', [
+		'-f',
+		'lavfi',
+		'-i',
+		"aevalsrc='0.25*lt(mod(t\\,1)\\,0.6)*(sin(2*PI*150*t)+0.5*sin(2*PI*300*t)+0.3*sin(2*PI*450*t)+0.2*sin(2*PI*900*t))':s=44100:d=10",
+		'-f',
+		'lavfi',
+		'-i',
+		'anoisesrc=c=white:a=0.05:r=44100:d=10',
+		'-filter_complex',
+		'[0][1]amix=inputs=2:normalize=0,aformat=channel_layouts=stereo',
+		'-c:a',
+		'pcm_s16le',
+	]);
 	make('ac3.mkv', [...pattern, '-f', 'lavfi', '-i', 'sine=f=440:d=8', ...h264, '-c:a', 'ac3', '-ac', '6', '-b:a', '384k']);
 	make('dts.mkv', [...pattern, '-f', 'lavfi', '-i', 'sine=f=330:d=8', ...h264, '-c:a', 'dca', '-strict', '-2', '-ac', '2']);
 	// Pictures 17 to 50 ms apart, off any regular lattice.
@@ -302,4 +319,18 @@ if (!existsSync('samples/extra.fr.srt')) {
 		'1\n00:00:01,000 --> 00:00:03,000\nAdded line one\n\n2\n00:00:04,000 --> 00:00:06,000\nAdded line two\n',
 	);
 	console.log('samples/extra.fr.srt');
+}
+
+if (!existsSync('samples/jfk.wav')) {
+	const response = await fetch('https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/jfk.wav');
+	writeFileSync('samples/jfk.wav', Buffer.from(await response.arrayBuffer()));
+	console.log('samples/jfk.wav');
+}
+if (ffmpeg && !existsSync('samples/speech.mp4')) {
+	spawnSync(
+		ffmpeg,
+		['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=s=640x360:r=25', '-i', 'samples/jfk.wav', '-shortest', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', 'samples/speech.mp4'],
+		{ stdio: 'inherit' },
+	);
+	console.log('samples/speech.mp4');
 }

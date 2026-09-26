@@ -14,7 +14,7 @@ import { cut, setTrim } from './document';
 import { type AudioEngine, useAudioEngine } from './engine';
 import { readSourceFormat, type SourceFormat } from './export';
 import { ExportFooter, ExportPanel } from './ExportPanel';
-import { TrimPanel, VolumePanel } from './panels';
+import { SoundPanel, TrimPanel, VolumePanel } from './panels';
 import { useAudioEditor, useAudioUndoState } from './store';
 
 /** Seconds the arrow keys move the playhead; with Shift, ten times more. */
@@ -149,8 +149,8 @@ export function AudioEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	// Edits not exported yet: closing the tab asks first.
 	useLeaveGuard(canUndo);
 	const [chosenTool, setTool] = useState<ToolId>(initialTool ?? 'info');
-	// Cutting belongs to one file: a batch shares volume, fades and export settings only.
-	const tools: ToolId[] | undefined = batch ? ['info', 'volume'] : undefined;
+	// Cutting belongs to one file: a batch shares volume, fades, sound and export settings only.
+	const tools: ToolId[] | undefined = batch ? ['info', 'volume', 'sound'] : undefined;
 	const tool = batch && chosenTool === 'trim' ? 'info' : chosenTool;
 	const audioTrack = useAudioEditor((state) => state.audioTrack);
 	const engine = useAudioEngine(editable ? opened.file : null, duration, audioTrack);
@@ -181,6 +181,7 @@ export function AudioEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 		if (tool === 'info' || !editable) return <FilePanel opened={opened} />;
 		if (tool === 'trim') return <TrimPanel />;
 		if (tool === 'volume') return <VolumePanel engine={engine} />;
+		if (tool === 'sound') return <SoundPanel />;
 		if (tool === 'export' && sourceFormat)
 			return (
 				<ExportPanel

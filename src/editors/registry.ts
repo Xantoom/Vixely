@@ -13,6 +13,10 @@ export type ToolId =
 	| 'stickers'
 	| 'frames'
 	| 'volume'
+	| 'sound'
+	| 'transcribe'
+	| 'translate'
+	| 'ocr'
 	| 'audio'
 	| 'subtitles'
 	| 'speed'
@@ -62,7 +66,7 @@ export const EDITORS: Record<MediaKind, EditorDefinition> = {
 		path: '/audio',
 		label: () => m.media_audio(),
 		page: () => m.editor_page_audio(),
-		tools: ['info', 'trim', 'volume'],
+		tools: ['info', 'trim', 'volume', 'sound'],
 		timed: true,
 	},
 	subtitles: {
@@ -70,7 +74,7 @@ export const EDITORS: Record<MediaKind, EditorDefinition> = {
 		path: '/subtitles',
 		label: () => m.media_subtitles(),
 		page: () => m.editor_page_subtitles(),
-		tools: ['info', 'timing'],
+		tools: ['info', 'timing', 'transcribe', 'ocr', 'translate'],
 		timed: true,
 	},
 };
@@ -91,6 +95,10 @@ export const TOOL_LABELS: Record<ToolId, () => string> = {
 	stickers: () => m.tool_stickers(),
 	frames: () => m.tool_frames(),
 	volume: () => m.tool_volume(),
+	sound: () => m.tool_sound(),
+	transcribe: () => m.tool_transcribe(),
+	translate: () => m.tool_translate(),
+	ocr: () => m.tool_ocr(),
 	audio: () => m.tool_audio(),
 	subtitles: () => m.tool_subtitles(),
 	speed: () => m.tool_speed(),

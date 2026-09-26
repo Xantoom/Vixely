@@ -33,6 +33,7 @@ import {
 } from './document';
 import { plainText } from './formats/markup';
 import { PicturePreview } from './PicturePreview';
+import { useOrigin } from './project';
 import { useSubtitleDoc, useSubtitleEditor } from './store';
 
 /** Above this many characters per second, most people can't finish reading. */
@@ -137,6 +138,7 @@ export function EditBox() {
 	const settle = useSubtitleEditor((state) => state.settle);
 	const select = useSubtitleEditor((state) => state.select);
 	const textRef = useRef<HTMLTextAreaElement>(null);
+	const origin = useOrigin();
 	const lines = gridLines(doc);
 	const index = cue ? lines.findIndex((line) => line.id === cue.id) : -1;
 	const speed = cue && !cue.picture ? readingSpeed(cue, doc.format) : 0;
@@ -358,6 +360,14 @@ export function EditBox() {
 					<Trash2 size={16} />
 				</IconButton>
 			</div>
+			{cue && origin?.has(cue.id) && (
+				<p
+					aria-label={m.subs_original()}
+					className="bg-surface text-body text-ink-2 max-h-20 overflow-auto rounded-xs px-2.5 py-1.5 whitespace-pre-wrap"
+				>
+					{origin.get(cue.id)}
+				</p>
+			)}
 			{cue?.picture ? (
 				<PicturePreview picture={cue.picture} />
 			) : (

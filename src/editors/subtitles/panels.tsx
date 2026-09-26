@@ -7,10 +7,8 @@ import { Section } from '@/editor/panel-parts';
 import { saveFile } from '@/editors/image/export';
 import { EDITORS } from '@/editors/registry';
 import { formatBytes, formatPreciseTime } from '@/lib/format';
-import { trackName } from '@/lib/language';
 import { usePlayback } from '@/media/playback';
 import { type OpenedFile, useSession } from '@/media/session';
-import type { SubtitleTrackInfo } from '@/media/subtitle-source';
 import { m } from '@/paraglide/messages.js';
 import { Button, IconButton } from '@/ui/Button';
 import { FieldRow, OptionList, Select, TimeField } from '@/ui/fields';
@@ -23,6 +21,7 @@ import { cueLabel } from './labels';
 import { writeSup } from './pgs';
 import { exportName, useProjectTracks, useSubtitleProject } from './project';
 import { useSubtitleDoc, useSubtitleEditor } from './store';
+import { projectTrackName } from './tools';
 import { codecLabel, unsupportedReason, type Unsupported } from './tracks';
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -49,15 +48,11 @@ const UNSUPPORTED: Record<Unsupported, () => string> = {
 	other: () => m.subs_unsupported_other(),
 };
 
-function trackLabel(track: SubtitleTrackInfo): string {
-	return trackName(track.language, track.name);
-}
-
 /**
  * The subtitle tracks of the video, all read already: picking one shows it at once, and edits of
  * the others are kept. A dot marks tracks that were edited.
  */
-function TracksSection() {
+function TracksSection({ fileName }: { fileName: string }) {
 	const tracks = useProjectTracks();
 	const current = useSubtitleProject((state) => state.current);
 	const choose = useSubtitleProject((state) => state.choose);
@@ -85,7 +80,7 @@ function TracksSection() {
 							<span className="size-4 rounded-full shadow-[inset_0_0_0_1.5px_var(--line-2)] group-aria-checked:shadow-[inset_0_0_0_5px_var(--ed)]" />
 							<span className="grid min-w-0">
 								<span className="text-body flex min-w-0 items-center gap-1.5">
-									<span className="truncate">{info ? trackLabel(info) : m.subs_new_track()}</span>
+									<span className="truncate">{projectTrackName(track, fileName)}</span>
 									{track.edited && (
 										<span
 											className="bg-ed size-2 flex-none rounded-full"
@@ -107,7 +102,13 @@ function TracksSection() {
 							</span>
 							<span className="text-small text-muted flex items-center gap-1.5 font-mono">
 								{!usable && info && <Ban size={13} aria-hidden="true" />}
-								{info ? codecLabel(info) : <Plus size={14} aria-hidden="true" />}
+								{info ? (
+									codecLabel(info)
+								) : track.key === 'file' ? (
+									track.original?.format.toUpperCase()
+								) : (
+									<Plus size={14} aria-hidden="true" />
+								)}
 							</span>
 						</button>
 					);
@@ -144,6 +145,7 @@ export function SubtitleInfoPanel({ opened }: { opened: OpenedFile }) {
 	const details = usePlayback((state) => state.details);
 	const encodingId = useId();
 	const count = doc.cues.filter((cue) => !cue.comment).length;
+	const trackCount = useSubtitleProject((state) => state.tracks.length);
 	const fromVideo = source === 'video';
 	return (
 		<>
@@ -172,7 +174,7 @@ export function SubtitleInfoPanel({ opened }: { opened: OpenedFile }) {
 				)}
 				{fonts.length > 0 && <Row label={m.subs_fonts()} value={String(fonts.length)} />}
 			</dl>
-			{fromVideo && <TracksSection />}
+			{(fromVideo || trackCount > 1) && <TracksSection fileName={opened.file.name} />}
 			{source === 'text' && (
 				<Section title={m.subs_charset()}>
 					<label htmlFor={encodingId} className="sr-only">

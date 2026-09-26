@@ -2,6 +2,7 @@ import { type ReactNode, useId } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { KeptPanel } from '@/editor/KeptPanel';
 import { formatDb, signedDb } from '@/lib/format';
+import { EQ_BANDS, EQ_PRESET_IDS, EQ_PRESETS, EQ_RANGE, type EqPresetId, FLAT_EQ, responseAt } from '@/media/sound';
 import { m } from '@/paraglide/messages.js';
 import { Button } from '@/ui/Button';
 import { FieldRow, Select, Slider } from '@/ui/fields';
@@ -171,6 +172,145 @@ export function VolumePanel({ engine }: { engine: AudioEngine }) {
 					}}
 					onEnd={settle}
 				/>
+			</Section>
+		</>
+	);
+}
+
+const EQ_PRESET_LABELS: Record<EqPresetId, () => string> = {
+	flat: () => m.eq_flat(),
+	voice: () => m.eq_voice(),
+	bass: () => m.eq_bass(),
+	'bass-cut': () => m.eq_bass_cut(),
+	treble: () => m.eq_treble(),
+	warm: () => m.eq_warm(),
+	bright: () => m.eq_bright(),
+};
+
+function frequencyLabel(hertz: number): string {
+	return hertz >= 1000 ? `${hertz / 1000} kHz` : `${hertz} Hz`;
+}
+
+/** Width and height of the equalizer's curve, in its own units. */
+const CURVE = { width: 300, height: 96 };
+const LOW = Math.log10(20);
+const HIGH = Math.log10(20_000);
+
+/** The equalizer's effect across the audible range, as the ear hears frequencies (logarithmic). */
+function EqCurve({ eq }: { eq: readonly number[] }) {
+	const y = (db: number) => CURVE.height / 2 - (db / EQ_RANGE.max) * (CURVE.height / 2 - 4);
+	const x = (hertz: number) => ((Math.log10(hertz) - LOW) / (HIGH - LOW)) * CURVE.width;
+	const points: string[] = [];
+	for (let i = 0; i <= 120; i++) {
+		const hertz = 10 ** (LOW + ((HIGH - LOW) * i) / 120);
+		const db = Math.max(-EQ_RANGE.max * 1.2, Math.min(EQ_RANGE.max * 1.2, responseAt(eq, hertz, 48_000)));
+		points.push(`${x(hertz).toFixed(1)},${y(db).toFixed(1)}`);
+	}
+	return (
+		<svg
+			viewBox={`0 0 ${CURVE.width} ${CURVE.height}`}
+			className="bg-surface h-24 w-full rounded-sm"
+			preserveAspectRatio="none"
+			aria-hidden="true"
+		>
+			{[100, 1000, 10_000].map((hertz) => (
+				<line
+					key={hertz}
+					x1={x(hertz)}
+					x2={x(hertz)}
+					y1={0}
+					y2={CURVE.height}
+					className="stroke-line"
+					strokeWidth={1}
+					vectorEffect="non-scaling-stroke"
+				/>
+			))}
+			<line
+				x1={0}
+				x2={CURVE.width}
+				y1={y(0)}
+				y2={y(0)}
+				className="stroke-line-2"
+				strokeWidth={1}
+				vectorEffect="non-scaling-stroke"
+			/>
+			<polyline
+				points={points.join(' ')}
+				fill="none"
+				className="stroke-ed"
+				strokeWidth={2}
+				strokeLinejoin="round"
+				vectorEffect="non-scaling-stroke"
+			/>
+		</svg>
+	);
+}
+
+/** Noise reduction and the equalizer: what changes the sound itself rather than its volume. */
+export function SoundPanel() {
+	const doc = useAudioDoc();
+	const apply = useAudioEditor((state) => state.apply);
+	const preview = useAudioEditor((state) => state.preview);
+	const settle = useAudioEditor((state) => state.settle);
+	const chosen = EQ_PRESET_IDS.find((id) => EQ_PRESETS[id].every((gain, index) => gain === doc.eq[index]));
+	return (
+		<>
+			<PanelTitle>{m.tool_sound()}</PanelTitle>
+
+			<Section title={m.denoise_title()}>
+				<Slider
+					label={m.denoise_amount()}
+					value={Math.round(doc.denoise * 100)}
+					min={0}
+					max={100}
+					defaultValue={0}
+					format={(value) => (value === 0 ? m.denoise_off() : `${value} %`)}
+					onChange={(value) => {
+						preview((current) => ({ ...current, denoise: value / 100 }));
+					}}
+					onEnd={settle}
+				/>
+			</Section>
+
+			<Section title={m.eq_title()}>
+				<div role="radiogroup" aria-label={m.eq_presets()} className="flex flex-wrap gap-1.5">
+					{EQ_PRESET_IDS.map((id) => (
+						<button
+							key={id}
+							type="button"
+							role="radio"
+							aria-checked={chosen === id}
+							onClick={() => {
+								apply((current) => ({ ...current, eq: EQ_PRESETS[id] }));
+							}}
+							className="bg-surface hover:bg-surface-2 aria-checked:bg-ed-soft aria-checked:text-ed-text aria-checked:shadow-[inset_0_0_0_1.5px_var(--ed)] text-ui rounded-full px-3 py-1.5 font-medium transition-colors"
+						>
+							{EQ_PRESET_LABELS[id]()}
+						</button>
+					))}
+				</div>
+				<EqCurve eq={doc.eq} />
+				{EQ_BANDS.map((band, index) => (
+					<Slider
+						key={band.frequency}
+						label={frequencyLabel(band.frequency)}
+						value={doc.eq[index] ?? 0}
+						min={EQ_RANGE.min}
+						max={EQ_RANGE.max}
+						step={0.5}
+						defaultValue={0}
+						format={formatDb}
+						onChange={(gain) => {
+							preview((current) => ({
+								...current,
+								eq: (current.eq.length === EQ_BANDS.length ? current.eq : FLAT_EQ).map((value, at) =>
+									at === index ? gain : value,
+								),
+							}));
+						}}
+						onEnd={settle}
+					/>
+				))}
 			</Section>
 		</>
 	);

@@ -68,6 +68,18 @@ export interface ProjectTrack {
 	original: SubtitleDoc | null;
 	/** Its edits, kept while another track is shown. */
 	history: History<SubtitleDoc> | null;
+	/** A translation: the track it translates, and the original text of each of its lines by id. */
+	origin?: { key: TrackKey; texts: ReadonlyMap<number, string> } | null;
+}
+
+/** A track made here: from a file, a translation, text recognition or a transcription. */
+export interface NewTrack {
+	doc: SubtitleDoc;
+	/** ISO 639-2, `und` when unknown. */
+	language: string;
+	name?: string;
+	forced?: boolean;
+	origin?: ProjectTrack['origin'];
 }
 
 type Status = 'idle' | 'reading' | 'ready' | 'unreadable';
@@ -105,6 +117,26 @@ interface ProjectState {
 	addFiles: (files: readonly File[]) => Promise<string | null>;
 	/** Takes an added track out again. */
 	removeAdded: (key: TrackKey) => void;
+	/** Adds a track made here and shows it. */
+	addTrack: (track: NewTrack) => TrackKey;
+}
+
+function codecOf(doc: SubtitleDoc): string {
+	if (doc.format === 'pgs') return 'S_HDMV/PGS';
+	if (doc.format === 'ass') return 'S_TEXT/ASS';
+	return doc.format === 'vtt' ? 'S_TEXT/WEBVTT' : 'S_TEXT/UTF8';
+}
+
+/** A project track for subtitles made or added here. */
+function madeTrack({ doc, language, name = '', forced = false, origin = null }: NewTrack): ProjectTrack {
+	addedCount += 1;
+	return {
+		key: `added-${addedCount}`,
+		info: { id: -addedCount, codec: codecOf(doc), language, name, default: false, forced, readable: true },
+		original: doc,
+		history: null,
+		origin,
+	};
 }
 
 function emptyDoc(): SubtitleDoc {
@@ -121,6 +153,13 @@ function showKey(key: TrackKey): string {
 }
 
 export const useSubtitleProject = create<ProjectState>((set, get) => {
+	/** Adds tracks before the new subtitles, which stay last. */
+	const insert = (added: ProjectTrack[]) => {
+		const tracks = get().tracks;
+		const at = tracks.findIndex((track) => track.key === 'new');
+		set({ tracks: at === -1 ? [...tracks, ...added] : tracks.toSpliced(at, 0, ...added) });
+	};
+
 	const ready = (tracks: ProjectTrack[], first: TrackKey, patch: Partial<ProjectState> = {}) => {
 		set({ tracks, current: null, status: 'ready', progress: 1, ...patch });
 		get().choose(first);
@@ -238,37 +277,20 @@ export const useSubtitleProject = create<ProjectState>((set, get) => {
 			const owner = get().file;
 			const read = await Promise.all(files.map(async (file) => ({ file, doc: await readSubtitleFile(file) })));
 			if (get().file !== owner || get().source !== 'video') return files[0]?.name ?? null;
-			const added: ProjectTrack[] = read.flatMap(({ file, doc }) => {
-				if (!doc) return [];
-				addedCount += 1;
-				const forced = /\.forced\./i.test(file.name);
-				return [
-					{
-						key: `added-${addedCount}` as const,
-						info: {
-							id: -addedCount,
-							codec:
-								doc.format === 'pgs'
-									? 'S_HDMV/PGS'
-									: doc.format === 'ass'
-										? 'S_TEXT/ASS'
-										: 'S_TEXT/UTF8',
-							language: fileLanguage(file.name),
-							name: '',
-							default: false,
-							forced,
-							readable: true,
-						},
-						original: doc,
-						history: null,
-					},
-				];
-			});
-			const tracks = get().tracks;
-			// Before the new subtitles, which stay last.
-			const at = tracks.findIndex((track) => track.key === 'new');
-			set({ tracks: at === -1 ? [...tracks, ...added] : tracks.toSpliced(at, 0, ...added) });
+			const added = read.flatMap(({ file, doc }) =>
+				doc
+					? [madeTrack({ doc, language: fileLanguage(file.name), forced: /\.forced\./i.test(file.name) })]
+					: [],
+			);
+			insert(added);
 			return read.find(({ doc }) => doc === null)?.file.name ?? null;
+		},
+
+		addTrack(track) {
+			const made = madeTrack(track);
+			insert([made]);
+			get().choose(made.key);
+			return made.key;
 		},
 
 		removeAdded(key) {
@@ -336,9 +358,11 @@ export function useProjectReady(): boolean {
 export function exportName(extension: string): string {
 	const { file, source, tracks, current } = useSubtitleProject.getState();
 	if (!file) return `subtitles.${extension}`;
-	if (source !== 'video') return outputName(file.name, extension, ['ssa']);
-	const base = file.name.replace(/\.[^.]+$/, '');
 	const info = tracks.find((track) => track.key === current)?.info;
+	if (source !== 'video' && !isAdded(current)) return outputName(file.name, extension, ['ssa']);
+	// A subtitle file's own language (film.fr.srt) gives way to the track's.
+	const name = file.name.replace(/\.[^.]+$/, '');
+	const base = source === 'video' ? name : name.replace(/(\.forced)?(\.[a-z]{2,3})?(\.forced)?$/i, '');
 	const language = info && info.language !== 'und' ? `.${info.language}` : '';
 	return `${base}${language}${info?.forced ? '.forced' : ''}.${extension}`;
 }
@@ -346,4 +370,18 @@ export function exportName(extension: string): string {
 /** Whether the track comes from a subtitle file added to the video. */
 export function isAdded(key: TrackKey | null): key is `added-${number}` {
 	return typeof key === 'string' && key.startsWith('added-');
+}
+
+/** A track's document as it is now, for work started from it (a translation, a burn). */
+export function currentTrackDoc(key: TrackKey): SubtitleDoc | null {
+	const { tracks, current } = useSubtitleProject.getState();
+	const track = tracks.find((candidate) => candidate.key === key);
+	return track ? presentDoc(track, current, useSubtitleEditor.getState().history.present) : null;
+}
+
+/** The original text of each line of the track shown, when it is a translation. */
+export function useOrigin(): ReadonlyMap<number, string> | null {
+	return useSubtitleProject(
+		(state) => state.tracks.find((track) => track.key === state.current)?.origin?.texts ?? null,
+	);
 }
