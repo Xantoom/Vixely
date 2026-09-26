@@ -1,7 +1,7 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
 	"app_home": "Accueil Vixely",
-	"home_title": "Modifiez tous vos médias, directement dans le navigateur.",
+	"home_title": "Retouchez tout, sans rien envoyer.",
 	"home_lede": "Rien n'est envoyé en ligne. Vos fichiers restent sur votre appareil.",
 	"drop_title": "Déposez des fichiers ou un dossier",
 	"drop_or": "ou",

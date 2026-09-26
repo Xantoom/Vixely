@@ -18,7 +18,7 @@ const aside = page.locator('aside');
 
 // Home: the tasks link to their pages.
 await page.goto('http://localhost:5173/');
-await page.getByRole('link', { name: 'Compress' }).first().click();
+await page.getByRole('link', { name: /^Compress a video Video/ }).click();
 await page.waitForURL('**/tools/compress-video');
 await page.getByRole('heading', { name: 'Compress a video' }).waitFor();
 console.log('home → compress:', await page.title());
@@ -47,13 +47,12 @@ for (const path of ['/about', '/privacy', '/terms', '/legal']) {
 await page.screenshot({ path: 'shots/page-legal.png', fullPage: true });
 
 // Language.
-await page.getByRole('button', { name: 'Français' }).click();
-await page.waitForLoadState('load');
+// The page loads again in the other language.
+await Promise.all([page.waitForEvent('load'), page.getByRole('button', { name: 'Français' }).click()]);
 await page.getByRole('heading', { level: 1 }).waitFor();
 console.log('fr:', await page.title());
 await page.screenshot({ path: 'shots/page-legal-fr.png', fullPage: true });
-await page.getByRole('button', { name: 'English' }).click();
-await page.waitForLoadState('load');
+await Promise.all([page.waitForEvent('load'), page.getByRole('button', { name: 'English' }).click()]);
 
 // An unknown task is a 404.
 await page.goto('http://localhost:5173/tools/nothing-here');

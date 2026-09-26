@@ -1,8 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
-import { AppBar } from '@/app/AppBar';
+import { SiteFooter } from '@/app/SiteFooter';
+import { SiteHeader } from '@/app/SiteHeader';
 import { codecName } from '@/lib/format';
-import { type Capabilities, type CodecSupport, detectCapabilities } from '@/media/capabilities';
+import type { Capabilities, CodecSupport } from '@/media/capabilities';
 import { m } from '@/paraglide/messages.js';
 
 function State({ ok }: { ok: boolean }) {
@@ -24,7 +25,7 @@ function CodecTable({ title, codecs }: { title: string; codecs: CodecSupport[] }
 				<tbody>
 					{codecs.map((codec) => (
 						<tr key={codec.codec} className="border-line border-b">
-							<td className="py-2.5 font-mono text-[12.5px]">{codecName(codec.codec)}</td>
+							<td className="py-2.5 text-caption font-mono">{codecName(codec.codec)}</td>
 							<td className="py-2.5">
 								<State ok={codec.decode} />
 							</td>
@@ -42,7 +43,27 @@ function CodecTable({ title, codecs }: { title: string; codecs: CodecSupport[] }
 function SystemScreen() {
 	const [caps, setCaps] = useState<Capabilities | null>(null);
 	useEffect(() => {
-		void detectCapabilities().then(setCaps);
+		// Detection needs the media library: it loads once the page is shown and the browser idle.
+		let live = true;
+		const detect = () => {
+			void import('@/media/capabilities')
+				.then(async ({ detectCapabilities }) => detectCapabilities())
+				.then((found) => {
+					if (live) setCaps(found);
+				});
+		};
+		if ('requestIdleCallback' in window) {
+			const id = requestIdleCallback(detect, { timeout: 1500 });
+			return () => {
+				live = false;
+				cancelIdleCallback(id);
+			};
+		}
+		const id = setTimeout(detect, 300);
+		return () => {
+			live = false;
+			clearTimeout(id);
+		};
 	}, []);
 
 	const features: [string, boolean | string][] = caps
@@ -61,10 +82,10 @@ function SystemScreen() {
 
 	return (
 		<div className="flex min-h-full flex-col">
-			<AppBar />
-			<main className="mx-auto grid w-full max-w-[1100px] content-start gap-12 px-5 py-10 sm:px-10 sm:py-16">
+			<SiteHeader />
+			<main className="mx-auto grid min-h-svh w-full max-w-[76rem] flex-1 content-start gap-12 px-[clamp(1rem,4vw,2.5rem)] pt-[clamp(3rem,7vw,5rem)]">
 				<div className="grid gap-3.5">
-					<h1 className="text-display max-w-[18ch] font-bold tracking-[-0.045em] text-balance">
+					<h1 className="max-w-[18ch] text-[clamp(2.25rem,5vw,3.5rem)] leading-[1.02] font-bold tracking-[-0.045em] text-balance">
 						{m.system_title()}
 					</h1>
 					<p className="text-lead text-muted max-w-[52ch]">{m.system_lede()}</p>
@@ -83,7 +104,7 @@ function SystemScreen() {
 										<dt className="text-ink-2">{label}</dt>
 										<dd>
 											{typeof value === 'string' ? (
-												<span className="font-mono text-[12.5px]">{value}</span>
+												<span className="text-caption font-mono">{value}</span>
 											) : (
 												<State ok={value} />
 											)}
@@ -99,6 +120,7 @@ function SystemScreen() {
 					<p className="text-body text-muted">{m.system_checking()}</p>
 				)}
 			</main>
+			<SiteFooter />
 		</div>
 	);
 }

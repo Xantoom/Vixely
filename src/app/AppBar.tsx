@@ -29,7 +29,7 @@ interface AppBarProps {
 }
 
 /** Switches between English and French; the page reloads in the other language. */
-function LanguageButton() {
+export function LanguageButton() {
 	const next = getLocale() === 'fr' ? 'en' : 'fr';
 	return (
 		<button

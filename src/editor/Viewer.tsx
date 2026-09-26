@@ -1,7 +1,8 @@
-import { AudioLines } from 'lucide-react';
+import { AudioLines, Plus } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { DropZone } from '@/app/DropZone';
 import { useTask } from '@/app/task-context';
+import { faqTitle, taskFaq } from '@/app/task-faq';
 import type { MediaKind } from '@/editors/registry';
 import { codecName, formatTimecode } from '@/lib/format';
 import type { OpenedFile } from '@/media/session';
@@ -38,6 +39,25 @@ export function EmptyViewer({ kind }: { kind: MediaKind }) {
 				</div>
 			)}
 			<DropZone compact prefer={kind} />
+			{task && (
+				<section aria-labelledby="task-faq" className="mt-4 grid gap-1">
+					<h2 id="task-faq" className="text-title font-bold tracking-[-0.02em]">
+						{faqTitle()}
+					</h2>
+					{taskFaq(task.slug).map(([question, answer]) => (
+						<details key={question} className="group border-line border-b">
+							<summary className="text-body flex cursor-pointer list-none items-center justify-between gap-4 py-3.5 font-semibold [&::-webkit-details-marker]:hidden">
+								{question}
+								<Plus
+									className="text-muted size-[1.1rem] flex-none transition-transform duration-200 group-open:rotate-45"
+									aria-hidden="true"
+								/>
+							</summary>
+							<p className="text-body text-muted mb-4">{answer}</p>
+						</details>
+					))}
+				</section>
+			)}
 		</div>
 	);
 }

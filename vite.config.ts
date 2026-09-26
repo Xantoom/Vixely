@@ -41,6 +41,7 @@ export default defineConfig({
 	},
 	server: { headers: isolationHeaders },
 	preview: { headers: isolationHeaders },
-	build: { target: 'es2023' },
+	// The manifest tells scripts/prerender.ts which files each page needs, to announce them early.
+	build: { target: 'es2023', manifest: true },
 	test: { environment: 'node', include: ['src/**/*.test.ts'] },
 });

@@ -1,7 +1,7 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
 	"app_home": "Vixely home",
-	"home_title": "Edit any media, right in your browser.",
+	"home_title": "Edit anything, upload nothing.",
 	"home_lede": "Nothing is uploaded. Every file stays on your device.",
 	"drop_title": "Drop files or a folder",
 	"drop_or": "or",

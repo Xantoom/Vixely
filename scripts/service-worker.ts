@@ -17,7 +17,7 @@ function walk(directory: string): string[] {
 
 const files = walk(DIST)
 	.map((path) => `/${relative(DIST, path).replaceAll('\\', '/')}`)
-	.filter((path) => !['/sw.js', '/robots.txt', '/sitemap.xml', '/og-image.png'].includes(path))
+	.filter((path) => !['/sw.js', '/robots.txt', '/sitemap.xml', '/og-image.png'].includes(path) && !path.startsWith('/.vite/'))
 	.toSorted();
 
 // Speech and text recognition: tens of megabytes most visitors never use.
