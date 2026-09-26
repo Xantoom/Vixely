@@ -1,4 +1,5 @@
 import { ALL_FORMATS, BlobSource, CanvasSink, Input } from 'mediabunny';
+import { shownAt } from '@/editor/overlays/model';
 import { formatClock } from '@/lib/format';
 import type { ImageDoc } from '../image/document';
 import { useImageEditor } from '../image/store';
@@ -36,9 +37,15 @@ export async function capturePicture(file: File, time: number): Promise<File> {
 	}
 }
 
-/** Starts the image editor on a captured picture with the video's crop, turns and colours. */
-export function carryEdits(picture: File, doc: ImageDoc) {
+/**
+ * Starts the image editor on a captured picture with the video's crop, turns and colours, and the
+ * text and stickers shown at `time`.
+ */
+export function carryEdits(picture: File, doc: ImageDoc, time: number) {
 	const editor = useImageEditor.getState();
+	const overlays = doc.overlays
+		.filter((overlay) => shownAt(overlay, time))
+		.map((overlay) => ({ ...overlay, span: null }));
 	editor.load(picture);
-	editor.apply(() => doc);
+	editor.apply(() => ({ ...doc, overlays }));
 }

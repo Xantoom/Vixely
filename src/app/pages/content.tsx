@@ -18,6 +18,9 @@ function locale(): Locale {
 
 const CREDITS = [
 	['Mediabunny', 'https://mediabunny.dev'],
+	['FFmpeg (AC-3, E-AC-3, DTS and AAC coders)', 'https://ffmpeg.org'],
+	['LAME', 'https://lame.sourceforge.io'],
+	['libFLAC', 'https://xiph.org/flac/'],
 	['gifski', 'https://gif.ski'],
 	['libimagequant', 'https://pngquant.org/lib/'],
 	['zenjpeg (jpegli)', 'https://github.com/imazen/zenjpeg'],

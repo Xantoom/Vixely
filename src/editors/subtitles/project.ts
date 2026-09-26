@@ -10,8 +10,55 @@ import { decodeText, detectEncoding, type EncodingId } from './formats/encoding'
 import { useSubtitleEditor } from './store';
 import { preferredTrack, supDoc, trackDoc, trackKind } from './tracks';
 
-/** A track of the video by its number, the subtitles of a subtitle file, or new subtitles. */
-export type TrackKey = number | 'file' | 'new';
+/**
+ * A track of the video by its number, the subtitles of a subtitle file, new subtitles, or a
+ * subtitle file added to the video as a track.
+ */
+export type TrackKey = number | 'file' | 'new' | `added-${number}`;
+
+/** Two-letter language codes found in subtitle file names (film.fr.srt), as Matroska writes them. */
+const FILE_LANGUAGES: Record<string, string> = {
+	fr: 'fre',
+	en: 'eng',
+	de: 'ger',
+	es: 'spa',
+	it: 'ita',
+	pt: 'por',
+	nl: 'dut',
+	ja: 'jpn',
+	zh: 'chi',
+	ko: 'kor',
+	ru: 'rus',
+	ar: 'ara',
+	pl: 'pol',
+	sv: 'swe',
+};
+
+/** The language a subtitle file's name gives, as in film.fr.srt or film.fre.forced.srt. */
+export function fileLanguage(name: string): string {
+	const parts = name.toLowerCase().split('.').slice(1, -1);
+	for (const part of parts.toReversed()) {
+		const code = FILE_LANGUAGES[part] ?? (Object.values(FILE_LANGUAGES).includes(part) ? part : null);
+		if (code) return code;
+	}
+	return 'und';
+}
+
+let addedCount = 0;
+
+/** Reads a subtitle file: text formats and Blu-ray pictures. Null when it can't be read. */
+async function readSubtitleFile(file: File): Promise<SubtitleDoc | null> {
+	try {
+		const bytes = new Uint8Array(await file.arrayBuffer());
+		if (/\.sup$/i.test(file.name)) {
+			const doc = await supDoc(bytes);
+			return doc.cues.length > 0 ? doc : null;
+		}
+		return parseSubtitles(decodeText(bytes, detectEncoding(bytes)));
+	} catch {
+		return null;
+	}
+}
 
 export interface ProjectTrack {
 	key: TrackKey;
@@ -51,6 +98,13 @@ interface ProjectState {
 	/** Shows another track; the edits of the one left are kept. */
 	choose: (key: TrackKey) => void;
 	setEncoding: (encoding: EncodingId) => void;
+	/**
+	 * Adds subtitle files to the open video as new tracks. Resolves with the name of a file that
+	 * couldn't be read, or null.
+	 */
+	addFiles: (files: readonly File[]) => Promise<string | null>;
+	/** Takes an added track out again. */
+	removeAdded: (key: TrackKey) => void;
 }
 
 function emptyDoc(): SubtitleDoc {
@@ -180,6 +234,57 @@ export const useSubtitleProject = create<ProjectState>((set, get) => {
 			editor.show(showKey(key), target.history ?? createHistory(target.original), editor.encoding);
 		},
 
+		async addFiles(files) {
+			const owner = get().file;
+			const read = await Promise.all(files.map(async (file) => ({ file, doc: await readSubtitleFile(file) })));
+			if (get().file !== owner || get().source !== 'video') return files[0]?.name ?? null;
+			const added: ProjectTrack[] = read.flatMap(({ file, doc }) => {
+				if (!doc) return [];
+				addedCount += 1;
+				const forced = /\.forced\./i.test(file.name);
+				return [
+					{
+						key: `added-${addedCount}` as const,
+						info: {
+							id: -addedCount,
+							codec:
+								doc.format === 'pgs'
+									? 'S_HDMV/PGS'
+									: doc.format === 'ass'
+										? 'S_TEXT/ASS'
+										: 'S_TEXT/UTF8',
+							language: fileLanguage(file.name),
+							name: '',
+							default: false,
+							forced,
+							readable: true,
+						},
+						original: doc,
+						history: null,
+					},
+				];
+			});
+			const tracks = get().tracks;
+			// Before the new subtitles, which stay last.
+			const at = tracks.findIndex((track) => track.key === 'new');
+			set({ tracks: at === -1 ? [...tracks, ...added] : tracks.toSpliced(at, 0, ...added) });
+			return read.find(({ doc }) => doc === null)?.file.name ?? null;
+		},
+
+		removeAdded(key) {
+			const { tracks, current } = get();
+			if (typeof key !== 'string' || !key.startsWith('added-')) return;
+			const rest = tracks.filter((track) => track.key !== key);
+			set({ tracks: rest });
+			if (current === key) {
+				set({ current: null });
+				const next =
+					rest.find((track) => track.original && track.key !== 'new') ??
+					rest.find((track) => track.key === 'new');
+				if (next) get().choose(next.key);
+			}
+		},
+
 		setEncoding(encoding) {
 			const bytes = get().bytes;
 			if (!bytes) return;
@@ -210,7 +315,8 @@ export function useProjectTracks(): TrackState[] {
 	const shown = useSubtitleEditor((state) => state.history.present);
 	return tracks.map((track) => {
 		const doc = presentDoc(track, current, shown);
-		const edited = track.key === 'new' ? (doc?.cues.length ?? 0) > 0 : doc !== track.original;
+		// A file added to the video is always written into it.
+		const edited = track.key === 'new' ? (doc?.cues.length ?? 0) > 0 : isAdded(track.key) || doc !== track.original;
 		return { ...track, doc, edited };
 	});
 }
@@ -235,4 +341,9 @@ export function exportName(extension: string): string {
 	const info = tracks.find((track) => track.key === current)?.info;
 	const language = info && info.language !== 'und' ? `.${info.language}` : '';
 	return `${base}${language}${info?.forced ? '.forced' : ''}.${extension}`;
+}
+
+/** Whether the track comes from a subtitle file added to the video. */
+export function isAdded(key: TrackKey | null): key is `added-${number}` {
+	return typeof key === 'string' && key.startsWith('added-');
 }

@@ -5,6 +5,7 @@
  */
 import {
 	ALL_FORMATS,
+	AttachedFile,
 	type AudioCodec,
 	BlobSource,
 	Conversion,
@@ -14,6 +15,7 @@ import {
 	Input,
 	type InputAudioTrack,
 	type InputVideoTrack,
+	type MetadataTags,
 	MkvOutputFormat,
 	MovOutputFormat,
 	Mp4OutputFormat,
@@ -27,12 +29,13 @@ import {
 } from 'mediabunny';
 import { isShortened, keptRanges } from '@/document/kept';
 import { isKept, toOutput } from '@/document/timemap';
+import { drawOverlays, loadOverlayAssets } from '@/editor/overlays/draw';
 import { ensureEncoder } from '../audio/export';
 import { effectiveCrop, type ImageDoc, orientedSize, type Size } from '../image/document';
 import { ImageRenderer } from '../image/renderer';
 import { gainOf, placeAudio, placeRanges } from './audio-pieces';
 import { type BurnJob, type Box, createBurner, type SubtitleBurner } from './burn';
-import { isPictureEdited, type VideoDoc } from './document';
+import { editTurn, pictureChange, type Turn, type VideoDoc, type VideoMeta } from './document';
 
 export type VideoContainer = 'mp4' | 'mov' | 'mkv' | 'webm';
 export type VideoCodecId = 'avc' | 'hevc' | 'vp9' | 'av1';
@@ -48,8 +51,12 @@ export interface VideoExportSettings {
 	height: number | null;
 	/** Pictures per second; null keeps the source's. */
 	frameRate: number | null;
+	/** Kept to a bitrate, or to a quality whatever the bitrate it takes (as FFmpeg's CRF). */
+	rateControl: 'bitrate' | 'quality';
 	/** Video bitrate, in kb/s. */
 	bitrate: number;
+	/** Quality level from 0 (worst) to 1 (best), when kept to a quality. */
+	quality: number;
 	audio: AudioChoice;
 	/** Audio bitrate per track, in kb/s, when encoded again. */
 	audioBitrate: number;
@@ -120,6 +127,10 @@ export interface VideoSource {
 	audioCodec: AudioCodec | null;
 	/** Bitrate of the main audio track, in kb/s. */
 	audioBitrate: number | null;
+	/** How the file says to show the pictures. */
+	turn: Turn;
+	/** Title, artist, date and cover as the file has them. */
+	meta: VideoMeta;
 }
 
 function containerOf(format: string): VideoContainer {
@@ -130,29 +141,103 @@ function containerOf(format: string): VideoContainer {
 export async function readVideoSource(file: File, format: string): Promise<VideoSource | null> {
 	const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
 	try {
-		const [video, audio] = await Promise.all([input.getPrimaryVideoTrack(), input.getPrimaryAudioTrack()]);
+		const [video, audio, tags] = await Promise.all([
+			input.getPrimaryVideoTrack(),
+			input.getPrimaryAudioTrack(),
+			input.getMetadataTags().catch((): MetadataTags => ({})),
+		]);
 		if (!video) return null;
 		// A few hundred packets from the start: enough for a bitrate, quick even on a film.
-		const [codec, videoStats, audioCodec, audioStats] = await Promise.all([
+		const [codec, videoStats, rate, audioCodec, audioStats, rotation, flip] = await Promise.all([
 			video.getCodec(),
 			video.computePacketStats(300).catch(() => null),
+			video.computeFrameRateMetrics({ targetPacketCount: 300 }).catch(() => null),
 			audio ? audio.getCodec() : Promise.resolve(null),
 			audio ? audio.computePacketStats(300).catch(() => null) : Promise.resolve(null),
+			video.getRotation(),
+			video.getFlip(),
 		]);
 		const kbps = (bits: number | undefined) => (bits && bits > 0 ? Math.round(bits / 1000) : null);
 		return {
 			container: containerOf(format),
 			codec,
-			frameRate: videoStats?.averagePacketRate ? Math.round(videoStats.averagePacketRate * 1000) / 1000 : null,
+			frameRate: rate?.bestGuessFrameRate ? Math.round(rate.bestGuessFrameRate * 1000) / 1000 : null,
 			bitrate: kbps(videoStats?.averageBitrate),
 			audioCodec,
 			audioBitrate: kbps(audioStats?.averageBitrate),
+			turn: { rotation, flip },
+			meta: readMeta(tags),
 		};
 	} catch {
 		return null;
 	} finally {
 		input.dispose();
 	}
+}
+
+/** The cover of a file: its front cover, else its first picture. */
+function coverOf(tags: MetadataTags) {
+	const images = tags.images ?? [];
+	const image = images.find((candidate) => candidate.kind === 'coverFront') ?? images[0];
+	return image ? { data: image.data, mimeType: image.mimeType } : null;
+}
+
+/** What the file says about itself, as the metadata fields show it. */
+export function readMeta(tags: MetadataTags): VideoMeta {
+	const date = tags.date && !Number.isNaN(tags.date.getTime()) ? tags.date.toISOString().slice(0, 10) : '';
+	return {
+		title: tags.title?.trim() ?? '',
+		artist: (tags.artist ?? tags.albumArtist)?.trim() ?? '',
+		comment: (tags.comment ?? tags.description)?.trim() ?? '',
+		date,
+		cover: coverOf(tags),
+	};
+}
+
+/**
+ * The file's tags with the edited ones in place of its own. The format's raw tags go, as they
+ * would say the old title; attached files other than pictures stay (subtitle fonts).
+ */
+export function writeMeta(tags: MetadataTags, meta: VideoMeta | null): MetadataTags {
+	if (!meta) return tags;
+	const raw = Object.fromEntries(
+		Object.entries(tags.raw ?? {}).filter(
+			([, value]) => value instanceof AttachedFile && !value.mimeType?.startsWith('image/'),
+		),
+	);
+	const cover = meta.cover
+		? [
+				{
+					...meta.cover,
+					kind: 'coverFront' as const,
+					name: meta.cover.mimeType === 'image/png' ? 'cover.png' : 'cover.jpg',
+				},
+			]
+		: [];
+	const date = meta.date ? new Date(`${meta.date}T00:00:00Z`) : undefined;
+	return {
+		album: tags.album,
+		genre: tags.genre,
+		title: meta.title || undefined,
+		artist: meta.artist || undefined,
+		comment: meta.comment || undefined,
+		date: date && !Number.isNaN(date.getTime()) ? date : undefined,
+		images: cover,
+		raw,
+	};
+}
+
+/** The quality levels offered, as Mediabunny names them. */
+export const QUALITY_LEVELS = [1, 0.75, 0.5, 0.25, 0] as const;
+
+/** The video's rate control for Mediabunny: a size limit always keeps to its bitrate. */
+function videoQuality(settings: VideoExportSettings): Quality {
+	if (settings.rateControl === 'quality' && settings.sizeLimit === null)
+		return new Quality({ quality: settings.quality });
+	return new Quality({
+		bitrate: settings.bitrate * 1000,
+		bitrateMode: settings.sizeLimit === null ? 'variable' : 'constant',
+	});
 }
 
 function isCodecId(codec: VideoCodec | null): codec is VideoCodecId {
@@ -194,7 +279,9 @@ export function settingsFromSource(source: VideoSource, encodable: VideoCodecId[
 		codec,
 		height: null,
 		frameRate: null,
+		rateControl: 'bitrate',
 		bitrate: source.bitrate ?? 5000,
+		quality: 0.75,
 		audio: audioFits(source, container) ? 'copy' : container === 'webm' ? 'opus' : 'aac',
 		audioBitrate: Math.min(320, Math.max(64, source.audioBitrate ?? 160)),
 		burn: null,
@@ -222,10 +309,23 @@ export function bitrateForSize(megabytes: number, seconds: number, audio: number
 	return Math.max(MIN_BITRATE, Math.floor(kilobits / seconds - audio));
 }
 
-export type PresetId = 'discord' | 'whatsapp' | 'email' | 'x' | 'instagram' | 'youtube' | 'web';
+export type PresetId =
+	| 'discord'
+	| 'whatsapp'
+	| 'email'
+	| 'x'
+	| 'instagram'
+	| 'youtube'
+	| 'web'
+	| 'tiktok'
+	| 'reels'
+	| 'shorts'
+	| 'instagram-feed';
 
 interface Preset {
 	label: string;
+	/** The frame the pictures are cropped to, from the middle; absent keeps theirs. */
+	aspect?: `${number}:${number}`;
 	container: VideoContainer;
 	codec: VideoCodecId;
 	/** Highest picture height; smaller pictures keep theirs. */
@@ -310,6 +410,54 @@ export const PRESETS: Record<PresetId, Preset> = {
 		audio: 'aac',
 		audioBitrate: 192,
 	},
+	tiktok: {
+		label: 'TikTok',
+		aspect: '9:16',
+		container: 'mp4',
+		codec: 'avc',
+		maxHeight: 1080,
+		maxFrameRate: 60,
+		bitrate: 8000,
+		sizeLimit: null,
+		audio: 'aac',
+		audioBitrate: 128,
+	},
+	reels: {
+		label: 'Instagram Reels',
+		aspect: '9:16',
+		container: 'mp4',
+		codec: 'avc',
+		maxHeight: 1080,
+		maxFrameRate: 30,
+		bitrate: 5000,
+		sizeLimit: null,
+		audio: 'aac',
+		audioBitrate: 128,
+	},
+	shorts: {
+		label: 'YouTube Shorts',
+		aspect: '9:16',
+		container: 'mp4',
+		codec: 'avc',
+		maxHeight: 1080,
+		maxFrameRate: 60,
+		bitrate: 8000,
+		sizeLimit: null,
+		audio: 'aac',
+		audioBitrate: 192,
+	},
+	'instagram-feed': {
+		label: 'Instagram 4:5',
+		aspect: '4:5',
+		container: 'mp4',
+		codec: 'avc',
+		maxHeight: 1080,
+		maxFrameRate: 30,
+		bitrate: 5000,
+		sizeLimit: null,
+		audio: 'aac',
+		audioBitrate: 128,
+	},
 	web: {
 		label: 'Web',
 		container: 'webm',
@@ -323,7 +471,19 @@ export const PRESETS: Record<PresetId, Preset> = {
 	},
 };
 
-export const PRESET_ORDER: PresetId[] = ['discord', 'whatsapp', 'email', 'x', 'instagram', 'youtube', 'web'];
+export const PRESET_ORDER: PresetId[] = [
+	'discord',
+	'whatsapp',
+	'email',
+	'tiktok',
+	'reels',
+	'shorts',
+	'instagram-feed',
+	'instagram',
+	'x',
+	'youtube',
+	'web',
+];
 
 /** YouTube's recommended bitrates for H.264 uploads, by height (at 30 fps; half again above). */
 function uploadBitrate(height: number, frameRate: number): number {
@@ -351,6 +511,7 @@ export function presetSettings(
 		codec: codecs.includes(preset.codec) ? preset.codec : (codecs[0] ?? preset.codec),
 		height: height > preset.maxHeight ? (HEIGHTS.find((candidate) => candidate <= preset.maxHeight) ?? null) : null,
 		frameRate: rate > preset.maxFrameRate + 0.5 ? preset.maxFrameRate : null,
+		rateControl: 'bitrate',
 		bitrate: id === 'youtube' ? uploadBitrate(outHeight, Math.min(rate, preset.maxFrameRate)) : preset.bitrate,
 		sizeLimit: preset.sizeLimit,
 		audio: preset.audio,
@@ -410,11 +571,14 @@ export function burnBox(picture: ImageDoc, upright: Size, size: Size): Box {
 	return { x: -crop.x * scale, y: -crop.y * scale, width: upright.width * scale, height: upright.height * scale };
 }
 
-/** Draws each picture with the edits, at the output size, as the preview does, subtitles on top. */
+/**
+ * Draws each picture with the edits at the output size, as the preview does: the picture, the
+ * text and stickers shown at its time, then the subtitles on top.
+ */
 class PictureProcessor {
 	private readonly canvas: OffscreenCanvas;
 	private readonly renderer: ImageRenderer;
-	/** Where the subtitles are drawn over the picture, when some are burned in. */
+	/** Where text, stickers and subtitles are drawn over the picture, when there are some. */
 	private readonly composite: { canvas: OffscreenCanvas; context: OffscreenCanvasRenderingContext2D } | null;
 
 	constructor(
@@ -425,7 +589,8 @@ class PictureProcessor {
 	) {
 		this.canvas = new OffscreenCanvas(size.width, size.height);
 		this.renderer = new ImageRenderer(this.canvas);
-		const canvas = burner ? new OffscreenCanvas(size.width, size.height) : null;
+		const layered = burner !== null || picture.overlays.length > 0;
+		const canvas = layered ? new OffscreenCanvas(size.width, size.height) : null;
 		const context = canvas?.getContext('2d');
 		this.composite = canvas && context ? { canvas, context } : null;
 	}
@@ -437,13 +602,13 @@ class PictureProcessor {
 			{ width: sample.squarePixelWidth, height: sample.squarePixelHeight },
 			sample.rotation,
 		);
-		this.renderer.render(this.picture, { region: effectiveCrop(this.picture, this.upright) });
-		if (!this.composite || !this.burner)
-			return new VideoSample(this.canvas, { timestamp, duration: sample.duration });
+		this.renderer.render(this.picture, { region: effectiveCrop(this.picture, this.upright), seed: time * 97 });
+		if (!this.composite) return new VideoSample(this.canvas, { timestamp, duration: sample.duration });
 		const { canvas, context } = this.composite;
 		context.clearRect(0, 0, canvas.width, canvas.height);
 		context.drawImage(this.canvas, 0, 0);
-		await this.burner.draw(context, time);
+		drawOverlays(context, this.picture.overlays, canvas, time);
+		if (this.burner) await this.burner.draw(context, time);
 		return new VideoSample(canvas, { timestamp, duration: sample.duration });
 	}
 
@@ -493,6 +658,11 @@ export interface ConvertJob {
 	burn?: BurnJob | null;
 }
 
+/** Metadata tags for a conversion: the file's, with the edited ones in their place. */
+function conversionTags(meta: VideoMeta | null) {
+	return meta ? (tags: MetadataTags) => writeMeta(tags, meta) : undefined;
+}
+
 /**
  * Converts the video into `target`. Resolves once the output is finalized; stopping throws an
  * AbortError.
@@ -517,7 +687,10 @@ export async function convertVideo(
 					burnBox(doc.picture, job.upright, outputSize(doc.picture, job.upright, settings.height)),
 				)
 			: null;
-	const drawn = isPictureEdited(doc.picture) || burner !== null;
+	const change = pictureChange(doc.picture);
+	const drawn = change !== 'none' || burner !== null;
+	// Text and stickers are drawn with their fonts and pictures, loaded before the first frame.
+	if (doc.picture.overlays.length > 0) await loadOverlayAssets(doc.picture.overlays);
 	const size = outputSize(doc.picture, job.upright, settings.height);
 	// Conversion times start at the trim; the edit's ranges are in source time.
 	const offset = isShortened(doc) ? doc.trim.start : 0;
@@ -527,11 +700,7 @@ export async function convertVideo(
 		if (track.number > 1) return { discard: true };
 		const options: ConversionVideoOptions = {
 			codec: settings.codec,
-			// A size limit wants the bitrate kept to, not averaged over the file.
-			quality: new Quality({
-				bitrate: settings.bitrate * 1000,
-				bitrateMode: settings.sizeLimit === null ? 'variable' : 'constant',
-			}),
+			quality: videoQuality(settings),
 			frameRate: settings.frameRate ?? undefined,
 			forceTranscode: true,
 		};
@@ -579,18 +748,18 @@ export async function convertVideo(
 
 	if (settings.mode === 'copy') {
 		// Packets copied as they are: only the trim applies. MP4 starts exactly at it, an edit list
-		// hiding the pictures before.
-		const copy = (track: InputVideoTrack | InputAudioTrack) =>
-			(track.isVideoTrack() && track.number > 1) || (track.isAudioTrack() && !job.audioTracks.has(track.id))
-				? { discard: true }
-				: {};
+		// hiding the pictures before. Turns and mirrors are written for players to apply.
+		const turn = change === 'turn' ? editTurn(doc.picture) : null;
+		const copy = (track: InputAudioTrack) => (job.audioTracks.has(track.id) ? {} : { discard: true });
 		try {
 			const conversion = await Conversion.init({
 				input,
 				output,
 				trim: isShortened(doc) ? { start: doc.trim.start, end: doc.trim.end } : undefined,
-				video: copy,
+				video: (track) =>
+					track.number > 1 ? { discard: true } : turn ? { rotate: turn.rotation, flip: turn.flip } : {},
 				audio: copy,
+				tags: conversionTags(doc.meta),
 				copy: { mode: 'forced', shiftTolerance: Number.POSITIVE_INFINITY },
 			});
 			await run(conversion, onProgress, signal);
@@ -611,6 +780,7 @@ export async function convertVideo(
 			trim: isShortened(doc) ? { start: doc.trim.start, end: doc.trim.end } : undefined,
 			video,
 			audio,
+			tags: conversionTags(doc.meta),
 		});
 		// A track left out by the browser rather than by the user would go missing silently: a
 		// file without its pictures, or without a sound track that was kept.

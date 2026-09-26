@@ -44,6 +44,8 @@ export interface RemuxJob {
 	streams: StreamData[];
 	/** A Matroska file whose attachments (fonts) go into the new file, as they are. */
 	attachmentsFrom?: File;
+	/** The Matroska segment's title, as players show it; empty removes it. */
+	title?: string;
 }
 
 export type RemuxRequest = { type: 'start'; job: RemuxJob } | { type: 'next' };

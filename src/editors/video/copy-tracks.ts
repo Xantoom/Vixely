@@ -25,7 +25,8 @@ import {
 import type { Range } from '@/document/timemap';
 import { ensureEncoder } from '../audio/export';
 import { gainOf, type Placed, placeAudio, placeRanges } from './audio-pieces';
-import { CONTAINERS, type VideoContainer } from './export';
+import { composeTurn, type Turn, type VideoMeta } from './document';
+import { CONTAINERS, type VideoContainer, writeMeta } from './export';
 
 /** A part copied: its source range, and the picture time that ends it in decode order. */
 export interface Part extends Range {
@@ -168,6 +169,10 @@ export interface CopyJob {
 	/** Source ranges kept, in order; null keeps the whole video as it is. */
 	ranges: readonly Range[] | null;
 	audio: readonly AudioPlan[];
+	/** Turn and mirror added by the edits, written for players to apply. */
+	turn?: Turn | null;
+	/** Title, artist, date and cover as edited; absent or null keeps the file's. */
+	meta?: VideoMeta | null;
 }
 
 interface PartPlaced {
@@ -250,8 +255,16 @@ export async function copyTracks(
 		const videoCodec = await video.getCodec();
 		if (!videoCodec) throw new Error('Unknown video codec');
 		const videoSource = new EncodedVideoPacketSource(videoCodec);
+		const [rotation, flip, tags] = await Promise.all([
+			video.getRotation(),
+			video.getFlip(),
+			input.getMetadataTags().catch(() => ({})),
+		]);
+		const turn = composeTurn({ rotation, flip }, job.turn ?? { rotation: 0, flip: false });
+		output.setMetadataTags(writeMeta(tags, job.meta ?? null));
 		output.addVideoTrack(videoSource, {
-			rotation: await video.getRotation(),
+			rotation: turn.rotation,
+			flip: turn.flip,
 			languageCode: await video.getLanguageCode(),
 			name: (await video.getName()) ?? undefined,
 			disposition: await video.getDisposition(),

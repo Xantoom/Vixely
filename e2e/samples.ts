@@ -12,6 +12,9 @@ import { spawnSync } from 'node:child_process';
  * - h264.mp4: 12 s of 1080p H.264 with B-frames and two audio tracks (English, French commentary).
  * - rotated.mp4: the same, stored turned as phones do (a display matrix of 90°); silent.mp4: the
  *   same without sound.
+ * - ac3.mkv, dts.mkv: 8 s of test pattern with Dolby Digital 5.1 and DTS sound, which browsers
+ *   don't decode; vfr.mp4: 6 s whose pictures come at irregular times, as phones record them;
+ *   extra.fr.srt: a subtitle file to add to a video.
  */
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { chromium } from 'playwright-core';
@@ -264,4 +267,39 @@ if (existsSync('samples/h264.mp4') && ffmpeg) {
 		});
 		console.log('samples/silent.mp4');
 	}
+}
+
+if (ffmpeg) {
+	const make = (name: string, args: string[]) => {
+		if (existsSync(`samples/${name}`)) return;
+		spawnSync(ffmpeg, ['-v', 'error', '-y', ...args, `samples/${name}`], { stdio: 'inherit' });
+		console.log(`samples/${name}`);
+	};
+	const pattern = ['-f', 'lavfi', '-i', 'testsrc2=s=640x360:r=25:d=8'];
+	const h264 = ['-c:v', 'libx264', '-pix_fmt', 'yuv420p'];
+	make('ac3.mkv', [...pattern, '-f', 'lavfi', '-i', 'sine=f=440:d=8', ...h264, '-c:a', 'ac3', '-ac', '6', '-b:a', '384k']);
+	make('dts.mkv', [...pattern, '-f', 'lavfi', '-i', 'sine=f=330:d=8', ...h264, '-c:a', 'dca', '-strict', '-2', '-ac', '2']);
+	// Pictures 17 to 50 ms apart, off any regular lattice.
+	make('vfr.mp4', [
+		'-f',
+		'lavfi',
+		'-i',
+		'testsrc2=s=640x360:r=30:d=6',
+		'-vf',
+		"settb=1/90000,setpts='(N/30+if(gte(N\\,60)\\,(N-60)*0.012\\,0)+0.011*sin(N*1.7))/TB'",
+		'-fps_mode',
+		'vfr',
+		'-enc_time_base',
+		'1/90000',
+		'-video_track_timescale',
+		'90000',
+		...h264,
+	]);
+}
+if (!existsSync('samples/extra.fr.srt')) {
+	writeFileSync(
+		'samples/extra.fr.srt',
+		'1\n00:00:01,000 --> 00:00:03,000\nAdded line one\n\n2\n00:00:04,000 --> 00:00:06,000\nAdded line two\n',
+	);
+	console.log('samples/extra.fr.srt');
 }

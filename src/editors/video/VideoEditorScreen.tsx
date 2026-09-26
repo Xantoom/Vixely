@@ -1,11 +1,11 @@
-import { useNavigate } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLeaveGuard } from '@/app/leave-guard';
 import { cut, isShortened, keptRanges, setTrim } from '@/document/kept';
 import { type ItemStatus, BatchList } from '@/editor/BatchList';
 import { EditorLayout } from '@/editor/EditorLayout';
 import { FilePanel, ToolLater } from '@/editor/Inspector';
 import { KeptPanel } from '@/editor/KeptPanel';
+import { StickersPanel, TextPanel } from '@/editor/overlays/panels';
 import { isTyping, useEditorShortcuts } from '@/editor/shortcuts';
 import { Timeline } from '@/editor/Timeline';
 import { Viewer } from '@/editor/Viewer';
@@ -14,8 +14,6 @@ import { EDITORS, type ToolId } from '@/editors/registry';
 import { usePlayback } from '@/media/playback';
 import { useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
-import { Button } from '@/ui/Button';
-import { MEDIA_ICONS } from '@/ui/icons';
 import { effectiveCrop } from '../image/document';
 import { AdjustPanel, CropPanel } from '../image/panels';
 import { useSubtitleProject } from '../subtitles/project';
@@ -31,36 +29,10 @@ import {
 } from './ExportPanel';
 import { muxContainer } from './mux';
 import { MuxFooter } from './MuxPanel';
-import { useVideoDoc, useVideoEditor, useVideoPictureEditing, useVideoUndoState } from './store';
+import { OpenIn, VideoAudioPanel, VideoPresetsPanel, VideoSubtitlesPanel } from './panels';
+import { useVideoDoc, useVideoEditor, useVideoPictureEditing, useVideoUndoState, videoOverlayEditing } from './store';
 import { VideoPreview } from './VideoPreview';
 import { VideoTimeline } from './VideoTimeline';
-
-const OPEN_IN = {
-	audio: () => m.audio_from_video(),
-	gif: () => m.make_gif(),
-	subtitles: () => m.subtitles_from_video(),
-};
-
-/**
- * Opens the current video in another editor: its soundtrack in the audio one, a GIF in the GIF
- * one, its subtitle tracks in the subtitle one.
- */
-function OpenIn({ kind }: { kind: 'audio' | 'gif' | 'subtitles' }) {
-	const openAs = useSession((state) => state.openAs);
-	const navigate = useNavigate();
-	const Icon = MEDIA_ICONS[kind];
-	return (
-		<Button
-			onClick={() => {
-				openAs(kind);
-				void navigate({ to: EDITORS[kind].path });
-			}}
-		>
-			<Icon size={16} aria-hidden="true" />
-			{OPEN_IN[kind]()}
-		</Button>
-	);
-}
 
 /** Arrow keys move playback by this much, in seconds; with Shift, ten times more. */
 const ARROW_STEP = 1;
@@ -194,6 +166,8 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	const exportSource = useVideoEditor((state) => state.exportSource);
 	const upright = details?.video ?? { width: 16, height: 9 };
 	const editing = useVideoPictureEditing(upright, opened?.poster ?? null);
+	const overlays = videoOverlayEditing(editing, doc.duration);
+	const textRef = useRef<HTMLTextAreaElement>(null);
 	const playable = Boolean(opened?.info?.video?.decodable);
 	const ready = opened !== null && owner === opened.file && details !== null;
 
@@ -251,9 +225,14 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 			);
 		}
 		if (!ready) return <ToolLater kind="video" tool={tool} />;
+		if (tool === 'presets') return <VideoPresetsPanel upright={upright} />;
 		if (tool === 'trim') return <VideoTrimPanel />;
 		if (tool === 'crop') return <CropPanel editing={editing} />;
 		if (tool === 'adjust') return <AdjustPanel editing={editing} />;
+		if (tool === 'text') return <TextPanel editing={overlays} textRef={textRef} />;
+		if (tool === 'stickers') return <StickersPanel editing={overlays} />;
+		if (tool === 'audio') return <VideoAudioPanel opened={opened} />;
+		if (tool === 'subtitles') return <VideoSubtitlesPanel opened={opened} />;
 		return <ToolLater kind="video" tool={tool} />;
 	};
 
@@ -283,7 +262,16 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 			}
 			viewer={
 				opened && playable ? (
-					<VideoPreview opened={opened} editing={editing} cropping={tool === 'crop'} />
+					<VideoPreview
+						opened={opened}
+						editing={editing}
+						cropping={tool === 'crop'}
+						overlays={tool === 'text' || tool === 'stickers' ? overlays : undefined}
+						onEditText={() => {
+							setTool('text');
+							textRef.current?.focus();
+						}}
+					/>
 				) : (
 					<Viewer kind="video" opened={opened} />
 				)

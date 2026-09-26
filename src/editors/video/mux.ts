@@ -11,7 +11,7 @@ import { type TrackKey, type TrackState, useProjectTracks, useSubtitleProject } 
 import { codecLabel } from '../subtitles/tracks';
 import type { BurnJob } from './burn';
 import { type AudioPlan, copiesParts, copyTracks } from './copy-tracks';
-import type { VideoDoc } from './document';
+import { editTurn, pictureChange, type VideoDoc } from './document';
 import {
 	audioBitrates,
 	bitrateForSize,
@@ -448,6 +448,9 @@ export async function exportConverted(
 		container === 'webm'
 			? []
 			: job.tracks.filter((track) => track.kind === 'subtitle' && track.include && track.blocked === null);
+	// Matroska players show the segment's title, which only the remuxer writes.
+	const title = container === 'mkv' && doc.meta ? doc.meta.title : undefined;
+	const remuxed = subtitles.length > 0 || title !== undefined;
 	const plan = (track: MuxTrack, from: AudioPlan['from'], encode: AudioPlan['encode']): AudioPlan => ({
 		from,
 		decibels: track.decibels,
@@ -472,12 +475,12 @@ export async function exportConverted(
 	// which also writes the sound tracks' new details.
 	const merge = settings.mode === 'encode' && (added.length > 0 || renamed);
 	const step = passes(
-		[settings.mode === 'encode' ? 8 : 2, ...(merge ? [1] : []), ...(subtitles.length > 0 ? [1] : [])],
+		[settings.mode === 'encode' ? 8 : 2, ...(merge ? [1] : []), ...(remuxed ? [1] : [])],
 		onProgress,
 	);
 	const scratches: ScratchFile[] = [];
 	const extension = CONTAINERS[container].extension;
-	const last = !merge && subtitles.length === 0;
+	const last = !merge && !remuxed;
 	const scratch = async () => {
 		const file = await openScratchFile(`converted.${extension}`);
 		scratches.push(file);
@@ -504,12 +507,18 @@ export async function exportConverted(
 				...own.map(({ track, id }) => plan(track, { id }, track.decibels === 0 ? null : 'auto')),
 				...added.map((track) => addedPlan(track, null, undefined)),
 			];
-			ranges = await copyTracks({ file: job.file, container, ranges: kept, audio }, target, step(0), signal);
+			const turn = pictureChange(doc.picture) === 'turn' ? editTurn(doc.picture) : null;
+			ranges = await copyTracks(
+				{ file: job.file, container, ranges: kept, audio, turn, meta: doc.meta },
+				target,
+				step(0),
+				signal,
+			);
 		}
 
 		if (merge && written) {
 			const converted = await written.file();
-			written = subtitles.length > 0 ? await scratch() : null;
+			written = remuxed ? await scratch() : null;
 			const audio = [
 				// Already encoded with their level: copied as they are.
 				...own.map(({ track }, index) => ({ ...plan(track, { number: index + 1 }, null), decibels: 0 })),
@@ -525,7 +534,7 @@ export async function exportConverted(
 			);
 		}
 
-		if (subtitles.length > 0 && written) {
+		if (remuxed && written) {
 			const converted = await written.file();
 			const mkv = container === 'mkv';
 			const streams: StreamData[] = [];
@@ -550,7 +559,8 @@ export async function exportConverted(
 					choices: [],
 					added: tracks,
 					streams,
-					attachmentsFrom: mkv && muxContainer(job.format) === 'mkv' ? job.file : undefined,
+					// The fonts come with the tags the first pass copied; a cover chosen here is among them.
+					title,
 				},
 				save,
 				step(merge ? 2 : 1),

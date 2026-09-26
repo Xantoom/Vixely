@@ -1,4 +1,5 @@
 import type { Input, InputAudioTrack } from 'mediabunny';
+import { canDecodeAudio } from './decoders';
 
 /** An audio track of a file, as players list them. */
 export interface AudioTrackInfo {
@@ -34,7 +35,7 @@ export async function listAudioTracks(input: Input): Promise<AudioTrackInfo[]> {
 				track.getNumberOfChannels(),
 				track.getSampleRate(),
 				track.getDisposition(),
-				track.canDecode(),
+				canDecodeAudio(track),
 			]);
 			return {
 				id: track.id,

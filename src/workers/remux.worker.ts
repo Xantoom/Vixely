@@ -44,6 +44,7 @@ async function start(job: RemuxJob) {
 		const element = subs.attachments_element(reading(job.attachmentsFrom), job.attachmentsFrom.size);
 		if (element) plan.set_attachments(element);
 	}
+	if (job.title !== undefined) plan.set_title(job.title);
 	const { file } = job;
 	const read = reading(file);
 	let last = 0;

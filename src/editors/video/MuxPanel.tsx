@@ -14,8 +14,9 @@ import { m } from '@/paraglide/messages.js';
 import { Button } from '@/ui/Button';
 import { Dropdown } from '@/ui/Dropdown';
 import { Slider } from '@/ui/fields';
+import { isAdded, useSubtitleProject } from '../subtitles/project';
 import { useSubtitleEditor } from '../subtitles/store';
-import type { VideoDoc } from './document';
+import { pictureChange, type VideoDoc } from './document';
 import { CONTAINERS, EncoderMissing, type VideoContainer, type VideoExportSettings } from './export';
 import {
 	exportConverted,
@@ -95,9 +96,10 @@ function FlagToggle({
 }
 
 /** One track: whether it goes in, what it is, and its flags; subtitles unfold to rename them. */
-function TrackRow({ file, track }: { file: File; track: MuxTrack }) {
+export function TrackRow({ file, track }: { file: File; track: MuxTrack }) {
 	const set = useMuxSettings((state) => state.set);
 	const removeAudio = useMuxSettings((state) => state.removeAudio);
+	const removeSubtitles = useSubtitleProject((state) => state.removeAdded);
 	const [open, setOpen] = useState<'details' | 'volume' | null>(null);
 	const Icon = KIND_ICONS[track.kind];
 	const change = (patch: Parameters<typeof set>[2]) => {
@@ -193,13 +195,14 @@ function TrackRow({ file, track }: { file: File; track: MuxTrack }) {
 					>
 						<Pencil size={14} />
 					</FlagToggle>
-					{track.added && (
+					{(track.added || isAdded(track.subtitle)) && (
 						<FlagToggle
 							label={m.mux_remove_track()}
 							pressed={false}
 							disabled={false}
 							onChange={() => {
-								removeAudio(file, track.key);
+								if (track.added) removeAudio(file, track.key);
+								else if (track.subtitle !== null) removeSubtitles(track.subtitle);
 							}}
 						>
 							<X size={14} />
@@ -252,19 +255,19 @@ function TrackRow({ file, track }: { file: File; track: MuxTrack }) {
 }
 
 /**
- * The tracks of the video to export, as in MKVToolNix: every track of the file and the subtitles
- * made or edited here, each kept or left out, with its language, name and flags.
+ * The sound tracks of the video, as in MKVToolNix: every one of the file and those added from
+ * other files, each kept or left out, with its level, language, name and flags.
  */
-export function MuxTracks({
+export function AudioTrackList({
 	opened,
 	target = null,
-	burned = null,
+	title = m.mux_tracks(),
 }: {
 	opened: OpenedFile;
 	target?: VideoContainer | null;
-	burned?: string | null;
+	title?: string;
 }) {
-	const tracks = useMuxTracks(opened.file, opened.format, target, burned)?.tracks;
+	const tracks = useMuxTracks(opened.file, opened.format, target)?.tracks.filter((track) => track.kind === 'audio');
 	const addAudio = useMuxSettings((state) => state.addAudio);
 	const [refused, setRefused] = useState<string | null>(null);
 	const picker = useRef<HTMLInputElement>(null);
@@ -283,12 +286,16 @@ export function MuxTracks({
 
 	if (!tracks) return <p className="text-ui text-muted">{m.subs_reading_track({ percent: 0 })}</p>;
 	return (
-		<Section title={m.mux_tracks()}>
-			<ul className="grid gap-3">
-				{tracks.map((track) => (
-					<TrackRow key={track.key} file={opened.file} track={track} />
-				))}
-			</ul>
+		<Section title={title}>
+			{tracks.length === 0 ? (
+				<p className="text-ui text-muted">{m.audio_no_tracks()}</p>
+			) : (
+				<ul className="grid gap-3">
+					{tracks.map((track) => (
+						<TrackRow key={track.key} file={opened.file} track={track} />
+					))}
+				</ul>
+			)}
 			<input
 				ref={picker}
 				type="file"
@@ -313,6 +320,88 @@ export function MuxTracks({
 		</Section>
 	);
 }
+
+/**
+ * The subtitle tracks going into the video: those of the file as the subtitle editor left them,
+ * new subtitles written there, and subtitle files added here.
+ */
+export function SubtitleTrackList({
+	opened,
+	target = null,
+	burned = null,
+	title = m.mux_tracks(),
+}: {
+	opened: OpenedFile;
+	target?: VideoContainer | null;
+	burned?: string | null;
+	title?: string;
+}) {
+	const tracks = useMuxTracks(opened.file, opened.format, target, burned)?.tracks.filter(
+		(track) => track.kind === 'subtitle',
+	);
+	const addFiles = useSubtitleProject((state) => state.addFiles);
+	const [refused, setRefused] = useState<string | null>(null);
+	const picker = useRef<HTMLInputElement>(null);
+
+	const add = async (files: File[]) => {
+		setRefused(await addFiles(files));
+	};
+	// Subtitle files dropped on the page become tracks of the video.
+	useDropHandler(async (files) => {
+		const subtitles = files.filter((file) => SUBTITLE_FILE.test(file.name));
+		if (subtitles.length === 0) return false;
+		await add(subtitles);
+		return true;
+	});
+
+	if (!tracks) return <p className="text-ui text-muted">{m.subs_reading_track({ percent: 0 })}</p>;
+	return (
+		<Section title={title}>
+			{tracks.length === 0 ? (
+				<p className="text-ui text-muted">{m.subs_no_tracks()}</p>
+			) : (
+				<ul className="grid gap-3">
+					{tracks.map((track) => (
+						<TrackRow key={track.key} file={opened.file} track={track} />
+					))}
+				</ul>
+			)}
+			<input
+				ref={picker}
+				type="file"
+				accept=".srt,.ass,.ssa,.vtt,.sup"
+				multiple
+				hidden
+				onChange={(event) => {
+					const files = [...(event.target.files ?? [])];
+					event.target.value = '';
+					void add(files);
+				}}
+			/>
+			<Button className="mt-3 w-full" onClick={() => picker.current?.click()}>
+				<Plus size={16} aria-hidden="true" />
+				{m.mux_add_subtitles()}
+			</Button>
+			{refused && (
+				<p role="alert" className="text-small text-danger mt-2">
+					{m.mux_unreadable_subtitles({ name: refused })}
+				</p>
+			)}
+		</Section>
+	);
+}
+
+/** The subtitle and sound tracks of the video, for the subtitle editor's export into it. */
+export function MuxTracks({ opened }: { opened: OpenedFile }) {
+	return (
+		<>
+			<SubtitleTrackList opened={opened} title={m.mux_subtitle_tracks()} />
+			<AudioTrackList opened={opened} title={m.mux_audio_tracks()} />
+		</>
+	);
+}
+
+const SUBTITLE_FILE = /\.(srt|ass|ssa|vtt|sup)$/i;
 
 /** The codec of a file's sound, and whether it has pictures too; null without sound. */
 async function readSound(file: File): Promise<{ codec: AudioCodec; video: boolean } | null> {
@@ -351,11 +440,14 @@ export function MuxFooter({
 	const encoding = convert?.settings.mode === 'encode';
 	const target = encoding ? convert.settings.container : null;
 	const listed = useMuxTracks(opened.file, opened.format, target, encoding ? convert.settings.burn : null);
-	// Copied as it is by the remuxer, unless the edits or the sound need the file written again.
+	// Copied as it is by the remuxer, unless the edits, the sound, the turn or the tags need the
+	// file written again.
 	const rewrite =
 		convert !== null &&
 		(convert.settings.mode === 'encode' ||
 			isShortened(convert.doc) ||
+			convert.doc.meta !== null ||
+			pictureChange(convert.doc.picture) !== 'none' ||
 			(listed ? soundChanged(listed.tracks) : false));
 	const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
 	const [failure, setFailure] = useState<string | null>(null);

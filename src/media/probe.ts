@@ -1,12 +1,15 @@
-import { ALL_FORMATS, BlobSource, CanvasSink, EncodedPacketSink, Input, type InputVideoTrack } from 'mediabunny';
+import { ALL_FORMATS, BlobSource, CanvasSink, Input, type InputVideoTrack } from 'mediabunny';
 import type { MediaKind } from '@/editors/registry';
 import { loadCore } from '@/wasm/core';
+import { canDecodeAudio } from './decoders';
 
 export interface VideoStream {
 	codec: string | null;
 	width: number;
 	height: number;
 	fps: number | null;
+	/** Lowest and highest rates of a variable frame rate video (phones, screen recordings). */
+	variable: { min: number; max: number } | null;
 	decodable: boolean;
 }
 
@@ -167,14 +170,14 @@ async function readTimed(input: Input, base: MediaInfo): Promise<Probe> {
 	let video: VideoStream | null = null;
 	let poster: ImageBitmap | null = null;
 	if (videoTrack) {
-		const [fps, decodable, codec, width, height] = await Promise.all([
+		const [rate, decodable, codec, width, height] = await Promise.all([
 			measureFrameRate(videoTrack),
 			videoTrack.canDecode(),
 			videoTrack.getCodec(),
 			videoTrack.getDisplayWidth(),
 			videoTrack.getDisplayHeight(),
 		]);
-		video = { codec, width, height, fps, decodable };
+		video = { codec, width, height, ...rate, decodable };
 		if (decodable) {
 			// Some graphics drivers fail on files the browser says it can decode: the CPU tries next,
 			// and without a picture the file still opens.
@@ -191,7 +194,7 @@ async function readTimed(input: Input, base: MediaInfo): Promise<Probe> {
 			audioTrack.getCodec(),
 			audioTrack.getSampleRate(),
 			audioTrack.getNumberOfChannels(),
-			audioTrack.canDecode(),
+			canDecodeAudio(audioTrack),
 		]);
 		audio = { codec, sampleRate, channels, decodable };
 	}
@@ -219,29 +222,25 @@ async function readTimed(input: Input, base: MediaInfo): Promise<Probe> {
 	return { info: { ...base, format, duration, video, audio, tags: hasTags ? tags : null }, poster };
 }
 
-/** Frames sampled to measure the frame rate: about ten seconds of 24 fps video. */
-const FRAME_RATE_SAMPLE = 241;
-/** Frames ignored at each end of the sorted sample, where B-frame reordering can leave gaps. */
-const FRAME_RATE_MARGIN = 8;
-
 /**
- * Measures the frame rate from packet timestamps only. Averaging over a long span makes the
- * millisecond rounding of Matroska timestamps negligible, so 23.976 and 24 stay distinguishable.
- * Packet durations are not used: containers often store them approximately, which skews the result.
+ * The frame rate from the timestamps of the first pictures, fitted to the fraction a camera or
+ * encoder used (23.976 stays distinct from 24); a variable rate also gives its range.
  */
-async function measureFrameRate(track: InputVideoTrack): Promise<number | null> {
-	const sink = new EncodedPacketSink(track);
-	const timestamps: number[] = [];
-	for await (const packet of sink.packets(undefined, undefined, { metadataOnly: true })) {
-		timestamps.push(packet.timestamp);
-		if (timestamps.length >= FRAME_RATE_SAMPLE) break;
+async function measureFrameRate(track: InputVideoTrack): Promise<Pick<VideoStream, 'fps' | 'variable'>> {
+	try {
+		const metrics = await track.computeFrameRateMetrics({ targetPacketCount: 300 });
+		if (!Number.isFinite(metrics.bestGuessFrameRate) || metrics.bestGuessFrameRate <= 0)
+			return { fps: null, variable: null };
+		return {
+			fps: metrics.bestGuessFrameRate,
+			variable:
+				metrics.underlyingFrameRate === null && metrics.maxFrameRate - metrics.minFrameRate > 0.5
+					? { min: metrics.minFrameRate, max: metrics.maxFrameRate }
+					: null,
+		};
+	} catch {
+		return { fps: null, variable: null };
 	}
-	timestamps.sort((a, b) => a - b);
-	const margin = timestamps.length > FRAME_RATE_MARGIN * 4 ? FRAME_RATE_MARGIN : 0;
-	const first = timestamps[margin];
-	const last = timestamps[timestamps.length - 1 - margin];
-	if (first === undefined || last === undefined || last <= first) return null;
-	return (timestamps.length - 1 - margin * 2) / (last - first);
 }
 
 /** Below this average luminance (0 to 1) a frame reads as black: fades, intros, title cards. */

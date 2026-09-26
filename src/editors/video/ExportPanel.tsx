@@ -6,9 +6,10 @@ import { codecName } from '@/lib/format';
 import type { OpenedFile } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { FieldRow, NumberField, OptionList, Select } from '@/ui/fields';
-import type { Size } from '../image/document';
+import { fitRatio } from '../image/crop';
+import { type ImageDoc, orientedSize, type Size } from '../image/document';
 import { copiedRanges, copiesParts } from './copy-tracks';
-import { isPictureEdited } from './document';
+import { pictureChange } from './document';
 import {
 	type AudioChoice,
 	audioFits,
@@ -20,8 +21,10 @@ import {
 	HEIGHTS,
 	outputSize,
 	PRESET_ORDER,
+	type PresetId,
 	PRESETS,
 	presetSettings,
+	QUALITY_LEVELS,
 	readVideoSource,
 	resolveAudio,
 	shortSide,
@@ -30,8 +33,7 @@ import {
 	type VideoCodecId,
 	type VideoExportSettings,
 } from './export';
-import { useMuxTracks } from './mux';
-import { MuxTracks, trackLabel } from './MuxPanel';
+import { MetadataSection, TrackSummary } from './panels';
 import { useVideoDoc, useVideoEditor } from './store';
 
 /** Reads what the export starts from, once per file: the source's codec, bitrate and rate. */
@@ -60,7 +62,9 @@ export function useExportSource(opened: OpenedFile | null, upright: Size | null)
 /** Why the video can't be written as it is, without encoding it again; null when it can. */
 export function useCopyBlocker(): string | null {
 	const doc = useVideoDoc();
-	return isPictureEdited(doc.picture) ? m.copy_blocked_picture() : null;
+	const burn = useVideoEditor((state) => state.exportSettings?.burn ?? null);
+	if (pictureChange(doc.picture) === 'drawn') return m.copy_blocked_picture();
+	return burn ? m.copy_blocked_burn() : null;
 }
 
 /**
@@ -125,6 +129,14 @@ const NONE = 'none';
 /** Below this video bitrate (kb/s), pictures come out blurry. */
 const LOW_BITRATE = 300;
 
+const QUALITY_LABELS: Record<(typeof QUALITY_LEVELS)[number], () => string> = {
+	1: () => m.quality_very_high(),
+	0.75: () => m.quality_high(),
+	0.5: () => m.quality_medium(),
+	0.25: () => m.quality_low(),
+	0: () => m.quality_very_low(),
+};
+
 /** A setting changed by hand: the settings are no longer a platform's. */
 function useChangeExport() {
 	const set = useVideoEditor((state) => state.setExport);
@@ -134,14 +146,55 @@ function useChangeExport() {
 }
 
 /** Settings made for the places videos are sent to, filled in with one choice. */
-function PresetSettings({ upright }: { upright: Size }) {
+/**
+ * Chooses a platform's settings. Those with a frame of their own (9:16 for TikTok) crop the
+ * pictures to it from the middle; the size then follows from the crop.
+ */
+/** The pictures as a preset leaves them: cropped from the middle to its frame, if it has one. */
+export function presetPicture(picture: ImageDoc, upright: Size, id: PresetId): ImageDoc {
+	const { aspect } = PRESETS[id];
+	if (!aspect) return picture;
+	const [width = 1, height = 1] = aspect.split(':').map(Number);
+	const bounds = orientedSize(upright, picture.rotation);
+	return { ...picture, crop: fitRatio({ x: 0, y: 0, ...bounds }, width / height) };
+}
+
+export function useChoosePreset(upright: Size) {
+	const exportSource = useVideoEditor((state) => state.exportSource);
+	const set = useVideoEditor((state) => state.setExport);
+	const apply = useVideoEditor((state) => state.apply);
+	const setAspect = useVideoEditor((state) => state.setCropAspect);
+	return (id: PresetId) => {
+		if (!exportSource) return;
+		const { aspect } = PRESETS[id];
+		const picture = presetPicture(useVideoEditor.getState().history.present.picture, upright, id);
+		if (aspect) {
+			apply((doc) => ({ ...doc, picture: { ...doc.picture, crop: picture.crop } }));
+			setAspect(aspect);
+		}
+		const height = shortSide(outputSize(picture, upright, null));
+		set(presetSettings(id, exportSource.source, exportSource.encodable, height));
+	};
+}
+
+/** What a preset gives, in short: the size limit, else the picture size. */
+export function presetDetail(id: PresetId, height: number): string {
+	const { sizeLimit, maxHeight } = PRESETS[id];
+	return sizeLimit ? m.size_mb({ size: sizeLimit }) : `${Math.min(height, maxHeight)} p`;
+}
+
+/** Settings made for the places videos are sent to, filled in with one choice. */
+function PresetSettings({ upright, batch = false }: { upright: Size; batch?: boolean }) {
 	const settings = useVideoEditor((state) => state.exportSettings);
 	const exportSource = useVideoEditor((state) => state.exportSource);
 	const set = useVideoEditor((state) => state.setExport);
+	const choose = useChoosePreset(upright);
 	const picture = useVideoDoc().picture;
 	const id = useId();
 	if (!settings || !exportSource) return null;
 	const height = shortSide(outputSize(picture, upright, null));
+	// A batch keeps each video's own frame: presets that crop are chosen per video.
+	const presets = batch ? PRESET_ORDER.filter((preset) => !PRESETS[preset].aspect) : PRESET_ORDER;
 	return (
 		<Section title={m.export_preset()}>
 			<FieldRow label={m.export_preset_for()} htmlFor={id}>
@@ -150,18 +203,15 @@ function PresetSettings({ upright }: { upright: Size }) {
 					value={settings.preset ?? NONE}
 					options={[
 						{ value: NONE, label: m.preset_custom() },
-						...PRESET_ORDER.map((preset) => {
-							const { sizeLimit, maxHeight } = PRESETS[preset];
-							return {
-								value: preset,
-								label: PRESETS[preset].label,
-								detail: sizeLimit ? m.size_mb({ size: sizeLimit }) : `${Math.min(height, maxHeight)} p`,
-							};
-						}),
+						...presets.map((preset) => ({
+							value: preset,
+							label: PRESETS[preset].label,
+							detail: presetDetail(preset, height),
+						})),
 					]}
 					onChange={(value) => {
 						if (value === NONE) set({ preset: null });
-						else set(presetSettings(value, exportSource.source, exportSource.encodable, height));
+						else choose(value);
 					}}
 				/>
 			</FieldRow>
@@ -182,6 +232,7 @@ function VideoSettings({ upright }: { upright: Size }) {
 		height: useId(),
 		rate: useId(),
 		limit: useId(),
+		rateControl: useId(),
 		bitrate: useId(),
 	};
 	if (!settings || !exportSource) return null;
@@ -289,7 +340,36 @@ function VideoSettings({ upright }: { upright: Size }) {
 						}}
 					/>
 				</FieldRow>
-				{limited === null ? (
+				{limited === null && (
+					<FieldRow label={m.export_rate_control()} htmlFor={ids.rateControl}>
+						<Select
+							id={ids.rateControl}
+							value={settings.rateControl}
+							options={[
+								{ value: 'bitrate' as const, label: m.rate_bitrate() },
+								{ value: 'quality' as const, label: m.rate_quality() },
+							]}
+							onChange={(rateControl) => {
+								set({ rateControl });
+							}}
+						/>
+					</FieldRow>
+				)}
+				{limited === null && settings.rateControl === 'quality' ? (
+					<FieldRow label={m.export_quality()} htmlFor={ids.bitrate}>
+						<Select
+							id={ids.bitrate}
+							value={String(settings.quality)}
+							options={QUALITY_LEVELS.map((level) => ({
+								value: String(level),
+								label: QUALITY_LABELS[level](),
+							}))}
+							onChange={(value) => {
+								set({ quality: Number(value) });
+							}}
+						/>
+					</FieldRow>
+				) : limited === null ? (
 					<FieldRow label={m.export_bitrate()} htmlFor={ids.bitrate}>
 						<NumberField
 							id={ids.bitrate}
@@ -381,36 +461,6 @@ function AudioSettings() {
 	);
 }
 
-/** A subtitle track drawn into the pictures, for players that show no subtitles. */
-function BurnSettings({ opened }: { opened: OpenedFile }) {
-	const settings = useVideoEditor((state) => state.exportSettings);
-	const set = useVideoEditor((state) => state.setExport);
-	const id = useId();
-	const subtitles = useMuxTracks(opened.file, opened.format)?.originals.filter((track) => track.kind === 'subtitle');
-	if (!settings || !subtitles || subtitles.length === 0) return null;
-	return (
-		<Section title={m.export_burn()}>
-			<FieldRow label={m.export_burn_track()} htmlFor={id}>
-				<Select
-					id={id}
-					value={settings.burn ?? NONE}
-					options={[
-						{ value: NONE, label: m.burn_none() },
-						...subtitles.map((track) => ({
-							value: track.key,
-							label: trackLabel(track),
-							detail: track.codec,
-						})),
-					]}
-					onChange={(value) => {
-						set({ burn: value === NONE ? null : value });
-					}}
-				/>
-			</FieldRow>
-		</Section>
-	);
-}
-
 /**
  * Export of the video: as it is (its tracks copied, nothing re-encoded, the subtitles as the
  * subtitle editor left them), or converted with the edits. Every setting starts from the source.
@@ -452,14 +502,10 @@ export function VideoExportPanel({ opened, upright }: { opened: OpenedFile; upri
 					<PresetSettings upright={upright} />
 					<VideoSettings upright={upright} />
 					<AudioSettings />
-					<BurnSettings opened={opened} />
 				</>
 			)}
-			<MuxTracks
-				opened={opened}
-				target={exportTarget(mode, settings)}
-				burned={mode === 'encode' ? (settings?.burn ?? null) : null}
-			/>
+			<TrackSummary opened={opened} />
+			<MetadataSection opened={opened} />
 		</>
 	);
 }
@@ -475,7 +521,7 @@ export function VideoBatchPanel({ upright }: { upright: Size }) {
 	return (
 		<>
 			<PanelTitle>{m.export_video_title()}</PanelTitle>
-			<PresetSettings upright={upright} />
+			<PresetSettings upright={upright} batch />
 			<VideoSettings upright={upright} />
 			<AudioSettings />
 		</>

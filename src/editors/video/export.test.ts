@@ -7,8 +7,10 @@ import {
 	outputSize,
 	presetSettings,
 	resolveAudio,
+	readMeta,
 	settingsFromSource,
 	type VideoSource,
+	writeMeta,
 } from './export';
 import { cutSubtitles } from './mux';
 
@@ -19,6 +21,8 @@ const source: VideoSource = {
 	bitrate: 4200,
 	audioCodec: 'aac',
 	audioBitrate: 192,
+	turn: { rotation: 0, flip: false },
+	meta: { title: '', artist: '', comment: '', date: '', cover: null },
 };
 
 describe('video export settings', () => {
@@ -104,5 +108,26 @@ describe('presets', () => {
 		expect(small).toMatchObject({ height: null, frameRate: null });
 		expect(presetSettings('youtube', source, ['avc'], 1080).bitrate).toBe(8000);
 		expect(presetSettings('web', source, ['avc', 'av1'], 1080).codec).toBe('av1');
+	});
+});
+
+describe('video metadata', () => {
+	it("reads the fields shown and writes the edited ones over the file's", () => {
+		const cover = { data: new Uint8Array([1, 2]), mimeType: 'image/jpeg' };
+		const tags = {
+			title: ' Holiday ',
+			albumArtist: 'Ana',
+			date: new Date('2024-07-14T10:00:00Z'),
+			images: [{ ...cover, kind: 'coverFront' as const }],
+			raw: { '©nam': 'Holiday' },
+		};
+		const meta = readMeta(tags);
+		expect(meta).toEqual({ title: 'Holiday', artist: 'Ana', comment: '', date: '2024-07-14', cover });
+		const written = writeMeta(tags, { ...meta, title: 'Summer', cover: null });
+		expect(written.title).toBe('Summer');
+		expect(written.images).toEqual([]);
+		expect(written.raw).toEqual({});
+		expect(written.date?.toISOString()).toBe('2024-07-14T00:00:00.000Z');
+		expect(writeMeta(tags, null)).toBe(tags);
 	});
 });

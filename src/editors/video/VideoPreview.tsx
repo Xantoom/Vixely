@@ -1,7 +1,10 @@
 import { useNavigate } from '@tanstack/react-router';
 import { Camera, Captions } from 'lucide-react';
-import { type CSSProperties, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { type CSSProperties, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CropOverlay } from '@/editor/CropOverlay';
+import type { OverlayEditing } from '@/editor/overlays/editing';
+import { shownAt } from '@/editor/overlays/model';
+import { OverlayLayer } from '@/editor/overlays/OverlayLayer';
 import { PlayerControls, PlayerMenu } from '@/editor/PlayerControls';
 import { backingSize, useStageZoom, ZoomStage } from '@/editor/ZoomStage';
 import { EDITORS } from '@/editors/registry';
@@ -14,7 +17,7 @@ import { effectiveCrop, type ImageDoc, orientedSize, type Rect, type Size } from
 import type { PictureEditing } from '../image/editing';
 import { ImageRenderer } from '../image/renderer';
 import { cropRatio } from '../image/store';
-import { type TrackKey, useProjectTracks, useSubtitleProject } from '../subtitles/project';
+import { isAdded, useProjectTracks, useSubtitleProject } from '../subtitles/project';
 import { useSubtitleDoc } from '../subtitles/store';
 import { SubtitleLayer } from '../subtitles/SubtitleViewer';
 import { capturePicture, carryEdits } from './capture';
@@ -37,7 +40,7 @@ function SubtitleMenu({ shown, onShown }: { shown: boolean; onShown: (shown: boo
 				{ value: OFF, label: m.player_subtitles_off() },
 				...options.map((track) => ({
 					value: String(track.key),
-					label: `${track.info ? trackName(track.info.language, track.info.name) : m.subs_new_track()}${track.edited ? ` (${m.subs_track_edited()})` : ''}`,
+					label: `${track.info ? trackName(track.info.language, track.info.name) : m.subs_new_track()}${track.edited && !isAdded(track.key) ? ` (${m.subs_track_edited()})` : ''}`,
 				})),
 			]}
 			onChange={(value) => {
@@ -45,8 +48,8 @@ function SubtitleMenu({ shown, onShown }: { shown: boolean; onShown: (shown: boo
 					onShown(false);
 					return;
 				}
-				const key: TrackKey = value === 'new' ? 'new' : Number(value);
-				choose(key);
+				const key = options.find((track) => String(track.key) === value)?.key;
+				if (key !== undefined) choose(key);
 				onShown(true);
 			}}
 		/>
@@ -167,7 +170,7 @@ function CaptureButton({ file, doc }: { file: File; doc: ImageDoc }) {
 				usePlayback.getState().pause();
 				void capturePicture(file, time)
 					.then(async (picture) => {
-						carryEdits(picture, doc);
+						carryEdits(picture, doc, time);
 						const kind = await open([picture], 'image');
 						if (kind) await navigate({ to: EDITORS[kind].path });
 					})
@@ -206,10 +209,15 @@ export function VideoPreview({
 	opened,
 	editing,
 	cropping,
+	overlays,
+	onEditText,
 }: {
 	opened: OpenedFile;
 	editing: PictureEditing;
 	cropping: boolean;
+	/** Given while the text or sticker tool is open. */
+	overlays?: OverlayEditing;
+	onEditText?: () => void;
 }) {
 	const time = usePlayback((state) => state.time);
 	const video = usePlayback((state) => state.details?.video ?? null);
@@ -229,6 +237,15 @@ export function VideoPreview({
 	const bounds = orientedSize(upright, picture.rotation);
 	const crop = effectiveCrop(picture, upright);
 	const region: Rect = cropping ? { x: 0, y: 0, ...bounds } : crop;
+	// Text and stickers shown at this moment; the list changes only when one appears or goes.
+	const visibleKey = picture.overlays
+		.filter((overlay) => shownAt(overlay, time))
+		.map((overlay) => overlay.id)
+		.join(' ');
+	const visible = useMemo(
+		() => picture.overlays.filter((overlay) => visibleKey.split(' ').includes(overlay.id)),
+		[picture.overlays, visibleKey],
+	);
 
 	useEffect(
 		() => () => {
@@ -249,10 +266,19 @@ export function VideoPreview({
 							doc={picture}
 							original={comparing}
 						>
+							{!cropping && !comparing && picture.overlays.length > 0 && (
+								<OverlayLayer
+									overlays={visible}
+									width={region.width * scale}
+									height={region.height * scale}
+									editing={overlays}
+									onEditText={onEditText}
+								/>
+							)}
 							{shown && projectReady && !cropping && (
 								// Subtitles belong to the whole picture: they lie over it and the crop cuts them,
 								// as when they are burnt in, rather than being squeezed into the crop.
-								<div className="absolute inset-0 overflow-hidden rounded-[3px]">
+								<div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[3px]">
 									<div className="absolute" style={subtitleBox(picture, crop, upright, scale)}>
 										<SubtitleLayer
 											doc={doc}

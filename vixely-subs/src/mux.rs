@@ -27,6 +27,7 @@ const FLAG_LACING: u32 = 0x9C;
 const REFERENCE_BLOCK: u32 = 0xFB;
 const CRC32: u32 = 0xBF;
 const VOID: u32 = 0xEC;
+const TITLE: u32 = 0x7BA9;
 const VIDEO_TRACK: u64 = 1;
 
 /// A line of subtitles to write: times in milliseconds, its data as the codec stores it.
@@ -78,6 +79,8 @@ pub struct Plan {
 	/// A whole Attachments element written in place of the source's, such as the fonts of the
 	/// file a converted video came from.
 	pub attachments: Option<Vec<u8>>,
+	/// The segment's title, as players show it, in place of the source's; empty removes it.
+	pub title: Option<String>,
 }
 
 // --- Writing EBML ---------------------------------------------------------------------------
@@ -494,6 +497,10 @@ impl<R: Read + Seek> Muxer<R> {
 		// Layout: SeekHead, Info, Tracks, Chapters, Attachments, Tags, Cues, then the clusters.
 		let copied_ids = [INFO, CHAPTERS, ATTACHMENTS, TAGS];
 		let given = plan.attachments.as_ref();
+		let info = match (&plan.title, elements.get(&INFO)) {
+			(Some(title), Some(&(from, to))) => Some(retitle_info(&mut r, from, to, title)?),
+			_ => None,
+		};
 		let seek_ids: Vec<u32> = [INFO, TRACKS, CHAPTERS, ATTACHMENTS, TAGS, CUES]
 			.into_iter()
 			.filter(|&id| {
@@ -509,6 +516,7 @@ impl<R: Read + Seek> Muxer<R> {
 				TRACKS => tracks.len() as u64,
 				CUES => cues_size(&original_cues, &clusters),
 				ATTACHMENTS if given.is_some() => given.map_or(0, |bytes| bytes.len() as u64),
+				INFO if info.is_some() => info.as_ref().map_or(0, |bytes| bytes.len() as u64),
 				_ => elements.get(&id).map_or(0, |(from, to)| to - from),
 			};
 		}
@@ -534,6 +542,7 @@ impl<R: Read + Seek> Muxer<R> {
 				TRACKS => pieces.push(Piece::Bytes(tracks.clone())),
 				CUES => pieces.push(Piece::Bytes(cues.clone())),
 				ATTACHMENTS if given.is_some() => pieces.push(Piece::Bytes(given.cloned().unwrap_or_default())),
+				INFO if info.is_some() => pieces.push(Piece::Bytes(info.clone().unwrap_or_default())),
 				_ if copied_ids.contains(&id) => {
 					if let Some(&(from, to)) = elements.get(&id) {
 						pieces.push(Piece::Copy(from, to));
@@ -598,6 +607,30 @@ impl<R: Read + Seek> Muxer<R> {
 		self.written += out.len() as u64;
 		Ok(out)
 	}
+}
+
+/// The Info element between `from` and `to` with another title. Its checksum, if any, would no
+/// longer match: it goes.
+fn retitle_info<R: Read + Seek>(r: &mut R, from: u64, to: u64, title: &str) -> io::Result<Vec<u8>> {
+	skip_to(r, from)?;
+	let header = read_header(r)?;
+	let end = header.end().min(to);
+	let mut content = Vec::new();
+	let mut position = header.start;
+	while position < end {
+		skip_to(r, position)?;
+		let child = read_header(r)?;
+		let child_end = child.end().min(end);
+		if child.id != TITLE && child.id != CRC32 {
+			skip_to(r, position)?;
+			content.extend(read_bytes(r, child_end - position)?);
+		}
+		position = child_end;
+	}
+	if !title.is_empty() {
+		content.extend(string(TITLE, title));
+	}
+	Ok(element(INFO, &content))
 }
 
 fn ebml_header() -> Vec<u8> {
@@ -993,9 +1026,24 @@ mod tests {
 	}
 
 	#[test]
+	fn retitles_the_segment() {
+		let plan = Plan {
+			title: Some("Holiday".into()),
+			..Plan::default()
+		};
+		let out = mux(source(), &plan, &[]);
+		let size = out.len() as u64;
+		let file = mkv::probe(&mut Cursor::new(out.clone()), size).unwrap();
+		assert_eq!(file.timestamp_scale, 1_000_000);
+		assert!(out.windows(7).any(|window| window == b"Holiday"));
+		assert_eq!(read_back(out, 2).len(), 2);
+	}
+
+	#[test]
 	fn replaces_adds_and_drops_tracks() {
 		let plan = Plan {
 			attachments: None,
+			title: None,
 			choices: vec![Choice {
 				number: 2,
 				keep: true,
@@ -1042,6 +1090,7 @@ mod tests {
 
 		let dropped = Plan {
 			attachments: None,
+			title: None,
 			choices: vec![Choice {
 				number: 2,
 				keep: false,

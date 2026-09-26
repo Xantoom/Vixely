@@ -7,7 +7,7 @@ import '@fontsource/pacifico';
 import '@fontsource/permanent-marker';
 import '@fontsource-variable/caveat';
 import { useEffect, useState } from 'react';
-import { fontInfo, type Overlay, type ShapeId, type ShapeOverlay, type TextOverlay } from './model';
+import { fontInfo, type Overlay, shownAt, type ShapeId, type ShapeOverlay, type TextOverlay } from './model';
 
 /**
  * Draws text and stickers with the 2D canvas, the same code for the preview and the export, so
@@ -251,9 +251,12 @@ export function drawOverlays(
 	context: Context,
 	overlays: readonly Overlay[],
 	output: { width: number; height: number },
+	/** Time in the source video: only the overlays shown then are drawn. */
+	time?: number,
 ): void {
 	const unit = Math.min(output.width, output.height);
 	for (const overlay of overlays) {
+		if (!shownAt(overlay, time)) continue;
 		context.save();
 		context.translate(overlay.x * output.width, overlay.y * output.height);
 		context.rotate((overlay.rotation * Math.PI) / 180);

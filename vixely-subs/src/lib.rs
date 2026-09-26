@@ -556,6 +556,11 @@ impl RemuxPlan {
 		self.plan.attachments = Some(element);
 	}
 
+	/// Gives the file this title, as players show it; empty removes the source's.
+	pub fn set_title(&mut self, title: String) {
+		self.plan.title = Some(title);
+	}
+
 	/// A new subtitle track. `uid` identifies it in the file; any random number fits.
 	pub fn add_track(&mut self, stream: usize, language: String, name: String, default: bool, forced: bool, uid: f64) {
 		self.plan.added.push(mux::Added {

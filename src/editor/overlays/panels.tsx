@@ -14,8 +14,16 @@ import { PanelTitle } from '@/editor/EditorLayout';
 import { Section } from '@/editor/panel-parts';
 import { m } from '@/paraglide/messages.js';
 import { IconButton } from '@/ui/Button';
-import { FieldRow, Select, Slider } from '@/ui/fields';
-import { type OverlayEditing, placeOverlay, updateShape, updateText, useOverlaySelection } from './editing';
+import { Button } from '@/ui/Button';
+import { FieldRow, Select, Slider, Switch, TimeField } from '@/ui/fields';
+import {
+	type OverlayEditing,
+	type OverlayTiming,
+	placeOverlay,
+	updateShape,
+	updateText,
+	useOverlaySelection,
+} from './editing';
 import {
 	createShape,
 	createSticker,
@@ -113,6 +121,83 @@ function ColorPicker({ label, value, onChange }: { label: string; value: string;
 }
 
 /** Size, angle, opacity and order of the selected overlay, and removing or copying it. */
+/** Length an overlay first shows for when limited to a part of the video, from the playhead. */
+const FIRST_SPAN = 3;
+
+/** When the overlay shows over a video: all along, or between two times. */
+function Timing({ editing, overlay, timing }: { editing: OverlayEditing; overlay: Overlay; timing: OverlayTiming }) {
+	const ids = { start: useId(), end: useId() };
+	const { duration, playhead } = timing;
+	const span = overlay.span ?? null;
+	const setSpan = (next: { start: number; end: number } | null) => {
+		editing.apply(placeOverlay(overlay.id, { span: next }));
+	};
+	return (
+		<Section title={m.overlay_timing()}>
+			<Switch
+				label={m.overlay_whole_video()}
+				checked={span === null}
+				onChange={(whole) => {
+					if (whole) setSpan(null);
+					else {
+						const start = Math.min(playhead(), Math.max(0, duration - FIRST_SPAN));
+						setSpan({ start, end: Math.min(duration, start + FIRST_SPAN) });
+					}
+				}}
+			/>
+			{span && (
+				<div className="grid gap-2.5">
+					<FieldRow label={m.overlay_from()} htmlFor={ids.start}>
+						<TimeField
+							id={ids.start}
+							value={span.start}
+							min={0}
+							max={span.end}
+							onCommit={(start) => {
+								setSpan({ ...span, start });
+							}}
+						/>
+					</FieldRow>
+					<FieldRow label={m.overlay_to()} htmlFor={ids.end}>
+						<TimeField
+							id={ids.end}
+							value={span.end}
+							min={span.start}
+							max={duration}
+							onCommit={(end) => {
+								setSpan({ ...span, end });
+							}}
+						/>
+					</FieldRow>
+					<div className="grid grid-cols-2 gap-2">
+						<Button
+							onClick={() => {
+								// Past the end, the end moves along.
+								const start = playhead();
+								setSpan({
+									start,
+									end: start < span.end ? span.end : Math.min(duration, start + FIRST_SPAN),
+								});
+							}}
+						>
+							{m.overlay_from_here()}
+						</Button>
+						<Button
+							onClick={() => {
+								// Before the start, the start moves along.
+								const end = playhead();
+								setSpan({ start: end > span.start ? span.start : Math.max(0, end - FIRST_SPAN), end });
+							}}
+						>
+							{m.overlay_to_here()}
+						</Button>
+					</div>
+				</div>
+			)}
+		</Section>
+	);
+}
+
 function Arrange({ editing, overlay }: { editing: OverlayEditing; overlay: Overlay }) {
 	const select = useOverlaySelection((state) => state.select);
 	const index = editing.overlays.findIndex((candidate) => candidate.id === overlay.id);
@@ -127,83 +212,86 @@ function Arrange({ editing, overlay }: { editing: OverlayEditing; overlay: Overl
 		});
 	};
 	return (
-		<Section title={m.overlay_arrange()}>
-			<Slider
-				label={m.overlay_size()}
-				value={Math.round(overlay.size * 100)}
-				min={1}
-				max={150}
-				defaultValue={Math.round(overlay.size * 100)}
-				format={(value) => `${value} %`}
-				onChange={(value) => {
-					place({ size: value / 100 });
-				}}
-				onEnd={editing.settle}
-			/>
-			<Slider
-				label={m.overlay_rotation()}
-				value={Math.round(overlay.rotation)}
-				min={-180}
-				max={180}
-				format={(value) => `${value}°`}
-				onChange={(rotation) => {
-					place({ rotation });
-				}}
-				onEnd={editing.settle}
-			/>
-			<Slider
-				label={m.overlay_opacity()}
-				value={Math.round(overlay.opacity * 100)}
-				min={0}
-				max={100}
-				defaultValue={100}
-				format={(value) => `${value} %`}
-				onChange={(value) => {
-					place({ opacity: value / 100 });
-				}}
-				onEnd={editing.settle}
-			/>
-			<div className="flex gap-1">
-				<IconButton
-					label={m.overlay_front()}
-					disabled={index === editing.overlays.length - 1}
-					onClick={() => {
-						move(editing.overlays.length - 1);
+		<>
+			<Section title={m.overlay_arrange()}>
+				<Slider
+					label={m.overlay_size()}
+					value={Math.round(overlay.size * 100)}
+					min={1}
+					max={150}
+					defaultValue={Math.round(overlay.size * 100)}
+					format={(value) => `${value} %`}
+					onChange={(value) => {
+						place({ size: value / 100 });
 					}}
-				>
-					<ArrowUpToLine className="size-5" />
-				</IconButton>
-				<IconButton
-					label={m.overlay_back()}
-					disabled={index === 0}
-					onClick={() => {
-						move(0);
+					onEnd={editing.settle}
+				/>
+				<Slider
+					label={m.overlay_rotation()}
+					value={Math.round(overlay.rotation)}
+					min={-180}
+					max={180}
+					format={(value) => `${value}°`}
+					onChange={(rotation) => {
+						place({ rotation });
 					}}
-				>
-					<ArrowDownToLine className="size-5" />
-				</IconButton>
-				<IconButton
-					label={m.overlay_duplicate()}
-					onClick={() => {
-						const copy = duplicate(overlay);
-						editing.apply((list) => [...list, copy]);
-						select(copy.id);
+					onEnd={editing.settle}
+				/>
+				<Slider
+					label={m.overlay_opacity()}
+					value={Math.round(overlay.opacity * 100)}
+					min={0}
+					max={100}
+					defaultValue={100}
+					format={(value) => `${value} %`}
+					onChange={(value) => {
+						place({ opacity: value / 100 });
 					}}
-				>
-					<Copy className="size-5" />
-				</IconButton>
-				<IconButton
-					label={m.overlay_delete()}
-					onClick={() => {
-						editing.apply((list) => list.filter((candidate) => candidate.id !== overlay.id));
-						select(null);
-					}}
-					className="ml-auto"
-				>
-					<Trash2 className="size-5" />
-				</IconButton>
-			</div>
-		</Section>
+					onEnd={editing.settle}
+				/>
+				<div className="flex gap-1">
+					<IconButton
+						label={m.overlay_front()}
+						disabled={index === editing.overlays.length - 1}
+						onClick={() => {
+							move(editing.overlays.length - 1);
+						}}
+					>
+						<ArrowUpToLine className="size-5" />
+					</IconButton>
+					<IconButton
+						label={m.overlay_back()}
+						disabled={index === 0}
+						onClick={() => {
+							move(0);
+						}}
+					>
+						<ArrowDownToLine className="size-5" />
+					</IconButton>
+					<IconButton
+						label={m.overlay_duplicate()}
+						onClick={() => {
+							const copy = duplicate(overlay);
+							editing.apply((list) => [...list, copy]);
+							select(copy.id);
+						}}
+					>
+						<Copy className="size-5" />
+					</IconButton>
+					<IconButton
+						label={m.overlay_delete()}
+						onClick={() => {
+							editing.apply((list) => list.filter((candidate) => candidate.id !== overlay.id));
+							select(null);
+						}}
+						className="ml-auto"
+					>
+						<Trash2 className="size-5" />
+					</IconButton>
+				</div>
+			</Section>
+			{editing.timing && <Timing editing={editing} overlay={overlay} timing={editing.timing} />}
+		</>
 	);
 }
 

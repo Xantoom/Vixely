@@ -47,6 +47,8 @@ interface OverlayBase {
 	rotation: number;
 	/** 0 to 1. */
 	opacity: number;
+	/** When it shows over a video, in seconds of the source; absent for the whole video. */
+	span?: { start: number; end: number } | null;
 }
 
 export interface TextOverlay extends OverlayBase {
@@ -198,3 +200,9 @@ export const SWATCHES = [
 	'#bf5af2',
 	'#ff2d92',
 ];
+
+/** Whether the overlay shows at `time`, in seconds of the source; always without a time. */
+export function shownAt(overlay: Overlay, time: number | undefined): boolean {
+	const { span } = overlay;
+	return time === undefined || !span || (time >= span.start && time < span.end);
+}

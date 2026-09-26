@@ -4,6 +4,7 @@
 import { ALL_FORMATS, AudioSampleSink, BlobSource, Input } from 'mediabunny';
 import { findAudioTrack } from '@/media/audio-tracks';
 import { DECODER_PREROLL } from '@/media/decoder';
+import { canDecodeAudio } from '@/media/decoders';
 import { PEAK_CHUNK, PEAK_FRAMES, type PeaksLimit, type PeaksMessage, type PeaksRequest } from '@/media/peaks-protocol';
 import { loadAudio } from '@/wasm/audio';
 
@@ -145,7 +146,7 @@ async function read(request: PeaksRequest) {
 	limit = request.toFrame ?? Number.POSITIVE_INFINITY;
 	try {
 		const track = await findAudioTrack(input, request.track);
-		if (!track || !(await track.canDecode())) {
+		if (!track || !(await canDecodeAudio(track))) {
 			post({ type: 'error' });
 			return;
 		}

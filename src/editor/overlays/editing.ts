@@ -10,9 +10,18 @@ export interface OverlayEditing {
 	preview: (change: (overlays: Overlay[]) => Overlay[]) => void;
 	/** Ends the gesture: everything since it started becomes one undo step. */
 	settle: () => void;
+	/** Over a video: overlays can show for a part of it only. */
+	timing?: OverlayTiming;
 }
 
-type Placement = Partial<Pick<Overlay, 'x' | 'y' | 'size' | 'rotation' | 'opacity'>>;
+export interface OverlayTiming {
+	/** Length of the source, in seconds. */
+	duration: number;
+	/** Where playback is, in seconds of the source; read when asked, not at every frame. */
+	playhead: () => number;
+}
+
+type Placement = Partial<Pick<Overlay, 'x' | 'y' | 'size' | 'rotation' | 'opacity' | 'span'>>;
 
 /** Moves, sizes or turns one overlay of the list. */
 export function placeOverlay(id: string, change: Placement) {

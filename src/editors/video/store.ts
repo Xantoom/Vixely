@@ -2,8 +2,10 @@ import { create } from 'zustand';
 import { peekTaskIntent } from '@/app/tasks';
 import { canRedo, canUndo, commit, createHistory, type History, redo, replace, undo } from '@/document/history';
 import { clampView, type Range } from '@/document/timemap';
+import type { OverlayEditing } from '@/editor/overlays/editing';
+import { usePlayback } from '@/media/playback';
 import type { ImageDoc } from '../image/document';
-import type { PictureEditing } from '../image/editing';
+import { overlayEditing, type PictureEditing } from '../image/editing';
 import type { AspectId } from '../image/store';
 import { createVideoDoc, type VideoDoc } from './document';
 import {
@@ -189,4 +191,9 @@ export function useVideoPictureEditing(
 		setAspect,
 		still,
 	};
+}
+
+/** Text and stickers over the video: each shows all along or for a part of it. */
+export function videoOverlayEditing(picture: PictureEditing, duration: number): OverlayEditing {
+	return { ...overlayEditing(picture), timing: { duration, playhead: () => usePlayback.getState().time } };
 }

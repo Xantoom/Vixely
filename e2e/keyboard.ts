@@ -21,7 +21,8 @@ async function walk(page: Page, where: string) {
 		window.scrollTo(0, 0);
 	});
 	const seen = new Set<string>();
-	for (let i = 0; i < 250; i++) {
+	let last: string | null = null;
+	for (let i = 0; i < 400; i++) {
 		await page.keyboard.press('Tab');
 		const info = await page.evaluate(() => {
 			const el = document.activeElement as HTMLElement | null;
@@ -37,7 +38,10 @@ async function walk(page: Page, where: string) {
 			return { key, ring, id: el.dataset.walk ?? (el.dataset.walk = String(Math.random())) };
 		});
 		if (!info) continue;
+		// A date field takes a Tab per part: the same element again is not the walk looping.
+		if (info.id === last) continue;
 		if (seen.has(info.id)) break;
+		last = info.id;
 		seen.add(info.id);
 		if (!info.ring) add(noRing, info.key, where);
 	}

@@ -122,7 +122,19 @@ export function InfoPanel({ opened }: { opened: OpenedFile | null }) {
 				<dl className="grid gap-3.5">
 					<Row label={m.info_video_codec()} value={video.codec ? codecName(video.codec) : '–'} />
 					<Row label={m.info_resolution()} value={`${video.width} × ${video.height}`} />
-					{video.fps !== null && <Row label={m.info_frame_rate()} value={formatFrameRate(video.fps)} />}
+					{video.fps !== null && (
+						<Row
+							label={m.info_frame_rate()}
+							value={
+								video.variable
+									? m.info_frame_rate_variable({
+											low: Math.round(video.variable.min),
+											high: Math.round(video.variable.max),
+										})
+									: formatFrameRate(video.fps)
+							}
+						/>
+					)}
 					<SupportRow label={m.info_playback()} supported={video.decodable} />
 				</dl>
 			)}
