@@ -7,6 +7,7 @@ import { m } from '@/paraglide/messages.js';
 import { fetchMessage } from './DropZone';
 import { fetchFile, fileAddress } from './fetch-file';
 import { filesFromDrop } from './files';
+import { takeSharedFiles } from './pwa';
 import { taskBySlug } from './tasks';
 
 /**
@@ -29,6 +30,17 @@ export function useDropHandler(next: DropHandler) {
 	}, []);
 }
 
+interface LaunchParams {
+	files: readonly FileSystemFileHandle[];
+}
+
+declare global {
+	interface Window {
+		/** Files the installed app is opened with, from the file explorer ("Open with Vixely"). */
+		launchQueue?: { setConsumer: (consumer: (params: LaunchParams) => void) => void };
+	}
+}
+
 function hasFiles(event: DragEvent): boolean {
 	return event.dataTransfer?.types.includes('Files') ?? false;
 }
@@ -48,6 +60,25 @@ export function GlobalDrop() {
 	const editor: MediaKind | undefined =
 		EDITOR_ORDER.find((kind) => EDITORS[kind].path === path) ??
 		(path.startsWith('/tools/') ? taskBySlug(path.slice('/tools/'.length))?.editor : undefined);
+
+	// Files the installed app is opened with, or shared with it from another app.
+	const launched = useRef(false);
+	useEffect(() => {
+		if (launched.current) return;
+		launched.current = true;
+		const openLaunched = async (files: File[]) => {
+			if (files.length === 0) return;
+			const kind = await open(files);
+			if (kind) await navigate({ to: EDITORS[kind].path });
+		};
+		window.launchQueue?.setConsumer((params) => {
+			void Promise.all(params.files.map(async (handle) => handle.getFile())).then(openLaunched);
+		});
+		if (new URLSearchParams(location.search).has('shared')) {
+			history.replaceState(null, '', location.pathname);
+			void takeSharedFiles().then(openLaunched);
+		}
+	}, [open, navigate]);
 
 	useEffect(() => {
 		const onDragEnter = (event: DragEvent) => {

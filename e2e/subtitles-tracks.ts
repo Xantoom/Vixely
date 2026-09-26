@@ -4,10 +4,10 @@ import { readFileSync } from 'node:fs';
  * MP4 (tx3g), PGS pictures from an mkvmerge file and from a .sup, exported back. Optional: a large
  * MKV given as the first argument, to time how fast its track is read.
  */
-import { chromium } from 'playwright-core';
+import { engine, sample } from './engine';
 
 const big = process.argv[2];
-const browser = await chromium.launch();
+const browser = await engine.launch();
 const ctx = await browser.newContext({
 	viewport: { width: 1440, height: 1000 },
 	locale: 'en-US',
@@ -48,7 +48,7 @@ const seekTo = async (seconds: number) => {
 };
 
 // 1. MKV made by FFmpeg: SRT (French, default) and ASS (English) with an embedded font.
-console.log('mkv opened in', await open('samples/film.mkv'), 'ms');
+console.log('mkv opened in', await open(sample('film.mkv')), 'ms');
 await tool('Info');
 console.log('tracks:', (await aside.getByRole('radiogroup').innerText()).replace(/\n/g, ' | '));
 console.log('lines:', (await aside.innerText()).match(/Lines\n(\d+)/)?.[1]);
@@ -84,20 +84,20 @@ console.log('new subtitles lines:', (await aside.innerText()).match(/Lines\n(\d+
 // 2. The same film without cues (live mode): the clusters are walked.
 console.log(
 	'live mkv opened in',
-	await open('samples/live.mkv'),
+	await open(sample('live.mkv')),
 	'ms;',
 	(await aside.innerText()).match(/Lines\n(\d+)/)?.[1],
 	'lines',
 );
 
 // 3. MP4 with a timed text track.
-console.log('mp4 opened in', await open('samples/film.mp4'), 'ms');
+console.log('mp4 opened in', await open(sample('film.mp4')), 'ms');
 console.log('mp4 tracks:', (await aside.getByRole('radiogroup').innerText()).replace(/\n/g, ' | '));
 const srt = await exportAs(/^SRT/);
 console.log('exported', srt.name, JSON.stringify(srt.data.toString('utf8').slice(0, 80)));
 
 // 4. mkvmerge file with two PGS tracks and an ASS one.
-console.log('pgs mkv opened in', await open('samples/sample.mkv'), 'ms');
+console.log('pgs mkv opened in', await open(sample('sample.mkv')), 'ms');
 console.log('pgs tracks:', (await aside.getByRole('radiogroup').innerText()).replace(/\n/g, ' | '));
 await seekTo(1);
 await page.screenshot({ path: 'shots/tracks-pgs.png' });

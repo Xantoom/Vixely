@@ -172,9 +172,13 @@ export class MediaPlayer {
 	async play() {
 		await this.ready;
 		if (this.disposed || this.playing) return;
-		if (this.audio) {
-			await this.audio.play();
-		} else {
+		// Without a sound output, the page clock plays the pictures in silence.
+		if (this.audio && !(await this.audio.play())) {
+			this.audio.dispose();
+			this.audio = null;
+		}
+		if (this.disposed) return;
+		if (!this.audio) {
 			// At the end, play starts again from the beginning, like any player.
 			const ranges = this.played();
 			const output = toOutput(ranges, this.position);

@@ -4,9 +4,9 @@ import { readFileSync } from 'node:fs';
  * on it, edit a line in the edit box, set its times on the audio box, go to the next line with
  * Enter, shift, sync on two points, export as ASS; then an ASS file exported as SRT.
  */
-import { chromium } from 'playwright-core';
+import { engine } from './engine';
 
-const browser = await chromium.launch();
+const browser = await engine.launch();
 const ctx = await browser.newContext({
 	viewport: { width: 1440, height: 1000 },
 	locale: 'en-US',

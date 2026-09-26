@@ -180,8 +180,11 @@ function privacy(lang: Locale): PageContent {
 					title: 'On your device',
 					body: (
 						<p>
-							Vixely remembers your theme and your language in your browser's local storage. It sets no
-							cookie. You can clear this at any time from your browser's settings.
+							Vixely remembers your theme and your language in your browser's local storage. While you
+							edit, your unfinished work and a copy of its files are kept in your browser's storage, so a
+							closed tab or a reload loses nothing; the Forget button on the home page deletes them. The
+							site's own code is kept there too, so it works without a network. It sets no cookie. You can
+							clear all of this at any time from your browser's settings.
 						</p>
 					),
 				},
@@ -241,8 +244,11 @@ function privacy(lang: Locale): PageContent {
 					title: 'Sur votre appareil',
 					body: (
 						<p>
-							Vixely retient votre thème et votre langue dans le stockage local de votre navigateur. Il ne
-							dépose aucun cookie. Vous pouvez effacer ces réglages à tout moment depuis votre navigateur.
+							Vixely retient votre thème et votre langue dans le stockage local de votre navigateur.
+							Pendant que vous modifiez un fichier, votre travail en cours et une copie de ses fichiers y
+							sont gardés : un onglet fermé ou rechargé ne fait rien perdre ; le bouton Oublier de la page
+							d'accueil les efface. Le code du site y est gardé aussi, pour qu'il marche sans réseau. Il
+							ne dépose aucun cookie. Vous pouvez tout effacer à tout moment depuis votre navigateur.
 						</p>
 					),
 				},

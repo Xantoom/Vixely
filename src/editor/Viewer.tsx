@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 import { DropZone } from '@/app/DropZone';
 import { useTask } from '@/app/task-context';
 import type { MediaKind } from '@/editors/registry';
-import { formatTimecode } from '@/lib/format';
+import { codecName, formatTimecode } from '@/lib/format';
 import type { OpenedFile } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 
@@ -87,5 +87,12 @@ export function Viewer({ kind, opened }: { kind: MediaKind; opened: OpenedFile |
 		);
 	}
 
+	const video = opened.info?.video;
+	if (video && !video.decodable)
+		return (
+			<Message>
+				{m.no_decoder({ codec: video.codec ? codecName(video.codec) : opened.format.toUpperCase() })}
+			</Message>
+		);
 	return <Message>{m.no_preview({ format: opened.format.toUpperCase() })}</Message>;
 }

@@ -1,8 +1,8 @@
 /** Image editor: text and stickers placed, moved, turned, and found again in the export. */
-import { chromium } from 'playwright-core';
+import { engine } from './engine';
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const browser = await chromium.launch();
+const browser = await engine.launch();
 const ctx = await browser.newContext({ viewport: { width: 1536, height: 900 }, deviceScaleFactor: 1.25, locale: 'en-US', acceptDownloads: true });
 await ctx.addInitScript(() => Object.defineProperty(window, 'showSaveFilePicker', { value: undefined }));
 const page = await ctx.newPage();

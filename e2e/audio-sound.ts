@@ -3,13 +3,13 @@
  * a Voice equalizer, then exported as WAV. With FFPROBE set, FFmpeg measures the noise left
  * between the bursts, the length, and the level of the voice.
  */
-import { chromium } from 'playwright-core';
+import { engine } from './engine';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 const ffprobe = process.env.FFPROBE;
 const ffmpeg = ffprobe?.replace(/ffprobe$/, 'ffmpeg');
-const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
+const browser = await engine.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 }, locale: 'en-US', acceptDownloads: true });
 await ctx.addInitScript(() => Object.defineProperty(window, 'showSaveFilePicker', { value: undefined }));
 const page = await ctx.newPage();

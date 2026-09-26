@@ -1,8 +1,8 @@
 /** Image editor: looks, the 13 adjustments, export matching the preview. */
-import { chromium } from 'playwright-core';
+import { engine } from './engine';
 import { readFileSync } from 'node:fs';
 
-const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const browser = await engine.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const ctx = await browser.newContext({ viewport: { width: 1536, height: 900 }, deviceScaleFactor: 1.5, locale: 'en-US', acceptDownloads: true });
 await ctx.addInitScript(() => Object.defineProperty(window, 'showSaveFilePicker', { value: undefined }));
 const page = await ctx.newPage();

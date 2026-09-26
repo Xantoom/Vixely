@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { isSessionOwner, registerRestorable, takeRestore } from '@/app/resume';
 import { canRedo, canUndo, commit, createHistory, type History, redo, replace, undo } from '@/document/history';
 import { adaptDoc, createImageDoc, type ImageDoc, orientedSize, type Size } from './document';
 
@@ -114,6 +115,8 @@ export const useImageEditor = create<ImageEditorState>((set, get) => ({
 			exportSettings: DEFAULT_EXPORT,
 			adopted: null,
 		});
+		const kept = takeRestore<ImageKept>('image');
+		if (kept) set({ ...kept, adopted: owner });
 	},
 
 	retarget(from, to) {
@@ -163,6 +166,22 @@ export const useImageEditor = create<ImageEditorState>((set, get) => ({
 		set({ adopted: owner, exportSettings: { ...DEFAULT_EXPORT, ...settings } });
 	},
 }));
+
+/** What a closed tab keeps of the image being edited. */
+interface ImageKept {
+	history: History<ImageDoc>;
+	cropAspect: AspectId;
+	exportSettings: ExportSettings;
+}
+
+registerRestorable('image', {
+	snapshot: () => {
+		const { owner, history, cropAspect, exportSettings } = useImageEditor.getState();
+		if (!isSessionOwner(owner) || !(canUndo(history) || canRedo(history))) return null;
+		return { history, cropAspect, exportSettings } satisfies ImageKept;
+	},
+	subscribe: useImageEditor.subscribe,
+});
 
 export function useImageDoc(): ImageDoc {
 	return useImageEditor((state) => state.history.present);

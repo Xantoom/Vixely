@@ -1,9 +1,9 @@
 /** GIF editor, phase 10: looks, text, fades, bands, frames, skip, presets, PNG frames, transparent WebM. */
-import { chromium } from 'playwright-core';
+import { engine } from './engine';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { unzipSync } from 'fflate';
 
-const browser = await chromium.launch();
+const browser = await engine.launch();
 const ctx = await browser.newContext({ viewport: { width: 1536, height: 900 }, locale: 'en-US', acceptDownloads: true });
 await ctx.addInitScript(() => Object.defineProperty(window, 'showSaveFilePicker', { value: undefined }));
 const page = await ctx.newPage();

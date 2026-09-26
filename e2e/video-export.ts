@@ -3,12 +3,12 @@
  * (subtitles moved up, fonts kept), an MP4 with timed text, and a WebM at 480p. With FFPROBE set,
  * each file is checked by FFmpeg's probe.
  */
-import { chromium } from 'playwright-core';
+import { engine, sample } from './engine';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 const ffprobe = process.env.FFPROBE;
-const browser = await chromium.launch();
+const browser = await engine.launch();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 }, locale: 'en-US', acceptDownloads: true });
 // Downloads rather than the file picker, which a headless browser can't show.
 await ctx.addInitScript(() => Object.defineProperty(window, 'showSaveFilePicker', { value: undefined }));
@@ -68,7 +68,7 @@ const firstLines = (path: string, stream: string) => {
 };
 
 // 1. MKV: 0:10 → 0:20 removed, colours changed, subtitles and fonts carried over.
-await open('samples/film.mkv');
+await open(sample('film.mkv'));
 await removePassage(10, 20, 60);
 await tools.getByRole('button', { name: 'Adjust' }).click();
 await aside.getByRole('slider', { name: 'Saturation' }).focus();
@@ -76,16 +76,16 @@ for (let i = 0; i < 30; i++) await page.keyboard.press('ArrowLeft');
 const mkv = await convert('converted.mkv');
 probe(mkv);
 if (ffprobe) console.log('  source lines:');
-firstLines('samples/film.mkv', '0:s:0');
+firstLines(sample('film.mkv'), '0:s:0');
 firstLines(mkv, '0:s:0');
 
 // 2. MP4 with timed text, kept as MP4.
-await open('samples/film.mp4');
+await open(sample('film.mp4'));
 await removePassage(10, 20, 60);
 probe(await convert('converted.mp4'));
 
 // 3. WebM at 480p.
-await open('samples/h264.mp4');
+await open(sample('h264.mp4'));
 probe(
 	await convert('converted.webm', async () => {
 		await aside.getByLabel('Container').click();
@@ -97,7 +97,7 @@ probe(
 
 // 4. MKV trimmed and copied: nothing encoded again, subtitles and fonts kept, lines moved to
 // where the copy really starts (the key frame before the trim).
-await open('samples/film.mkv');
+await open(sample('film.mkv'));
 await tools.getByRole('button', { name: 'Trim' }).click();
 await aside.getByLabel('Start').fill('0:10.300');
 await aside.getByLabel('Start').press('Enter');
@@ -113,7 +113,7 @@ if (ffprobe) {
 }
 
 // 5. MKV with two passages removed, copied: the parts widened to key frames, lines moved with them.
-await open('samples/film.mkv');
+await open(sample('film.mkv'));
 await removePassage(12, 21, 60);
 await removePassage(33, 44, 60);
 const cutCopy = await convert(
@@ -128,7 +128,7 @@ probe(cutCopy);
 firstLines(cutCopy, '0:s:0');
 
 // 6. The same in an MP4.
-await open('samples/film.mp4');
+await open(sample('film.mp4'));
 await removePassage(12, 21, 60);
 probe(await convert('cut-copy.mp4', async () => {}, /Original/));
 
@@ -140,7 +140,7 @@ const loudness = (path: string, stream: string) => {
 };
 
 // 7. MKV as it is, its sound 6 dB louder and a WAV added: pictures copied, sound encoded again.
-await open('samples/film.mkv');
+await open(sample('film.mkv'));
 await tools.getByRole('button', { name: 'Audio' }).click();
 await aside.getByRole('button', { name: 'Volume' }).first().click();
 await aside.getByRole('slider', { name: 'Gain' }).focus();
@@ -150,11 +150,11 @@ await aside.getByText('Audio, long').waitFor();
 await aside.screenshot({ path: 'shots/audio-tool.png' });
 const louder = await convert('louder.mkv', async () => {}, /Original/);
 probe(louder);
-loudness('samples/film.mkv', '0:a:0');
+loudness(sample('film.mkv'), '0:a:0');
 loudness(louder, '0:a:0');
 
 // 8. MP4 converted with a passage removed and a WAV added: the sound added follows the cut.
-await open('samples/film.mp4');
+await open(sample('film.mp4'));
 await removePassage(10, 20, 60);
 await tools.getByRole('button', { name: 'Audio' }).click();
 await aside.locator('input[type=file]').setInputFiles('samples/long.wav');
@@ -171,7 +171,7 @@ const frames = (path: string, times: number[], name: string) => {
 };
 
 // 9. MKV converted to MP4 with its styled English subtitles burned in.
-await open('samples/film.mkv');
+await open(sample('film.mkv'));
 await tools.getByRole('button', { name: 'Subtitles' }).click();
 await aside.getByLabel('Track', { exact: true }).click();
 await page.getByRole('option', { name: /English \(styled\)/ }).click();
@@ -184,7 +184,7 @@ probe(burned);
 frames(burned, [12.5, 20.5], 'burned');
 
 // 10. PGS burned in.
-await open('samples/sample.mkv');
+await open(sample('sample.mkv'));
 await tools.getByRole('button', { name: 'Subtitles' }).click();
 await aside.getByLabel('Track', { exact: true }).click();
 await page.getByRole('option').nth(1).click();

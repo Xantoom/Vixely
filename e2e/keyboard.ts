@@ -3,7 +3,8 @@
  * what takes the focus without showing it, and what reacts to the mouse but can't be reached
  * with the keyboard.
  */
-import { chromium, type Page } from 'playwright-core';
+import type { Page } from 'playwright-core';
+import { engine, sample } from './engine';
 
 const BASE = process.env.BASE ?? 'http://localhost:5173';
 
@@ -16,8 +17,13 @@ const add = (map: Map<string, Set<string>>, key: string, where: string) => {
 };
 
 async function walk(page: Page, where: string) {
+	// The walk starts from the top of the page: focusing the body moves the starting point there,
+	// where a blur alone leaves it (Firefox) at the element that had the focus.
 	await page.evaluate(() => {
 		(document.activeElement as HTMLElement | null)?.blur();
+		document.body.tabIndex = -1;
+		document.body.focus();
+		document.body.removeAttribute('tabindex');
 		window.scrollTo(0, 0);
 	});
 	const seen = new Set<string>();
@@ -70,14 +76,14 @@ async function walk(page: Page, where: string) {
 }
 
 const EDITORS: [string, string, string][] = [
-	['/video', 'samples/film.mkv', '[role=group][aria-label="Tracks"]'],
+	['/video', sample('film.mkv'), '[role=group][aria-label="Tracks"]'],
 	['/image', 'samples/photo.heic', 'nav[aria-label="Editing tools"]'],
 	['/gif', 'samples/anim.gif', 'nav[aria-label="Editing tools"]'],
-	['/audio', 'samples/film.mp4', 'nav[aria-label="Editing tools"]'],
-	['/subtitles', 'samples/sample.mkv', 'nav[aria-label="Editing tools"]'],
+	['/audio', sample('film.mp4'), 'nav[aria-label="Editing tools"]'],
+	['/subtitles', sample('sample.mkv'), 'nav[aria-label="Editing tools"]'],
 ];
 
-const browser = await chromium.launch();
+const browser = await engine.launch();
 const page = await (await browser.newContext({ viewport: { width: 1440, height: 950 }, locale: 'en-US' })).newPage();
 for (const path of ['/', '/about', '/system', '/tools/compress-video']) {
 	await page.goto(`${BASE}${path}`);

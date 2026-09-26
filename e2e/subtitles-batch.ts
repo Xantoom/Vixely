@@ -2,11 +2,11 @@
  * Several subtitle files at once: SRT, ASS and a .sup dropped together, shifted by two seconds and
  * written as WebVTT (the .sup stays PGS), into a ZIP where folders can't be picked.
  */
-import { chromium } from 'playwright-core';
+import { engine } from './engine';
 import { readFileSync } from 'node:fs';
 import { unzipSync } from 'fflate';
 
-const browser = await chromium.launch();
+const browser = await engine.launch();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'en-US', acceptDownloads: true });
 await ctx.addInitScript(() => {
 	Object.defineProperty(window, 'showDirectoryPicker', { value: undefined });

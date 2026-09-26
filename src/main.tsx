@@ -2,6 +2,7 @@ import { createRouter, RouterProvider } from '@tanstack/react-router';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { countPage } from './app/analytics';
+import { startPwa } from './app/pwa';
 import { getLocale } from './paraglide/runtime.js';
 import { routeTree } from './routeTree.gen';
 import './styles/app.css';
@@ -15,6 +16,7 @@ declare module '@tanstack/react-router' {
 }
 
 document.documentElement.lang = getLocale();
+startPwa();
 
 // Counted once the page has its title, which its own effects set.
 router.subscribe('onResolved', ({ toLocation }) => {

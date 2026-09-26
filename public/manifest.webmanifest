@@ -1,0 +1,44 @@
+{
+	"id": "/",
+	"name": "Vixely",
+	"short_name": "Vixely",
+	"description": "Edit video, images, GIFs, audio and subtitles in your browser. Nothing is uploaded.",
+	"start_url": "/",
+	"scope": "/",
+	"display": "standalone",
+	"background_color": "#161618",
+	"theme_color": "#161618",
+	"categories": ["photo", "productivity", "utilities"],
+	"icons": [
+		{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+		{ "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+		{ "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+		{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+	],
+	"shortcuts": [
+		{ "name": "Video", "url": "/video", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+		{ "name": "Image", "url": "/image", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+		{ "name": "GIF", "url": "/gif", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+		{ "name": "Audio", "url": "/audio", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+		{ "name": "Subtitles", "url": "/subtitles", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+	],
+	"file_handlers": [
+		{
+			"action": "/",
+			"accept": {
+				"video/*": [".mp4", ".m4v", ".mkv", ".webm", ".mov"],
+				"image/*": [".jpg", ".jpeg", ".png", ".webp", ".avif", ".jxl", ".heic", ".heif", ".bmp", ".tif", ".tiff", ".ico", ".gif"],
+				"audio/*": [".mp3", ".wav", ".flac", ".ogg", ".opus", ".m4a", ".aac", ".mka"],
+				"text/plain": [".srt", ".vtt", ".ass", ".ssa"],
+				"application/octet-stream": [".sup"]
+			}
+		}
+	],
+	"launch_handler": { "client_mode": "focus-existing" },
+	"share_target": {
+		"action": "/share",
+		"method": "POST",
+		"enctype": "multipart/form-data",
+		"params": { "files": [{ "name": "files", "accept": ["video/*", "image/*", "audio/*", "text/*", ".srt", ".vtt", ".ass", ".sup"] }] }
+	}
+}

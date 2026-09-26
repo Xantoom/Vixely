@@ -226,6 +226,13 @@ export function SpeedPanel({ animated }: { animated: boolean }) {
 					max={SPEEDS.length - 1}
 					defaultValue={SPEEDS.indexOf(1)}
 					format={(index) => formatSpeed(SPEEDS[index] ?? 1)}
+					parse={(text) => {
+						// The listed speed nearest the one typed.
+						const speed = Number.parseFloat(text.replace(',', '.'));
+						if (!Number.isFinite(speed)) return null;
+						const distances = SPEEDS.map((listed) => Math.abs(listed - speed));
+						return distances.indexOf(Math.min(...distances));
+					}}
 					onChange={(index) => {
 						preview((current) => ({ ...current, speed: SPEEDS[index] ?? 1 }));
 					}}

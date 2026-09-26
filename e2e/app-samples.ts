@@ -157,6 +157,12 @@ const LENGTH = 20;
 		'-metadata:s:s:0', 'language=eng', '-metadata:s:s:1', 'language=fre', '-disposition:s:0', 'default',
 		'-t', '10', join(out, 'sunset.mkv'),
 	]);
+	// The same in VP9, for browsers without H.264 (Linux builds of Firefox and Chromium).
+	await run([
+		'-i', join(out, 'sunset.mkv'), '-map', '0', '-c', 'copy',
+		'-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', '36', '-deadline', 'good', '-cpu-used', '4', '-row-mt', '1',
+		join(out, 'sunset-vp9.mkv'),
+	]);
 	// GIF: 3 s, 360 px wide, 12 fps.
 	await run([
 		'-framerate', '30', '-i', join(frames, '%04d.png'), '-t', '3',
@@ -166,4 +172,4 @@ const LENGTH = 20;
 }
 
 rmSync(work, { recursive: true });
-for (const name of ['lake.jpg', 'sunset.mkv', 'sunset.gif', 'sunset.mp3']) console.log(name, Bun.file(join(out, name)).size, 'bytes');
+for (const name of ['lake.jpg', 'sunset.mkv', 'sunset-vp9.mkv', 'sunset.gif', 'sunset.mp3']) console.log(name, Bun.file(join(out, name)).size, 'bytes');

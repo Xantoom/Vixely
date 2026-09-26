@@ -1,11 +1,12 @@
 import { Link } from '@tanstack/react-router';
-import { Download, Moon, Redo2, Search, Sun, Undo2 } from 'lucide-react';
+import { Download, MonitorDown, Moon, Redo2, RefreshCw, Search, Sun, Undo2 } from 'lucide-react';
 import type { MediaKind } from '@/editors/registry';
 import { m } from '@/paraglide/messages.js';
 import { getLocale, setLocale } from '@/paraglide/runtime.js';
 import { Button, IconButton } from '@/ui/Button';
 import { LogoMark } from '@/ui/Logo';
 import { EditorSwitcher } from './EditorSwitcher';
+import { applyUpdate, install, usePwa } from './pwa';
 import { useTheme } from './theme';
 
 export interface EditorActions {
@@ -48,6 +49,8 @@ function LanguageButton() {
 
 export function AppBar({ editor, fileName, actions, onSearch }: AppBarProps) {
 	const [theme, toggleTheme] = useTheme();
+	const updateReady = usePwa((state) => state.updateReady);
+	const installable = usePwa((state) => state.installable);
 
 	return (
 		<header
@@ -102,6 +105,21 @@ export function AppBar({ editor, fileName, actions, onSearch }: AppBarProps) {
 
 			{/* On a phone, the editor keeps its room for undo and export; both are on every other page. */}
 			<div className={`flex gap-2 ${editor ? 'max-sm:hidden' : ''}`}>
+				{updateReady && (
+					<IconButton label={m.app_update()} onClick={applyUpdate}>
+						<RefreshCw className="size-5" />
+					</IconButton>
+				)}
+				{installable && !editor && (
+					<IconButton
+						label={m.app_install()}
+						onClick={() => {
+							void install();
+						}}
+					>
+						<MonitorDown className="size-5" />
+					</IconButton>
+				)}
 				<LanguageButton />
 				<IconButton label={theme === 'dark' ? m.theme_to_light() : m.theme_to_dark()} onClick={toggleTheme}>
 					{theme === 'dark' ? <Sun className="size-5" /> : <Moon className="size-5" />}

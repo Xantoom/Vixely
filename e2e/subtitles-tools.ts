@@ -4,13 +4,13 @@
  * the original beside each line; a Blu-ray .sup read into text. With FFPROBE set, FFmpeg reads the
  * subtitles back. Whisper's model and Tesseract's English data are downloaded the first time.
  */
-import { chromium } from 'playwright-core';
+import { engine, sample } from './engine';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 const ffprobe = process.env.FFPROBE;
 const ffmpeg = ffprobe?.replace(/ffprobe$/, 'ffmpeg');
-const browser = await chromium.launch();
+const browser = await engine.launch();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'en-US', acceptDownloads: true });
 await ctx.addInitScript(() => Object.defineProperty(window, 'showSaveFilePicker', { value: undefined }));
 const page = await ctx.newPage();
@@ -36,7 +36,7 @@ const save = async (name: string) => {
 
 // 1. A video without subtitles: speech to text, one line corrected, written into the video.
 await page.goto('http://localhost:5173/video');
-await page.setInputFiles('input[type=file]', 'samples/speech.mp4');
+await page.setInputFiles('input[type=file]', sample('speech.mp4'));
 await page.waitForSelector('[role=group][aria-label="Tracks"]', { timeout: 30000 });
 await tools.getByRole('button', { name: 'Subtitles', exact: true }).click();
 await aside.getByRole('button', { name: 'Generate subtitles from speech' }).click();

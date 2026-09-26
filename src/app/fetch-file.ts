@@ -56,9 +56,24 @@ const SAMPLES: Record<MediaKind, string> = {
 	subtitles: 'sunset.mkv',
 };
 
+/** Whether this browser decodes the H.264 of the video example; builds without it get VP9. */
+async function decodesH264(): Promise<boolean> {
+	try {
+		const { supported } = await VideoDecoder.isConfigSupported({
+			codec: 'avc1.64001f',
+			codedWidth: 1280,
+			codedHeight: 720,
+		});
+		return supported === true;
+	} catch {
+		return false;
+	}
+}
+
 export async function fetchSample(kind: MediaKind): Promise<File> {
 	const name = SAMPLES[kind];
-	const response = await fetch(`/samples/${name}`);
+	const video = name.endsWith('.mkv') && !(await decodesH264());
+	const response = await fetch(`/samples/${video ? name.replace('.mkv', '-vp9.mkv') : name}`);
 	if (!response.ok) throw new FetchFileError('status', response.status);
 	const blob = await response.blob();
 	return new File([blob], name, { type: blob.type });

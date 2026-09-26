@@ -3,7 +3,8 @@
  * file open, one run per tool panel, in the light and the dark theme. Prints each rule broken
  * once, with where it was seen.
  */
-import { chromium, type Page } from 'playwright-core';
+import type { Page } from 'playwright-core';
+import { engine, sample } from './engine';
 import { readFileSync } from 'node:fs';
 
 const BASE = process.env.BASE ?? 'http://localhost:5173';
@@ -41,14 +42,14 @@ async function audit(page: Page, where: string) {
 }
 
 const EDITORS: [string, string, string][] = [
-	['/video', 'samples/film.mkv', '[role=group][aria-label="Tracks"]'],
+	['/video', sample('film.mkv'), '[role=group][aria-label="Tracks"]'],
 	['/image', 'samples/photo.heic', 'nav[aria-label="Editing tools"]'],
 	['/gif', 'samples/anim.gif', 'nav[aria-label="Editing tools"]'],
-	['/audio', 'samples/film.mp4', 'nav[aria-label="Editing tools"]'],
-	['/subtitles', 'samples/sample.mkv', 'nav[aria-label="Editing tools"]'],
+	['/audio', sample('film.mp4'), 'nav[aria-label="Editing tools"]'],
+	['/subtitles', sample('sample.mkv'), 'nav[aria-label="Editing tools"]'],
 ];
 
-const browser = await chromium.launch();
+const browser = await engine.launch();
 for (const scheme of ['light', 'dark'] as const) {
 	const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 }, locale: 'en-US', colorScheme: scheme });
 	const page = await ctx.newPage();

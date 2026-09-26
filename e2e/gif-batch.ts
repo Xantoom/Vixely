@@ -1,9 +1,9 @@
 /** A batch of three GIFs and one PNG (left out), exported as WebP into a ZIP; then zoom on a long video. */
-import { chromium } from 'playwright-core';
+import { engine } from './engine';
 import { readFileSync } from 'node:fs';
 import { unzipSync } from 'fflate';
 
-const browser = await chromium.launch();
+const browser = await engine.launch();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'en-US', acceptDownloads: true });
 await ctx.addInitScript(() => {
 	Object.defineProperty(window, 'showSaveFilePicker', { value: undefined });

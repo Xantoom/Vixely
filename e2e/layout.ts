@@ -2,7 +2,8 @@
  * Small screens and zoom: every page and editor (a file open, each tool) at phone width, and at
  * 200 % zoom on a laptop, must not scroll sideways nor push anything out of the screen.
  */
-import { chromium, type Page } from 'playwright-core';
+import type { Page } from 'playwright-core';
+import { engine, sample } from './engine';
 import { mkdirSync } from 'node:fs';
 
 const BASE = process.env.BASE ?? 'http://localhost:5173';
@@ -37,14 +38,14 @@ async function check(page: Page, where: string) {
 }
 
 const EDITORS: [string, string][] = [
-	['/video', 'samples/film.mkv'],
+	['/video', sample('film.mkv')],
 	['/image', 'samples/photo.heic'],
 	['/gif', 'samples/anim.gif'],
-	['/audio', 'samples/film.mp4'],
-	['/subtitles', 'samples/sample.mkv'],
+	['/audio', sample('film.mp4')],
+	['/subtitles', sample('sample.mkv')],
 ];
 
-const browser = await chromium.launch();
+const browser = await engine.launch();
 for (const [name, options] of [
 	['phone', { viewport: { width: 375, height: 740 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }],
 	['zoom', { viewport: { width: 640, height: 400 }, deviceScaleFactor: 2 }],

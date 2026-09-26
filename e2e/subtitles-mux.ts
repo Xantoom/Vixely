@@ -4,11 +4,11 @@
  * tracks and lines. Optional: a large MKV as the first argument times the whole export, written
  * to a file picker that throws the bytes away.
  */
-import { chromium } from 'playwright-core';
+import { engine, sample } from './engine';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 
 const big = process.argv[2];
-const browser = await chromium.launch();
+const browser = await engine.launch();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'en-US', acceptDownloads: true });
 await ctx.addInitScript(() => Object.defineProperty(window, 'showSaveFilePicker', { value: undefined }));
 const page = await ctx.newPage();
@@ -39,7 +39,7 @@ const tracks = async () => (await aside.getByRole('radiogroup').innerText()).rep
 const grid = async () => (await page.getByRole('grid').innerText()).replace(/\n/g, ' ').slice(0, 160);
 
 // 1. MKV: the first line of the French SRT retyped, exported from the subtitle editor.
-await open('samples/film.mkv');
+await open(sample('film.mkv'));
 await page.getByRole('grid').getByRole('row').nth(1).click();
 await page.getByLabel('Text', { exact: true }).fill('Edited in Vixely');
 await page.getByLabel('Text', { exact: true }).blur();
@@ -56,7 +56,7 @@ console.log('reopened tracks:', await tracks());
 console.log('reopened lines:', await grid());
 
 // 2. MP4 without subtitles: new lines marked on the audio box, exported from the video editor.
-await open('samples/h264.mp4');
+await open(sample('h264.mp4'));
 const box = await page.getByRole('application', { name: 'Sound of the line' }).boundingBox();
 if (box) {
 	await page.mouse.move(box.x + 60, box.y + 40);
@@ -75,7 +75,7 @@ console.log('reopened tracks:', await tracks());
 console.log('reopened lines:', await grid());
 
 // 3. The PGS track of an mkvmerge file shifted by half a second.
-await open('samples/sample.mkv');
+await open(sample('sample.mkv'));
 await page.locator('nav[aria-label="Editing tools"]').getByRole('button', { name: 'Timing' }).click();
 await aside.getByLabel('Shift by').fill('0.5');
 await aside.getByLabel('Shift by').press('Enter');

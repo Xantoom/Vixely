@@ -2,12 +2,12 @@
  * A batch of videos converted with the Discord preset: each under 10 MB, keeping its sound and
  * subtitle tracks. With FFPROBE set, each file is checked by FFmpeg's probe.
  */
-import { chromium } from 'playwright-core';
+import { engine, sample } from './engine';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 const ffprobe = process.env.FFPROBE;
-const browser = await chromium.launch();
+const browser = await engine.launch();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 }, locale: 'en-US', acceptDownloads: true });
 // Downloads rather than the folder picker, which a headless browser can't show.
 await ctx.addInitScript(() => Object.defineProperty(window, 'showDirectoryPicker', { value: undefined }));
@@ -21,12 +21,12 @@ mkdirSync('shots', { recursive: true });
 const aside = page.locator('aside');
 
 await page.goto('http://localhost:5173/video');
-await page.setInputFiles('input[type=file]', ['samples/film.mkv', 'samples/h264.mp4', 'samples/rotated.mp4']);
+await page.setInputFiles('input[type=file]', [sample('film.mkv'), sample('h264.mp4'), sample('rotated.mp4')]);
 await page.getByRole('region', { name: 'Batch' }).waitFor({ timeout: 30000 });
 await page.waitForTimeout(1500);
 await page.getByRole('button', { name: 'Export', exact: true }).click();
 await aside.getByLabel('Made for').click();
-await page.getByRole('option', { name: /Discord/ }).click();
+await page.getByRole('option', { name: /^Discord(?! Nitro)/ }).click();
 await page.waitForTimeout(300);
 await page.screenshot({ path: 'shots/video-batch.png' });
 

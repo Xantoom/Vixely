@@ -1,13 +1,15 @@
 import { create } from 'zustand';
-import { createHistory, type History } from '@/document/history';
+import { registerRestorable, takeRestore } from '@/app/resume';
+import { canRedo, canUndo, createHistory, type History } from '@/document/history';
 import { usePlayback } from '@/media/playback';
 import { outputName } from '@/media/save';
+import { useSession } from '@/media/session';
 import type { OpenedFile } from '@/media/session';
 import { type MediaTrackInfo, SubtitleSource, type SubtitleTrackInfo } from '@/media/subtitle-source';
 import type { SubtitleDoc } from './document';
 import { parseSubtitles } from './formats';
 import { decodeText, detectEncoding, type EncodingId } from './formats/encoding';
-import { useSubtitleEditor } from './store';
+import { type SubtitleExportSettings, useSubtitleEditor } from './store';
 import { preferredTrack, supDoc, trackDoc, trackKind } from './tracks';
 
 /**
@@ -83,6 +85,33 @@ export interface NewTrack {
 }
 
 type Status = 'idle' | 'reading' | 'ready' | 'unreadable';
+
+/** A track as a closed tab keeps it: its edits, and the track itself when it was made here. */
+interface KeptTrack {
+	key: TrackKey;
+	history: History<SubtitleDoc> | null;
+	made?: Pick<ProjectTrack, 'info' | 'original' | 'origin'>;
+}
+
+interface SubtitlesKept {
+	tracks: KeptTrack[];
+	current: TrackKey | null;
+	exportSettings: SubtitleExportSettings;
+}
+
+/** Puts back what a closed tab kept: edits of the file's tracks, and the tracks made here. */
+function restored(tracks: ProjectTrack[], kept: SubtitlesKept): ProjectTrack[] {
+	const made: ProjectTrack[] = kept.tracks.flatMap(({ key, history, made }) =>
+		made ? [{ key, history, info: made.info, original: made.original, origin: made.origin ?? null }] : [],
+	);
+	for (const { key } of made) addedCount = Math.max(addedCount, Number(String(key).slice('added-'.length)) || 0);
+	const edited = tracks.map((track) => {
+		const history = kept.tracks.find(({ key }) => key === track.key)?.history;
+		return history ? { ...track, history } : track;
+	});
+	const at = edited.findIndex((track) => track.key === 'new');
+	return at === -1 ? [...edited, ...made] : edited.toSpliced(at, 0, ...made);
+}
 
 interface ProjectState {
 	file: File | null;
@@ -160,9 +189,13 @@ export const useSubtitleProject = create<ProjectState>((set, get) => {
 		set({ tracks: at === -1 ? [...tracks, ...added] : tracks.toSpliced(at, 0, ...added) });
 	};
 
-	const ready = (tracks: ProjectTrack[], first: TrackKey, patch: Partial<ProjectState> = {}) => {
+	const ready = (read: ProjectTrack[], first: TrackKey, patch: Partial<ProjectState> = {}) => {
+		const kept = takeRestore<SubtitlesKept>('subtitles');
+		const tracks = kept ? restored(read, kept) : read;
+		const shown = kept?.current ?? first;
 		set({ tracks, current: null, status: 'ready', progress: 1, ...patch });
-		get().choose(first);
+		get().choose(tracks.some((track) => track.key === shown && track.original) ? shown : first);
+		if (kept) useSubtitleEditor.getState().setExport(kept.exportSettings);
 	};
 
 	const openVideo = async (file: File, mine: number) => {
@@ -316,6 +349,37 @@ export const useSubtitleProject = create<ProjectState>((set, get) => {
 			useSubtitleEditor.getState().reload(doc, encoding);
 		},
 	};
+});
+
+registerRestorable('subtitles', {
+	snapshot: () => {
+		const { file, status, tracks, current } = useSubtitleProject.getState();
+		if (status !== 'ready' || !file || file !== useSession.getState().current?.file) return null;
+		const editor = useSubtitleEditor.getState();
+		const kept = tracks.flatMap((track): KeptTrack[] => {
+			const history = track.key === current ? editor.history : track.history;
+			if (isAdded(track.key)) {
+				return [
+					{
+						key: track.key,
+						history,
+						made: { info: track.info, original: track.original, origin: track.origin ?? null },
+					},
+				];
+			}
+			return history && (canUndo(history) || canRedo(history)) ? [{ key: track.key, history }] : [];
+		});
+		if (kept.length === 0) return null;
+		return { tracks: kept, current, exportSettings: editor.exportSettings } satisfies SubtitlesKept;
+	},
+	subscribe: (listener) => {
+		const project = useSubtitleProject.subscribe(listener);
+		const editor = useSubtitleEditor.subscribe(listener);
+		return () => {
+			project();
+			editor();
+		};
+	},
 });
 
 /** The document of a track as it is now: edited in the editor, kept aside, or as read. */

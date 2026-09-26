@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { isSessionOwner, registerRestorable, takeRestore } from '@/app/resume';
 import { peekTaskIntent } from '@/app/tasks';
 import { canRedo, canUndo, commit, createHistory, type History, redo, replace, undo } from '@/document/history';
 import { clampView, type Range } from '@/document/timemap';
@@ -97,6 +98,8 @@ export const useVideoEditor = create<VideoEditorState>((set, get) => ({
 			exportSettings: sameBatch ? get().exportSettings : null,
 			copied: null,
 		});
+		const kept = takeRestore<VideoKept>('video');
+		if (kept) set(kept);
 	},
 
 	adoptSource(exportSource) {
@@ -151,6 +154,22 @@ export const useVideoEditor = create<VideoEditorState>((set, get) => ({
 		set({ cropAspect });
 	},
 }));
+
+/** What a closed tab keeps of the video being edited. */
+interface VideoKept {
+	history: History<VideoDoc>;
+	cropAspect: AspectId;
+	exportSettings: VideoExportSettings | null;
+}
+
+registerRestorable('video', {
+	snapshot: () => {
+		const { owner, history, cropAspect, exportSettings } = useVideoEditor.getState();
+		if (!isSessionOwner(owner) || !(canUndo(history) || canRedo(history))) return null;
+		return { history, cropAspect, exportSettings } satisfies VideoKept;
+	},
+	subscribe: useVideoEditor.subscribe,
+});
 
 export function useVideoDoc(): VideoDoc {
 	return useVideoEditor((state) => state.history.present);

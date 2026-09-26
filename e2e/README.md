@@ -1,6 +1,6 @@
 # Browser checks
 
-Scenarios that drive the real app in headless Chromium and print what they measure: exported sizes, frame counts,
+Scenarios that drive the real app in a headless browser and print what they measure: exported sizes, frame counts,
 durations, levels. They complement the unit tests, which can't run WebCodecs, WebGL or workers.
 
 ```bash
@@ -8,6 +8,10 @@ cd e2e && bun install && bun run browsers   # once
 bun run dev                                 # in the repository root, in another terminal
 bun gif-formats.ts                          # any scenario
 ```
+
+Every scenario runs in Chromium unless `BROWSER=firefox` or `BROWSER=webkit` names another engine
+(`bunx playwright-core install firefox webkit` once; WebKit also needs `sudo bunx playwright-core install-deps webkit`).
+`./run-all.sh` runs them all in one browser and keeps each output in `runs/`.
 
 Samples the scenarios need are generated on the fly, or created by `bun samples.ts` into `e2e/samples/` (ignored by
 git).
@@ -28,6 +32,8 @@ git).
 | `video-batch.ts`      | Video batch: three videos converted with the Discord preset (each under 10 MB, 720p on its shorter side, sound and subtitle tracks kept); `FFPROBE=…/ffprobe` checks each file                                                                                                                                                                                                                            |
 | `site-pages.ts`       | Pages around the editors: home tasks lead to their task pages, the Discord and GIF-to-MP4 tasks set up their editor, the about, privacy, terms and legal pages, the language switch, and a 404 for unknown tasks                                                                                                                                                                                          |
 | `subtitles-batch.ts`  | SRT, ASS and .sup files shifted together and written as WebVTT into a ZIP                                                                                                                                                                                                                                                                                                                                 |
+| `resume.ts`           | Work kept across a reload and a closed tab: a turned photo, a video's crop and its edited subtitles, the Voice equalizer, a batch of two photos with a look, a hand translation, each with its undo history; forgotten work stays gone |
+| `offline.ts`          | The build without a network (`bun run build && bunx vite preview` in the root): installable, cached by its service worker, then offline the pages reload, a video is copied and a HEIC photo encoded as AVIF |
 | `audit.ts`            | Accessibility: axe-core (WCAG 2.2 A and AA, best practices) on every page and every editor with a file open, each tool and the export, in light and dark; `BASE=…` audits another server, such as the build behind nginx                                                                                                                                                                                  |
 | `keyboard.ts`         | Keyboard: every page and editor walked with Tab, reporting focus without a visible ring and clickable things Tab never reaches                                                                                                                                                                                                                                                                            |
 | `layout.ts`           | Phone width (375 px) and 200 % zoom, in French: nothing scrolls sideways or leaves the screen, every editor and tool                                                                                                                                                                                                                                                                                      |

@@ -4,7 +4,7 @@
 	"type": "module",
 	"description": "Browser checks run against the dev server (bun run dev). Each script drives headless Chromium through a scenario and prints what it measured.",
 	"scripts": {
-		"browsers": "bunx playwright-core install chromium"
+		"browsers": "bunx playwright-core install chromium firefox webkit"
 	},
 	"devDependencies": {
 		"@napi-rs/canvas": "^0.1.80",

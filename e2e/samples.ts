@@ -17,6 +17,8 @@ import { spawnSync } from 'node:child_process';
  *   extra.fr.srt: a subtitle file to add to a video; noisy.wav: a voice-like buzz in white noise.
  * - jfk.wav, speech.mp4: eleven seconds of John F. Kennedy's inaugural address (public domain), as
  *   Whisper's own examples use it, alone and under a test pattern.
+ * - samples/open/: every video above with its H.264 pictures as VP9 and its AAC sound as Opus, the
+ *   rest copied as it is, for browsers built without patented codecs (Playwright's Firefox).
  */
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { chromium } from 'playwright-core';
@@ -333,4 +335,27 @@ if (ffmpeg && !existsSync('samples/speech.mp4')) {
 		{ stdio: 'inherit' },
 	);
 	console.log('samples/speech.mp4');
+}
+
+// The same videos in codecs every browser decodes: VP9 pictures, Opus sound, the rest copied.
+if (ffmpeg) {
+	mkdirSync('samples/open', { recursive: true });
+	const probe = ffmpeg.replace(/ffmpeg$/, 'ffprobe');
+	for (const name of ['film.mp4', 'film.mkv', 'live.mkv', 'h264.mp4', 'rotated.mp4', 'silent.mp4', 'speech.mp4', 'vfr.mp4', 'ac3.mkv', 'dts.mkv', 'sample.mkv']) {
+		const target = `samples/open/${name}`;
+		if (existsSync(target) || !existsSync(`samples/${name}`)) continue;
+		const audio = spawnSync(probe, ['-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=codec_name', '-of', 'csv=p=0', `samples/${name}`], { encoding: 'utf8' }).stdout;
+		const aac = audio.includes('aac');
+		spawnSync(
+			ffmpeg,
+			[
+				'-v', 'error', '-y', '-noautorotate', '-i', `samples/${name}`, '-map', '0', '-fps_mode', 'passthrough',
+				'-c', 'copy', '-c:v', 'libvpx-vp9', '-deadline', 'realtime', '-cpu-used', '8', '-b:v', '2M',
+				...(aac ? ['-c:a', 'libopus', '-b:a', '128k'] : []),
+				target,
+			],
+			{ stdio: 'inherit' },
+		);
+		console.log(target);
+	}
 }

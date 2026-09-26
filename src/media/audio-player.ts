@@ -31,6 +31,9 @@ async function sleep(ms: number) {
  * so what is heard and what is shown stay in step. Removed passages are skipped; the volume curve
  * runs on a gain node.
  */
+/** How long the sound output may take to start before playing goes on without it, in ms. */
+const OUTPUT_WAIT = 1500;
+
 export class AudioPlayer {
 	/** Called on every animation frame while playing, and when playback stops by itself. */
 	onTime: (source: number) => void = () => {};
@@ -98,11 +101,12 @@ export class AudioPlayer {
 		else this.position = source;
 	}
 
-	async play() {
+	/** Starts playing; false when the sound can't be heard, as on a device without any output. */
+	async play(): Promise<boolean> {
 		const end = totalLength(this.plan.ranges);
 		// At the end, play starts again from the beginning, like any player.
 		const output = toOutput(this.plan.ranges, this.position);
-		await this.start(output >= end - 0.01 ? (this.plan.ranges[0]?.start ?? 0) : this.position);
+		return this.start(output >= end - 0.01 ? (this.plan.ranges[0]?.start ?? 0) : this.position);
 	}
 
 	pause() {
@@ -166,16 +170,27 @@ export class AudioPlayer {
 		});
 	}
 
-	private async start(source: number) {
+	private async start(source: number): Promise<boolean> {
 		const sink = await this.sink;
-		if (!sink || this.disposed) return;
+		if (!sink || this.disposed) return false;
 		const wasPlaying = this.playing;
 		this.stop();
 		const run = this.run;
 		const { context } = this.ensureContext();
-		// Browsers keep audio suspended until a user gesture; play is always called from one.
-		if (context.state !== 'running') await context.resume();
-		if (run !== this.run) return;
+		// Browsers keep audio suspended until a user gesture; play is always called from one. Without
+		// any sound output the context never starts: playing goes on without it.
+		if (context.state !== 'running') {
+			const started = await Promise.race([
+				context.resume().then(() => true),
+				new Promise<false>((resolve) => {
+					setTimeout(() => {
+						resolve(false);
+					}, OUTPUT_WAIT);
+				}),
+			]);
+			if (!started) return false;
+		}
+		if (run !== this.run) return true;
 
 		const ranges = this.plan.ranges;
 		const output = toOutput(ranges, source);
@@ -187,6 +202,7 @@ export class AudioPlayer {
 		this.schedule(sink, run, this.position).catch(() => {
 			// The player was closed while decoding (another track, another file): nothing to play.
 		});
+		return true;
 	}
 
 	private tick = () => {

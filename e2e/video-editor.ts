@@ -3,10 +3,10 @@
  * timeline's pictures, a passage removed and skipped by playback (with and without sound), undo,
  * and a picture opened in the image editor with the video's crop.
  */
-import { chromium } from 'playwright-core';
+import { engine, sample } from './engine';
 import { mkdirSync } from 'node:fs';
 
-const browser = await chromium.launch();
+const browser = await engine.launch();
 const page = await (await browser.newContext({ viewport: { width: 1440, height: 950 }, locale: 'en-US' })).newPage();
 const errors: string[] = [];
 page.on('pageerror', (e) => errors.push(e.message));
@@ -52,7 +52,7 @@ const strip = () =>
 	});
 
 // 1. Pictures, crop and colours.
-await open('samples/h264.mp4');
+await open(sample('h264.mp4'));
 console.log('picture:', await picture(), '| strip filled:', await strip(), '%');
 await tools.getByRole('button', { name: 'Crop' }).click();
 await aside.getByRole('radio', { name: /1:1/ }).click();
@@ -96,11 +96,11 @@ await tools.getByRole('button', { name: 'Crop' }).click();
 console.log('image editor:', (await page.locator('header').innerText()).replace(/\n/g, ' '), '| width', await aside.getByLabel('Width').inputValue(), 'height', await aside.getByLabel('Height').inputValue());
 
 // 4. A phone video stored turned shows upright.
-await open('samples/rotated.mp4');
+await open(sample('rotated.mp4'));
 console.log('turned video:', await picture());
 
 // 5. Without sound, the page clock skips removed passages too.
-await open('samples/silent.mp4');
+await open(sample('silent.mp4'));
 const lanes2 = (await page.getByRole('group', { name: 'Tracks' }).boundingBox())!;
 const x2 = (t: number) => lanes2.x + (t / 12.012) * lanes2.width;
 await page.mouse.move(x2(3), lanes2.y + 20);

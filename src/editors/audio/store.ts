@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { isSessionOwner, registerRestorable, takeRestore } from '@/app/resume';
 import { canRedo, canUndo, commit, createHistory, type History, redo, replace, undo } from '@/document/history';
 import { clampView, type Range } from '@/document/timemap';
 import { type AudioDoc, createAudioDoc } from './document';
@@ -85,6 +86,8 @@ export const useAudioEditor = create<AudioEditorState>((set, get) => ({
 			exportSettings: defaultExport(tags),
 			audioTrack: null,
 		});
+		const kept = takeRestore<AudioKept>('audio');
+		if (kept) set({ ...kept, adopted: owner });
 	},
 
 	retarget(duration) {
@@ -158,6 +161,22 @@ export const useAudioEditor = create<AudioEditorState>((set, get) => ({
 		set({ audioTrack, adopted: null });
 	},
 }));
+
+/** What a closed tab keeps of the audio being edited. */
+interface AudioKept {
+	history: History<AudioDoc>;
+	exportSettings: AudioExportSettings;
+	audioTrack: number | null;
+}
+
+registerRestorable('audio', {
+	snapshot: () => {
+		const { owner, history, exportSettings, audioTrack } = useAudioEditor.getState();
+		if (!isSessionOwner(owner) || !(canUndo(history) || canRedo(history))) return null;
+		return { history, exportSettings, audioTrack } satisfies AudioKept;
+	},
+	subscribe: useAudioEditor.subscribe,
+});
 
 export function useAudioDoc(): AudioDoc {
 	return useAudioEditor((state) => state.history.present);

@@ -4,13 +4,13 @@
  * subtitle file added as a track, and a variable frame rate read. With FFPROBE set, each file is
  * checked by FFmpeg's probe.
  */
-import { chromium } from 'playwright-core';
+import { engine, sample } from './engine';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 const ffprobe = process.env.FFPROBE;
 const ffmpeg = ffprobe?.replace(/ffprobe$/, 'ffmpeg');
-const browser = await chromium.launch();
+const browser = await engine.launch();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 }, locale: 'en-US', acceptDownloads: true });
 await ctx.addInitScript(() => Object.defineProperty(window, 'showSaveFilePicker', { value: undefined }));
 const page = await ctx.newPage();
@@ -67,15 +67,15 @@ const frame = (path: string, time: number, name: string) => {
 };
 
 // 1. Turned a quarter and mirrored: copied as it is, the file says how to show it.
-await open('samples/film.mp4');
+await open(sample('film.mp4'));
 await tool('Crop');
 await aside.getByRole('button', { name: 'Rotate right' }).click();
 const turned = await exportAs('turned.mp4', /Original/);
 streams(turned);
-console.log('  first packets (source, copy):', run(['-select_streams', 'v', '-show_entries', 'packet=size', '-read_intervals', '%+#3', '-of', 'csv=p=0'], 'samples/film.mp4').replace(/\n/g, ' '), '|', run(['-select_streams', 'v', '-show_entries', 'packet=size', '-read_intervals', '%+#3', '-of', 'csv=p=0'], turned).replace(/\n/g, ' '));
+console.log('  first packets (source, copy):', run(['-select_streams', 'v', '-show_entries', 'packet=size', '-read_intervals', '%+#3', '-of', 'csv=p=0'], sample('film.mp4')).replace(/\n/g, ' '), '|', run(['-select_streams', 'v', '-show_entries', 'packet=size', '-read_intervals', '%+#3', '-of', 'csv=p=0'], turned).replace(/\n/g, ' '));
 
 // 2. Metadata and a cover made from the picture shown, still copied.
-await open('samples/film.mkv');
+await open(sample('film.mkv'));
 await page.getByRole('button', { name: 'Export', exact: true }).click();
 await aside.getByLabel('Title').fill('Vixely test');
 await aside.getByLabel('Artist').fill('Xantoom');
@@ -88,7 +88,7 @@ console.log('  tags:', run(['-show_entries', 'format_tags', '-of', 'compact'], t
 console.log('  attachments:', run(['-show_entries', 'stream_tags=filename,mimetype', '-select_streams', 't', '-of', 'compact'], tagged).replace(/\n/g, ' '));
 
 // 2b. The same in an MP4, whose timed text goes through the remuxer too.
-await open('samples/film.mp4');
+await open(sample('film.mp4'));
 await page.getByRole('button', { name: 'Export', exact: true }).click();
 await aside.getByLabel('Title').fill('Vixely MP4');
 await aside.getByLabel('Title').press('Tab');
@@ -99,7 +99,7 @@ streams(taggedMp4);
 console.log('  tags:', run(['-show_entries', 'format_tags', '-of', 'compact'], taggedMp4));
 
 // 3. A title for the first two seconds only, encoded at constant quality.
-await open('samples/film.mp4');
+await open(sample('film.mp4'));
 await tool('Text');
 await aside.getByRole('button', { name: /^Title/ }).click();
 await aside.getByRole('switch', { name: 'During the whole video' }).click();
@@ -117,7 +117,7 @@ frame(titled, 1, 'titled-1s');
 frame(titled, 4, 'titled-4s');
 
 // 4. TikTok: cropped to 9:16 from the middle.
-await open('samples/film.mp4');
+await open(sample('film.mp4'));
 await tool('Formats');
 await aside.getByRole('button', { name: /^TikTok/ }).click();
 await page.waitForTimeout(500);
@@ -127,7 +127,7 @@ streams(tiktok);
 
 // 5. Dolby Digital 5.1 and DTS: decoded here, converted to AAC.
 for (const name of ['ac3', 'dts']) {
-	await open(`samples/${name}.mkv`);
+	await open(sample(`${name}.mkv`));
 	const decoding = await aside.locator('dl').last().textContent();
 	console.log(`${name}.mkv audio:`, decoding?.replace(/\s+/g, ' '));
 	await page.locator('[role=group][aria-label="Tracks"]').screenshot({ path: `shots/${name}-timeline.png` });
@@ -141,7 +141,7 @@ for (const name of ['ac3', 'dts']) {
 }
 
 // 6. A subtitle file added to the video as a track, copied into it.
-await open('samples/film.mkv');
+await open(sample('film.mkv'));
 await tool('Subtitles');
 await aside.locator('input[type=file]').setInputFiles('samples/extra.fr.srt');
 await page.waitForTimeout(500);
@@ -154,7 +154,7 @@ if (ffmpeg) {
 }
 
 // 7. A variable frame rate.
-await open('samples/vfr.mp4');
+await open(sample('vfr.mp4'));
 console.log('vfr.mp4:', (await aside.locator('dl').nth(1).textContent())?.replace(/\s+/g, ' '));
 
 console.log(errors.length ? `errors: ${errors.join(' | ')}` : 'no errors');

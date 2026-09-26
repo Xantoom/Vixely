@@ -178,6 +178,7 @@ export function Slider({
 	step = 1,
 	defaultValue = 0,
 	format = (v) => (v > 0 ? `+${v}` : String(v)),
+	parse,
 	track,
 	hint,
 	onChange,
@@ -191,6 +192,8 @@ export function Slider({
 	/** The neutral value: double-click returns to it, and the filled part of the track starts there. */
 	defaultValue?: number;
 	format?: (value: number) => string;
+	/** Reads a typed value, when the slider's value is not the number shown (a step in a list). */
+	parse?: (text: string) => number | null;
 	/** A gradient showing what the setting does, in place of the filled track. */
 	track?: string;
 	hint?: ReactNode;
@@ -212,10 +215,14 @@ export function Slider({
 	}, [background]);
 	const commit = () => {
 		if (draft === null) return;
-		const typed = Number.parseFloat(draft.replace(',', '.').replace(/[^\d.+-]/g, ''));
 		setDraft(null);
-		if (Number.isNaN(typed)) return;
-		onChange(Math.min(max, Math.max(min, Math.round(typed / step) * step)));
+		// Only passing through the field changes nothing: no undo step.
+		if (draft === format(value)) return;
+		const typed = parse ? parse(draft) : Number.parseFloat(draft.replace(',', '.').replace(/[^\d.+-]/g, ''));
+		if (typed === null || Number.isNaN(typed)) return;
+		const next = Math.min(max, Math.max(min, Math.round(typed / step) * step));
+		if (next === value) return;
+		onChange(next);
 		onEnd();
 	};
 	return (

@@ -2,10 +2,10 @@
  * The pages around the editors: task pages set up their editor (Discord preset, GIF to MP4),
  * the pages about the site show, the title follows the page, and the language switches.
  */
-import { chromium } from 'playwright-core';
+import { engine, sample } from './engine';
 import { mkdirSync } from 'node:fs';
 
-const browser = await chromium.launch();
+const browser = await engine.launch();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 }, locale: 'en-US' });
 const page = await ctx.newPage();
 const errors: string[] = [];
@@ -26,7 +26,7 @@ await page.screenshot({ path: 'shots/task-empty.png' });
 
 // Discord: the export opens converted, with the preset.
 await page.goto('http://localhost:5173/tools/compress-video-for-discord');
-await page.setInputFiles('input[type=file]', 'samples/film.mkv');
+await page.setInputFiles('input[type=file]', sample('film.mkv'));
 await aside.getByLabel('Made for').waitFor({ timeout: 30000 });
 await page.waitForTimeout(1000);
 console.log('discord preset:', await aside.getByLabel('Made for').textContent(), '|', await aside.getByLabel('Size limit').textContent());
