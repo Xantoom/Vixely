@@ -12,7 +12,7 @@ import { Viewer } from '@/editor/Viewer';
 import { ZoomStatus } from '@/editor/ZoomStage';
 import { EDITORS, type ToolId } from '@/editors/registry';
 import { usePlayback } from '@/media/playback';
-import { useSession } from '@/media/session';
+import { useOpened, useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { effectiveCrop } from '../image/document';
 import { AdjustPanel, CropPanel } from '../image/panels';
@@ -139,8 +139,7 @@ function VideoTrimPanel() {
  */
 export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	const editor = EDITORS.video;
-	const current = useSession((state) => state.current);
-	const opened = current?.kind === 'video' ? current : null;
+	const opened = useOpened('video');
 	const [chosenTool, setTool] = useState<ToolId>(
 		initialTool && (editor.tools.includes(initialTool) || initialTool === 'export') ? initialTool : 'info',
 	);

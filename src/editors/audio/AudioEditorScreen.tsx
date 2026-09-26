@@ -6,7 +6,7 @@ import { FilePanel, ToolLater } from '@/editor/Inspector';
 import { useEditorShortcuts } from '@/editor/shortcuts';
 import { Viewer } from '@/editor/Viewer';
 import type { ToolId } from '@/editors/registry';
-import { useSession } from '@/media/session';
+import { useOpened, useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { AudioTimeline } from './AudioTimeline';
 import type { ItemStatus } from './batch-export';
@@ -132,8 +132,7 @@ function useSourceFormat(file: File | null, track: number | null): SourceFormat 
 }
 
 export function AudioEditorScreen({ initialTool }: { initialTool?: ToolId }) {
-	const current = useSession((state) => state.current);
-	const opened = current?.kind === 'audio' ? current : null;
+	const opened = useOpened('audio');
 	const duration = opened?.info?.duration ?? 0;
 	const editable = opened !== null && duration > 0 && opened.info?.audio !== null;
 	// A batch of images belongs to the image editor.

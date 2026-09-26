@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { m } from '@/paraglide/messages.js';
+import { useDragScroll } from '@/ui/drag-scroll';
 import { type Adjustments, adjustments, effectiveCrop, type Rect, sameAdjustments } from './document';
 import type { PictureEditing } from './editing';
 import { lookAdjustments, LOOKS, measureImage } from './looks';
@@ -10,6 +11,7 @@ const TILE = 76;
 
 /** Every look as a thumbnail of the picture itself, applied in one click. */
 export function LookStrip({ editing }: { editing: PictureEditing }) {
+	const dragScroll = useDragScroll<HTMLDivElement>();
 	const { doc, apply, size, still } = editing;
 	const stats = useMemo(() => (still ? measureImage(still) : null), [still]);
 	const tiles = useMemo(
@@ -62,9 +64,10 @@ export function LookStrip({ editing }: { editing: PictureEditing }) {
 
 	return (
 		<div
+			ref={dragScroll}
 			role="radiogroup"
 			aria-label={m.looks()}
-			className="-mx-5 flex snap-x scroll-px-5 gap-2.5 overflow-x-auto px-5 pt-0.5 pb-2 [scrollbar-width:thin]"
+			className="-mx-5 flex snap-x scroll-px-5 gap-2.5 overflow-x-auto px-5 pt-0.5 pb-2"
 		>
 			{tiles.map((tile) => {
 				const selected = sameAdjustments(doc.adjust, tile.values);

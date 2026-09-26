@@ -18,7 +18,7 @@ export function Shot({
 	eager?: boolean;
 	className?: string;
 }) {
-	const [theme] = useTheme();
+	const { theme } = useTheme();
 	const path = (width: number) => `/shots/${name}-${theme}-${width}.webp`;
 	return (
 		<img

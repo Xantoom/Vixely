@@ -5,7 +5,7 @@ import { CropOverlay } from '@/editor/CropOverlay';
 import type { OverlayEditing } from '@/editor/overlays/editing';
 import { shownAt } from '@/editor/overlays/model';
 import { OverlayLayer } from '@/editor/overlays/OverlayLayer';
-import { PlayerControls, PlayerMenu } from '@/editor/PlayerControls';
+import { AudioTrackMenu, PictureButtons, PlayerControls, PlayerMenu } from '@/editor/PlayerControls';
 import { backingSize, useStageZoom, ZoomStage } from '@/editor/ZoomStage';
 import { EDITORS } from '@/editors/registry';
 import { trackName } from '@/lib/language';
@@ -35,12 +35,14 @@ function SubtitleMenu({ shown, onShown }: { shown: boolean; onShown: (shown: boo
 		<PlayerMenu
 			icon={Captions}
 			label={m.player_subtitles()}
+			active={shown && current !== null}
 			value={shown && current !== null ? String(current) : OFF}
-			options={[
+			items={[
 				{ value: OFF, label: m.player_subtitles_off() },
 				...options.map((track) => ({
 					value: String(track.key),
 					label: `${track.info ? trackName(track.info.language, track.info.name) : m.subs_new_track()}${track.edited && !isAdded(track.key) ? ` (${m.subs_track_edited()})` : ''}`,
+					detail: track.info?.codec,
 				})),
 			]}
 			onChange={(value) => {
@@ -296,9 +298,14 @@ export function VideoPreview({
 						</EditedPicture>
 					)}
 				</ZoomStage>
+				{!cropping && (
+					<PictureButtons>
+						<AudioTrackMenu />
+						{projectReady && <SubtitleMenu shown={shown} onShown={setChoice} />}
+					</PictureButtons>
+				)}
 			</div>
 			<PlayerControls>
-				{projectReady && <SubtitleMenu shown={shown} onShown={setChoice} />}
 				<CaptureButton file={opened.file} doc={picture} />
 			</PlayerControls>
 		</div>

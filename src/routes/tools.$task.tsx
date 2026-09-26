@@ -1,6 +1,7 @@
 import { createFileRoute, notFound } from '@tanstack/react-router';
 import { useEffect } from 'react';
 import { usePageHead } from '@/app/head';
+import { useLocale } from '@/app/locale';
 import { TaskContext } from '@/app/task-context';
 import { setTaskIntent, taskBySlug } from '@/app/tasks';
 import { EditorScreen } from '@/editor/EditorScreen';
@@ -11,6 +12,7 @@ export const Route = createFileRoute('/tools/$task')({
 		if (!taskBySlug(params.task)) throw notFound();
 	},
 	component: function TaskPage() {
+		useLocale();
 		const { task: slug } = Route.useParams();
 		const task = taskBySlug(slug);
 		// Set while rendering, so the editor finds it however soon a file opens, and again once

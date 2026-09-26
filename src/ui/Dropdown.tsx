@@ -10,6 +10,7 @@ import {
 	useState,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { type Place, placeList } from './place';
 
 export interface DropdownOption<T extends string> {
 	value: T;
@@ -19,32 +20,6 @@ export interface DropdownOption<T extends string> {
 	disabled?: boolean;
 	/** Why the option can't be picked: a tooltip on its lock. */
 	reason?: string;
-}
-
-/** Room kept between the list and the edges of the window. */
-const EDGE = 8;
-const GAP = 4;
-
-interface Place {
-	top: number;
-	left: number;
-	minWidth: number;
-	maxHeight: number;
-}
-
-/**
- * Where the list goes: under the button when it fits, above it otherwise, whichever side has more
- * room when neither does; its left edge on the button's, moved left if it would leave the window.
- */
-function placeList(button: DOMRect, list: { width: number; height: number }): Place {
-	const below = window.innerHeight - button.bottom - GAP - EDGE;
-	const above = button.top - GAP - EDGE;
-	const down = list.height <= below || below >= above;
-	const maxHeight = Math.max(120, down ? below : above);
-	const height = Math.min(list.height, maxHeight);
-	const width = Math.max(list.width, button.width);
-	const left = Math.max(EDGE, Math.min(button.left, window.innerWidth - EDGE - width));
-	return { top: down ? button.bottom + GAP : button.top - GAP - height, left, minWidth: button.width, maxHeight };
 }
 
 /**
@@ -255,7 +230,8 @@ export function Dropdown<T extends string>({
 						aria-activedescendant={active >= 0 ? `${listId}-${active}` : undefined}
 						data-media={media ?? undefined}
 						onKeyDown={onListKeyDown}
-						className="bg-bg text-ink fixed z-50 grid max-w-[min(420px,calc(100vw-16px))] content-start gap-px overflow-y-auto overscroll-contain rounded-sm p-1 shadow-[0_0_0_1px_var(--line-2),0_16px_40px_-12px_rgb(0_0_0/0.35)] outline-none"
+						data-down={place?.down ?? true}
+						className="menu-in bg-bg text-ink fixed z-50 grid max-w-[min(420px,calc(100vw-16px))] content-start gap-px overflow-y-auto overscroll-contain rounded-sm p-1 shadow-[0_0_0_1px_var(--line-2),0_16px_40px_-12px_rgb(0_0_0/0.35)] outline-none"
 						style={
 							place
 								? {

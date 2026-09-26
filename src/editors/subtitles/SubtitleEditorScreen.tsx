@@ -8,7 +8,7 @@ import { EmptyViewer } from '@/editor/Viewer';
 import type { ToolId } from '@/editors/registry';
 import { identify } from '@/media/identify';
 import { usePlayback } from '@/media/playback';
-import { useSession } from '@/media/session';
+import { useOpened, useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { AROUND, AudioBox } from './AudioBox';
 import { lastEnd, MIN_CUE, removeCues, setCueTimes, gridLines } from './document';
@@ -110,8 +110,7 @@ export function SubtitleEditorScreen({ initialTool }: { initialTool?: ToolId }) 
 }
 
 function SingleSubtitleScreen({ initialTool }: { initialTool?: ToolId }) {
-	const current = useSession((state) => state.current);
-	const opened = current?.kind === 'subtitles' ? current : null;
+	const opened = useOpened('subtitles');
 	const open = useSubtitleProject((state) => state.open);
 	const status = useSubtitleProject((state) => state.status);
 	const progress = useSubtitleProject((state) => state.progress);

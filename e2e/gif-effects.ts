@@ -1,5 +1,5 @@
 /** GIF editor, phase 10: looks, text, fades, bands, frames, skip, presets, PNG frames, transparent WebM. */
-import { engine } from './engine';
+import { engine, BASE } from './engine';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { unzipSync } from 'fflate';
 
@@ -30,7 +30,7 @@ const tool = async (name: string) => {
 	if ((await button.getAttribute('aria-pressed')) !== 'true') await button.click();
 };
 
-await page.goto('http://localhost:5173/');
+await page.goto(`${BASE}/`);
 await page.setInputFiles('input[type=file]', '../public/samples/sunset.gif');
 await page.waitForURL('**/gif');
 await page.waitForSelector('[aria-label="Frames"]', { timeout: 20000 });
@@ -63,7 +63,7 @@ await page.locator('#' + (await page.getByText('Frames kept').getAttribute('for'
 await page.getByRole('option', { name: '1 in 2' }).click();
 console.log('1 in 2:', await status());
 
-await page.getByRole('button', { name: 'Export', exact: true }).click();
+await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 await page.getByRole('switch', { name: 'Dithering' }).click();
 let out = await exportNow();
 writeFileSync('shots/gif-effects.gif', out.data);
@@ -84,7 +84,7 @@ console.log('transparent video', out.name, out.data.length);
 await tool('Formats');
 await page.getByRole('button', { name: /Discord · Emoji/ }).click();
 console.log('preset:', await status());
-await page.getByRole('button', { name: 'Export', exact: true }).click();
+await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 out = await exportNow();
 console.log('Discord emoji', out.name, out.data.length, JSON.stringify(await analyse(out.data)));
 console.log('errors', errors);

@@ -62,3 +62,6 @@ export const engine = {
 export function sample(name: string): string {
 	return browserName === 'firefox' && existsSync(`samples/open/${name}`) ? `samples/open/${name}` : `samples/${name}`;
 }
+
+/** The site under test: the dev server unless BASE names another, such as the preprod. */
+export const BASE = process.env.BASE ?? 'http://localhost:5173';

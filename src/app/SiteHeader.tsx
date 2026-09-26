@@ -1,18 +1,16 @@
 import { Link } from '@tanstack/react-router';
-import { MonitorDown, Moon, RefreshCw, Sun } from 'lucide-react';
+import { MonitorDown, RefreshCw } from 'lucide-react';
 import { m } from '@/paraglide/messages.js';
 import { IconButton } from '@/ui/Button';
 import { LogoMark } from '@/ui/Logo';
-import { LanguageButton } from './AppBar';
 import { homeCopy } from './home/copy';
 import { OpenFileButton } from './OpenFileButton';
 import { applyUpdate, install, usePwa } from './pwa';
-import { useTheme } from './theme';
+import { LanguageMenu, ThemeMenu } from './SettingsMenus';
 
 /** The bar of the pages around the editors: the home page's sections, and a way in. */
 export function SiteHeader() {
 	const copy = homeCopy();
-	const [theme, toggleTheme] = useTheme();
 	const updateReady = usePwa((state) => state.updateReady);
 	const installable = usePwa((state) => state.installable);
 	const sections = [
@@ -61,10 +59,8 @@ export function SiteHeader() {
 							<MonitorDown className="size-5" />
 						</IconButton>
 					)}
-					<LanguageButton />
-					<IconButton label={theme === 'dark' ? m.theme_to_light() : m.theme_to_dark()} onClick={toggleTheme}>
-						{theme === 'dark' ? <Sun className="size-5" /> : <Moon className="size-5" />}
-					</IconButton>
+					<LanguageMenu />
+					<ThemeMenu />
 					<OpenFileButton
 						reading={copy.reading}
 						className="text-ui ml-1.5 h-10 rounded-sm px-4 max-sm:hidden"

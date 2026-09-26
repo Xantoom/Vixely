@@ -11,6 +11,7 @@ import { clampView, type Range } from '@/document/timemap';
 import { usePlaybackPeaks, Waveform } from '@/editor/PlaybackWaveform';
 import { TimeRuler } from '@/editor/TimeRuler';
 import { ViewScroll } from '@/editor/ViewScroll';
+import { panDelta, wheelIntent } from '@/editor/wheel';
 import { usePlayback, usePlaybackLength } from '@/media/playback';
 import { m } from '@/paraglide/messages.js';
 import { IconButton } from '@/ui/Button';
@@ -209,8 +210,7 @@ export function AudioBox() {
 	};
 
 	const onWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
-		if (event.ctrlKey || event.metaKey) {
-			event.preventDefault();
+		if (wheelIntent(event) === 'zoom') {
 			const anchor = timeAt(event.clientX) / 1000;
 			const factor = event.deltaY > 0 ? 1.25 : 0.8;
 			const next = Math.min(Math.max(span * factor, MIN_SPAN), Math.max(length, MIN_SPAN));
@@ -218,19 +218,19 @@ export function AudioBox() {
 			setView({ start: anchor - ratio * next, end: anchor - ratio * next + next });
 			return;
 		}
-		const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+		const delta = panDelta(event);
 		setView({
 			start: view.start + (delta / Math.max(width, 1)) * span,
 			end: view.end + (delta / Math.max(width, 1)) * span,
 		});
 	};
 
-	// Ctrl+wheel must not zoom the page.
+	// The wheel zooms here: neither the page nor the browser's zoom may move with it.
 	useEffect(() => {
 		const area = areaRef.current;
 		if (!area) return;
 		const block = (event: WheelEvent) => {
-			if (event.ctrlKey || event.metaKey) event.preventDefault();
+			event.preventDefault();
 		};
 		area.addEventListener('wheel', block, { passive: false });
 		return () => {

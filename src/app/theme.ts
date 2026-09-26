@@ -1,13 +1,19 @@
 import { useSyncExternalStore } from 'react';
 
+export type ThemeMode = 'light' | 'dark' | 'system';
 export type ResolvedTheme = 'light' | 'dark';
 
 const STORAGE_KEY = 'vixely:theme';
 const darkQuery = typeof window === 'undefined' ? null : window.matchMedia('(prefers-color-scheme: dark)');
 
-function read(): ResolvedTheme {
+function mode(): ThemeMode {
 	const chosen = document.documentElement.dataset.theme;
-	if (chosen === 'light' || chosen === 'dark') return chosen;
+	return chosen === 'light' || chosen === 'dark' ? chosen : 'system';
+}
+
+function resolved(): ResolvedTheme {
+	const chosen = mode();
+	if (chosen !== 'system') return chosen;
 	return darkQuery?.matches ? 'dark' : 'light';
 }
 
@@ -23,20 +29,25 @@ function subscribe(listener: () => void) {
 }
 
 /**
- * The theme follows the system until the user picks one. The choice is applied before the first
- * paint by the inline script in index.html.
+ * Light, dark, or the system's (the default). The choice is applied before the first paint by the
+ * inline script in index.html; the system's is followed live.
  */
-export function useTheme(): [ResolvedTheme, () => void] {
-	const theme = useSyncExternalStore(subscribe, read, (): ResolvedTheme => 'light');
-	const toggle = () => {
-		const next: ResolvedTheme = read() === 'dark' ? 'light' : 'dark';
-		document.documentElement.dataset.theme = next;
-		try {
-			localStorage.setItem(STORAGE_KEY, next);
-		} catch {
-			// Storage can be unavailable (private mode). The choice then lasts for this page only.
-		}
-		for (const listener of listeners) listener();
-	};
-	return [theme, toggle];
+export function setThemeMode(next: ThemeMode) {
+	const root = document.documentElement;
+	if (next === 'system') delete root.dataset.theme;
+	else root.dataset.theme = next;
+	try {
+		if (next === 'system') localStorage.removeItem(STORAGE_KEY);
+		else localStorage.setItem(STORAGE_KEY, next);
+	} catch {
+		// Storage can be unavailable (private mode). The choice then lasts for this page only.
+	}
+	for (const listener of listeners) listener();
+}
+
+/** The mode chosen, and the theme it shows now. */
+export function useTheme(): { mode: ThemeMode; theme: ResolvedTheme } {
+	const chosen = useSyncExternalStore(subscribe, mode, (): ThemeMode => 'system');
+	const theme = useSyncExternalStore(subscribe, resolved, (): ResolvedTheme => 'light');
+	return { mode: chosen, theme };
 }

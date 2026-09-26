@@ -1,12 +1,13 @@
-import { AudioLines, ChevronsLeftRight, Pause, Play, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
+import { AudioLines, ChevronsLeftRight, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
 import { ALL_FORMATS, BlobSource, Input } from 'mediabunny';
 import { type PointerEvent as ReactPointerEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Range } from '@/document/timemap';
-import { audioTrackLabel, PlayerMenu } from '@/editor/PlayerControls';
+import { audioTrackDetail, audioTrackLabel, PlayButton, PlayerMenu } from '@/editor/PlayerControls';
 import { percent, timeAt, zoomView } from '@/editor/timeline-view';
 import { TimeRuler } from '@/editor/TimeRuler';
 import { TrimHandle } from '@/editor/TrimHandle';
 import { ViewScroll } from '@/editor/ViewScroll';
+import { panDelta, wheelIntent } from '@/editor/wheel';
 import { formatPreciseTime } from '@/lib/format';
 import { type AudioTrackInfo, listAudioTracks } from '@/media/audio-tracks';
 import { useSession } from '@/media/session';
@@ -23,7 +24,7 @@ const WAVE_COLORS = ['--audio-1', '--line-2', '--danger'] as const;
 
 /** Which audio track of a video is edited, when it has several. */
 function AudioTrackPicker() {
-	const file = useSession((state) => (state.current?.kind === 'audio' ? state.current.file : null));
+	const file = useSession((state) => state.opened.audio?.file ?? null);
 	const track = useAudioEditor((state) => state.audioTrack);
 	const setAudioTrack = useAudioEditor((state) => state.setAudioTrack);
 	const [found, setFound] = useState<{ file: File; tracks: AudioTrackInfo[]; primary: number | null } | null>(null);
@@ -50,10 +51,12 @@ function AudioTrackPicker() {
 		<PlayerMenu
 			icon={AudioLines}
 			label={m.player_audio_track()}
+			onPicture={false}
 			value={String(track ?? found.primary ?? '')}
-			options={found.tracks.map((option) => ({
+			items={found.tracks.map((option) => ({
 				value: String(option.id),
 				label: audioTrackLabel(option),
+				detail: audioTrackDetail(option),
 				disabled: !option.playable,
 			}))}
 			onChange={(value) => {
@@ -77,20 +80,7 @@ function Transport({ engine }: { engine: AudioEngine }) {
 
 	return (
 		<div className="flex items-center gap-3">
-			<button
-				type="button"
-				aria-label={playing ? m.pause() : m.play()}
-				title={playing ? m.pause() : m.play()}
-				disabled={!engine.player || failed}
-				onClick={engine.togglePlay}
-				className="bg-ed text-ed-ink grid size-9 flex-none place-items-center rounded-full transition-[filter] enabled:hover:brightness-[1.07] disabled:opacity-45"
-			>
-				{playing ? (
-					<Pause size={16} fill="currentColor" strokeWidth={0} />
-				) : (
-					<Play size={16} fill="currentColor" strokeWidth={0} className="translate-x-px" />
-				)}
-			</button>
+			<PlayButton playing={playing} onToggle={engine.togglePlay} disabled={!engine.player || failed} />
 			<span className="tabular font-mono text-[15px] font-medium" aria-label={m.playhead()}>
 				{formatPreciseTime(playhead)}
 			</span>
@@ -231,7 +221,7 @@ function WaveArea({ engine, trimmable }: { engine: AudioEngine; trimmable: boole
 		}
 	}, [peaks, version, doc, view, size, wave, muted, clip]);
 
-	// Ctrl or ⌘ + wheel zooms around the pointer; the wheel alone scrolls a zoomed timeline.
+	// The wheel zooms around the pointer; Shift + wheel scrolls a zoomed timeline.
 	useEffect(() => {
 		const area = areaRef.current;
 		if (!area) return;
@@ -240,14 +230,14 @@ function WaveArea({ engine, trimmable }: { engine: AudioEngine; trimmable: boole
 			const current = state.view;
 			const duration = state.history.present.duration;
 			const span = current.end - current.start;
-			if (event.ctrlKey || event.metaKey) {
+			if (wheelIntent(event) === 'zoom') {
 				event.preventDefault();
 				const anchor = timeAt(area, event.clientX, current, duration);
 				state.setView(zoomView(current, Math.exp(event.deltaY * 0.0025), anchor));
 				return;
 			}
 			if (span >= duration) return;
-			const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+			const delta = panDelta(event);
 			if (delta === 0) return;
 			event.preventDefault();
 			const shift = (delta / area.clientWidth) * span;

@@ -3,9 +3,9 @@
  * subtitle track, the Voice equalizer, and a hand translation come back with their undo history;
  * forgotten work stays gone.
  */
-import { engine, sample } from './engine';
+import { engine, sample, BASE } from './engine';
 
-const base = process.env.BASE ?? 'http://localhost:5173';
+const base = BASE;
 const browser = await engine.launch();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 }, locale: 'en-US' });
 const errors: string[] = [];

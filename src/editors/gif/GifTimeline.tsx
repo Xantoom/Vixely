@@ -1,8 +1,10 @@
-import { ChevronsLeftRight, Pause, Play, ZoomIn, ZoomOut } from 'lucide-react';
+import { ChevronsLeftRight, ZoomIn, ZoomOut } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { clampView, MIN_VIEW, type Range } from '@/document/timemap';
+import { PlayButton } from '@/editor/PlayerControls';
 import { TimeRuler } from '@/editor/TimeRuler';
 import { TrimHandle } from '@/editor/TrimHandle';
+import { panDelta, wheelIntent } from '@/editor/wheel';
 import { formatPreciseTime } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
 import { IconButton } from '@/ui/Button';
@@ -88,20 +90,20 @@ export function GifTimeline({ engine }: { engine: GifEngine }) {
 		);
 	};
 
-	// Ctrl or ⌘ + wheel zooms around the pointer; the wheel alone scrolls a zoomed strip.
+	// The wheel zooms around the pointer; Shift + wheel scrolls a zoomed strip.
 	useEffect(() => {
 		const strip = stripRef.current;
 		if (!strip) return;
 		const onWheel = (event: WheelEvent) => {
 			const rect = strip.getBoundingClientRect();
 			const at = view.start + ((event.clientX - rect.left) / rect.width) * span;
-			if (event.ctrlKey || event.metaKey) {
+			if (wheelIntent(event) === 'zoom') {
 				event.preventDefault();
 				zoomBy(Math.exp(event.deltaY * 0.0025), at);
 				return;
 			}
 			if (span >= doc.duration) return;
-			const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+			const delta = panDelta(event);
 			if (delta === 0) return;
 			event.preventDefault();
 			const shift = (delta / rect.width) * span;
@@ -116,20 +118,7 @@ export function GifTimeline({ engine }: { engine: GifEngine }) {
 	return (
 		<section aria-label={m.timeline()} className="border-line grid gap-2 border-t px-4 pt-2.5 pb-3">
 			<div className="flex items-center gap-3">
-				<button
-					type="button"
-					aria-label={playing ? m.pause() : m.play()}
-					title={playing ? m.pause() : m.play()}
-					disabled={!source}
-					onClick={engine.togglePlay}
-					className="bg-ed text-ed-ink grid size-9 flex-none place-items-center rounded-full transition-[filter] enabled:hover:brightness-[1.07] disabled:opacity-45"
-				>
-					{playing ? (
-						<Pause size={16} fill="currentColor" strokeWidth={0} />
-					) : (
-						<Play size={16} fill="currentColor" strokeWidth={0} className="translate-x-px" />
-					)}
-				</button>
+				<PlayButton playing={playing} onToggle={engine.togglePlay} disabled={!source} />
 				<span className="tabular font-mono text-[15px] font-medium" aria-label={m.playhead()}>
 					{formatPreciseTime(playhead)}
 				</span>

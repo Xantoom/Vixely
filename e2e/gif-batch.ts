@@ -1,5 +1,5 @@
 /** A batch of three GIFs and one PNG (left out), exported as WebP into a ZIP; then zoom on a long video. */
-import { engine } from './engine';
+import { engine, BASE } from './engine';
 import { readFileSync } from 'node:fs';
 import { unzipSync } from 'fflate';
 
@@ -13,7 +13,7 @@ const page = await ctx.newPage();
 const errors: string[] = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-await page.goto('http://localhost:5173/');
+await page.goto(`${BASE}/`);
 
 const makeGif = async (hue: number, frames: number) => Buffer.from(await page.evaluate(async ([hue, frames]) => {
 	const gif: any = await import('/src/wasm/vixely-gif/vixely_gif.js');
@@ -46,7 +46,7 @@ await page.waitForURL('**/gif');
 await page.waitForSelector('section[aria-label="Batch"]', { timeout: 20000 });
 console.log('strip:', (await page.locator('section[aria-label="Batch"]').innerText()).replace(/\n/g, ' | '));
 console.log('rail:', (await page.locator('nav[aria-label="Editing tools"]').innerText()).replace(/\n/g, ' '));
-await page.getByRole('button', { name: 'Export', exact: true }).click();
+await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 await page.locator('aside').getByRole('radio', { name: /^WebP/ }).click();
 await page.getByLabel('Loop').click();
 await page.getByRole('option', { name: 'Once' }).click();
@@ -89,7 +89,7 @@ const video = Buffer.from(await page.evaluate(async () => {
 	await output.finalize();
 	return Array.from(new Uint8Array(output.target.buffer));
 }));
-await page.goto('http://localhost:5173/gif');
+await page.goto(`${BASE}/gif`);
 await page.setInputFiles('input[type=file]', { name: 'long.webm', mimeType: 'video/webm', buffer: video });
 await page.waitForSelector('[aria-label="Frames"]', { timeout: 30000 });
 const ruler = async () => (await page.locator('section[aria-label="Timeline"]').innerText()).split('\n').filter((line) => /^\d+:\d\d/.test(line)).join(' ');

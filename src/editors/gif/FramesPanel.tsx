@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router';
 import { Download, ImageUp, Trash2, Undo2 } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { saveFile } from '@/editors/image/export';
 import { EDITORS } from '@/editors/registry';
@@ -102,25 +102,25 @@ export function FramesPanel({ engine, fileName }: { engine: GifEngine; fileName:
 	const setPlaying = useGifEditor((state) => state.setPlaying);
 	const open = useSession((state) => state.open);
 	const navigate = useNavigate();
-	const composer = useRef<FrameComposer | null>(null);
+	const [composer, setComposer] = useState<FrameComposer | null>(null);
 	const { frames } = engine;
 	const current = frameAt(frames, playhead);
 	const index = current ? frames.indexOf(current) : -1;
 
-	if (!composer.current) {
+	// Made once mounted, so a panel mounted twice (as React does in development) draws with a live one.
+	useEffect(() => {
+		let made: FrameComposer | null = null;
 		try {
-			composer.current = new FrameComposer();
+			made = new FrameComposer();
 		} catch {
 			// Thumbnails stay blank without WebGL.
 		}
-	}
-	useEffect(
-		() => () => {
-			composer.current?.dispose();
-			composer.current = null;
-		},
-		[],
-	);
+		setComposer(made);
+		return () => {
+			made?.dispose();
+			setComposer(null);
+		};
+	}, []);
 
 	const remove = () => {
 		if (!current || frames.length <= 1) return;
@@ -192,7 +192,7 @@ export function FramesPanel({ engine, fileName }: { engine: GifEngine; fileName:
 						className="bg-surface aria-selected:bg-ed-soft aria-selected:shadow-[inset_0_0_0_1.5px_var(--ed)] grid gap-1 rounded-sm p-1.5 text-left transition-colors"
 					>
 						<span className="grid h-[5.5rem] place-items-center">
-							<Thumbnail engine={engine} frame={frame} composer={composer.current} />
+							<Thumbnail engine={engine} frame={frame} composer={composer} />
 						</span>
 						<span className="text-caption text-muted tabular flex justify-between font-mono">
 							<span>{position + 1}</span>

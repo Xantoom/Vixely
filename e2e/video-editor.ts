@@ -3,7 +3,7 @@
  * timeline's pictures, a passage removed and skipped by playback (with and without sound), undo,
  * and a picture opened in the image editor with the video's crop.
  */
-import { engine, sample } from './engine';
+import { engine, sample, BASE } from './engine';
 import { mkdirSync } from 'node:fs';
 
 const browser = await engine.launch();
@@ -18,7 +18,7 @@ const tools = page.locator('nav[aria-label="Editing tools"]');
 const aside = page.locator('aside');
 const time = async () => (await page.locator('section[aria-label="Preview"] .tabular').first().innerText()).split(' / ')[0];
 const open = async (path: string) => {
-	await page.goto('http://localhost:5173/video');
+	await page.goto(`${BASE}/video`);
 	await page.setInputFiles('input[type=file]', path);
 	await page.waitForSelector('[role=group][aria-label="Tracks"]', { timeout: 30000 });
 	await page.waitForTimeout(1500);

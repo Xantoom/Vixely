@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import { m } from '@/paraglide/messages.js';
 import { IconButton } from '@/ui/Button';
 import { useBoxSize } from '@/ui/use-box-size';
+import { wheelIntent } from './wheel';
 
 export const MIN_ZOOM = 0.05;
 export const MAX_ZOOM = 8;
@@ -50,7 +51,7 @@ export function backingSize(display: number, source: number): number {
 
 /**
  * The preview area of the image, GIF and video editors: the picture fitted, or zoomed and moved
- * around. Ctrl or ⌘ + wheel zooms around the pointer; once zoomed in, the wheel and a drag move it.
+ * around. The wheel zooms around the pointer; once zoomed in, Shift + wheel and a drag move it.
  * Elements marked `data-no-pan` (the crop frame, text on the picture) keep their own drags.
  */
 export function ZoomStage({
@@ -100,7 +101,7 @@ export function ZoomStage({
 		const onWheel = (event: WheelEvent) => {
 			const state = useStageZoom.getState();
 			const current = state.zoom ?? fit;
-			if (event.ctrlKey || event.metaKey) {
+			if (wheelIntent(event) === 'zoom') {
 				event.preventDefault();
 				const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, current * Math.exp(-event.deltaY * 0.0022)));
 				// Zoom around the pointer: the point under it stays under it.
@@ -120,7 +121,13 @@ export function ZoomStage({
 			}
 			if (state.zoom === null || state.zoom <= fit) return;
 			event.preventDefault();
-			useStageZoom.setState({ pan: clampPan({ x: state.pan.x - event.deltaX, y: state.pan.y - event.deltaY }) });
+			const sideways = event.shiftKey && event.deltaX === 0;
+			useStageZoom.setState({
+				pan: clampPan({
+					x: state.pan.x - (sideways ? event.deltaY : event.deltaX),
+					y: state.pan.y - (sideways ? 0 : event.deltaY),
+				}),
+			});
 		};
 		element.addEventListener('wheel', onWheel, { passive: false });
 		return () => {

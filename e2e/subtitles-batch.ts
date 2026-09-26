@@ -2,7 +2,7 @@
  * Several subtitle files at once: SRT, ASS and a .sup dropped together, shifted by two seconds and
  * written as WebVTT (the .sup stays PGS), into a ZIP where folders can't be picked.
  */
-import { engine } from './engine';
+import { engine, BASE } from './engine';
 import { readFileSync } from 'node:fs';
 import { unzipSync } from 'fflate';
 
@@ -18,7 +18,7 @@ page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => {
 	if (m.type() === 'error') errors.push(m.text());
 });
-await page.goto('http://localhost:5173/');
+await page.goto(`${BASE}/`);
 const srt = (n: number) => Buffer.from(`1\r\n00:00:0${n},000 --> 00:00:0${n + 1},500\r\nFile ${n}\r\n`);
 const ass =
 	'[Script Info]\nScriptType: v4.00+\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\\i1}ASS{\\i0}\n';

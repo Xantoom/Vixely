@@ -1,13 +1,12 @@
 import { Link } from '@tanstack/react-router';
-import { Download, MonitorDown, Moon, Redo2, RefreshCw, Search, Sun, Undo2 } from 'lucide-react';
+import { Download, MonitorDown, Redo2, RefreshCw, Search, Undo2 } from 'lucide-react';
 import type { MediaKind } from '@/editors/registry';
 import { m } from '@/paraglide/messages.js';
-import { getLocale, setLocale } from '@/paraglide/runtime.js';
 import { Button, IconButton } from '@/ui/Button';
 import { LogoMark } from '@/ui/Logo';
 import { EditorSwitcher } from './EditorSwitcher';
 import { applyUpdate, install, usePwa } from './pwa';
-import { useTheme } from './theme';
+import { LanguageMenu, ThemeMenu } from './SettingsMenus';
 
 export interface EditorActions {
 	canUndo: boolean;
@@ -28,27 +27,7 @@ interface AppBarProps {
 	onSearch?: () => void;
 }
 
-/** Switches between English and French; the page reloads in the other language. */
-export function LanguageButton() {
-	const next = getLocale() === 'fr' ? 'en' : 'fr';
-	return (
-		<button
-			type="button"
-			lang={next}
-			aria-label={next === 'fr' ? 'Français' : 'English'}
-			title={next === 'fr' ? 'Français' : 'English'}
-			onClick={() => {
-				void setLocale(next);
-			}}
-			className="text-ui text-ink-2 hover:bg-surface hover:text-ink grid h-10 min-w-10 place-items-center rounded-sm px-2 font-mono font-medium uppercase transition-colors"
-		>
-			{next}
-		</button>
-	);
-}
-
 export function AppBar({ editor, fileName, actions, onSearch }: AppBarProps) {
-	const [theme, toggleTheme] = useTheme();
 	const updateReady = usePwa((state) => state.updateReady);
 	const installable = usePwa((state) => state.installable);
 
@@ -120,10 +99,8 @@ export function AppBar({ editor, fileName, actions, onSearch }: AppBarProps) {
 						<MonitorDown className="size-5" />
 					</IconButton>
 				)}
-				<LanguageButton />
-				<IconButton label={theme === 'dark' ? m.theme_to_light() : m.theme_to_dark()} onClick={toggleTheme}>
-					{theme === 'dark' ? <Sun className="size-5" /> : <Moon className="size-5" />}
-				</IconButton>
+				<LanguageMenu />
+				<ThemeMenu />
 			</div>
 
 			{editor && (

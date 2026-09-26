@@ -8,6 +8,7 @@ import { isVisible, percent, rangeBox, timeAt, zoomView } from '@/editor/timelin
 import { TimeRuler } from '@/editor/TimeRuler';
 import { TrimHandle } from '@/editor/TrimHandle';
 import { ViewScroll } from '@/editor/ViewScroll';
+import { panDelta, wheelIntent } from '@/editor/wheel';
 import { formatPreciseTime } from '@/lib/format';
 import { usePlayback } from '@/media/playback';
 import { Thumbnails } from '@/media/thumbnails';
@@ -141,7 +142,7 @@ function Lanes({ file, aspect, audio }: { file: File; aspect: number; audio: boo
 	const areaRef = useRef<HTMLDivElement>(null);
 	const drag = useRef<{ x: number; time: number; moved: boolean } | null>(null);
 
-	// Ctrl or ⌘ + wheel zooms around the pointer; the wheel alone scrolls a zoomed timeline.
+	// The wheel zooms around the pointer; Shift + wheel scrolls a zoomed timeline.
 	useEffect(() => {
 		const area = areaRef.current;
 		if (!area) return;
@@ -150,14 +151,14 @@ function Lanes({ file, aspect, audio }: { file: File; aspect: number; audio: boo
 			const current = state.view;
 			const duration = state.history.present.duration;
 			const span = current.end - current.start;
-			if (event.ctrlKey || event.metaKey) {
+			if (wheelIntent(event) === 'zoom') {
 				event.preventDefault();
 				const anchor = timeAt(area, event.clientX, current, duration);
 				state.setView(zoomView(current, Math.exp(event.deltaY * 0.0025), anchor));
 				return;
 			}
 			if (span >= duration) return;
-			const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+			const delta = panDelta(event);
 			if (delta === 0) return;
 			event.preventDefault();
 			const shift = (delta / area.clientWidth) * span;

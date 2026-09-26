@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { m } from '@/paraglide/messages.js';
+import { useLocale } from './locale';
 
 function setMeta(selector: string, attribute: 'name' | 'property', key: string, content: string) {
 	let element = document.head.querySelector<HTMLMetaElement>(selector);
@@ -16,6 +17,7 @@ function setMeta(selector: string, attribute: 'name' | 'property', key: string, 
  * the same into each page's HTML for search engines (scripts/prerender.ts).
  */
 export function usePageHead(title: string | null, description?: string) {
+	const locale = useLocale();
 	useEffect(() => {
 		const full = title ? `${title} — Vixely` : `Vixely — ${m.home_title()}`;
 		const text = description ?? m.site_description();
@@ -23,5 +25,5 @@ export function usePageHead(title: string | null, description?: string) {
 		setMeta('meta[name="description"]', 'name', 'description', text);
 		setMeta('meta[property="og:title"]', 'property', 'og:title', full);
 		setMeta('meta[property="og:description"]', 'property', 'og:description', text);
-	}, [title, description]);
+	}, [title, description, locale]);
 }

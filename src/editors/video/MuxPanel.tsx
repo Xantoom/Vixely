@@ -12,6 +12,7 @@ import { openSaveTarget } from '@/media/save-target';
 import type { OpenedFile } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { Button } from '@/ui/Button';
+import { Checkbox } from '@/ui/Checkbox';
 import { Dropdown } from '@/ui/Dropdown';
 import { Slider } from '@/ui/fields';
 import { isAdded, useSubtitleProject } from '../subtitles/project';
@@ -117,15 +118,13 @@ export function TrackRow({ file, track }: { file: File; track: MuxTrack }) {
 	return (
 		<li className={`grid gap-1 ${track.include ? '' : 'opacity-50'}`} title={blockedReason}>
 			<div className="flex min-w-0 items-center gap-2">
-				<input
-					type="checkbox"
+				<Checkbox
 					aria-label={trackLabel(track)}
 					checked={track.include}
 					disabled={track.blocked !== null}
 					onChange={(event) => {
 						change({ include: event.target.checked });
 					}}
-					className="accent-ed size-4 flex-none cursor-pointer disabled:cursor-not-allowed"
 				/>
 				<span data-media={KIND_MEDIA[track.kind]} className="text-ed flex-none" aria-hidden="true">
 					<Icon size={15} />

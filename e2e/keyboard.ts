@@ -4,9 +4,8 @@
  * with the keyboard.
  */
 import type { Page } from 'playwright-core';
-import { engine, sample } from './engine';
+import { engine, sample, BASE } from './engine';
 
-const BASE = process.env.BASE ?? 'http://localhost:5173';
 
 const noRing = new Map<string, Set<string>>();
 const unreachable = new Map<string, Set<string>>();
@@ -106,7 +105,7 @@ for (const [path, file, ready] of EDITORS) {
 		await page.waitForTimeout(600);
 		await walk(page, `${path} ${name}`);
 	}
-	await page.getByRole('button', { name: 'Export', exact: true }).click();
+	await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 	await page.waitForTimeout(1000);
 	await walk(page, `${path} export`);
 }

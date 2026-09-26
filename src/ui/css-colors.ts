@@ -7,7 +7,7 @@ import { useTheme } from '@/app/theme';
  * and read back. Recomputed when the theme changes. Pass a constant array.
  */
 export function useCssColors(tokens: readonly string[]): string[] {
-	const [theme] = useTheme();
+	const { theme } = useTheme();
 	return useMemo(() => {
 		const probe = document.createElement('span');
 		probe.style.display = 'none';

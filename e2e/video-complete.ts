@@ -4,7 +4,7 @@
  * subtitle file added as a track, and a variable frame rate read. With FFPROBE set, each file is
  * checked by FFmpeg's probe.
  */
-import { engine, sample } from './engine';
+import { engine, sample, BASE } from './engine';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
@@ -28,13 +28,13 @@ const tool = async (name: string) => {
 };
 
 const open = async (path: string) => {
-	await page.goto('http://localhost:5173/video');
+	await page.goto(`${BASE}/video`);
 	await page.setInputFiles('input[type=file]', path);
 	await page.waitForSelector('[role=group][aria-label="Tracks"]', { timeout: 30000 });
 	await page.waitForTimeout(1500);
 };
 const exportAs = async (name: string, mode: RegExp, choose: () => Promise<void> = async () => {}) => {
-	await page.getByRole('button', { name: 'Export', exact: true }).click();
+	await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 	const radio = aside.getByRole('radio', { name: mode });
 	if (await radio.isEnabled()) await radio.click();
 	console.log(`${name}: ${mode} ${(await radio.getAttribute('aria-checked')) === 'true' ? 'chosen' : 'NOT chosen'}`);
@@ -76,7 +76,7 @@ console.log('  first packets (source, copy):', run(['-select_streams', 'v', '-sh
 
 // 2. Metadata and a cover made from the picture shown, still copied.
 await open(sample('film.mkv'));
-await page.getByRole('button', { name: 'Export', exact: true }).click();
+await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 await aside.getByLabel('Title').fill('Vixely test');
 await aside.getByLabel('Artist').fill('Xantoom');
 await aside.getByLabel('Artist').press('Tab');
@@ -89,7 +89,7 @@ console.log('  attachments:', run(['-show_entries', 'stream_tags=filename,mimety
 
 // 2b. The same in an MP4, whose timed text goes through the remuxer too.
 await open(sample('film.mp4'));
-await page.getByRole('button', { name: 'Export', exact: true }).click();
+await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 await aside.getByLabel('Title').fill('Vixely MP4');
 await aside.getByLabel('Title').press('Tab');
 await aside.getByRole('button', { name: 'Current frame' }).click();

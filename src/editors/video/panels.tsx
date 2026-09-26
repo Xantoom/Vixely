@@ -198,7 +198,9 @@ function MetaField({
 	const id = useId();
 	const [draft, setDraft] = useState<string | null>(null);
 	const commit = () => {
-		if (draft !== null && draft !== value) onCommit(draft);
+		// A date is kept only once whole: year, month and day, as files store it.
+		const valid = type !== 'date' || draft === '' || (draft !== null && /^\d{4}-\d{2}-\d{2}$/.test(draft));
+		if (draft !== null && draft !== value && valid) onCommit(draft);
 		setDraft(null);
 	};
 	const field =
@@ -222,10 +224,23 @@ function MetaField({
 			) : (
 				<input
 					id={id}
-					type={type}
+					type="text"
+					inputMode={type === 'date' ? 'numeric' : undefined}
+					placeholder={type === 'date' ? m.meta_date_format() : undefined}
+					maxLength={type === 'date' ? 10 : undefined}
 					value={draft ?? value}
 					onChange={(event) => {
-						setDraft(event.target.value);
+						const typed = event.target.value;
+						// Dates take their dashes by themselves: 20240315 becomes 2024-03-15.
+						setDraft(
+							type === 'date'
+								? typed
+										.replace(/[^\d]/g, '')
+										.slice(0, 8)
+										.replace(/^(\d{4})(\d)/, '$1-$2')
+										.replace(/^(\d{4}-\d{2})(\d)/, '$1-$2')
+								: typed,
+						);
 					}}
 					onBlur={commit}
 					onKeyDown={(event) => {

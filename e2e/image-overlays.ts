@@ -1,5 +1,5 @@
 /** Image editor: text and stickers placed, moved, turned, and found again in the export. */
-import { engine } from './engine';
+import { engine, BASE } from './engine';
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const browser = await engine.launch();
@@ -10,7 +10,7 @@ const errors: string[] = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 
-await page.goto('http://localhost:5173/image');
+await page.goto(`${BASE}/image`);
 await page.setInputFiles('input[type=file]', '../public/samples/lake.jpg');
 await page.waitForSelector('[data-status]', { timeout: 20000 });
 const rail = page.locator('nav[aria-label="Editing tools"]');
@@ -39,7 +39,7 @@ await page.waitForTimeout(200);
 await page.screenshot({ path: 'shots/overlay-stickers.png' });
 console.log('undo enabled', await page.getByRole('button', { name: 'Undo' }).isEnabled());
 
-await page.getByRole('button', { name: 'Export', exact: true }).click();
+await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 await page.locator('#export-format').click();
 await page.getByRole('option', { name: 'PNG', exact: true }).click();
 const [download] = await Promise.all([page.waitForEvent('download', { timeout: 120000 }), page.locator('aside + div').getByRole('button').first().click()]);

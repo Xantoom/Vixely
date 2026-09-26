@@ -24,7 +24,15 @@ export interface BatchFile {
 	format: string;
 }
 
+type Opened = Partial<Record<MediaKind, OpenedFile>>;
+
 interface SessionState {
+	/**
+	 * The file each editor has open. Going from one editor to another and back finds the file
+	 * again, with its edits: a video stays open in the video editor while a GIF is made from it.
+	 */
+	opened: Opened;
+	/** The file of the editor used last: the one a closed tab gets back. */
 	current: OpenedFile | null;
 	/** Several files of one kind opened at once. The current file is one of them. */
 	batch: BatchFile[] | null;
@@ -43,6 +51,8 @@ interface SessionState {
 	open: (files: File[], prefer?: MediaKind) => Promise<MediaKind | null>;
 	/** Opens the current file in another editor, such as the audio of a video. */
 	openAs: (kind: MediaKind) => void;
+	/** The editor on screen: its file becomes the current one. */
+	focus: (kind: MediaKind) => void;
 	/** Shows another file of the batch in the preview. */
 	select: (item: BatchFile) => Promise<void>;
 	addToBatch: (files: File[]) => Promise<void>;
@@ -73,6 +83,19 @@ async function read(file: File, kind: MediaKind, format: string): Promise<Opened
 }
 
 let nextBatchId = 1;
+
+/**
+ * `opened` with `file` in `kind`'s place. The poster of the file it replaces is released, unless
+ * another editor still shows the same file.
+ */
+function withOpened(opened: Opened, kind: MediaKind, file: OpenedFile): Opened {
+	const previous = opened[kind];
+	const next = { ...opened, [kind]: file };
+	const poster = previous?.poster;
+	if (poster && poster !== file.poster && !Object.values(next).some((entry) => entry.poster === poster))
+		poster.close();
+	return next;
+}
 
 /** Kinds that can be batched. Audio batches also take videos: their audio is what gets processed. */
 const BATCH_KINDS: Partial<Record<MediaKind, MediaKind[]>> = {
@@ -109,6 +132,7 @@ async function batchKindOf(files: File[], prefer: MediaKind | undefined): Promis
 }
 
 export const useSession = create<SessionState>((set, get) => ({
+	opened: {},
 	current: null,
 	batch: null,
 	batchKind: null,
@@ -132,9 +156,9 @@ export const useSession = create<SessionState>((set, get) => ({
 				return null;
 			}
 			const opened = { ...(await read(lead.file, kind, lead.format)), kind };
-			get().current?.poster?.close();
 			set({
 				reading: null,
+				opened: withOpened(get().opened, kind, opened),
 				current: opened,
 				batch: items.length > 1 ? items : null,
 				batchKind: items.length > 1 ? kind : null,
@@ -161,33 +185,48 @@ export const useSession = create<SessionState>((set, get) => ({
 		if (prefer === 'gif' && opened.kind === 'video' && opened.info?.video) opened.kind = 'gif';
 		// On the subtitle editor, a video brings its subtitle tracks, or gets new ones.
 		if (prefer === 'subtitles' && (opened.kind === 'video' || opened.kind === 'audio')) opened.kind = 'subtitles';
-		get().current?.poster?.close();
-		set({ reading: null, current: opened, batch: null, batchKind: null, batchKey: null });
+		// A batch belongs to its editor: a file opened elsewhere leaves it.
+		const batchLeft = get().batchKind === opened.kind;
+		set({
+			reading: null,
+			opened: withOpened(get().opened, opened.kind, opened),
+			current: opened,
+			...(batchLeft ? { batch: null, batchKind: null, batchKey: null } : {}),
+		});
 		return opened.kind;
 	},
 
 	openAs(kind) {
 		const current = get().current;
 		if (!current) return;
-		set({ current: { ...current, kind }, batch: null, batchKind: null, batchKey: null });
+		const opened = { ...current, kind };
+		set({
+			opened: withOpened(get().opened, kind, opened),
+			current: opened,
+			...(get().batchKind === kind ? { batch: null, batchKind: null, batchKey: null } : {}),
+		});
+	},
+
+	focus(kind) {
+		const opened = get().opened[kind];
+		if (opened && opened !== get().current) set({ current: opened });
 	},
 
 	async select(item) {
 		const kind = get().batchKind;
-		if (!kind || get().current?.file === item.file) return;
+		if (!kind || get().opened[kind]?.file === item.file) return;
 		const opened = { ...(await read(item.file, kind, item.format)), kind };
 		if (!get().batch?.some((entry) => entry.id === item.id)) {
 			opened.poster?.close();
 			return;
 		}
-		get().current?.poster?.close();
-		set({ current: opened });
+		set({ opened: withOpened(get().opened, kind, opened), current: opened });
 	},
 
 	async addToBatch(files) {
-		const current = get().current;
-		const kind = get().batchKind ?? current?.kind;
+		const kind = get().batchKind ?? get().current?.kind;
 		if (!kind || !BATCH_KINDS[kind]) return;
+		const current = get().opened[kind];
 		const { items, skipped } = await identifyBatch(files, kind);
 		const existing =
 			get().batch ?? (current ? [{ id: nextBatchId++, file: current.file, format: current.format }] : []);
@@ -202,7 +241,8 @@ export const useSession = create<SessionState>((set, get) => ({
 	removeFromBatch(id) {
 		const batch = get().batch?.filter((item) => item.id !== id) ?? null;
 		if (!batch) return;
-		const current = get().current;
+		const kind = get().batchKind;
+		const current = kind ? get().opened[kind] : null;
 		const [first] = batch;
 		// Keep a batch of one as a batch, so the strip stays until the user leaves it.
 		set({ batch });
@@ -213,3 +253,8 @@ export const useSession = create<SessionState>((set, get) => ({
 		set({ error: null });
 	},
 }));
+
+/** The file `kind`'s editor has open, if any. */
+export function useOpened(kind: MediaKind): OpenedFile | null {
+	return useSession((state) => state.opened[kind] ?? null);
+}

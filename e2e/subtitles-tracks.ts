@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
  * MP4 (tx3g), PGS pictures from an mkvmerge file and from a .sup, exported back. Optional: a large
  * MKV given as the first argument, to time how fast its track is read.
  */
-import { engine, sample } from './engine';
+import { engine, sample, BASE } from './engine';
 
 const big = process.argv[2];
 const browser = await engine.launch();
@@ -27,7 +27,7 @@ const tool = async (name: string) => {
 	if ((await button.getAttribute('aria-pressed')) !== 'true') await button.click();
 };
 const exportAs = async (format: RegExp) => {
-	await page.getByRole('button', { name: 'Export', exact: true }).click();
+	await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 	await aside.getByRole('radio', { name: format }).click();
 	const [download] = await Promise.all([
 		page.waitForEvent('download'),
@@ -36,14 +36,18 @@ const exportAs = async (format: RegExp) => {
 	return { name: download.suggestedFilename(), data: readFileSync(await download.path()) };
 };
 const open = async (path: string) => {
-	await page.goto('http://localhost:5173/subtitles');
+	await page.goto(`${BASE}/subtitles`);
 	const t0 = Date.now();
 	await page.setInputFiles('input[type=file]', path);
 	await page.waitForSelector('[role=grid]', { timeout: 60000 });
 	return Date.now() - t0;
 };
 const seekTo = async (seconds: number) => {
-	await page.getByLabel('Playhead', { exact: true }).fill(String(seconds));
+	// Clicked on the position bar where that moment is.
+	const bar = page.getByRole('slider', { name: 'Playhead', exact: true });
+	const length = Number(await bar.getAttribute('aria-valuemax'));
+	const box = (await bar.boundingBox())!;
+	await page.mouse.click(box.x + (box.width * seconds) / length, box.y + box.height / 2);
 	await page.waitForTimeout(900);
 };
 
@@ -112,7 +116,7 @@ const sup = await exportAs(/^PGS/);
 console.log('exported', sup.name, sup.data.length, 'bytes, starts with', sup.data.subarray(0, 2).toString());
 
 // 5. The exported .sup opened again, and a .sup from a disc tool.
-await page.goto('http://localhost:5173/');
+await page.goto(`${BASE}/`);
 await page.setInputFiles('input[type=file]', {
 	name: 'moved.sup',
 	mimeType: 'application/octet-stream',

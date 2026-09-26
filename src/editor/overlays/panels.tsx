@@ -15,6 +15,7 @@ import { Section } from '@/editor/panel-parts';
 import { m } from '@/paraglide/messages.js';
 import { IconButton } from '@/ui/Button';
 import { Button } from '@/ui/Button';
+import { ColorPopover } from '@/ui/ColorPopover';
 import { FieldRow, Select, Slider, Switch, TimeField } from '@/ui/fields';
 import {
 	type OverlayEditing,
@@ -76,9 +77,8 @@ function Toggle({
 	);
 }
 
-/** A few colours in one click, and the system picker for any other. */
+/** A few colours in one click, and the chooser for any other. */
 function ColorPicker({ label, value, onChange }: { label: string; value: string; onChange: (color: string) => void }) {
-	const pickerId = useId();
 	const current = value.slice(0, 7).toLowerCase();
 	return (
 		<div className="grid gap-2">
@@ -99,22 +99,20 @@ function ColorPicker({ label, value, onChange }: { label: string; value: string;
 						className="ease-spring size-7 rounded-full shadow-[inset_0_0_0_1px_rgb(0_0_0/0.15)] transition-transform duration-200 hover:scale-110 aria-checked:shadow-[0_0_0_2px_var(--bg),0_0_0_4px_var(--ed)]"
 					/>
 				))}
-				<label
-					htmlFor={pickerId}
-					title={m.color_other()}
-					className="relative size-7 cursor-pointer rounded-full bg-[conic-gradient(#ff3b30,#ffe14d,#34c759,#00c7be,#0a84ff,#bf5af2,#ff3b30)] shadow-[inset_0_0_0_1px_rgb(0_0_0/0.15)]"
+				<ColorPopover
+					label={m.color_other()}
+					value={current}
+					onChange={onChange}
+					className={`ease-spring size-7 rounded-full bg-[conic-gradient(#ff3b30,#ffe14d,#34c759,#00c7be,#0a84ff,#bf5af2,#ff3b30)] shadow-[inset_0_0_0_1px_rgb(0_0_0/0.15)] transition-transform duration-200 hover:scale-110 aria-expanded:shadow-[0_0_0_2px_var(--bg),0_0_0_4px_var(--ed)] ${SWATCHES.includes(current) ? '' : 'shadow-[0_0_0_2px_var(--bg),0_0_0_4px_var(--ed)]'}`}
 				>
-					<input
-						id={pickerId}
-						type="color"
-						aria-label={m.color_other()}
-						value={current}
-						onChange={(event) => {
-							onChange(event.target.value);
-						}}
-						className="absolute inset-0 size-full cursor-pointer opacity-0"
-					/>
-				</label>
+					{!SWATCHES.includes(current) && (
+						<span
+							className="m-auto block size-3.5 rounded-full shadow-[0_0_0_2px_#fff]"
+							style={{ background: current }}
+							aria-hidden="true"
+						/>
+					)}
+				</ColorPopover>
 			</div>
 		</div>
 	);

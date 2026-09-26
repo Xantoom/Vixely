@@ -7,7 +7,7 @@ import { useEditorShortcuts } from '@/editor/shortcuts';
 import { Viewer } from '@/editor/Viewer';
 import { ZoomStatus } from '@/editor/ZoomStage';
 import type { ToolId } from '@/editors/registry';
-import { useSession } from '@/media/session';
+import { useOpened, useSession } from '@/media/session';
 import type { ItemStatus } from './batch-export';
 import { BatchStrip } from './BatchStrip';
 import type { Size } from './document';
@@ -20,11 +20,10 @@ import { PresetsPanel } from './PresetsPanel';
 import { useImageDoc, useImageEditor, useUndoState } from './store';
 
 export function ImageEditorScreen({ initialTool }: { initialTool?: ToolId }) {
-	const current = useSession((state) => state.current);
 	// A batch of audio files belongs to the audio editor.
 	const batch = useSession((state) => (state.batchKind === 'image' ? state.batch : null));
 	const batchKey = useSession((state) => (state.batchKind === 'image' ? state.batchKey : null));
-	const opened = current?.kind === 'image' ? current : null;
+	const opened = useOpened('image');
 	const source = opened?.poster ?? null;
 	const load = useImageEditor((state) => state.load);
 	const retarget = useImageEditor((state) => state.retarget);

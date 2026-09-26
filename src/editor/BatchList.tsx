@@ -2,6 +2,7 @@ import { Check, Plus, X } from 'lucide-react';
 import { useRef } from 'react';
 import { useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
+import { useDragScroll } from '@/ui/drag-scroll';
 /** Where a file of a batch is while it exports. */
 export type ItemStatus = 'working' | 'done' | 'failed';
 
@@ -30,8 +31,9 @@ interface BatchListProps {
  * the batch's settings apply to all of them.
  */
 export function BatchList({ statuses, locked, count, addLabel, accept }: BatchListProps) {
+	const dragScroll = useDragScroll<HTMLOListElement>();
 	const batch = useSession((state) => state.batch) ?? [];
-	const current = useSession((state) => state.current);
+	const current = useSession((state) => (state.batchKind ? state.opened[state.batchKind] : null));
 	const select = useSession((state) => state.select);
 	const remove = useSession((state) => state.removeFromBatch);
 	const add = useSession((state) => state.addToBatch);
@@ -69,7 +71,7 @@ export function BatchList({ statuses, locked, count, addLabel, accept }: BatchLi
 			{error?.reason === 'skipped' && (
 				<p className="text-small text-muted -mt-1">{m.batch_skipped({ count: error.count })}</p>
 			)}
-			<ol className="flex gap-1.5 overflow-x-auto pb-2">
+			<ol ref={dragScroll} className="flex gap-1.5 overflow-x-auto pb-2">
 				{batch.map((item) => {
 					const selected = current?.file === item.file;
 					return (

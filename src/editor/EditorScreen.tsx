@@ -1,5 +1,5 @@
 import { type ComponentType, lazy, Suspense, useEffect, useState } from 'react';
-import type { MediaKind, ToolId } from '@/editors/registry';
+import { EDITOR_ORDER, type MediaKind, type ToolId } from '@/editors/registry';
 import { useSession } from '@/media/session';
 import { EditorLayout } from './EditorLayout';
 import { FilePanel } from './Inspector';
@@ -15,7 +15,16 @@ const LOADERS: Record<MediaKind, () => Promise<Screen>> = {
 	subtitles: async () => (await import('@/editors/subtitles/SubtitleEditorScreen')).SubtitleEditorScreen,
 };
 
-const screen = (kind: MediaKind) => lazy(async () => ({ default: await LOADERS[kind]() }));
+/** Editors already loaded: they show at once, without a moment of the empty editor. */
+const loaded = new Map<MediaKind, Screen>();
+
+async function loadScreen(kind: MediaKind): Promise<Screen> {
+	const Screen = await LOADERS[kind]();
+	loaded.set(kind, Screen);
+	return Screen;
+}
+
+const screen = (kind: MediaKind) => lazy(async () => ({ default: await loadScreen(kind) }));
 
 const SCREENS: Record<MediaKind, Screen> = {
 	video: screen('video'),
@@ -44,13 +53,22 @@ function EmptyEditor({ kind, tool, onTool }: { kind: MediaKind; tool: ToolId; on
  * editor loads meanwhile, ready by the time a file is chosen.
  */
 export function EditorScreen({ kind, initialTool }: { kind: MediaKind; initialTool?: ToolId }) {
-	const hasFile = useSession((state) => state.current?.kind === kind);
+	const hasFile = useSession((state) => Boolean(state.opened[kind]));
 	const [shown, setShown] = useState(hasFile);
 	const [tool, setTool] = useState<ToolId>(initialTool ?? 'info');
 	if (hasFile && !shown) setShown(true);
 
+	// The editor on screen is the one a closed tab comes back to.
 	useEffect(() => {
-		const load = () => void LOADERS[kind]();
+		if (hasFile) useSession.getState().focus(kind);
+	}, [hasFile, kind]);
+
+	useEffect(() => {
+		// This editor first, then the others, so going from one to another is instant too.
+		const load = () =>
+			void loadScreen(kind).then(async () =>
+				Promise.all(EDITOR_ORDER.filter((other) => other !== kind).map(loadScreen)),
+			);
 		if ('requestIdleCallback' in window) {
 			const id = requestIdleCallback(load, { timeout: 2000 });
 			return () => {
@@ -65,7 +83,7 @@ export function EditorScreen({ kind, initialTool }: { kind: MediaKind; initialTo
 
 	const empty = <EmptyEditor kind={kind} tool={tool} onTool={setTool} />;
 	if (!shown) return empty;
-	const Screen = SCREENS[kind];
+	const Screen = loaded.get(kind) ?? SCREENS[kind];
 	return (
 		<Suspense fallback={empty}>
 			<Screen initialTool={tool} />

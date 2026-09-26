@@ -24,7 +24,7 @@ const open = async (page: Page, path: string, file: string, ready = 'nav[aria-la
 	await page.waitForTimeout(2000);
 };
 const exportPanel = async (page: Page) => {
-	await page.getByRole('button', { name: 'Export', exact: true }).click();
+	await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 	await page.waitForTimeout(800);
 };
 

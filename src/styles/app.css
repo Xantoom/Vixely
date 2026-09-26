@@ -29,6 +29,8 @@
 	--primary-ink: light-dark(#ffffff, #111113);
 	--danger: light-dark(#c4321f, #ff6b57);
 	--focus: light-dark(#2f6bff, #7197ff);
+	--scroll-thumb: light-dark(rgb(17 17 19 / 0.2), rgb(243 243 245 / 0.2));
+	--scroll-thumb-hover: light-dark(rgb(17 17 19 / 0.42), rgb(243 243 245 / 0.42));
 
 	--video-1: light-dark(#2f5bff, #5c86ff);
 	--video-2: light-dark(#1ea2ff, #3db5ff);
@@ -203,6 +205,57 @@
 		cursor: not-allowed;
 	}
 
+	/*
+	 * Scrollbars: a thin rounded thumb floating on no track, which thickens under the pointer.
+	 * Chromium and Safari draw them from the pseudo-elements; Firefox only takes a colour and a width.
+	 */
+	::-webkit-scrollbar {
+		width: 12px;
+		height: 12px;
+	}
+
+	::-webkit-scrollbar-track,
+	::-webkit-scrollbar-corner {
+		background: transparent;
+	}
+
+	::-webkit-scrollbar-thumb {
+		min-width: 40px;
+		min-height: 40px;
+		border: 3.5px solid transparent;
+		border-radius: 99px;
+		background: var(--scroll-thumb) padding-box;
+	}
+
+	::-webkit-scrollbar-thumb:hover {
+		border-width: 2px;
+		background-color: var(--scroll-thumb-hover);
+	}
+
+	::-webkit-scrollbar-thumb:active {
+		border-width: 2px;
+		background-color: var(--ed, var(--scroll-thumb-hover));
+	}
+
+	@supports not selector(::-webkit-scrollbar) {
+		* {
+			scrollbar-width: thin;
+			scrollbar-color: var(--scroll-thumb) transparent;
+		}
+	}
+
+	/* Rows scrolled by grabbing them (useDragScroll). */
+	[data-drag-scroll] {
+		cursor: grab;
+	}
+
+	[data-dragging],
+	[data-dragging] * {
+		cursor: grabbing !important;
+		scroll-snap-type: none !important;
+		user-select: none;
+	}
+
 	/* A button busy with its own work (Button's `busy`). */
 	button[aria-disabled='true'] {
 		cursor: progress;
@@ -219,6 +272,59 @@
 
 @utility bg-ed-line {
 	background-image: linear-gradient(90deg, var(--ed), var(--ed-2));
+}
+
+/* A line between groups, fading out at both ends in the editor's colour. */
+@utility separator {
+	height: 1px;
+	flex: none;
+	border: 0;
+	background-image: linear-gradient(
+		90deg,
+		transparent,
+		color-mix(in srgb, var(--ed) 55%, var(--line-2)) 30%,
+		color-mix(in srgb, var(--ed-2) 55%, var(--line-2)) 70%,
+		transparent
+	);
+}
+
+/* Things that open (menus, lists, tooltips) grow out of what opened them. */
+@keyframes menu-in {
+	from {
+		opacity: 0;
+		transform: translateY(var(--from-y, -6px)) scale(0.96);
+	}
+}
+
+.menu-in {
+	transform-origin: top center;
+	animation: menu-in 150ms var(--ease-out-soft);
+}
+
+.menu-in[data-down='false'] {
+	--from-y: 6px;
+	transform-origin: bottom center;
+}
+
+.tooltip-in {
+	--from-y: 3px;
+	animation: menu-in 120ms var(--ease-out-soft);
+}
+
+.tooltip-in[data-below='true'] {
+	--from-y: -3px;
+}
+
+/* A panel's content coming in when its tool is chosen. */
+@keyframes panel-in {
+	from {
+		opacity: 0;
+		transform: translateX(-8px);
+	}
+}
+
+.panel-in {
+	animation: panel-in 180ms var(--ease-out-soft);
 }
 
 @keyframes pop {

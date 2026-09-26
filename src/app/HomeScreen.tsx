@@ -8,6 +8,7 @@ import { errorMessage } from './DropZone';
 import { usePageHead } from './head';
 import { homeCopy } from './home/copy';
 import { Shot } from './home/Shot';
+import { useLocale } from './locale';
 import { OpenFileButton } from './OpenFileButton';
 import { ResumeCard } from './ResumeCard';
 import { SiteFooter } from './SiteFooter';
@@ -321,6 +322,7 @@ function Final() {
 }
 
 export function HomeScreen() {
+	useLocale();
 	usePageHead(null);
 	return (
 		<div className="flex min-h-full flex-col">

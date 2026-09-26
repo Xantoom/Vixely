@@ -4,10 +4,9 @@
  * once, with where it was seen.
  */
 import type { Page } from 'playwright-core';
-import { engine, sample } from './engine';
+import { engine, sample, BASE } from './engine';
 import { readFileSync } from 'node:fs';
 
-const BASE = process.env.BASE ?? 'http://localhost:5173';
 const axe = readFileSync('node_modules/axe-core/axe.min.js', 'utf8');
 
 interface Found {
@@ -79,7 +78,7 @@ for (const scheme of ['light', 'dark'] as const) {
 			await page.waitForTimeout(600);
 			await audit(page, `${scheme} ${path} ${name}`);
 		}
-		await page.getByRole('button', { name: 'Export', exact: true }).click();
+		await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 		await page.waitForTimeout(1000);
 		await audit(page, `${scheme} ${path} export`);
 		// A list open, as drawn by the app.

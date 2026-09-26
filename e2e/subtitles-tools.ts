@@ -4,7 +4,7 @@
  * the original beside each line; a Blu-ray .sup read into text. With FFPROBE set, FFmpeg reads the
  * subtitles back. Whisper's model and Tesseract's English data are downloaded the first time.
  */
-import { engine, sample } from './engine';
+import { engine, sample, BASE } from './engine';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
@@ -35,7 +35,7 @@ const save = async (name: string) => {
 };
 
 // 1. A video without subtitles: speech to text, one line corrected, written into the video.
-await page.goto('http://localhost:5173/video');
+await page.goto(`${BASE}/video`);
 await page.setInputFiles('input[type=file]', sample('speech.mp4'));
 await page.waitForSelector('[role=group][aria-label="Tracks"]', { timeout: 30000 });
 await tools.getByRole('button', { name: 'Subtitles', exact: true }).click();
@@ -54,7 +54,7 @@ await page.getByRole('grid').getByRole('row').nth(1).click();
 const text = page.getByLabel('Text', { exact: true });
 await text.fill('And so, my fellow Americans:');
 await text.press('Enter');
-await page.getByRole('button', { name: 'Export', exact: true }).click();
+await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 await aside.getByRole('radio', { name: /video/i }).first().click();
 const muxed = await save('transcribed.mp4');
 if (ffmpeg) {
@@ -63,7 +63,7 @@ if (ffmpeg) {
 }
 
 // 2. An SRT translated by hand into English.
-await page.goto('http://localhost:5173/subtitles');
+await page.goto(`${BASE}/subtitles`);
 await page.setInputFiles('input[type=file]', 'samples/extra.fr.srt');
 await page.waitForSelector('[role=grid]', { timeout: 10000 });
 await tools.getByRole('button', { name: 'Translate', exact: true }).click();
@@ -77,12 +77,12 @@ await page.waitForTimeout(300);
 console.log('translation grid:', await grid());
 console.log('progress:', await aside.getByRole('status').or(aside.locator('p.tabular')).first().innerText().catch(() => '?'));
 await page.screenshot({ path: 'shots/translation.png' });
-await page.getByRole('button', { name: 'Export', exact: true }).click();
+await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 const translated = await save('translated.srt');
 console.log('  file:', translated.data.toString('utf8').replace(/\s+/g, ' '));
 
 // 3. Blu-ray pictures read into text.
-await page.goto('http://localhost:5173/subtitles');
+await page.goto(`${BASE}/subtitles`);
 await page.setInputFiles('input[type=file]', 'samples/sup2.sup');
 await page.waitForSelector('[role=grid]', { timeout: 30000 });
 await tools.getByRole('button', { name: 'Text recognition', exact: true }).click();

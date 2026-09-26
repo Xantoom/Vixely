@@ -3,10 +3,9 @@
  * 200 % zoom on a laptop, must not scroll sideways nor push anything out of the screen.
  */
 import type { Page } from 'playwright-core';
-import { engine, sample } from './engine';
+import { engine, sample, BASE } from './engine';
 import { mkdirSync } from 'node:fs';
 
-const BASE = process.env.BASE ?? 'http://localhost:5173';
 mkdirSync('shots', { recursive: true });
 
 async function check(page: Page, where: string) {
@@ -71,7 +70,7 @@ for (const [name, options] of [
 			await page.waitForTimeout(500);
 			await check(page, `${name} ${path} ${label}`);
 		}
-		const exp = page.getByRole('button', { name: 'Exporter', exact: true });
+		const exp = page.locator('header').getByRole('button', { name: 'Exporter', exact: true });
 		if (await exp.isVisible()) {
 			await exp.click();
 			await page.waitForTimeout(800);

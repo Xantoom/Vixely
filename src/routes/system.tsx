@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
+import { useLocale } from '@/app/locale';
 import { SiteFooter } from '@/app/SiteFooter';
 import { SiteHeader } from '@/app/SiteHeader';
 import { codecName } from '@/lib/format';
@@ -41,6 +42,7 @@ function CodecTable({ title, codecs }: { title: string; codecs: CodecSupport[] }
 }
 
 function SystemScreen() {
+	useLocale();
 	const [caps, setCaps] = useState<Capabilities | null>(null);
 	useEffect(() => {
 		// Detection needs the media library: it loads once the page is shown and the browser idle.

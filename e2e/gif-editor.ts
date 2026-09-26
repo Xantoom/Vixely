@@ -1,5 +1,5 @@
 /** GIF editor: open, play, trim, speed, back and forth, crop, export; then a video made into a GIF. */
-import { engine } from './engine';
+import { engine, BASE } from './engine';
 import { readFileSync } from 'node:fs';
 
 const browser = await engine.launch();
@@ -24,7 +24,7 @@ const exportNow = async () => {
 	return { name: download.suggestedFilename(), data: readFileSync(await download.path()) };
 };
 
-await page.goto('http://localhost:5173/');
+await page.goto(`${BASE}/`);
 await page.setInputFiles('input[type=file]', 'samples/anim.gif');
 await page.waitForURL('**/gif');
 await page.waitForSelector('[aria-label="Frames"]', { timeout: 20000 });
@@ -46,7 +46,7 @@ await page.locator('aside').getByRole('radio', { name: 'Back and forth' }).click
 console.log('2× back and forth:', await preview());
 await rail.getByRole('button', { name: 'Crop' }).click();
 await page.locator('aside').getByRole('radio', { name: /^1:1/ }).click();
-await page.getByRole('button', { name: 'Export', exact: true }).click();
+await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 const edited = await exportNow();
 console.log('exported', edited.name, edited.data.length, 'bytes', JSON.stringify(await analyse(edited.data)));
 let undos = 0;
@@ -72,7 +72,7 @@ const video = Buffer.from(await page.evaluate(async () => {
 	await output.finalize();
 	return Array.from(new Uint8Array(output.target.buffer));
 }));
-await page.goto('http://localhost:5173/');
+await page.goto(`${BASE}/`);
 await page.setInputFiles('input[type=file]', { name: 'clip.webm', mimeType: 'video/webm', buffer: video });
 await page.waitForURL('**/video');
 await page.getByRole('button', { name: 'Make a GIF' }).click();
@@ -80,7 +80,7 @@ await page.waitForURL('**/gif');
 await page.waitForSelector('[aria-label="Frames"]', { timeout: 20000 });
 await page.waitForTimeout(1000);
 console.log('video as GIF:', await preview());
-await page.getByRole('button', { name: 'Export', exact: true }).click();
+await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 const fromVideo = await exportNow();
 console.log('video GIF', fromVideo.name, fromVideo.data.length, 'bytes', JSON.stringify(await analyse(fromVideo.data)));
 console.log(errors.length ? errors.join('\n') : 'no errors');

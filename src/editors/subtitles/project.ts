@@ -174,6 +174,16 @@ function emptyDoc(): SubtitleDoc {
 
 const TEXT_FORMATS = new Set(['srt', 'vtt', 'ass']);
 
+/** A file left for another one, as it was: going back to it finds its tracks and edits. */
+interface Left {
+	state: Pick<ProjectState, 'source' | 'listFailed' | 'tracks' | 'current' | 'fonts' | 'media' | 'bytes'>;
+	exportSettings: SubtitleExportSettings;
+	encoding: EncodingId;
+}
+
+/** Files left while ready, by file: the video editor and the subtitle editor each keep theirs. */
+const left = new WeakMap<File, Left>();
+
 /** Incremented for every file opened: answers for an older one are dropped. */
 let run = 0;
 
@@ -249,8 +259,43 @@ export const useSubtitleProject = create<ProjectState>((set, get) => {
 
 		open(opened) {
 			if (opened.file === get().file) return;
+			const leaving = get();
+			if (leaving.file && leaving.status === 'ready') {
+				const editor = useSubtitleEditor.getState();
+				editor.settle();
+				const { history, exportSettings, encoding } = useSubtitleEditor.getState();
+				const { source, listFailed, tracks, current, fonts, media, bytes } = leaving;
+				left.set(leaving.file, {
+					state: {
+						source,
+						listFailed,
+						tracks: tracks.map((track) => (track.key === current ? { ...track, history } : track)),
+						current,
+						fonts,
+						media,
+						bytes,
+					},
+					exportSettings,
+					encoding,
+				});
+			}
 			const mine = ++run;
 			const { file, format } = opened;
+			const back = left.get(file);
+			if (back) {
+				left.delete(file);
+				set({ ...back.state, file, status: 'ready', progress: 1, current: null });
+				usePlayback.getState().load(back.state.source === 'video' ? file : null);
+				const shown = back.state.tracks.find((track) => track.key === back.state.current);
+				if (shown?.original) {
+					set({ current: shown.key });
+					useSubtitleEditor
+						.getState()
+						.show(showKey(shown.key), shown.history ?? createHistory(shown.original), back.encoding);
+				}
+				useSubtitleEditor.getState().setExport(back.exportSettings);
+				return;
+			}
 			const kind = TEXT_FORMATS.has(format) ? 'text' : format === 'pgs' ? 'sup' : 'video';
 			set({
 				file,

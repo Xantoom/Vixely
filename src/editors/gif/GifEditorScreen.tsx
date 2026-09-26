@@ -9,7 +9,7 @@ import { Viewer } from '@/editor/Viewer';
 import { overlayEditing } from '@/editors/image/editing';
 import { AdjustPanel, CropPanel } from '@/editors/image/panels';
 import type { ToolId } from '@/editors/registry';
-import { useSession } from '@/media/session';
+import { useOpened, useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { frameAt } from './document';
 import { type GifEngine, useGifEngine } from './engine';
@@ -88,8 +88,7 @@ function useFirstPicture(engine: GifEngine, poster: ImageBitmap | null): ImageBi
 }
 
 export function GifEditorScreen({ initialTool }: { initialTool?: ToolId }) {
-	const current = useSession((state) => state.current);
-	const opened = current?.kind === 'gif' ? current : null;
+	const opened = useOpened('gif');
 	const undo = useGifEditor((state) => state.undo);
 	const redo = useGifEditor((state) => state.redo);
 	const { canUndo, canRedo } = useGifUndoState();

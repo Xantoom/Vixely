@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
  * on it, edit a line in the edit box, set its times on the audio box, go to the next line with
  * Enter, shift, sync on two points, export as ASS; then an ASS file exported as SRT.
  */
-import { engine } from './engine';
+import { engine, BASE } from './engine';
 
 const browser = await engine.launch();
 const ctx = await browser.newContext({
@@ -19,7 +19,7 @@ page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => {
 	if (m.type() === 'error') errors.push(m.text());
 });
-await page.goto('http://localhost:5173/');
+await page.goto(`${BASE}/`);
 
 // 20 lines, two seconds apart, with accents in Windows-1252.
 const srt = Array.from({ length: 20 }, (_, i) => {
@@ -87,13 +87,13 @@ await page.waitForFunction(() => document.querySelector('aside')?.textContent?.i
 	timeout: 15000,
 });
 await page.waitForTimeout(1500);
-console.log('with video:', await page.getByLabel('Audio track').innerText(), '| url', page.url());
+console.log('with video:', await page.getByRole('button', { name: 'Audio track' }).count(), 'audio menu | url', page.url());
 
 // Play for a moment: the playhead moves and the preview shows line 1 at 2.5 s.
 await page.getByRole('button', { name: 'Play', exact: true }).click();
 await page.waitForTimeout(2800);
 await page.getByRole('button', { name: 'Pause', exact: true }).click();
-console.log('after playing:', await page.getByLabel('Playhead', { exact: true }).inputValue());
+console.log('after playing:', await page.getByRole('slider', { name: 'Playhead', exact: true }).getAttribute('aria-valuenow'));
 await page.screenshot({ path: 'shots/subs-playing.png' });
 
 // Line 2 picked on the grid, retyped in the edit box; Enter goes to line 3.
@@ -138,7 +138,7 @@ await aside.getByRole('button', { name: 'Sync the lines' }).click();
 await page.screenshot({ path: 'shots/subs-timing.png' });
 
 // Export as ASS.
-await page.getByRole('button', { name: 'Export', exact: true }).click();
+await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 await aside.getByRole('radio', { name: /^ASS/ }).click();
 const [download] = await Promise.all([
 	page.waitForEvent('download'),
@@ -163,7 +163,7 @@ console.log(
 
 // An ASS file with a drawing and a comment, exported as SRT.
 const script = `[Script Info]\nScriptType: v4.00+\nPlayResX: 1280\nPlayResY: 720\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Default,Arial,48,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,10,1\nStyle: Top,Arial,40,&H0000FFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,2,1,8,10,10,10,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,{\\i1}Hello{\\i0}\\Nworld\nDialogue: 0,0:00:01.00,0:00:04.00,Top,,0,0,0,,A sign at the top\nComment: 0,0:00:05.00,0:00:06.00,Default,,0,0,0,,note\nDialogue: 1,0:00:05.00,0:00:06.00,Default,,0,0,0,,{\\p1}m 0 0 l 100 0 100 100{\\p0}\n`;
-await page.goto('http://localhost:5173/');
+await page.goto(`${BASE}/`);
 await page.setInputFiles('input[type=file]', {
 	name: 'styled.ass',
 	mimeType: 'text/x-ssa',
@@ -175,7 +175,7 @@ await page.getByRole('grid').getByRole('row').nth(1).click();
 await page.waitForTimeout(800);
 await page.screenshot({ path: 'shots/subs-ass.png' });
 console.log('ass info:', (await aside.innerText()).replace(/\n/g, ' | ').slice(0, 200));
-await page.getByRole('button', { name: 'Export', exact: true }).click();
+await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 await aside.getByRole('radio', { name: /^SRT/ }).click();
 console.log('ass → srt panel:', (await aside.innerText()).replace(/\n/g, ' | ').slice(0, 500));
 const [second] = await Promise.all([

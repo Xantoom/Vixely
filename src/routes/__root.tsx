@@ -2,7 +2,9 @@ import { createRootRoute, Link, Outlet } from '@tanstack/react-router';
 import { useEffect } from 'react';
 import { GlobalDrop } from '@/app/GlobalDrop';
 import { usePageHead } from '@/app/head';
+import { useLocale } from '@/app/locale';
 import { m } from '@/paraglide/messages.js';
+import { Tooltips } from '@/ui/Tooltips';
 
 function NotFound() {
 	usePageHead('404');
@@ -27,10 +29,14 @@ function NotFound() {
 }
 
 function Root() {
+	// A new language re-renders every page in place (each route listens too), keeping what is open
+	// and edited.
+	useLocale();
 	return (
 		<>
 			<Outlet />
 			<GlobalDrop />
+			<Tooltips />
 		</>
 	);
 }

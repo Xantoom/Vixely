@@ -4,7 +4,7 @@
  * tracks and lines. Optional: a large MKV as the first argument times the whole export, written
  * to a file picker that throws the bytes away.
  */
-import { engine, sample } from './engine';
+import { engine, sample, BASE } from './engine';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 
 const big = process.argv[2];
@@ -21,12 +21,12 @@ const aside = page.locator('aside');
 mkdirSync('shots', { recursive: true });
 
 const open = async (path: string | { name: string; mimeType: string; buffer: Buffer }) => {
-	await page.goto('http://localhost:5173/subtitles');
+	await page.goto(`${BASE}/subtitles`);
 	await page.setInputFiles('input[type=file]', path);
 	await page.waitForSelector('[role=grid]', { timeout: 60000 });
 };
 const exportVideo = async (from: 'subtitles' | 'video') => {
-	await page.getByRole('button', { name: 'Export', exact: true }).click();
+	await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 	if (from === 'subtitles') await aside.getByRole('radio', { name: /The video/ }).click();
 	await page.waitForTimeout(500);
 	const [download] = await Promise.all([
@@ -43,7 +43,7 @@ await open(sample('film.mkv'));
 await page.getByRole('grid').getByRole('row').nth(1).click();
 await page.getByLabel('Text', { exact: true }).fill('Edited in Vixely');
 await page.getByLabel('Text', { exact: true }).blur();
-await page.getByRole('button', { name: 'Export', exact: true }).click();
+await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 await aside.getByRole('radio', { name: /The video/ }).click();
 await page.waitForTimeout(300);
 await aside.screenshot({ path: 'shots/mux-panel.png' });
@@ -109,10 +109,10 @@ if (big) {
 			if (m.text().startsWith('written')) resolve(m.text());
 		});
 	});
-	await large.goto('http://localhost:5173/subtitles');
+	await large.goto(`${BASE}/subtitles`);
 	await large.setInputFiles('input[type=file]', big);
 	await large.waitForSelector('[role=grid]', { timeout: 60000 });
-	await large.getByRole('button', { name: 'Export', exact: true }).click();
+	await large.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 	await large.locator('aside').getByRole('radio', { name: /The video/ }).click();
 	const start = Date.now();
 	await large.locator('aside + div').getByRole('button').first().click();

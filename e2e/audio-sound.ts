@@ -3,7 +3,7 @@
  * a Voice equalizer, then exported as WAV. With FFPROBE set, FFmpeg measures the noise left
  * between the bursts, the length, and the level of the voice.
  */
-import { engine } from './engine';
+import { engine, BASE } from './engine';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
@@ -22,7 +22,7 @@ mkdirSync('shots', { recursive: true });
 const tools = page.locator('nav[aria-label="Editing tools"]');
 const aside = page.locator('aside');
 
-await page.goto('http://localhost:5173/audio');
+await page.goto(`${BASE}/audio`);
 await page.setInputFiles('input[type=file]', 'samples/noisy.wav');
 await tools.getByRole('button', { name: 'Sound', exact: true }).waitFor({ timeout: 30000 });
 await page.waitForTimeout(1500);
@@ -39,7 +39,7 @@ await page.keyboard.press('Space');
 await page.waitForTimeout(2000);
 await page.keyboard.press('Space');
 
-await page.getByRole('button', { name: 'Export', exact: true }).click();
+await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 await aside.getByRole('radio', { name: /WAV/ }).click();
 const t0 = Date.now();
 const [download] = await Promise.all([

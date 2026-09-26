@@ -2,6 +2,7 @@ import { Check, Plus, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { type BatchFile, useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
+import { useDragScroll } from '@/ui/drag-scroll';
 import type { ItemStatus } from './batch-export';
 
 /** Thumbnails are decoded two at a time: hundreds of photos at once would exhaust memory. */
@@ -89,8 +90,9 @@ function StatusMark({ status }: { status: ItemStatus | undefined }) {
  * its edits apply to all of them.
  */
 export function BatchStrip({ statuses, locked }: { statuses: ReadonlyMap<number, ItemStatus>; locked: boolean }) {
+	const dragScroll = useDragScroll<HTMLOListElement>();
 	const batch = useSession((state) => state.batch) ?? [];
-	const current = useSession((state) => state.current);
+	const current = useSession((state) => (state.batchKind ? state.opened[state.batchKind] : null));
 	const select = useSession((state) => state.select);
 	const remove = useSession((state) => state.removeFromBatch);
 	const add = useSession((state) => state.addToBatch);
@@ -128,7 +130,7 @@ export function BatchStrip({ statuses, locked }: { statuses: ReadonlyMap<number,
 			{error?.reason === 'skipped' && (
 				<p className="text-small text-muted -mt-1">{m.batch_skipped({ count: error.count })}</p>
 			)}
-			<ol className="flex gap-2 overflow-x-auto pb-1">
+			<ol ref={dragScroll} className="flex gap-2 overflow-x-auto pb-1">
 				{batch.map((item) => {
 					const selected = current?.file === item.file;
 					return (

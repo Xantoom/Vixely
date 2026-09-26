@@ -1,5 +1,5 @@
 /** Image editor: looks, the 13 adjustments, export matching the preview. */
-import { engine } from './engine';
+import { engine, BASE } from './engine';
 import { readFileSync } from 'node:fs';
 
 const browser = await engine.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
@@ -10,7 +10,7 @@ const errors: string[] = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 
-await page.goto('http://localhost:5173/image');
+await page.goto(`${BASE}/image`);
 await page.setInputFiles('input[type=file]', '../public/samples/lake.jpg');
 await page.waitForSelector('[data-status]', { timeout: 20000 });
 const rail = page.locator('nav[aria-label="Editing tools"]');
@@ -38,7 +38,7 @@ const exportNow = async () => {
 	const [download] = await Promise.all([page.waitForEvent('download', { timeout: 120000 }), page.locator('aside + div').getByRole('button').first().click()]);
 	return { name: download.suggestedFilename(), data: readFileSync(await download.path()) };
 };
-await page.getByRole('button', { name: 'Export', exact: true }).click();
+await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 console.log('source defaults:', await page.locator('#export-format').innerText(), await page.getByRole('slider', { name: 'Quality' }).inputValue());
 
 await rail.getByRole('button', { name: 'Formats' }).click();
@@ -46,7 +46,7 @@ await page.screenshot({ path: 'shots/image-presets.png' });
 await page.getByRole('button', { name: /^Instagram Story/ }).click();
 console.log('preset status:', await page.locator('[data-status]').innerText());
 await page.screenshot({ path: 'shots/image-preset-story.png' });
-await page.getByRole('button', { name: 'Export', exact: true }).click();
+await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 let out = await exportNow();
 console.log('story', out.name, out.data.length);
 for (const format of ['TIFF', 'BMP', 'ICO']) {

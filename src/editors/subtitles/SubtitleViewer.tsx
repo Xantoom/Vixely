@@ -1,7 +1,7 @@
 import { Film, TriangleAlert, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { AssOverlay } from '@/editor/AssOverlay';
-import { PlayerControls, PlayerPicture } from '@/editor/PlayerControls';
+import { AudioTrackMenu, PictureButtons, PlayerControls, PlayerPicture } from '@/editor/PlayerControls';
 import { usePlayback } from '@/media/playback';
 import { m } from '@/paraglide/messages.js';
 import { IconButton } from '@/ui/Button';
@@ -144,6 +144,9 @@ export function SubtitleViewer({ title }: { title: string }) {
 						</span>
 					)}
 				</PlayerPicture>
+				<PictureButtons>
+					<AudioTrackMenu />
+				</PictureButtons>
 			</div>
 			<PlayerControls>
 				<ChooseMedia />

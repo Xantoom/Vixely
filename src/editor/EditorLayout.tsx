@@ -1,12 +1,27 @@
 import { useNavigate } from '@tanstack/react-router';
-import { Download, House, Keyboard, Languages, Moon, Redo2, Scan, Sun, Undo2, X, ZoomIn, ZoomOut } from 'lucide-react';
-import { createContext, type ReactNode, use, useEffect, useRef, useState } from 'react';
+import {
+	Download,
+	House,
+	Keyboard,
+	Languages,
+	Monitor,
+	Moon,
+	Redo2,
+	Scan,
+	Sun,
+	Undo2,
+	X,
+	ZoomIn,
+	ZoomOut,
+} from 'lucide-react';
+import { createContext, Fragment, type ReactNode, use, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AppBar, type EditorActions } from '@/app/AppBar';
+import { changeLocale, LOCALE_NAMES } from '@/app/locale';
 import { useTask } from '@/app/task-context';
-import { useTheme } from '@/app/theme';
+import { setThemeMode, useTheme } from '@/app/theme';
 import { EDITOR_ORDER, EDITORS, type MediaKind, TOOL_LABELS, type ToolId } from '@/editors/registry';
 import { m } from '@/paraglide/messages.js';
-import { getLocale, setLocale } from '@/paraglide/runtime.js';
+import { getLocale, locales } from '@/paraglide/runtime.js';
 import { IconButton } from '@/ui/Button';
 import { MEDIA_ICONS, TOOL_ICONS } from '@/ui/icons';
 import { type Command, CommandPalette, type ShortcutGroup, ShortcutHelp } from './CommandPalette';
@@ -51,14 +66,47 @@ function Rail({
 	current,
 	open,
 	onSelect,
+	exportable,
 }: {
 	tools: ToolId[];
 	current: ToolId;
 	open: boolean;
 	onSelect: (tool: ToolId) => void;
+	/** Export sits at the end of the rail, apart, once the file can be exported. */
+	exportable: boolean;
 }) {
 	const { ref, edges } = useOverflowEdges<HTMLDivElement>();
 	const fade = (edge: 'start' | 'end') => (edges[edge] ? 'transparent' : '#000');
+	// The highlight behind the chosen tool slides from one tool to the next.
+	const [mark, setMark] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+	const pressedRef = useRef<HTMLButtonElement | null>(null);
+	useLayoutEffect(() => {
+		const measure = () => {
+			const button = pressedRef.current;
+			setMark(
+				button && open
+					? {
+							x: button.offsetLeft,
+							y: button.offsetTop,
+							width: button.offsetWidth,
+							height: button.offsetHeight,
+						}
+					: null,
+			);
+		};
+		measure();
+		const container = ref.current;
+		if (!container) return;
+		const observer = new ResizeObserver(measure);
+		observer.observe(container);
+		return () => {
+			observer.disconnect();
+		};
+	}, [current, open, tools, exportable, ref]);
+	const moved = useRef(false);
+	useEffect(() => {
+		moved.current = mark !== null;
+	}, [mark]);
 	return (
 		<nav
 			aria-label={m.editing_tools()}
@@ -67,33 +115,64 @@ function Rail({
 			<div
 				ref={ref}
 				style={{ '--fade-start': fade('start'), '--fade-end': fade('end') }}
-				className="flex gap-1 [scrollbar-width:none] max-md:overflow-x-auto max-md:px-1.5 max-md:py-1.5 max-md:[mask-image:linear-gradient(90deg,var(--fade-start),#000_2.5rem,#000_calc(100%-2.5rem),var(--fade-end))] md:h-full md:flex-col md:items-stretch md:overflow-y-auto md:px-2 md:py-3 md:[mask-image:linear-gradient(180deg,var(--fade-start),#000_2.5rem,#000_calc(100%-2.5rem),var(--fade-end))]"
+				className="relative flex gap-1 [scrollbar-width:none] max-md:overflow-x-auto max-md:px-1.5 max-md:py-1.5 max-md:[mask-image:linear-gradient(90deg,var(--fade-start),#000_2.5rem,#000_calc(100%-2.5rem),var(--fade-end))] md:h-full md:flex-col md:items-stretch md:overflow-y-auto md:px-2 md:py-3 md:[mask-image:linear-gradient(180deg,var(--fade-start),#000_2.5rem,#000_calc(100%-2.5rem),var(--fade-end))]"
 			>
-				{tools.map((tool) => {
+				<span
+					aria-hidden="true"
+					className={`bg-ed-soft pointer-events-none absolute top-0 left-0 rounded-md ${moved.current ? 'ease-spring transition-[transform,width,height,opacity] duration-300' : ''} ${mark ? 'opacity-100' : 'opacity-0'}`}
+					style={
+						mark
+							? {
+									transform: `translate(${mark.x}px, ${mark.y}px)`,
+									width: mark.width,
+									height: mark.height,
+								}
+							: undefined
+					}
+				/>
+				{[
+					...tools.filter((tool) => tool !== 'export'),
+					...(exportable || tools.includes('export') ? (['export'] as const) : []),
+				].map((tool) => {
 					const Icon = TOOL_ICONS[tool];
 					const pressed = open && tool === current;
+					const last = tool === 'export';
 					return (
-						<button
-							key={tool}
-							type="button"
-							aria-pressed={pressed}
-							onClick={(event) => {
-								onSelect(tool);
-								event.currentTarget.scrollIntoView({
-									block: 'nearest',
-									inline: 'nearest',
-									behavior: 'smooth',
-								});
-							}}
-							className="group text-caption text-muted hover:bg-surface hover:text-ink aria-pressed:bg-ed-soft aria-pressed:text-ed-text grid min-w-15 flex-1 justify-items-center gap-1.5 rounded-md px-1 pt-3 pb-2.5 font-medium transition-colors duration-200 md:flex-none"
-						>
-							<Icon
-								strokeWidth={1.75}
-								aria-hidden="true"
-								className="ease-spring size-[1.4rem] transition-transform duration-300 group-hover:-translate-y-px"
-							/>
-							<span>{TOOL_LABELS[tool]()}</span>
-						</button>
+						<Fragment key={tool}>
+							{last && (
+								<span
+									aria-hidden="true"
+									className="separator max-md:hidden md:mx-2 md:my-1.5 md:mt-auto"
+								/>
+							)}
+							<button
+								ref={
+									pressed
+										? (element) => {
+												pressedRef.current = element;
+											}
+										: undefined
+								}
+								type="button"
+								aria-pressed={pressed}
+								onClick={(event) => {
+									onSelect(tool);
+									event.currentTarget.scrollIntoView({
+										block: 'nearest',
+										inline: 'nearest',
+										behavior: 'smooth',
+									});
+								}}
+								className={`group text-caption hover:bg-surface hover:text-ink aria-pressed:text-ed-text relative grid min-w-15 aria-pressed:hover:bg-transparent flex-1 justify-items-center gap-1.5 rounded-md px-1 pt-3 pb-2.5 font-medium transition-colors duration-200 md:flex-none ${last ? 'text-ed-text' : 'text-muted'}`}
+							>
+								<Icon
+									strokeWidth={1.75}
+									aria-hidden="true"
+									className="ease-spring size-[1.4rem] transition-transform duration-300 group-hover:-translate-y-px"
+								/>
+								<span>{TOOL_LABELS[tool]()}</span>
+							</button>
+						</Fragment>
 					);
 				})}
 			</div>
@@ -113,12 +192,21 @@ function Panel({
 	onClose,
 	children,
 	footer,
+	tool,
 }: {
 	open: boolean;
 	onClose: () => void;
 	children: ReactNode;
 	footer?: ReactNode;
+	/** Each tool keeps its own scroll position; one never scrolled starts at the top. */
+	tool: ToolId;
 }) {
+	const scrolls = useRef(new Map<ToolId, number>());
+	const asideRef = useRef<HTMLElement>(null);
+	useLayoutEffect(() => {
+		const aside = asideRef.current;
+		if (aside) aside.scrollTop = scrolls.current.get(tool) ?? 0;
+	}, [tool]);
 	const [rest, setRest] = useState(SHEET_HALF);
 	const [drag, setDrag] = useState<number | null>(null);
 	const start = useRef<{ y: number; rest: number; height: number } | null>(null);
@@ -161,8 +249,13 @@ function Panel({
 			</div>
 			<PanelContext value={onClose}>
 				<aside
+					key={tool}
+					ref={asideRef}
 					aria-label={m.inspector()}
-					className="grid min-h-0 flex-1 auto-rows-max content-start gap-6 overflow-auto px-5 pb-6 [scrollbar-width:thin] md:w-(--panel-w)"
+					onScroll={(event) => {
+						scrolls.current.set(tool, event.currentTarget.scrollTop);
+					}}
+					className="panel-in grid min-h-0 flex-1 auto-rows-max content-start gap-6 overflow-auto px-5 pb-6 md:w-(--panel-w)"
 				>
 					{children}
 				</aside>
@@ -230,7 +323,7 @@ export function EditorLayout({
 	};
 	const [dialog, setDialog] = useState<'palette' | 'help' | null>(null);
 	const navigate = useNavigate();
-	const [theme, toggleTheme] = useTheme();
+	const { mode: themeMode } = useTheme();
 	const zoomable = status !== undefined;
 
 	useEffect(() => {
@@ -307,18 +400,32 @@ export function EditorLayout({
 				icon: MEDIA_ICONS[other],
 				run: () => void navigate({ to: EDITORS[other].path }),
 			})),
-			{
-				id: 'theme',
-				label: theme === 'dark' ? m.theme_to_light() : m.theme_to_dark(),
-				icon: theme === 'dark' ? Sun : Moon,
-				run: toggleTheme,
-			},
-			{
-				id: 'language',
-				label: m.command_language(),
-				icon: Languages,
-				run: () => void setLocale(getLocale() === 'fr' ? 'en' : 'fr'),
-			},
+			...(
+				[
+					['light', m.theme_light(), Sun],
+					['dark', m.theme_dark(), Moon],
+					['system', m.theme_system(), Monitor],
+				] as const
+			)
+				.filter(([id]) => id !== themeMode)
+				.map(([id, name, icon]) => ({
+					id: `theme-${id}`,
+					label: m.command_theme({ name }),
+					icon,
+					run: () => {
+						setThemeMode(id);
+					},
+				})),
+			...locales
+				.filter((locale) => locale !== getLocale())
+				.map((locale) => ({
+					id: `language-${locale}`,
+					label: LOCALE_NAMES[locale],
+					icon: Languages,
+					run: () => {
+						changeLocale(locale);
+					},
+				})),
 			{
 				id: 'help',
 				label: m.shortcut_help(),
@@ -350,7 +457,8 @@ export function EditorLayout({
 						shortcuts: [
 							[m.shortcut_zoom(), '+ −'],
 							[m.shortcut_fit(), '0'],
-							[m.shortcut_zoom_wheel(), `Ctrl ${m.shortcut_wheel()}`],
+							[m.shortcut_zoom_wheel(), m.shortcut_wheel()],
+							[m.shortcut_pan_wheel(), `⇧ ${m.shortcut_wheel()}`],
 							[m.shortcut_pan(), m.shortcut_drag()],
 							[m.shortcut_compare(), 'C'],
 						] satisfies [string, string][],
@@ -421,10 +529,16 @@ export function EditorLayout({
 				className={`ease-out-soft grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto_auto] transition-[grid-template-columns] duration-300 max-md:grid-cols-1 md:grid-rows-[minmax(0,1fr)_auto_auto] ${open ? 'md:grid-cols-[var(--rail-w)_var(--panel-w)_minmax(0,1fr)]' : 'md:grid-cols-[var(--rail-w)_0px_minmax(0,1fr)]'}`}
 			>
 				<div className="z-30 max-md:order-4 md:row-span-3">
-					<Rail tools={tools ?? editor.tools} current={tool} open={open} onSelect={select} />
+					<Rail
+						tools={tools ?? editor.tools}
+						current={tool}
+						open={open}
+						onSelect={select}
+						exportable={Boolean(actions?.onExport)}
+					/>
 				</div>
 				<div className="contents md:row-span-3 md:block md:min-h-0">
-					<Panel open={open} onClose={close} footer={inspectorFooter}>
+					<Panel open={open} onClose={close} footer={inspectorFooter} tool={tool}>
 						{inspector}
 					</Panel>
 				</div>
@@ -470,7 +584,8 @@ export function EditorLayout({
 export function PanelTitle({ children, action }: { children: string; action?: ReactNode }) {
 	const close = use(PanelContext);
 	return (
-		<div className="bg-bg sticky top-0 z-10 -mx-5 -mb-2 flex items-center gap-2 px-5 pt-5 pb-2 max-md:pt-1">
+		<div className="bg-bg sticky top-0 z-10 -mx-5 -mb-2 flex items-center gap-2 px-5 pt-5 pb-3 max-md:pt-1">
+			<span aria-hidden="true" className="separator absolute inset-x-5 bottom-0" />
 			<h2 className="text-title flex-1 font-[650] tracking-[-0.02em]">{children}</h2>
 			{action}
 			{close && (

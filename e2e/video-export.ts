@@ -3,7 +3,7 @@
  * (subtitles moved up, fonts kept), an MP4 with timed text, and a WebM at 480p. With FFPROBE set,
  * each file is checked by FFmpeg's probe.
  */
-import { engine, sample } from './engine';
+import { engine, sample, BASE } from './engine';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
@@ -23,7 +23,7 @@ const tools = page.locator('nav[aria-label="Editing tools"]');
 const aside = page.locator('aside');
 
 const open = async (path: string) => {
-	await page.goto('http://localhost:5173/video');
+	await page.goto(`${BASE}/video`);
 	await page.setInputFiles('input[type=file]', path);
 	await page.waitForSelector('[role=group][aria-label="Tracks"]', { timeout: 30000 });
 	await page.waitForTimeout(1500);
@@ -39,7 +39,7 @@ const removePassage = async (from: number, to: number, duration: number) => {
 	await page.keyboard.press('Delete');
 };
 const convert = async (name: string, choose: () => Promise<void> = async () => {}, mode = /Convert/) => {
-	await page.getByRole('button', { name: 'Export', exact: true }).click();
+	await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 	await aside.getByRole('radio', { name: mode }).click();
 	await choose();
 	await page.waitForTimeout(300);
