@@ -26,7 +26,7 @@ const open = async (path: string) => {
 /** Mean brightness and the red share of the picture on screen. */
 const picture = () =>
 	page.evaluate(() => {
-		const source = document.querySelector('canvas') as HTMLCanvasElement;
+		const source = document.querySelector('section[aria-label="Preview"] canvas') as HTMLCanvasElement;
 		const probe = document.createElement('canvas');
 		probe.width = 32;
 		probe.height = 18;

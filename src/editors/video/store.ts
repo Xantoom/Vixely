@@ -165,7 +165,10 @@ const onPicture =
 	(doc: VideoDoc): VideoDoc => ({ ...doc, picture: change(doc.picture) });
 
 /** The video's pictures, for the crop and adjustment panels shared with the image editor. */
-export function useVideoPictureEditing(size: { width: number; height: number }): PictureEditing {
+export function useVideoPictureEditing(
+	size: { width: number; height: number },
+	still: ImageBitmap | null,
+): PictureEditing {
 	const doc = useVideoEditor((state) => state.history.present.picture);
 	const apply = useVideoEditor((state) => state.apply);
 	const preview = useVideoEditor((state) => state.preview);
@@ -184,5 +187,6 @@ export function useVideoPictureEditing(size: { width: number; height: number }):
 		settle,
 		aspect,
 		setAspect,
+		still,
 	};
 }

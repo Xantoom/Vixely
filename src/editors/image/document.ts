@@ -1,3 +1,5 @@
+import type { Overlay } from '@/editor/overlays/model';
+
 /**
  * The image editing document: everything the user changed, never the pixels themselves.
  *
@@ -5,7 +7,8 @@
  * 1. orient the source (rotation, then mirror, as the user sees it),
  * 2. crop the oriented image,
  * 3. apply the adjustments,
- * 4. scale to the export size.
+ * 4. scale to the export size,
+ * 5. draw the text and stickers.
  */
 
 export type Rotation = 0 | 90 | 180 | 270;
@@ -20,14 +23,25 @@ export interface Rect extends Size {
 	y: number;
 }
 
-/** Each adjustment goes from -100 to 100; 0 leaves the image untouched. */
+/**
+ * Each adjustment is 0 when neutral. Most go from -100 to 100; hue turns colours by -180 to 180
+ * degrees; blur, sepia and grain only add, from 0 to 100.
+ */
 export interface Adjustments {
 	exposure: number;
 	brightness: number;
 	contrast: number;
-	saturation: number;
+	highlights: number;
+	shadows: number;
 	temperature: number;
 	tint: number;
+	saturation: number;
+	hue: number;
+	sepia: number;
+	blur: number;
+	/** Darkens the edges; below 0, lightens them. */
+	vignette: number;
+	grain: number;
 }
 
 export type AdjustmentId = keyof Adjustments;
@@ -39,28 +53,70 @@ export interface ImageDoc {
 	/** Crop in oriented image pixels. Null keeps the whole image. */
 	crop: Rect | null;
 	adjust: Adjustments;
+	/** Text and stickers over the output, in front to back order. */
+	overlays: Overlay[];
 }
 
 export const NEUTRAL_ADJUSTMENTS: Adjustments = {
 	exposure: 0,
 	brightness: 0,
 	contrast: 0,
-	saturation: 0,
+	highlights: 0,
+	shadows: 0,
 	temperature: 0,
 	tint: 0,
+	saturation: 0,
+	hue: 0,
+	sepia: 0,
+	blur: 0,
+	vignette: 0,
+	grain: 0,
 };
 
 export const ADJUSTMENT_IDS: AdjustmentId[] = [
 	'exposure',
 	'brightness',
 	'contrast',
-	'saturation',
+	'highlights',
+	'shadows',
 	'temperature',
 	'tint',
+	'saturation',
+	'hue',
+	'sepia',
+	'blur',
+	'vignette',
+	'grain',
 ];
 
+/** The range of each adjustment. */
+export const ADJUSTMENT_RANGE: Record<AdjustmentId, [min: number, max: number]> = {
+	exposure: [-100, 100],
+	brightness: [-100, 100],
+	contrast: [-100, 100],
+	highlights: [-100, 100],
+	shadows: [-100, 100],
+	temperature: [-100, 100],
+	tint: [-100, 100],
+	saturation: [-100, 100],
+	hue: [-180, 180],
+	sepia: [0, 100],
+	blur: [0, 100],
+	vignette: [-100, 100],
+	grain: [0, 100],
+};
+
+/** Adjustments with every value given, from a partial set (a look). */
+export function adjustments(values: Partial<Adjustments>): Adjustments {
+	return { ...NEUTRAL_ADJUSTMENTS, ...values };
+}
+
+export function sameAdjustments(a: Adjustments, b: Adjustments): boolean {
+	return ADJUSTMENT_IDS.every((id) => a[id] === b[id]);
+}
+
 export function createImageDoc(): ImageDoc {
-	return { rotation: 0, flipX: false, flipY: false, crop: null, adjust: NEUTRAL_ADJUSTMENTS };
+	return { rotation: 0, flipX: false, flipY: false, crop: null, adjust: NEUTRAL_ADJUSTMENTS, overlays: [] };
 }
 
 export function isAdjusted(adjust: Adjustments): boolean {

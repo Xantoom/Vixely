@@ -29,8 +29,16 @@ jxl-oxide = { version = "0.12", default-features = false }
 # Decoding of formats browsers don't read: BMP, TIFF, ICO.
 image = { version = "0.25", default-features = false, features = ["bmp", "ico", "tiff"] }
 
+# Thread pool on Web Workers, for the multithreaded build (see scripts/build-wasm.ts).
+wasm-bindgen-rayon = { version = "1.3", optional = true }
+
+[features]
+# Encoders spread over every core. Needs WebAssembly threads: built separately, with a nightly
+# compiler, and loaded only on cross-origin isolated pages.
+threads = ["dep:wasm-bindgen-rayon", "ravif/threading", "jxl-encoder/parallel", "imagequant/threads"]
+
 [dev-dependencies]
 kamadak-exif = "0.6"
 
 [package.metadata.wasm-pack.profile.release]
-wasm-opt = ["-O3", "--enable-bulk-memory", "--enable-nontrapping-float-to-int", "--enable-sign-ext", "--enable-mutable-globals", "--enable-reference-types", "--enable-multivalue", "--enable-simd"]
+wasm-opt = ["-O3", "--enable-threads", "--enable-bulk-memory", "--enable-nontrapping-float-to-int", "--enable-sign-ext", "--enable-mutable-globals", "--enable-reference-types", "--enable-multivalue", "--enable-simd"]

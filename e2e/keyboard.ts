@@ -52,6 +52,8 @@ async function walk(page: Page, where: string) {
 			if ((el as HTMLButtonElement).disabled) continue;
 			const rect = el.getBoundingClientRect();
 			if (rect.width === 0 || rect.height === 0) continue;
+			// A label whose field was reached.
+			if (el instanceof HTMLLabelElement && (el.control as HTMLElement | null)?.dataset.walk) continue;
 			// Inside a label whose field was reached.
 			if (el.closest('label')?.querySelector('[data-walk]')) continue;
 			// Its parent is also pointer: report the outermost only.

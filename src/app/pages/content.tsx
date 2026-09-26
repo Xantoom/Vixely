@@ -28,6 +28,11 @@ const CREDITS = [
 	['JASSUB / libass', 'https://github.com/ThaUnknown/jassub'],
 	['ebur128', 'https://github.com/sdroege/ebur128'],
 	['image-rs', 'https://github.com/image-rs/image'],
+	['jxl-encoder', 'https://github.com/imazen/jxl-encoder'],
+	['wasm-bindgen-rayon', 'https://github.com/RReverser/wasm-bindgen-rayon'],
+	['Twemoji (CC BY 4.0)', 'https://github.com/jdecked/twemoji'],
+	['Geist', 'https://vercel.com/font'],
+	['Anton, Bebas Neue, Oswald, Playfair Display, Pacifico, Permanent Marker, Caveat', 'https://fonts.google.com'],
 ] as const;
 
 function credits() {

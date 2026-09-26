@@ -193,7 +193,7 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	const exportSettings = useVideoEditor((state) => state.exportSettings);
 	const exportSource = useVideoEditor((state) => state.exportSource);
 	const upright = details?.video ?? { width: 16, height: 9 };
-	const editing = useVideoPictureEditing(upright);
+	const editing = useVideoPictureEditing(upright, opened?.poster ?? null);
 	const playable = Boolean(opened?.info?.video?.decodable);
 	const ready = opened !== null && owner === opened.file && details !== null;
 

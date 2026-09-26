@@ -15,6 +15,9 @@ import {
 	Timer,
 	Video,
 	Volume2,
+	Proportions,
+	Smile,
+	Type,
 } from 'lucide-react';
 import type { MediaKind, ToolId } from '@/editors/registry';
 
@@ -55,6 +58,9 @@ export const TOOL_ICONS: Record<ToolId, LucideIcon> = {
 	trim: Scissors,
 	crop: Crop,
 	adjust: SlidersHorizontal,
+	presets: Proportions,
+	text: Type,
+	stickers: Smile,
 	volume: Volume2,
 	audio: AudioLines,
 	subtitles: Captions,

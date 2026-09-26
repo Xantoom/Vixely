@@ -7,6 +7,10 @@ pub mod encode;
 
 use wasm_bindgen::prelude::*;
 
+/// Starts the encoders' thread pool, one Web Worker per thread. Multithreaded build only.
+#[cfg(feature = "threads")]
+pub use wasm_bindgen_rayon::init_thread_pool;
+
 fn js_error(error: encode::EncodeError) -> JsError {
 	JsError::new(&error.0)
 }

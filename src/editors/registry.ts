@@ -8,6 +8,9 @@ export type ToolId =
 	| 'trim'
 	| 'crop'
 	| 'adjust'
+	| 'presets'
+	| 'text'
+	| 'stickers'
 	| 'volume'
 	| 'audio'
 	| 'subtitles'
@@ -42,7 +45,7 @@ export const EDITORS: Record<MediaKind, EditorDefinition> = {
 		path: '/image',
 		label: () => m.media_image(),
 		page: () => m.editor_page_image(),
-		tools: ['info', 'crop', 'adjust'],
+		tools: ['info', 'presets', 'crop', 'adjust', 'text', 'stickers'],
 		timed: false,
 	},
 	gif: {
@@ -82,6 +85,9 @@ export const TOOL_LABELS: Record<ToolId, () => string> = {
 	trim: () => m.tool_trim(),
 	crop: () => m.tool_crop(),
 	adjust: () => m.tool_adjust(),
+	presets: () => m.tool_presets(),
+	text: () => m.tool_text(),
+	stickers: () => m.tool_stickers(),
 	volume: () => m.tool_volume(),
 	audio: () => m.tool_audio(),
 	subtitles: () => m.tool_subtitles(),

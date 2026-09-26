@@ -6,17 +6,41 @@
  */
 import type { CodecRequest, CodecResponse } from '@/media/image-codec';
 
-type ImageCodec = typeof import('@/wasm/vixely-image/vixely_image.js');
+/** What both builds offer: the single and multithreaded ones differ only in how they start. */
+type ImageCodec = Pick<
+	typeof import('@/wasm/vixely-image/vixely_image.js'),
+	'encode_jpeg' | 'encode_png' | 'encode_avif' | 'encode_jxl' | 'decode_image'
+>;
 type LibHeif = Awaited<ReturnType<typeof import('libheif-js/libheif-wasm/libheif-bundle.mjs').default>>;
 
 let imageCodec: Promise<ImageCodec> | null = null;
 let libheif: Promise<LibHeif> | null = null;
 
+/** Threads for the encoders: enough to matter, few enough to leave the page responsive. */
+const THREADS = Math.min(8, Math.max(1, (navigator.hardwareConcurrency || 1) - 1));
+
+/**
+ * The multithreaded build where the page may share memory between workers (cross-origin
+ * isolated), several times faster for AVIF and JPEG XL; otherwise the single-threaded one.
+ */
+async function loadCodecBuild(): Promise<ImageCodec> {
+	if (self.crossOriginIsolated && THREADS > 1) {
+		try {
+			const module = await import('@/wasm/vixely-image-mt/vixely_image.js');
+			await module.default();
+			await module.initThreadPool(THREADS);
+			return module;
+		} catch (error) {
+			console.warn('[image-codec] threads unavailable, using one', error);
+		}
+	}
+	const module = await import('@/wasm/vixely-image/vixely_image.js');
+	await module.default();
+	return module;
+}
+
 async function loadImageCodec(): Promise<ImageCodec> {
-	imageCodec ??= import('@/wasm/vixely-image/vixely_image.js').then(async (module) => {
-		await module.default();
-		return module;
-	});
+	imageCodec ??= loadCodecBuild();
 	return imageCodec;
 }
 

@@ -1,6 +1,6 @@
 import { ChevronDown, RotateCcw } from 'lucide-react';
 import { type ReactNode, useId, useState } from 'react';
-import type { AspectId } from '@/editors/image/store';
+import type { FixedAspect } from '@/editors/image/store';
 import { m } from '@/paraglide/messages.js';
 import { IconButton } from '@/ui/Button';
 
@@ -104,7 +104,7 @@ export function ToolButton({
 	);
 }
 
-export const ASPECT_LABELS: Record<AspectId, () => string> = {
+export const ASPECT_LABELS: Record<FixedAspect, () => string> = {
 	'free': () => m.aspect_free(),
 	'original': () => m.aspect_original(),
 	'1:1': () => '1:1',

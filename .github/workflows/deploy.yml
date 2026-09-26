@@ -26,6 +26,10 @@ jobs:
               with:
                   targets: wasm32-unknown-unknown
 
+            # The multithreaded image codecs rebuild the standard library (see scripts/build-wasm.ts).
+            - name: Install the pinned nightly toolchain
+              run: rustup toolchain install nightly-2026-09-20 --profile minimal --component rust-src --target wasm32-unknown-unknown
+
             # The image codecs take minutes to compile; cache the Rust build between runs.
             - uses: Swatinem/rust-cache@v2
 

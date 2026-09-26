@@ -2,11 +2,26 @@ import { create } from 'zustand';
 import { canRedo, canUndo, commit, createHistory, type History, redo, replace, undo } from '@/document/history';
 import { adaptDoc, createImageDoc, type ImageDoc, orientedSize, type Size } from './document';
 
-export type ImageFormat = 'jpeg' | 'png' | 'webp' | 'avif' | 'jxl';
+export type ImageFormat = 'jpeg' | 'png' | 'webp' | 'avif' | 'jxl' | 'bmp' | 'tiff' | 'ico';
 
-export type AspectId = 'free' | 'original' | '1:1' | '4:5' | '5:4' | '3:2' | '2:3' | '16:9' | '9:16';
+export type FixedAspect = 'free' | 'original' | '1:1' | '4:5' | '5:4' | '3:2' | '2:3' | '16:9' | '9:16';
 
-export const ASPECTS: AspectId[] = ['free', 'original', '1:1', '4:5', '3:2', '16:9', '9:16'];
+/** A listed aspect, or any other ratio a format preset asks for, as `width:height`. */
+export type AspectId = FixedAspect | `${number}:${number}`;
+
+export const ASPECTS: FixedAspect[] = ['free', 'original', '1:1', '4:5', '3:2', '16:9', '9:16'];
+
+export function isFixedAspect(aspect: AspectId): aspect is FixedAspect {
+	return (ASPECTS as string[]).includes(aspect);
+}
+
+const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
+
+/** The aspect of a size, reduced: 1080 × 1350 is 4:5. */
+export function aspectOf(width: number, height: number): AspectId {
+	const divisor = gcd(width, height);
+	return `${width / divisor}:${height / divisor}`;
+}
 
 /** Width over height for an aspect, or null when free. `original` follows the oriented image. */
 export function cropRatio(aspect: AspectId, bounds: Size): number | null {
@@ -19,8 +34,8 @@ export function cropRatio(aspect: AspectId, bounds: Size): number | null {
 /** The same aspect after a quarter turn: 16:9 becomes 9:16. Aspects without a mirror become free. */
 export function turnedAspect(aspect: AspectId): AspectId {
 	if (aspect === 'free' || aspect === 'original' || aspect === '1:1') return aspect;
-	const [w, h] = aspect.split(':');
-	return ASPECTS.find((candidate) => candidate === `${h}:${w}`) ?? 'free';
+	const [w = 1, h = 1] = aspect.split(':').map(Number);
+	return aspectOf(h, w);
 }
 
 export interface ExportSettings {
@@ -29,6 +44,10 @@ export interface ExportSettings {
 	quality: number;
 	/** Longest side of the output, in pixels. Null keeps the cropped size. */
 	longestSide: number | null;
+	/** An exact output size, from a format preset or typed; it wins over `longestSide`. */
+	exact: Size | null;
+	/** The format preset last chosen, while its settings are unchanged. */
+	preset: string | null;
 	/** PNG only: reduce to a palette of 256 colours, much smaller and hard to tell apart. */
 	pngLossy: boolean;
 	/** AVIF only: `best` spends much longer searching for a smaller file. */
@@ -60,12 +79,18 @@ interface ImageEditorState {
 	redo: () => void;
 	setCropAspect: (aspect: AspectId) => void;
 	setExport: (settings: Partial<ExportSettings>) => void;
+	/** Export settings a new file starts with, from its own format. Once per file or batch. */
+	adoptSource: (owner: object, settings: Partial<ExportSettings>) => void;
+	/** Owner the export settings were last taken from. */
+	adopted: object | null;
 }
 
 const DEFAULT_EXPORT: ExportSettings = {
 	format: 'jpeg',
 	quality: 85,
 	longestSide: null,
+	exact: null,
+	preset: null,
 	pngLossy: false,
 	avifEffort: 'fast',
 	metadata: 'private',
@@ -77,6 +102,7 @@ export const useImageEditor = create<ImageEditorState>((set, get) => ({
 	gestureStart: null,
 	cropAspect: 'free',
 	exportSettings: DEFAULT_EXPORT,
+	adopted: null,
 
 	load(owner) {
 		if (get().owner === owner) return;
@@ -86,6 +112,7 @@ export const useImageEditor = create<ImageEditorState>((set, get) => ({
 			gestureStart: null,
 			cropAspect: 'free',
 			exportSettings: DEFAULT_EXPORT,
+			adopted: null,
 		});
 	},
 
@@ -127,7 +154,13 @@ export const useImageEditor = create<ImageEditorState>((set, get) => ({
 	},
 
 	setExport(settings) {
-		set({ exportSettings: { ...get().exportSettings, ...settings } });
+		// A change by hand means the settings are no longer the preset's.
+		set({ exportSettings: { ...get().exportSettings, preset: null, ...settings } });
+	},
+
+	adoptSource(owner, settings) {
+		if (get().adopted === owner) return;
+		set({ adopted: owner, exportSettings: { ...DEFAULT_EXPORT, ...settings } });
 	},
 }));
 

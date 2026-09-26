@@ -19,8 +19,15 @@
 		"test:rust": "cargo test --workspace --release"
 	},
 	"dependencies": {
+		"@fontsource-variable/caveat": "^5.3.0",
 		"@fontsource-variable/geist": "^5.3.0",
 		"@fontsource-variable/geist-mono": "^5.3.0",
+		"@fontsource-variable/oswald": "^5.3.0",
+		"@fontsource-variable/playfair-display": "^5.3.0",
+		"@fontsource/anton": "^5.3.0",
+		"@fontsource/bebas-neue": "^5.3.0",
+		"@fontsource/pacifico": "^5.3.0",
+		"@fontsource/permanent-marker": "^5.3.0",
 		"@mediabunny/aac-encoder": "1.60.0",
 		"@mediabunny/flac-encoder": "1.60.0",
 		"@mediabunny/mp3-encoder": "1.60.0",
@@ -39,6 +46,7 @@
 		"@inlang/paraglide-js": "^2.25.4",
 		"@tailwindcss/vite": "^4.3.3",
 		"@tanstack/router-plugin": "^1.168.40",
+		"@twemoji/svg": "^15.0.0",
 		"@types/react": "^19.3.0",
 		"@types/react-dom": "^19.3.0",
 		"@vitejs/plugin-react": "^6.1.1",

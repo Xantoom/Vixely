@@ -87,7 +87,7 @@ function Panel({
 		<div
 			data-open={open}
 			style={{ '--sheet': `${open ? hidden : 105}%` }}
-			className={`border-line bg-bg flex min-h-0 flex-col overflow-hidden max-md:absolute max-md:inset-x-0 max-md:bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] max-md:z-20 max-md:h-[82%] max-md:translate-y-(--sheet) max-md:rounded-t-[1.25rem] max-md:shadow-[0_-12px_40px_-12px_rgb(0_0_0/0.35)] md:border-r ${drag === null ? 'ease-spring transition-transform duration-[340ms]' : ''}`}
+			className={`border-line bg-bg flex min-h-0 flex-col overflow-hidden md:h-full max-md:absolute max-md:inset-x-0 max-md:bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] max-md:z-20 max-md:h-[82%] max-md:translate-y-(--sheet) max-md:rounded-t-[1.25rem] max-md:shadow-[0_-12px_40px_-12px_rgb(0_0_0/0.35)] md:border-r ${drag === null ? 'ease-spring transition-transform duration-[340ms]' : ''}`}
 		>
 			<div
 				aria-hidden="true"
@@ -119,7 +119,7 @@ function Panel({
 			<PanelContext value={onClose}>
 				<aside
 					aria-label={m.inspector()}
-					className="grid min-h-0 flex-1 content-start gap-6 overflow-auto px-5 pb-6 [scrollbar-width:thin] md:w-(--panel-w)"
+					className="grid min-h-0 flex-1 auto-rows-max content-start gap-6 overflow-auto px-5 pb-6 [scrollbar-width:thin] md:w-(--panel-w)"
 				>
 					{children}
 				</aside>

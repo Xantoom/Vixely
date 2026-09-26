@@ -8,6 +8,8 @@ WORKDIR /app
 ENV PATH="/root/.cargo/bin:${PATH}"
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates build-essential clang llvm && \
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --target wasm32-unknown-unknown && \
+    # The multithreaded image codecs rebuild the standard library: a pinned nightly (see scripts/build-wasm.ts).
+    rustup toolchain install nightly-2026-09-20 --profile minimal --component rust-src --target wasm32-unknown-unknown && \
     curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 

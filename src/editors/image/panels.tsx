@@ -1,13 +1,16 @@
-import { FlipHorizontal2, FlipVertical2, RotateCcw, RotateCw } from 'lucide-react';
+import { FlipHorizontal2, FlipVertical2, Link2, RotateCcw, RotateCw, Unlink2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { ASPECT_LABELS, Group, ResetButton, Section, ToolButton } from '@/editor/panel-parts';
+import { ICO_SIZES } from '@/media/image-formats';
 import type { PhotoMetadata } from '@/media/probe';
 import { m } from '@/paraglide/messages.js';
+import { IconButton } from '@/ui/Button';
 import { FieldRow, NumberField, OptionList, Select, type SelectOption, Slider } from '@/ui/fields';
 import { TRACKS } from '@/ui/tracks';
 import { containRect, fitRatio } from './crop';
 import {
+	ADJUSTMENT_RANGE,
 	type AdjustmentId,
 	effectiveCrop,
 	fitWithin,
@@ -19,12 +22,15 @@ import {
 	rotate,
 } from './document';
 import type { PictureEditing } from './editing';
-import { canEncodeWebp, outputSize, usesQuality } from './export';
+import { canEncodeWebp, keepsMetadata, outputSize, usesQuality } from './export';
+import { LookStrip } from './LookStrip';
+import { findPreset, presetGroupTitle } from './presets';
 import {
 	ASPECTS,
 	type AspectId,
 	cropRatio,
 	type ImageFormat,
+	isFixedAspect,
 	turnedAspect,
 	useImageDoc,
 	useImageEditor,
@@ -81,10 +87,11 @@ export function CropPanel({ editing }: { editing: PictureEditing }) {
 					label={m.crop_aspect()}
 					value={aspect}
 					onChange={chooseAspect}
-					options={ASPECTS.map((id) => {
+					options={[...ASPECTS, ...(isFixedAspect(aspect) ? [] : [aspect])].map((id) => {
 						const r = cropRatio(id, bounds);
 						const size = id === 'free' ? crop : r === null ? bounds : fitRatio(full, r);
-						return { value: id, label: ASPECT_LABELS[id](), detail: `${size.width} × ${size.height}` };
+						const label = isFixedAspect(id) ? ASPECT_LABELS[id]() : id;
+						return { value: id, label, detail: `${size.width} × ${size.height}` };
 					})}
 				/>
 			</Section>
@@ -186,39 +193,67 @@ const ADJUSTMENT_LABELS: Record<AdjustmentId, () => string> = {
 	exposure: () => m.adjust_exposure(),
 	brightness: () => m.adjust_brightness(),
 	contrast: () => m.adjust_contrast(),
-	saturation: () => m.adjust_saturation(),
+	highlights: () => m.adjust_highlights(),
+	shadows: () => m.adjust_shadows(),
 	temperature: () => m.adjust_temperature(),
 	tint: () => m.adjust_tint(),
+	saturation: () => m.adjust_saturation(),
+	hue: () => m.adjust_hue(),
+	sepia: () => m.adjust_sepia(),
+	blur: () => m.adjust_blur(),
+	vignette: () => m.adjust_vignette(),
+	grain: () => m.adjust_grain(),
 };
 
-const LIGHT: AdjustmentId[] = ['exposure', 'brightness', 'contrast'];
-const COLOR: AdjustmentId[] = ['temperature', 'tint', 'saturation'];
+const ADJUSTMENT_GROUPS: { title: () => string; ids: AdjustmentId[] }[] = [
+	{ title: () => m.adjust_light(), ids: ['exposure', 'brightness', 'contrast', 'highlights', 'shadows'] },
+	{ title: () => m.adjust_color(), ids: ['temperature', 'tint', 'saturation', 'hue'] },
+	{ title: () => m.adjust_effects(), ids: ['sepia', 'blur', 'vignette', 'grain'] },
+];
 
 const ADJUSTMENT_TRACKS: Partial<Record<AdjustmentId, string>> = {
 	exposure: TRACKS.light,
+	highlights: TRACKS.highlights,
+	shadows: TRACKS.shadows,
 	temperature: TRACKS.temperature,
 	tint: TRACKS.tint,
 	saturation: TRACKS.saturation,
+	hue: TRACKS.hue,
+	sepia: TRACKS.sepia,
+	vignette: TRACKS.vignette,
 };
 
-/** Light and colour of a picture: an image, or the frames of a video. */
+const signed = (value: number) => (value > 0 ? `+${value}` : String(value));
+
+const ADJUSTMENT_FORMATS: Partial<Record<AdjustmentId, (value: number) => string>> = {
+	hue: (value) => `${signed(value)}°`,
+	sepia: String,
+	blur: String,
+	grain: String,
+};
+
+/** Light, colour and effects of a picture: an image, or the frames of a video. */
 export function AdjustPanel({ editing }: { editing: PictureEditing }) {
 	const { doc, apply, preview, settle } = editing;
 
-	const slider = (id: AdjustmentId) => (
-		<Slider
-			key={id}
-			label={ADJUSTMENT_LABELS[id]()}
-			value={doc.adjust[id]}
-			min={-100}
-			max={100}
-			track={ADJUSTMENT_TRACKS[id]}
-			onChange={(value) => {
-				preview((d) => ({ ...d, adjust: { ...d.adjust, [id]: value } }));
-			}}
-			onEnd={settle}
-		/>
-	);
+	const slider = (id: AdjustmentId) => {
+		const [min, max] = ADJUSTMENT_RANGE[id];
+		return (
+			<Slider
+				key={id}
+				label={ADJUSTMENT_LABELS[id]()}
+				value={doc.adjust[id]}
+				min={min}
+				max={max}
+				track={ADJUSTMENT_TRACKS[id]}
+				format={ADJUSTMENT_FORMATS[id]}
+				onChange={(value) => {
+					preview((d) => ({ ...d, adjust: { ...d.adjust, [id]: value } }));
+				}}
+				onEnd={settle}
+			/>
+		);
+	};
 
 	return (
 		<>
@@ -234,13 +269,11 @@ export function AdjustPanel({ editing }: { editing: PictureEditing }) {
 			>
 				{m.tool_adjust()}
 			</PanelTitle>
-			{[
-				{ title: m.adjust_light(), ids: LIGHT },
-				{ title: m.adjust_color(), ids: COLOR },
-			].map(({ title, ids }) => (
+			<LookStrip editing={editing} />
+			{ADJUSTMENT_GROUPS.map(({ title, ids }) => (
 				<Group
-					key={title}
-					title={title}
+					key={ids[0]}
+					title={title()}
 					changed={ids.some((id) => doc.adjust[id] !== 0)}
 					onReset={() => {
 						apply((d) => ({
@@ -271,6 +304,8 @@ export function ExportPanel({ source, photo }: { source: ImageBitmap; photo: Pho
 	const settings = useImageEditor((state) => state.exportSettings);
 	const setExport = useImageEditor((state) => state.setExport);
 	const [webp, setWebp] = useState(false);
+	// Width and height move together unless unlinked.
+	const [linked, setLinked] = useState(true);
 
 	useEffect(() => {
 		void canEncodeWebp().then(setWebp);
@@ -280,6 +315,8 @@ export function ExportPanel({ source, photo }: { source: ImageBitmap; photo: Pho
 	const longest = Math.max(crop.width, crop.height);
 	const current = outputSize(doc, source, settings);
 	const lossless = settings.format === 'jxl' && settings.quality >= 100;
+	const hasMetadata = photo !== null && photo.exifFull.length > 0;
+	const preset = findPreset(settings.preset);
 
 	const formats: SelectOption<ImageFormat>[] = [
 		{ value: 'jpeg', label: 'JPEG' },
@@ -287,6 +324,9 @@ export function ExportPanel({ source, photo }: { source: ImageBitmap; photo: Pho
 		{ value: 'webp', label: 'WebP', disabled: !webp },
 		{ value: 'avif', label: 'AVIF' },
 		{ value: 'jxl', label: 'JPEG XL' },
+		{ value: 'tiff', label: 'TIFF' },
+		{ value: 'bmp', label: 'BMP' },
+		{ value: 'ico', label: 'ICO' },
 	];
 	const sizes: SelectOption<string>[] = [
 		{ value: 'original', label: m.size_original() },
@@ -294,11 +334,32 @@ export function ExportPanel({ source, photo }: { source: ImageBitmap; photo: Pho
 			const size = fitWithin(crop, step);
 			return { value: String(step), label: `${size.width} × ${size.height}` };
 		}),
+		{ value: 'custom', label: m.size_custom() },
 	];
+	const sizeChoice = settings.exact
+		? 'custom'
+		: settings.longestSide === null
+			? 'original'
+			: String(settings.longestSide);
+
+	const setWidth = (width: number) => {
+		const height = linked ? Math.max(1, Math.round((width * current.height) / current.width)) : current.height;
+		setExport({ exact: { width, height }, longestSide: null });
+	};
+	const setHeight = (height: number) => {
+		const width = linked ? Math.max(1, Math.round((height * current.width) / current.height)) : current.width;
+		setExport({ exact: { width, height }, longestSide: null });
+	};
+	const iconSizes = ICO_SIZES.filter((side) => side <= Math.min(256, Math.max(current.width, current.height)));
 
 	return (
 		<>
 			<PanelTitle>{m.export_image_title()}</PanelTitle>
+			{preset && (
+				<p className="bg-ed-soft text-ed-text text-ui rounded-sm px-3.5 py-2.5 font-medium">
+					{m.preset_chosen({ name: `${presetGroupTitle(preset.id)} · ${preset.label()}` })}
+				</p>
+			)}
 			<div className="grid gap-3.5">
 				<FieldRow label={m.export_format()} htmlFor="export-format">
 					<Select
@@ -340,7 +401,7 @@ export function ExportPanel({ source, photo }: { source: ImageBitmap; photo: Pho
 						/>
 					</FieldRow>
 				)}
-				{photo && photo.exifFull.length > 0 && settings.format !== 'webp' && (
+				{hasMetadata && keepsMetadata(settings.format) && (
 					<FieldRow label={m.export_metadata()} htmlFor="export-metadata">
 						<Select
 							id="export-metadata"
@@ -356,16 +417,44 @@ export function ExportPanel({ source, photo }: { source: ImageBitmap; photo: Pho
 						/>
 					</FieldRow>
 				)}
-				<FieldRow label={m.export_size()} htmlFor="export-size">
-					<Select
-						id="export-size"
-						value={settings.longestSide === null ? 'original' : String(settings.longestSide)}
-						options={sizes}
-						onChange={(value) => {
-							setExport({ longestSide: value === 'original' ? null : Number(value) });
-						}}
-					/>
-				</FieldRow>
+				{settings.format !== 'ico' && (
+					<FieldRow label={m.export_size()} htmlFor="export-size">
+						<Select
+							id="export-size"
+							value={sizeChoice}
+							options={sizes}
+							onChange={(value) => {
+								if (value === 'custom') setExport({ exact: current, longestSide: null });
+								else
+									setExport({
+										exact: null,
+										longestSide: value === 'original' ? null : Number(value),
+									});
+							}}
+						/>
+					</FieldRow>
+				)}
+				{settings.exact && settings.format !== 'ico' && (
+					<div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-2">
+						<label className="grid gap-1.5">
+							<span className="text-ui text-ink-2">{m.field_width()}</span>
+							<NumberField value={current.width} unit="px" min={1} max={16384} onCommit={setWidth} />
+						</label>
+						<IconButton
+							label={m.size_link()}
+							aria-pressed={linked}
+							onClick={() => {
+								setLinked((value) => !value);
+							}}
+						>
+							{linked ? <Link2 className="size-5" /> : <Unlink2 className="size-5" />}
+						</IconButton>
+						<label className="grid gap-1.5">
+							<span className="text-ui text-ink-2">{m.field_height()}</span>
+							<NumberField value={current.height} unit="px" min={1} max={16384} onCommit={setHeight} />
+						</label>
+					</div>
+				)}
 			</div>
 			{usesQuality(settings) && (
 				<Slider
@@ -387,8 +476,10 @@ export function ExportPanel({ source, photo }: { source: ImageBitmap; photo: Pho
 				/>
 			)}
 			<p className="text-small text-muted">
-				{m.export_output({ size: `${current.width} × ${current.height}` })}
-				{photo && photo.exifFull.length > 0 && settings.format === 'webp' ? ` ${m.metadata_webp()}` : ''}
+				{settings.format === 'ico'
+					? m.export_output({ size: iconSizes.join(', ') })
+					: m.export_output({ size: `${current.width} × ${current.height}` })}
+				{hasMetadata && !keepsMetadata(settings.format) ? ` ${m.metadata_dropped()}` : ''}
 			</p>
 		</>
 	);

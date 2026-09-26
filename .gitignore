@@ -28,3 +28,4 @@ target/
 
 # Local assistant settings
 .claude/
+src/wasm/vixely-image-mt/
