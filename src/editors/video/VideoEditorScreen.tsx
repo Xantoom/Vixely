@@ -1,5 +1,6 @@
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
+import { useLeaveGuard } from '@/app/leave-guard';
 import { cut, isShortened, keptRanges, setTrim } from '@/document/kept';
 import { type ItemStatus, BatchList } from '@/editor/BatchList';
 import { EditorLayout } from '@/editor/EditorLayout';
@@ -8,12 +9,14 @@ import { KeptPanel } from '@/editor/KeptPanel';
 import { isTyping, useEditorShortcuts } from '@/editor/shortcuts';
 import { Timeline } from '@/editor/Timeline';
 import { Viewer } from '@/editor/Viewer';
+import { ZoomStatus } from '@/editor/ZoomStage';
 import { EDITORS, type ToolId } from '@/editors/registry';
 import { usePlayback } from '@/media/playback';
 import { useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { Button } from '@/ui/Button';
 import { MEDIA_ICONS } from '@/ui/icons';
+import { effectiveCrop } from '../image/document';
 import { AdjustPanel, CropPanel } from '../image/panels';
 import { useSubtitleProject } from '../subtitles/project';
 import { VideoBatchFooter } from './BatchFooter';
@@ -183,6 +186,8 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	const undo = useVideoEditor((state) => state.undo);
 	const redo = useVideoEditor((state) => state.redo);
 	const { canUndo, canRedo } = useVideoUndoState();
+	// Edits not exported yet: closing the tab asks first.
+	useLeaveGuard(canUndo);
 	const blocker = useCopyBlocker();
 	const mode = useExportMode();
 	const exportSettings = useVideoEditor((state) => state.exportSettings);
@@ -272,6 +277,9 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 							exportActive: tool === 'export',
 						}
 					: undefined
+			}
+			status={
+				opened && playable && !batch ? <ZoomStatus size={effectiveCrop(editing.doc, upright)} /> : undefined
 			}
 			viewer={
 				opened && playable ? (

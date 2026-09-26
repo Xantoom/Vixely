@@ -1,10 +1,11 @@
 import { FlipHorizontal2, FlipVertical2, RotateCcw, RotateCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
-import { ASPECT_LABELS, ResetButton, Section, ToolButton } from '@/editor/panel-parts';
+import { ASPECT_LABELS, Group, ResetButton, Section, ToolButton } from '@/editor/panel-parts';
 import type { PhotoMetadata } from '@/media/probe';
 import { m } from '@/paraglide/messages.js';
 import { FieldRow, NumberField, OptionList, Select, type SelectOption, Slider } from '@/ui/fields';
+import { TRACKS } from '@/ui/tracks';
 import { containRect, fitRatio } from './crop';
 import {
 	type AdjustmentId,
@@ -191,7 +192,14 @@ const ADJUSTMENT_LABELS: Record<AdjustmentId, () => string> = {
 };
 
 const LIGHT: AdjustmentId[] = ['exposure', 'brightness', 'contrast'];
-const COLOR: AdjustmentId[] = ['saturation', 'temperature', 'tint'];
+const COLOR: AdjustmentId[] = ['temperature', 'tint', 'saturation'];
+
+const ADJUSTMENT_TRACKS: Partial<Record<AdjustmentId, string>> = {
+	exposure: TRACKS.light,
+	temperature: TRACKS.temperature,
+	tint: TRACKS.tint,
+	saturation: TRACKS.saturation,
+};
 
 /** Light and colour of a picture: an image, or the frames of a video. */
 export function AdjustPanel({ editing }: { editing: PictureEditing }) {
@@ -204,6 +212,7 @@ export function AdjustPanel({ editing }: { editing: PictureEditing }) {
 			value={doc.adjust[id]}
 			min={-100}
 			max={100}
+			track={ADJUSTMENT_TRACKS[id]}
 			onChange={(value) => {
 				preview((d) => ({ ...d, adjust: { ...d.adjust, [id]: value } }));
 			}}
@@ -225,12 +234,24 @@ export function AdjustPanel({ editing }: { editing: PictureEditing }) {
 			>
 				{m.tool_adjust()}
 			</PanelTitle>
-			<Section title={m.adjust_light()}>
-				<div className="grid gap-5">{LIGHT.map(slider)}</div>
-			</Section>
-			<Section title={m.adjust_color()}>
-				<div className="grid gap-5">{COLOR.map(slider)}</div>
-			</Section>
+			{[
+				{ title: m.adjust_light(), ids: LIGHT },
+				{ title: m.adjust_color(), ids: COLOR },
+			].map(({ title, ids }) => (
+				<Group
+					key={title}
+					title={title}
+					changed={ids.some((id) => doc.adjust[id] !== 0)}
+					onReset={() => {
+						apply((d) => ({
+							...d,
+							adjust: { ...d.adjust, ...Object.fromEntries(ids.map((id) => [id, 0])) },
+						}));
+					}}
+				>
+					{ids.map(slider)}
+				</Group>
+			))}
 		</>
 	);
 }

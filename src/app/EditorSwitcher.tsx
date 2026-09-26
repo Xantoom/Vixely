@@ -52,10 +52,10 @@ export function EditorSwitcher({ current }: { current: MediaKind }) {
 				onClick={() => {
 					setOpen((value) => !value);
 				}}
-				className="hover:bg-surface flex h-[38px] items-center gap-2.5 rounded-sm pr-2.5 pl-1.5 transition-colors"
+				className="hover:bg-surface flex h-11 items-center gap-2.5 rounded-sm pr-2.5 pl-1.5 transition-colors"
 			>
-				<Tile kind={current} size="sm" />
-				<span className="text-[15px] font-semibold tracking-[-0.015em] max-sm:sr-only">
+				<Tile kind={current} size="lg" />
+				<span className="text-body font-semibold tracking-[-0.015em] max-sm:sr-only">
 					{EDITORS[current].label()}
 				</span>
 				<ChevronDown size={14} className="text-muted" aria-hidden="true" />

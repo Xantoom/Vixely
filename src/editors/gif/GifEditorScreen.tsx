@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useLeaveGuard } from '@/app/leave-guard';
 import { type ItemStatus, BatchList } from '@/editor/BatchList';
 import { EditorLayout } from '@/editor/EditorLayout';
 import { FilePanel, ToolLater } from '@/editor/Inspector';
@@ -10,7 +11,7 @@ import { m } from '@/paraglide/messages.js';
 import { frameAt } from './document';
 import { type GifEngine, useGifEngine } from './engine';
 import { GifTimeline } from './GifTimeline';
-import { GifViewer } from './GifViewer';
+import { GifStatus, GifViewer } from './GifViewer';
 import { CropPanel, ExportFooter, ExportPanel, SpeedPanel, TrimPanel } from './panels';
 import { useGifEditor, useGifUndoState } from './store';
 
@@ -69,6 +70,8 @@ export function GifEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	const undo = useGifEditor((state) => state.undo);
 	const redo = useGifEditor((state) => state.redo);
 	const { canUndo, canRedo } = useGifUndoState();
+	// Edits not exported yet: closing the tab asks first.
+	useLeaveGuard(canUndo);
 	// A batch of GIFs shares its export settings; cutting and cropping belong to one file.
 	const batch = useSession((state) => (state.batchKind === 'gif' ? state.batch : null));
 	const batchKey = useSession((state) => (state.batchKind === 'gif' ? state.batchKey : null));
@@ -122,6 +125,7 @@ export function GifEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 				exportActive: tool === 'export',
 			}}
 			viewer={viewer()}
+			status={source && !batch ? <GifStatus engine={engine} /> : undefined}
 			timeline={
 				source ? (
 					<>

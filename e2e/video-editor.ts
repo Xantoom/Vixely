@@ -16,7 +16,7 @@ page.on('console', (m) => {
 mkdirSync('shots', { recursive: true });
 const tools = page.locator('nav[aria-label="Editing tools"]');
 const aside = page.locator('aside');
-const time = async () => (await page.locator('.tabular').first().innerText()).split(' / ')[0];
+const time = async () => (await page.locator('section[aria-label="Preview"] .tabular').first().innerText()).split(' / ')[0];
 const open = async (path: string) => {
 	await page.goto('http://localhost:5173/video');
 	await page.setInputFiles('input[type=file]', path);
@@ -57,7 +57,7 @@ console.log('picture:', await picture(), '| strip filled:', await strip(), '%');
 await tools.getByRole('button', { name: 'Crop' }).click();
 await aside.getByRole('radio', { name: /1:1/ }).click();
 await tools.getByRole('button', { name: 'Adjust' }).click();
-const saturation = aside.getByLabel('Saturation');
+const saturation = aside.getByRole('slider', { name: 'Saturation' });
 await saturation.focus();
 for (let i = 0; i < 100; i++) await page.keyboard.press('ArrowLeft');
 await page.waitForTimeout(400);

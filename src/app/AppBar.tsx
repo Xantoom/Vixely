@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { Moon, Redo2, Sun, Undo2 } from 'lucide-react';
+import { Download, Moon, Redo2, Search, Sun, Undo2 } from 'lucide-react';
 import type { MediaKind } from '@/editors/registry';
 import { m } from '@/paraglide/messages.js';
 import { getLocale, setLocale } from '@/paraglide/runtime.js';
@@ -23,6 +23,8 @@ interface AppBarProps {
 	editor?: MediaKind;
 	fileName?: string;
 	actions?: EditorActions;
+	/** Opens the search of actions (Ctrl or ⌘ + K). */
+	onSearch?: () => void;
 }
 
 /** Switches between English and French; the page reloads in the other language. */
@@ -37,27 +39,27 @@ function LanguageButton() {
 			onClick={() => {
 				void setLocale(next);
 			}}
-			className="text-ui text-ink-2 hover:bg-surface hover:text-ink grid h-9 min-w-9 place-items-center rounded-sm px-2 font-mono font-medium uppercase transition-colors"
+			className="text-ui text-ink-2 hover:bg-surface hover:text-ink grid h-10 min-w-10 place-items-center rounded-sm px-2 font-mono font-medium uppercase transition-colors"
 		>
 			{next}
 		</button>
 	);
 }
 
-export function AppBar({ editor, fileName, actions }: AppBarProps) {
+export function AppBar({ editor, fileName, actions, onSearch }: AppBarProps) {
 	const [theme, toggleTheme] = useTheme();
 
 	return (
 		<header
-			className={`border-line bg-bg relative flex h-14 flex-none items-center gap-2 border-b pr-3 pl-4 ${editor ? 'max-lg:sticky max-lg:top-0 max-lg:z-20' : ''}`}
+			className={`border-line bg-bg relative flex h-15 flex-none items-center gap-2 border-b pr-4 pl-4.5 ${editor ? 'z-30' : ''}`}
 		>
 			<Link
 				to="/"
 				aria-label={m.app_home()}
-				className="hover:bg-surface -ml-1.5 flex h-9 items-center gap-2.5 rounded-sm px-1.5 transition-colors"
+				className="hover:bg-surface -ml-1.5 flex h-10 items-center gap-2.5 rounded-sm px-1.5 transition-colors"
 			>
-				<LogoMark />
-				<span className={`text-[17px] font-bold tracking-[-0.03em] ${editor ? 'max-md:hidden' : ''}`}>
+				<LogoMark size={30} />
+				<span className={`text-lead font-bold tracking-[-0.03em] ${editor ? 'max-md:hidden' : ''}`}>
 					Vixely
 				</span>
 			</Link>
@@ -73,13 +75,27 @@ export function AppBar({ editor, fileName, actions }: AppBarProps) {
 
 			<div className="flex-1" />
 
+			{onSearch && (
+				<button
+					type="button"
+					onClick={onSearch}
+					className="text-ui text-muted bg-surface hover:bg-surface-2 mr-1 flex h-10 min-w-56 items-center gap-2.5 rounded-sm px-3 transition-colors max-lg:hidden"
+				>
+					<Search className="size-[1.1rem]" aria-hidden="true" />
+					<span className="flex-1 text-left">{m.command_search()}</span>
+					<kbd className="text-caption rounded-[0.35rem] px-1.5 py-0.5 font-mono shadow-[inset_0_0_0_1px_var(--line-2)]">
+						Ctrl K
+					</kbd>
+				</button>
+			)}
+
 			{editor && (
 				<div className="mr-1.5 flex gap-0.5">
 					<IconButton label={m.undo()} disabled={!actions?.canUndo} onClick={actions?.onUndo}>
-						<Undo2 size={18} />
+						<Undo2 className="size-5" />
 					</IconButton>
 					<IconButton label={m.redo()} disabled={!actions?.canRedo} onClick={actions?.onRedo}>
-						<Redo2 size={18} />
+						<Redo2 className="size-5" />
 					</IconButton>
 				</div>
 			)}
@@ -88,7 +104,7 @@ export function AppBar({ editor, fileName, actions }: AppBarProps) {
 			<div className={`flex gap-2 ${editor ? 'max-sm:hidden' : ''}`}>
 				<LanguageButton />
 				<IconButton label={theme === 'dark' ? m.theme_to_light() : m.theme_to_dark()} onClick={toggleTheme}>
-					{theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+					{theme === 'dark' ? <Sun className="size-5" /> : <Moon className="size-5" />}
 				</IconButton>
 			</div>
 
@@ -101,7 +117,8 @@ export function AppBar({ editor, fileName, actions }: AppBarProps) {
 					aria-pressed={actions?.exportActive}
 					onClick={actions?.onExport}
 				>
-					{m.export()}
+					<Download className="size-5" aria-hidden="true" />
+					<span className="max-sm:sr-only">{m.export()}</span>
 				</Button>
 			)}
 

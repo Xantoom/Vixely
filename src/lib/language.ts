@@ -36,6 +36,13 @@ export function languageName(code: string): string {
 	}
 }
 
+/** A track as players name it: its language, then its own name; an unknown language is left out when the track has a name. */
+export function trackName(language: string, name: string | null | undefined): string {
+	const known = language && language !== 'und' ? languageName(language) : '';
+	if (!known) return name || languageName(language);
+	return [known, name].filter(Boolean).join(', ');
+}
+
 /** How many channels a track has, as players say it: mono, stereo, 5.1. */
 export function channelLayout(channels: number): string {
 	if (channels === 1) return m.channels_mono();

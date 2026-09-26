@@ -26,7 +26,7 @@ export function Button({
 			type={type}
 			aria-disabled={busy || undefined}
 			onClick={busy ? undefined : onClick}
-			className={`text-ui inline-flex h-9 items-center justify-center gap-2 rounded-sm px-4 whitespace-nowrap transition-[filter,background-color] duration-150 ${VARIANTS[variant]} ${className}`}
+			className={`text-ui inline-flex h-10 items-center justify-center gap-2 rounded-sm px-4.5 whitespace-nowrap transition-[filter,background-color] duration-150 ${VARIANTS[variant]} ${className}`}
 			{...props}
 		/>
 	);
@@ -45,7 +45,7 @@ export function IconButton({
 			type={type}
 			aria-label={label}
 			title={label}
-			className={`text-muted enabled:hover:bg-surface enabled:hover:text-ink grid size-[34px] flex-none place-items-center rounded-sm transition-colors duration-150 disabled:opacity-40 ${className}`}
+			className={`text-muted enabled:hover:bg-surface enabled:hover:text-ink grid size-10 flex-none place-items-center rounded-sm transition-colors duration-150 disabled:opacity-40 ${className}`}
 			{...props}
 		>
 			{children}

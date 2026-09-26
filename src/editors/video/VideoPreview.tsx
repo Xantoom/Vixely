@@ -1,15 +1,15 @@
 import { useNavigate } from '@tanstack/react-router';
-import { Camera, Captions, Eye } from 'lucide-react';
+import { Camera, Captions } from 'lucide-react';
 import { type CSSProperties, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { CropOverlay } from '@/editor/CropOverlay';
 import { PlayerControls, PlayerMenu } from '@/editor/PlayerControls';
+import { backingSize, useStageZoom, ZoomStage } from '@/editor/ZoomStage';
 import { EDITORS } from '@/editors/registry';
-import { languageName } from '@/lib/language';
+import { trackName } from '@/lib/language';
 import { usePlayback } from '@/media/playback';
 import { type OpenedFile, useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { IconButton } from '@/ui/Button';
-import { useBoxSize } from '@/ui/use-box-size';
 import { effectiveCrop, type ImageDoc, orientedSize, type Rect, type Size } from '../image/document';
 import type { PictureEditing } from '../image/editing';
 import { ImageRenderer } from '../image/renderer';
@@ -37,7 +37,7 @@ function SubtitleMenu({ shown, onShown }: { shown: boolean; onShown: (shown: boo
 				{ value: OFF, label: m.player_subtitles_off() },
 				...options.map((track) => ({
 					value: String(track.key),
-					label: `${track.info ? [languageName(track.info.language), track.info.name].filter(Boolean).join(', ') : m.subs_new_track()}${track.edited ? ` (${m.subs_track_edited()})` : ''}`,
+					label: `${track.info ? trackName(track.info.language, track.info.name) : m.subs_new_track()}${track.edited ? ` (${m.subs_track_edited()})` : ''}`,
 				})),
 			]}
 			onChange={(value) => {
@@ -112,21 +112,14 @@ function EditedPicture({
 		const canvas = canvasRef.current;
 		const renderer = rendererRef.current;
 		if (!canvas || width === 0) return;
-		const ratio = Math.min(window.devicePixelRatio || 1, 2);
-		const pixels = {
-			width: Math.max(1, Math.round(width * ratio)),
-			height: Math.max(1, Math.round(height * ratio)),
-		};
+		const pixels = { width: backingSize(width, region.width), height: backingSize(height, region.height) };
 		if (canvas.width !== pixels.width) canvas.width = pixels.width;
 		if (canvas.height !== pixels.height) canvas.height = pixels.height;
 		if (renderer?.ready) renderer.render(doc, { region, original });
 	}, [width, height, doc, region, original]);
 
 	return (
-		<div
-			className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-[3px] bg-black shadow-[0_0_0_1px_var(--line)]"
-			style={{ width, height }}
-		>
+		<div className="relative size-full rounded-[3px] bg-black shadow-[0_1px_3px_rgb(0_0_0/0.18),0_12px_40px_-12px_rgb(0_0_0/0.35)]">
 			{video && <canvas ref={canvasRef} className="absolute inset-0 size-full rounded-[3px]" />}
 			{children}
 		</div>
@@ -203,36 +196,6 @@ function subtitleBox(picture: ImageDoc, crop: Rect, upright: Size, scale: number
 	};
 }
 
-/** Held down, the picture shows as it comes, without the edits. */
-function CompareButton({ comparing, onCompare }: { comparing: boolean; onCompare: (comparing: boolean) => void }) {
-	return (
-		<button
-			type="button"
-			aria-label={m.compare_hold()}
-			title={m.compare_hold()}
-			aria-pressed={comparing}
-			onPointerDown={() => {
-				onCompare(true);
-			}}
-			onPointerUp={() => {
-				onCompare(false);
-			}}
-			onPointerLeave={() => {
-				onCompare(false);
-			}}
-			onKeyDown={(event) => {
-				if (event.key === 'Enter') onCompare(true);
-			}}
-			onKeyUp={() => {
-				onCompare(false);
-			}}
-			className="text-ink-2 hover:bg-surface hover:text-ink aria-pressed:bg-surface-2 aria-pressed:text-ink grid size-8 place-items-center rounded-sm transition-colors select-none"
-		>
-			<Eye size={17} aria-hidden="true" />
-		</button>
-	);
-}
-
 /**
  * The video playing as edited, with its sound track of choice and its subtitles, including the
  * edits made in the subtitle editor. With the crop tool, the whole picture shows with the crop
@@ -255,10 +218,8 @@ export function VideoPreview({
 	const tracks = useProjectTracks();
 	const current = useSubtitleProject((state) => state.current);
 	const doc = useSubtitleDoc();
-	const areaRef = useRef<HTMLDivElement>(null);
-	const area = useBoxSize(areaRef);
 	const [choice, setChoice] = useState<boolean | null>(null);
-	const [comparing, setComparing] = useState(false);
+	const comparing = useStageZoom((state) => state.comparing);
 	const currentTrack = tracks.find((track) => track.key === current);
 	// Edited subtitles show, and so do tracks the file marks as default, as players do.
 	const shown = choice ?? Boolean(currentTrack && (currentTrack.edited || currentTrack.info?.default));
@@ -268,9 +229,6 @@ export function VideoPreview({
 	const bounds = orientedSize(upright, picture.rotation);
 	const crop = effectiveCrop(picture, upright);
 	const region: Rect = cropping ? { x: 0, y: 0, ...bounds } : crop;
-	const scale = area.width && area.height ? Math.min(area.width / region.width, area.height / region.height) : 0;
-	const width = Math.floor(region.width * scale);
-	const height = Math.floor(region.height * scale);
 
 	useEffect(
 		() => () => {
@@ -281,31 +239,40 @@ export function VideoPreview({
 
 	return (
 		<div className="flex size-full min-h-0 flex-col gap-2">
-			<div ref={areaRef} className="relative min-h-0 flex-1">
-				<EditedPicture region={region} width={width} height={height} doc={picture} original={comparing}>
-					{width > 0 && shown && projectReady && !cropping && (
-						// Subtitles belong to the whole picture: they lie over it and the crop cuts them,
-						// as when they are burnt in, rather than being squeezed into the crop.
-						<div className="absolute inset-0 overflow-hidden rounded-[3px]">
-							<div className="absolute" style={subtitleBox(picture, crop, upright, scale)}>
-								<SubtitleLayer
-									doc={doc}
-									time={time}
-									title={opened.file.name.replace(/\.[^.]+$/, '')}
-									video={upright}
-									fonts={fonts}
-								/>
-							</div>
-						</div>
+			<div className="relative min-h-0 flex-1">
+				<ZoomStage width={region.width} height={region.height} compare>
+					{(scale) => (
+						<EditedPicture
+							region={region}
+							width={region.width * scale}
+							height={region.height * scale}
+							doc={picture}
+							original={comparing}
+						>
+							{shown && projectReady && !cropping && (
+								// Subtitles belong to the whole picture: they lie over it and the crop cuts them,
+								// as when they are burnt in, rather than being squeezed into the crop.
+								<div className="absolute inset-0 overflow-hidden rounded-[3px]">
+									<div className="absolute" style={subtitleBox(picture, crop, upright, scale)}>
+										<SubtitleLayer
+											doc={doc}
+											time={time}
+											title={opened.file.name.replace(/\.[^.]+$/, '')}
+											video={upright}
+											fonts={fonts}
+										/>
+									</div>
+								</div>
+							)}
+							{cropping && (
+								<VideoCropOverlay editing={editing} crop={crop} scale={scale} bounds={bounds} />
+							)}
+						</EditedPicture>
 					)}
-					{cropping && width > 0 && (
-						<VideoCropOverlay editing={editing} crop={crop} scale={scale} bounds={bounds} />
-					)}
-				</EditedPicture>
+				</ZoomStage>
 			</div>
 			<PlayerControls>
 				{projectReady && <SubtitleMenu shown={shown} onShown={setChoice} />}
-				<CompareButton comparing={comparing} onCompare={setComparing} />
 				<CaptureButton file={opened.file} doc={picture} />
 			</PlayerControls>
 		</div>

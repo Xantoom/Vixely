@@ -21,7 +21,11 @@ page.on('console', (m) => {
 	if (m.type() === 'error') errors.push(m.text());
 });
 const aside = page.locator('aside');
-const tool = (name: string) => page.locator('nav[aria-label="Editing tools"]').getByRole('button', { name }).click();
+/** Opens a tool's panel; clicking the open one would close it. */
+const tool = async (name: string) => {
+	const button = page.locator('nav[aria-label="Editing tools"]').getByRole('button', { name });
+	if ((await button.getAttribute('aria-pressed')) !== 'true') await button.click();
+};
 const exportAs = async (format: RegExp) => {
 	await page.getByRole('button', { name: 'Export', exact: true }).click();
 	await aside.getByRole('radio', { name: format }).click();

@@ -1,8 +1,11 @@
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
+import { isTyping } from '@/editor/shortcuts';
 import { EDITOR_ORDER, EDITORS, type MediaKind } from '@/editors/registry';
 import { useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
+import { fetchMessage } from './DropZone';
+import { fetchFile, fileAddress } from './fetch-file';
 import { filesFromDrop } from './files';
 import { taskBySlug } from './tasks';
 
@@ -37,6 +40,7 @@ function hasFiles(event: DragEvent): boolean {
  */
 export function GlobalDrop() {
 	const [over, setOver] = useState(false);
+	const [pasteError, setPasteError] = useState<string | null>(null);
 	const depth = useRef(0);
 	const open = useSession((state) => state.open);
 	const navigate = useNavigate();
@@ -77,8 +81,27 @@ export function GlobalDrop() {
 		window.addEventListener('dragenter', onDragEnter);
 		window.addEventListener('dragleave', onDragLeave);
 		window.addEventListener('dragover', onDragOver);
+		// Pasted files (a copied picture) open like dropped ones; a pasted address is downloaded.
+		const onPaste = (event: ClipboardEvent) => {
+			if (isTyping(event.target) || !event.clipboardData) return;
+			const files = [...event.clipboardData.files];
+			const text = event.clipboardData.getData('text/plain');
+			if (files.length === 0 && !fileAddress(text)) return;
+			event.preventDefault();
+			void (async () => {
+				const pasted = files.length > 0 ? files : [await fetchFile(text)];
+				if (handler && (await handler(pasted))) return;
+				const kind = await open(pasted, editor);
+				if (kind && kind !== editor) await navigate({ to: EDITORS[kind].path });
+			})().catch((failure: unknown) => {
+				useSession.setState({ error: null });
+				setPasteError(fetchMessage(failure));
+			});
+		};
 		window.addEventListener('drop', onDrop);
+		window.addEventListener('paste', onPaste);
 		return () => {
+			window.removeEventListener('paste', onPaste);
 			window.removeEventListener('dragenter', onDragEnter);
 			window.removeEventListener('dragleave', onDragLeave);
 			window.removeEventListener('dragover', onDragOver);
@@ -86,6 +109,25 @@ export function GlobalDrop() {
 		};
 	}, [open, navigate, editor]);
 
+	if (pasteError && !over) {
+		return (
+			<div
+				role="alert"
+				className="bg-ink text-bg text-ui fixed bottom-6 left-1/2 z-50 flex max-w-[min(36rem,calc(100%-2rem))] -translate-x-1/2 items-center gap-3 rounded-md px-4 py-3 shadow-lg"
+			>
+				<span className="flex-1">{pasteError}</span>
+				<button
+					type="button"
+					className="font-semibold underline underline-offset-[3px]"
+					onClick={() => {
+						setPasteError(null);
+					}}
+				>
+					{m.dismiss()}
+				</button>
+			</div>
+		);
+	}
 	if (!over) return null;
 	return (
 		<div

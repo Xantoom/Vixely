@@ -1,10 +1,11 @@
 import { Lock } from 'lucide-react';
 import { type ReactNode, useId, useLayoutEffect, useRef, useState } from 'react';
 import { formatPreciseTime, parseTime } from '@/lib/format';
+import { m } from '@/paraglide/messages.js';
 import { Dropdown, type DropdownOption } from './Dropdown';
 
 const FIELD =
-	'h-8 w-full rounded-xs border border-line-2 bg-bg font-mono text-[12.5px] text-ink transition-colors hover:border-muted';
+	'h-10 w-full rounded-xs border border-line-2 bg-bg font-mono text-small text-ink transition-colors hover:border-muted';
 
 /** A label and its control on one row: the label reads left, the value sits right. */
 export function FieldRow({ label, htmlFor, children }: { label: string; htmlFor?: string; children: ReactNode }) {
@@ -177,6 +178,7 @@ export function Slider({
 	step = 1,
 	defaultValue = 0,
 	format = (v) => (v > 0 ? `+${v}` : String(v)),
+	track,
 	hint,
 	onChange,
 	onEnd,
@@ -186,28 +188,63 @@ export function Slider({
 	min: number;
 	max: number;
 	step?: number;
+	/** The neutral value: double-click returns to it, and the filled part of the track starts there. */
 	defaultValue?: number;
 	format?: (value: number) => string;
+	/** A gradient showing what the setting does, in place of the filled track. */
+	track?: string;
 	hint?: ReactNode;
 	onChange: (value: number) => void;
 	onEnd: () => void;
 }) {
 	const id = useId();
 	const inputRef = useRef<HTMLInputElement>(null);
-	const fill = ((value - min) / (max - min)) * 100;
-	// The track reads the filled share from a CSS variable, since pseudo-elements can't be styled inline.
+	const [draft, setDraft] = useState<string | null>(null);
+	const at = (v: number) => ((Math.min(max, Math.max(min, v)) - min) / (max - min)) * 100;
+	const low = Math.min(at(defaultValue), at(value));
+	const high = Math.max(at(defaultValue), at(value));
+	const background =
+		track ??
+		`linear-gradient(90deg, var(--track-base) ${low}%, var(--ed) ${low}% ${high}%, var(--track-base) ${high}%)`;
+	// Pseudo-elements can't be styled inline: the track reads a CSS variable.
 	useLayoutEffect(() => {
-		inputRef.current?.style.setProperty('--fill', `${fill}%`);
-	}, [fill]);
+		inputRef.current?.style.setProperty('--track', background);
+	}, [background]);
+	const commit = () => {
+		if (draft === null) return;
+		const typed = Number.parseFloat(draft.replace(',', '.').replace(/[^\d.+-]/g, ''));
+		setDraft(null);
+		if (Number.isNaN(typed)) return;
+		onChange(Math.min(max, Math.max(min, Math.round(typed / step) * step)));
+		onEnd();
+	};
 	return (
-		<div className="grid gap-2">
-			<div className="flex items-baseline justify-between gap-3">
+		<div className="grid gap-1.5">
+			<div className="flex items-center justify-between gap-3">
 				<label htmlFor={id} className="text-ui text-ink-2">
 					{label}
 				</label>
-				<output htmlFor={id} className="tabular font-mono text-[12.5px]">
-					{format(value)}
-				</output>
+				<input
+					aria-label={m.slider_value({ label })}
+					value={draft ?? format(value)}
+					inputMode="decimal"
+					onFocus={(event) => {
+						setDraft(format(value));
+						event.target.select();
+					}}
+					onChange={(event) => {
+						setDraft(event.target.value);
+					}}
+					onBlur={commit}
+					onKeyDown={(event) => {
+						if (event.key === 'Enter') event.currentTarget.blur();
+						if (event.key === 'Escape') {
+							setDraft(null);
+							event.currentTarget.blur();
+						}
+					}}
+					className="tabular hover:bg-surface focus:bg-bg focus:shadow-[inset_0_0_0_1px_var(--line-2)] w-20 rounded-xs bg-transparent px-1.5 py-0.5 text-right font-mono text-small outline-none transition-colors"
+				/>
 			</div>
 			<input
 				ref={inputRef}
@@ -227,7 +264,7 @@ export function Slider({
 					onChange(defaultValue);
 					onEnd();
 				}}
-				className="slider h-5 w-full cursor-pointer appearance-none bg-transparent"
+				className="slider h-6 w-full cursor-pointer touch-pan-y appearance-none bg-transparent"
 			/>
 			{hint && <p className="text-small text-muted -mt-0.5">{hint}</p>}
 		</div>

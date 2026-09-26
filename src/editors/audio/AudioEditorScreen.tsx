@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useLeaveGuard } from '@/app/leave-guard';
 import { BatchList } from '@/editor/BatchList';
 import { EditorLayout } from '@/editor/EditorLayout';
 import { FilePanel, ToolLater } from '@/editor/Inspector';
@@ -145,6 +146,8 @@ export function AudioEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	const undo = useAudioEditor((state) => state.undo);
 	const redo = useAudioEditor((state) => state.redo);
 	const { canUndo, canRedo } = useAudioUndoState();
+	// Edits not exported yet: closing the tab asks first.
+	useLeaveGuard(canUndo);
 	const [chosenTool, setTool] = useState<ToolId>(initialTool ?? 'info');
 	// Cutting belongs to one file: a batch shares volume, fades and export settings only.
 	const tools: ToolId[] | undefined = batch ? ['info', 'volume'] : undefined;

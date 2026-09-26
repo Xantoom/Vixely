@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useDropHandler } from '@/app/GlobalDrop';
+import { useLeaveGuard } from '@/app/leave-guard';
 import { EditorLayout } from '@/editor/EditorLayout';
 import { FilePanel } from '@/editor/Inspector';
 import { isTyping, useEditorShortcuts } from '@/editor/shortcuts';
@@ -118,6 +119,8 @@ function SingleSubtitleScreen({ initialTool }: { initialTool?: ToolId }) {
 	const undo = useSubtitleEditor((state) => state.undo);
 	const redo = useSubtitleEditor((state) => state.redo);
 	const { canUndo, canRedo } = useSubtitleUndoState();
+	// Edits not exported yet: closing the tab asks first.
+	useLeaveGuard(canUndo);
 	const doc = useSubtitleDoc();
 	const setClockLength = usePlayback((state) => state.setClockLength);
 	const [tool, setTool] = useState<ToolId>(initialTool && initialTool !== 'lines' ? initialTool : 'info');

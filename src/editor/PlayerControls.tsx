@@ -1,7 +1,7 @@
 import { AudioLines, type LucideIcon, Pause, Play } from 'lucide-react';
 import { type ReactNode, useEffect, useRef } from 'react';
 import { codecName, formatPreciseTime } from '@/lib/format';
-import { channelLayout, languageName } from '@/lib/language';
+import { channelLayout, trackName } from '@/lib/language';
 import type { AudioTrackInfo } from '@/media/audio-tracks';
 import { usePlayback, usePlaybackLength } from '@/media/playback';
 import { m } from '@/paraglide/messages.js';
@@ -26,7 +26,7 @@ export function PlayerMenu<T extends string>({
 
 /** `English, Director's commentary (AAC 5.1)`. */
 export function audioTrackLabel(track: AudioTrackInfo): string {
-	const name = [languageName(track.language), track.name].filter(Boolean).join(', ');
+	const name = trackName(track.language, track.name);
 	const details = [track.codec ? codecName(track.codec) : null, channelLayout(track.channels)].filter(Boolean);
 	return `${name} (${details.join(' ')})`;
 }

@@ -1,18 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
+import { useLeaveGuard } from '@/app/leave-guard';
 import { EditorLayout } from '@/editor/EditorLayout';
 import { FilePanel, ToolLater } from '@/editor/Inspector';
 import { useEditorShortcuts } from '@/editor/shortcuts';
 import { Viewer } from '@/editor/Viewer';
+import { ZoomStatus } from '@/editor/ZoomStage';
 import type { ToolId } from '@/editors/registry';
 import { useSession } from '@/media/session';
 import type { ItemStatus } from './batch-export';
 import { BatchStrip } from './BatchStrip';
 import type { Size } from './document';
+import { effectiveCrop } from './document';
 import { useImagePictureEditing } from './editing';
 import { ExportFooter } from './ExportFooter';
 import { ImageViewer } from './ImageViewer';
 import { AdjustPanel, CropPanel, ExportPanel } from './panels';
-import { useImageEditor, useUndoState } from './store';
+import { useImageDoc, useImageEditor, useUndoState } from './store';
 
 export function ImageEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	const current = useSession((state) => state.current);
@@ -26,6 +29,8 @@ export function ImageEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	const undo = useImageEditor((state) => state.undo);
 	const redo = useImageEditor((state) => state.redo);
 	const { canUndo, canRedo } = useUndoState();
+	// Edits not exported yet: closing the tab asks first.
+	useLeaveGuard(canUndo);
 	const [tool, setTool] = useState<ToolId>(initialTool ?? 'info');
 	const [statuses, setStatuses] = useState<ReadonlyMap<number, ItemStatus>>(new Map());
 	const [running, setRunning] = useState(false);
@@ -49,6 +54,8 @@ export function ImageEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	}, [source, batchKey, retarget]);
 
 	useEditorShortcuts({ undo, redo });
+	const doc = useImageDoc();
+	const cropped = source ? effectiveCrop(doc, source) : null;
 	const editing = useImagePictureEditing({ width: source?.width ?? 1, height: source?.height ?? 1 });
 
 	const inspector = () => {
@@ -85,6 +92,7 @@ export function ImageEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 					<Viewer kind="image" opened={opened} />
 				)
 			}
+			status={source ? <ZoomStatus size={cropped} /> : undefined}
 			timeline={batch ? <BatchStrip statuses={statuses} locked={running} /> : undefined}
 			inspector={inspector()}
 			inspectorFooter={

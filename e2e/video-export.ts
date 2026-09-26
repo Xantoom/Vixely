@@ -71,7 +71,7 @@ const firstLines = (path: string, stream: string) => {
 await open('samples/film.mkv');
 await removePassage(10, 20, 60);
 await tools.getByRole('button', { name: 'Adjust' }).click();
-await aside.getByLabel('Saturation').focus();
+await aside.getByRole('slider', { name: 'Saturation' }).focus();
 for (let i = 0; i < 30; i++) await page.keyboard.press('ArrowLeft');
 const mkv = await convert('converted.mkv');
 probe(mkv);
@@ -145,7 +145,7 @@ const louder = await convert(
 	'louder.mkv',
 	async () => {
 		await aside.getByRole('button', { name: 'Volume' }).first().click();
-		await aside.getByLabel('Gain').focus();
+		await aside.getByRole('slider', { name: 'Gain' }).focus();
 		for (let i = 0; i < 12; i++) await page.keyboard.press('ArrowRight');
 		await aside.locator('input[type=file]').setInputFiles('samples/long.wav');
 		await aside.getByText('Audio, long').waitFor();

@@ -18,7 +18,7 @@ const analyse = async (bytes: Buffer) => page.evaluate(async (data) => {
 	for (let f = reader.next_frame(); f; f = reader.next_frame()) { frames++; total += f.delay; }
 	return { width: reader.width(), height: reader.height(), frames, ms: Math.round(total) };
 }, Array.from(bytes));
-const preview = async () => (await page.locator('section[aria-label="Preview"]').innerText()).replace(/\n/g, ' ');
+const preview = async () => (await page.locator('[data-status]').innerText()).replace(/\n/g, ' ');
 const exportNow = async () => {
 	const [download] = await Promise.all([page.waitForEvent('download', { timeout: 120000 }), page.locator('aside + div').getByRole('button').first().click()]);
 	return { name: download.suggestedFilename(), data: readFileSync(await download.path()) };

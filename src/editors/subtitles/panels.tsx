@@ -7,7 +7,7 @@ import { Section } from '@/editor/panel-parts';
 import { saveFile } from '@/editors/image/export';
 import { EDITORS } from '@/editors/registry';
 import { formatBytes, formatPreciseTime } from '@/lib/format';
-import { languageName } from '@/lib/language';
+import { trackName } from '@/lib/language';
 import { usePlayback } from '@/media/playback';
 import { type OpenedFile, useSession } from '@/media/session';
 import type { SubtitleTrackInfo } from '@/media/subtitle-source';
@@ -50,7 +50,7 @@ const UNSUPPORTED: Record<Unsupported, () => string> = {
 };
 
 function trackLabel(track: SubtitleTrackInfo): string {
-	return [languageName(track.language), track.name].filter(Boolean).join(', ');
+	return trackName(track.language, track.name);
 }
 
 /**
