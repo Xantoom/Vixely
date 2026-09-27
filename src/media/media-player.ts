@@ -1,4 +1,5 @@
 import { ALL_FORMATS, BlobSource, Input, type InputVideoTrack, type VideoSample, VideoSampleSink } from 'mediabunny';
+import type { GainPoint } from '@/document/gain-curve';
 import { type Range, toOutput, toSource, totalLength } from '@/document/timemap';
 import { AudioPlayer } from './audio-player';
 import { type AudioTrackInfo, listAudioTracks } from './audio-tracks';
@@ -56,6 +57,10 @@ export class MediaPlayer {
 	private duration = 0;
 	/** Parts of the file played, in order; the whole file unless an editor removed passages. */
 	private ranges: Range[] | null = null;
+	/** How fast it plays, pitch kept. */
+	private speed = 1;
+	/** Fades in and out of the sound, in seconds of what is heard. */
+	private fade = { in: 0, out: 0 };
 	/** Draws a picture on the canvas; the default fits it in, as it comes. */
 	private painter: Painter | null = null;
 	/** Canvases attached, the last one drawn on. */
@@ -114,7 +119,7 @@ export class MediaPlayer {
 		if (this.audio) return this.audio.time();
 		if (!this.clockPlaying) return this.position;
 		const ranges = this.played();
-		const output = this.anchor.output + (performance.now() - this.anchor.page) / 1000;
+		const output = this.anchor.output + ((performance.now() - this.anchor.page) / 1000) * this.speed;
 		return toSource(ranges, Math.min(totalLength(ranges), output));
 	}
 
@@ -138,7 +143,7 @@ export class MediaPlayer {
 		if (id !== null) {
 			const audio = new AudioPlayer(this.file, id);
 			if (await audio.playable()) {
-				audio.setPlan({ ranges: this.played(), envelope: [] });
+				audio.setPlan(this.plan());
 				audio.onTime = (time) => {
 					this.onTime(time);
 				};
@@ -285,8 +290,36 @@ export class MediaPlayer {
 	setRanges(ranges: Range[] | null) {
 		const time = this.time();
 		this.ranges = ranges;
-		this.audio?.setPlan({ ranges: this.played(), envelope: [] });
+		this.audio?.setPlan(this.plan());
 		if (this.clockPlaying) this.anchor = { page: performance.now(), output: toOutput(this.played(), time) };
+	}
+
+	/**
+	 * Plays faster or slower, pitch kept, the sound fading in and out over `fade` seconds of what
+	 * is heard. Playing goes on from the same moment.
+	 */
+	setShaping(speed: number, fade: { in: number; out: number }) {
+		const time = this.time();
+		this.speed = speed;
+		this.fade = fade;
+		this.audio?.setPlan(this.plan());
+		if (this.clockPlaying) this.anchor = { page: performance.now(), output: toOutput(this.played(), time) };
+	}
+
+	private plan() {
+		const ranges = this.played();
+		return { ranges, envelope: this.fadeEnvelope(totalLength(ranges)), speed: this.speed };
+	}
+
+	/** The fades as a volume curve over output time before the speed change, `length` long. */
+	private fadeEnvelope(length: number): GainPoint[] {
+		const fadeIn = this.fade.in * this.speed;
+		const fadeOut = this.fade.out * this.speed;
+		if (fadeIn <= 0 && fadeOut <= 0) return [];
+		const points: GainPoint[] = [];
+		if (fadeIn > 0) points.push({ time: 0, gain: 0 }, { time: fadeIn, gain: 1 });
+		if (fadeOut > 0) points.push({ time: Math.max(fadeIn, length - fadeOut), gain: 1 }, { time: length, gain: 0 });
+		return points;
 	}
 
 	private played(): Range[] {

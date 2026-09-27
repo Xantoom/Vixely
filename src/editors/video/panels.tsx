@@ -1,7 +1,6 @@
 import { useNavigate } from '@tanstack/react-router';
 import { AudioLines, Camera, Captions, Film, ImagePlus, Speech, Trash2 } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
-import { outputDuration } from '@/document/kept';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { Section } from '@/editor/panel-parts';
 import { EDITORS } from '@/editors/registry';
@@ -15,7 +14,7 @@ import { FieldRow, Select } from '@/ui/fields';
 import { MEDIA_ICONS } from '@/ui/icons';
 import type { Size } from '../image/document';
 import { capturePicture } from './capture';
-import type { CoverImage, VideoMeta } from './document';
+import { type CoverImage, type VideoMeta, videoLength } from './document';
 import { outputSize, PRESET_GROUP_ORDER, PRESET_ORDER, type PresetGroupId, PRESETS, shortSide } from './export';
 import { exportTarget, presetPicture, useChoosePreset, useExportMode } from './ExportPanel';
 import { type MuxKind, useMuxTracks } from './mux';
@@ -459,7 +458,7 @@ export function VideoPresetsPanel({ upright }: { upright: Size }) {
 	const chosen = useVideoEditor((state) => state.exportSettings?.preset ?? null);
 	const ready = useVideoEditor((state) => state.exportSource !== null);
 	const doc = useVideoDoc();
-	const length = outputDuration(doc);
+	const length = videoLength(doc);
 	const choose = useChoosePreset(upright);
 	return (
 		<>

@@ -49,6 +49,8 @@ uniform float uGrain;
 uniform float uSeed;
 uniform bool uDither;
 uniform bool uOpaque;
+/** 1 shows the picture, 0 is black: a video's fade in and out. */
+uniform float uFade;
 
 float noise(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 
@@ -66,7 +68,7 @@ vec4 finish(vec3 c, float alpha, vec2 uv) {
 	}
 	// Half a step of noise breaks the banding that edits create in smooth gradients.
 	if (uDither) c += (noise(gl_FragCoord.xy + 3.7) - 0.5) / 255.0;
-	c = clamp(c, 0.0, 1.0);
+	c = clamp(c, 0.0, 1.0) * uFade;
 	if (uOpaque) return vec4(mix(vec3(1.0), c, alpha), 1.0);
 	return vec4(c, alpha);
 }`;
@@ -245,9 +247,9 @@ type ColorUniform =
 
 type BlurUniform = 'uInput' | 'uStep' | 'uRadius' | 'uFinish' | 'uFlipY' | FinishUniform;
 
-type FinishUniform = 'uVignette' | 'uGrain' | 'uSeed' | 'uDither' | 'uOpaque';
+type FinishUniform = 'uVignette' | 'uGrain' | 'uSeed' | 'uDither' | 'uOpaque' | 'uFade';
 
-const FINISH_UNIFORMS: FinishUniform[] = ['uVignette', 'uGrain', 'uSeed', 'uDither', 'uOpaque'];
+const FINISH_UNIFORMS: FinishUniform[] = ['uVignette', 'uGrain', 'uSeed', 'uDither', 'uOpaque', 'uFade'];
 
 export interface RenderOptions {
 	/** Area of the oriented image to draw, in pixels. */
@@ -264,6 +266,8 @@ export interface RenderOptions {
 	time?: number;
 	/** How the picture is scaled: smoothly, or keeping hard pixels, for pixel art. */
 	sampling?: Sampling;
+	/** How visible the picture is, from 1 down to 0 for black: a video's fades. */
+	fade?: number;
 }
 
 export type Sampling = 'smooth' | 'pixel';
@@ -469,7 +473,7 @@ export class ImageRenderer {
 	private setFinish<U extends string>(
 		program: Program<U | FinishUniform>,
 		adjust: Adjustments,
-		options: { original: boolean; opaque: boolean; seed: number },
+		options: { original: boolean; opaque: boolean; seed: number; fade: number },
 	): void {
 		const gl = this.gl;
 		gl.uniform1f(program.at('uVignette'), (adjust.vignette / 100) * 0.85);
@@ -477,11 +481,21 @@ export class ImageRenderer {
 		gl.uniform1f(program.at('uSeed'), options.seed % 1000);
 		gl.uniform1i(program.at('uDither'), options.original ? 0 : 1);
 		gl.uniform1i(program.at('uOpaque'), options.opaque ? 1 : 0);
+		gl.uniform1f(program.at('uFade'), options.fade);
 	}
 
 	render(
 		doc: ImageDoc,
-		{ region, original = false, opaque = false, flipY = false, seed = 0, time, sampling = 'smooth' }: RenderOptions,
+		{
+			region,
+			original = false,
+			opaque = false,
+			flipY = false,
+			seed = 0,
+			time,
+			sampling = 'smooth',
+			fade = 1,
+		}: RenderOptions,
 	): void {
 		const gl = this.gl;
 		if (!this.texture || !this.sourceSize) return;
@@ -518,7 +532,7 @@ export class ImageRenderer {
 		gl.uniform1i(color.at('uFinish'), pair ? 0 : 1);
 		// Intermediate pictures are drawn upright; only the last pass flips.
 		gl.uniform1i(color.at('uFlipY'), !pair && flipY ? 1 : 0);
-		this.setFinish(color, adjust, { original, opaque, seed });
+		this.setFinish(color, adjust, { original, opaque, seed, fade });
 		gl.drawArrays(gl.TRIANGLES, 0, 6);
 		if (!pair) return;
 
@@ -527,7 +541,7 @@ export class ImageRenderer {
 		blur.use();
 		gl.uniform1i(blur.at('uInput'), 0);
 		gl.uniform1f(blur.at('uRadius'), radius);
-		this.setFinish(blur, adjust, { original, opaque, seed });
+		this.setFinish(blur, adjust, { original, opaque, seed, fade });
 		const passes: [Target, WebGLFramebuffer | null, [number, number], boolean][] = [
 			[pair[0], pair[1].framebuffer, [1 / width, 0], false],
 			[pair[1], null, [0, 1 / height], true],

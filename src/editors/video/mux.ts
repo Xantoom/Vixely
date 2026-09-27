@@ -1,6 +1,6 @@
 import type { AudioCodec } from 'mediabunny';
 import { create } from 'zustand';
-import { isShortened, keptRanges, outputDuration } from '@/document/kept';
+import { isShortened, keptRanges } from '@/document/kept';
 import { type Range, toOutput } from '@/document/timemap';
 import { type AddedTrack, remux, type StreamData, type TrackChoice } from '@/media/remux';
 import { openScratchFile, type SaveTarget, type ScratchFile } from '@/media/save-target';
@@ -11,7 +11,7 @@ import { type TrackKey, type TrackState, useProjectTracks, useSubtitleProject } 
 import { codecLabel } from '../subtitles/tracks';
 import type { BurnJob } from './burn';
 import { type AudioPlan, copiesParts, copyTracks } from './copy-tracks';
-import { editTurn, pictureChange, type VideoDoc } from './document';
+import { editTurn, fadeOf, pictureChange, speedOf, timeShaped, type VideoDoc, videoLength } from './document';
 import {
 	audioBitrates,
 	bitrateForSize,
@@ -409,7 +409,7 @@ async function withSizeLimit(job: ConvertedJob): Promise<VideoExportSettings> {
 				: settings.audioBitrate),
 		0,
 	);
-	return { ...settings, bitrate: bitrateForSize(settings.sizeLimit, outputDuration(doc), audio) };
+	return { ...settings, bitrate: bitrateForSize(settings.sizeLimit, videoLength(doc), audio) };
 }
 
 /** Splits the progress bar between passes, by weight. */
@@ -464,7 +464,14 @@ export async function exportConverted(
 		{ track, file }: { track: MuxTrack; file: File },
 		encode: AudioPlan['encode'],
 		ranges: readonly Range[] | undefined,
-	): AudioPlan => ({ ...plan(track, { file }, encode), ranges });
+	): AudioPlan => ({
+		...plan(track, { file }, encode),
+		ranges,
+		// Sound from another file follows the video's speed and fades, as its own sound does.
+		...(settings.mode === 'encode' && timeShaped(doc)
+			? { shape: { speed: speedOf(doc), fade: fadeOf(doc), length: videoLength(doc) } }
+			: {}),
+	});
 
 	// A conversion keeps the sound tracks' details as the file has them.
 	const renamed = own.some(({ track }) => {
@@ -474,7 +481,7 @@ export async function exportConverted(
 	// Converting with passages removed, sound kept as it is is copied part by part from the source
 	// in a second pass: the conversion only encodes the tracks whose level changes.
 	const copiedCut =
-		settings.mode === 'encode' && settings.audio === 'copy' && doc.cuts.length > 0
+		settings.mode === 'encode' && settings.audio === 'copy' && doc.cuts.length > 0 && !timeShaped(doc)
 			? own.filter(({ track }) => track.decibels === 0)
 			: [];
 	const encodedOwn = own.filter((entry) => !copiedCut.includes(entry));

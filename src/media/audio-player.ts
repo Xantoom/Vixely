@@ -4,7 +4,8 @@ import { type Range, sameRanges, toOutput, toSource, totalLength } from '@/docum
 import { findAudioTrack } from './audio-tracks';
 import { DECODER_PREROLL } from './decoder';
 import { canDecodeAudio } from './decoders';
-import { EQ_BANDS, EQ_Q, type SoundChanges, SoundProcessor } from './sound';
+import { EQ_BANDS, EQ_Q, type Planar, type SoundChanges, SoundProcessor } from './sound';
+import { TimeStretcher } from './stretch';
 
 /** What to play: the source ranges in order, the volume curve over output time, and the sound changes. */
 export interface PlaybackPlan {
@@ -12,6 +13,8 @@ export interface PlaybackPlan {
 	envelope: readonly GainPoint[];
 	/** Equalizer gains and noise reduction; absent plays the sound as it is. */
 	sound?: SoundChanges;
+	/** How fast it plays, pitch kept; absent plays at normal speed. */
+	speed?: number;
 }
 
 const NO_CHANGES: SoundChanges = { eq: [], denoise: 0 };
@@ -72,11 +75,19 @@ export class AudioPlayer {
 		return this.frame !== 0;
 	}
 
+	private get speed(): number {
+		return this.plan.speed ?? 1;
+	}
+
+	/** Output time, on the kept ranges before the speed change, at a time of the sound clock. */
+	private outputAt(contextTime: number): number {
+		return this.anchor.output + Math.max(0, contextTime - this.anchor.context) * this.speed;
+	}
+
 	/** Current source time. */
 	time(): number {
 		if (!this.playing || !this.context) return this.position;
-		const output = this.anchor.output + Math.max(0, this.context.currentTime - this.anchor.context);
-		return toSource(this.plan.ranges, output);
+		return toSource(this.plan.ranges, this.outputAt(this.context.currentTime));
 	}
 
 	/**
@@ -87,6 +98,7 @@ export class AudioPlayer {
 		// Noise reduction works on the decoded buffers: a change is heard from a fresh start.
 		const restart =
 			!sameRanges(plan.ranges, this.plan.ranges) ||
+			(plan.speed ?? 1) !== this.speed ||
 			(plan.sound ?? NO_CHANGES).denoise !== (this.plan.sound ?? NO_CHANGES).denoise;
 		const time = this.time();
 		this.plan = plan;
@@ -207,7 +219,7 @@ export class AudioPlayer {
 
 	private tick = () => {
 		if (!this.context) return;
-		const output = this.anchor.output + Math.max(0, this.context.currentTime - this.anchor.context);
+		const output = this.outputAt(this.context.currentTime);
 		const end = totalLength(this.plan.ranges);
 		if (output >= end) {
 			this.position = this.plan.ranges.at(-1)?.end ?? 0;
@@ -227,9 +239,11 @@ export class AudioPlayer {
 		if (!context || !inlet) return;
 		const ranges = this.plan.ranges;
 		const denoise = this.plan.sound?.denoise ?? 0;
-		// With noise reduction, the kept audio goes through it end to end and plays from where the
-		// run starts, a little behind the decoding.
-		let processor: Promise<SoundProcessor> | null = null;
+		const speed = this.speed;
+		// With noise reduction or another speed, the kept audio goes through them end to end and
+		// plays from where the run starts, a little behind the decoding.
+		let reducer: Promise<SoundProcessor> | null = null;
+		let stretcher: TimeStretcher | null = null;
 		let emitted = 0;
 		// A buffer that arrives late plays from where the clock already is.
 		const play = (buffer: AudioBuffer, when: number, offset: number, length: number) => {
@@ -245,29 +259,35 @@ export class AudioPlayer {
 			node.start(when + late, offset + late, length - late);
 			this.nodes.add(node);
 		};
-		const reduce = async (buffer: AudioBuffer, _when: number, offset: number, length: number) => {
+		const process = async (buffer: AudioBuffer, _when: number, offset: number, length: number) => {
 			const { sampleRate, numberOfChannels: channels } = buffer;
-			processor ??= SoundProcessor.create({ eq: [], denoise }, channels, sampleRate);
-			const reducer = await processor;
 			const first = Math.round(offset * sampleRate);
 			const frames = Math.min(buffer.length - first, Math.round(length * sampleRate));
 			if (frames <= 0) return;
-			const planar = new Float32Array(frames * channels);
+			const decoded = new Float32Array(frames * channels);
 			for (let c = 0; c < channels; c++)
-				buffer.copyFromChannel(planar.subarray(c * frames, (c + 1) * frames), c, first);
-			const out = reducer.push({ data: planar, frames });
-			if (out.frames === 0 || run !== this.run) return;
-			const cleaned = context.createBuffer(channels, out.frames, sampleRate);
+				buffer.copyFromChannel(decoded.subarray(c * frames, (c + 1) * frames), c, first);
+			let chunk: Planar = { data: decoded, frames };
+			if (denoise > 0) {
+				reducer ??= SoundProcessor.create({ eq: [], denoise }, channels, sampleRate);
+				chunk = (await reducer).push(chunk);
+			}
+			if (speed !== 1) {
+				stretcher ??= new TimeStretcher(channels, sampleRate, speed);
+				chunk = stretcher.push(chunk);
+			}
+			if (chunk.frames === 0 || run !== this.run) return;
+			const shaped = context.createBuffer(channels, chunk.frames, sampleRate);
 			for (let c = 0; c < channels; c++)
-				cleaned.getChannelData(c).set(out.data.subarray(c * out.frames, (c + 1) * out.frames));
-			play(cleaned, this.anchor.context + emitted / sampleRate, 0, cleaned.duration);
-			emitted += out.frames;
+				shaped.getChannelData(c).set(chunk.data.subarray(c * chunk.frames, (c + 1) * chunk.frames));
+			play(shaped, this.anchor.context + emitted / sampleRate, 0, shaped.duration);
+			emitted += chunk.frames;
 		};
 		try {
-			await this.scheduleRanges(sink, run, from, ranges, denoise > 0 ? reduce : play);
+			await this.scheduleRanges(sink, run, from, ranges, denoise > 0 || speed !== 1 ? process : play);
 		} finally {
-			void (processor as Promise<SoundProcessor> | null)?.then((reducer) => {
-				reducer.dispose();
+			void (reducer as Promise<SoundProcessor> | null)?.then((done) => {
+				done.dispose();
 			});
 		}
 	}
@@ -295,7 +315,8 @@ export class AudioPlayer {
 				const clipStart = Math.max(timestamp, start);
 				const clipEnd = Math.min(timestamp + duration, range.end);
 				if (clipEnd <= clipStart) continue;
-				const when = this.anchor.context + (rangeOutput + (clipStart - start) - this.anchor.output);
+				const when =
+					this.anchor.context + (rangeOutput + (clipStart - start) - this.anchor.output) / this.speed;
 				// oxlint-disable-next-line no-await-in-loop -- buffers go through in order
 				await send(buffer, when, clipStart - timestamp, clipEnd - clipStart);
 				while (when - context.currentTime > LOOKAHEAD && run === this.run) {
@@ -313,12 +334,15 @@ export class AudioPlayer {
 		if (!context || !param) return;
 		const points = this.plan.envelope;
 		const now = Math.max(context.currentTime, this.anchor.context);
-		const output = this.anchor.output + (now - this.anchor.context);
+		const output = this.outputAt(now);
 		param.cancelScheduledValues(0);
 		param.setValueAtTime(gainAt(points, output), now);
 		for (const point of points) {
 			if (point.time <= output) continue;
-			param.linearRampToValueAtTime(point.gain, this.anchor.context + (point.time - this.anchor.output));
+			param.linearRampToValueAtTime(
+				point.gain,
+				this.anchor.context + (point.time - this.anchor.output) / this.speed,
+			);
 		}
 	}
 }

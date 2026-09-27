@@ -885,6 +885,7 @@
 	"video_final_length": "Durée finale",
 	"copy_keyframe_kept": "Gardé : la copie commence sur une image clé",
 	"copy_blocked_picture": "Le recadrage, la rotation et les couleurs demandent de réencoder la vidéo",
+	"copy_blocked_time": "La vitesse et les fondus demandent de réencoder la vidéo",
 	"copy_blocked_burn": "Les sous-titres incrustés demandent de réencoder la vidéo",
 	"export_rate_control": "Contrôle du débit",
 	"rate_bitrate": "Débit cible",

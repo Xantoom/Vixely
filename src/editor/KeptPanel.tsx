@@ -15,6 +15,10 @@ export interface KeptEditing<T extends Kept> {
 	playhead: number;
 	/** Name of the output's length: `Final length`, as each editor calls it. */
 	lengthLabel: string;
+	/** The output's length when more than the cuts sets it, such as a video played faster. */
+	length?: number;
+	/** More settings under the trim, such as a video's fades. */
+	extra?: ReactNode;
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -93,7 +97,7 @@ export function KeptPanel<T extends Kept>({ editing }: { editing: KeptEditing<T>
 						}}
 					/>
 				</FieldRow>
-				<ValueRow label={lengthLabel} value={formatPreciseTime(outputDuration(doc))} />
+				<ValueRow label={lengthLabel} value={formatPreciseTime(editing.length ?? outputDuration(doc))} />
 				<div className="grid grid-cols-2 gap-2">
 					<Button
 						title="I"
@@ -141,6 +145,7 @@ export function KeptPanel<T extends Kept>({ editing }: { editing: KeptEditing<T>
 					</ul>
 				</Section>
 			)}
+			{editing.extra}
 		</>
 	);
 }

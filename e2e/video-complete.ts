@@ -176,6 +176,41 @@ for (const name of ['ac3', 'dts']) {
 	}
 }
 
+// 5c. Twice as fast with a second of fade at each end: half as long, black and silent at the
+// start, the tone at the same pitch.
+{
+	await open(sample('clip.mp4'));
+	await tool('Speed');
+	await aside.getByRole('radio', { name: /^2/ }).click();
+	// Playback keeps the pace: two seconds of source for every second.
+	const playhead = page.getByRole('slider', { name: 'Playhead' }).first();
+	await page.getByRole('button', { name: 'Play' }).first().click();
+	await page.waitForTimeout(200);
+	const from = Number(await playhead.getAttribute('aria-valuenow'));
+	await page.waitForTimeout(2000);
+	const to = Number(await playhead.getAttribute('aria-valuenow'));
+	await page.getByRole('button', { name: 'Pause' }).first().click();
+	console.log(`  preview pace: ${((to - from) / 2).toFixed(2)}× (asked 2×)`);
+	await tool('Trim');
+	await aside.getByRole('slider', { name: 'Fade in' }).fill('10');
+	await aside.getByRole('slider', { name: 'Fade out' }).fill('10');
+	console.log('speed panel length:', await aside.getByText('Final length').locator('..').innerText().then((t) => t.replace(/\s+/g, ' ')));
+	const path = await exportAs('fast.mp4', /Convert/);
+	console.log('  duration:', run(['-show_entries', 'format=duration', '-of', 'csv=p=0'], path), 's');
+	if (ffmpeg) {
+		const luma = (time: number) =>
+			/YAVG=([\d.]+)/.exec(
+				spawnSync(ffmpeg, ['-v', 'info', '-ss', String(time), '-i', path, '-frames:v', '1', '-vf', 'signalstats,metadata=print:key=lavfi.signalstats.YAVG', '-f', 'null', '-'], { encoding: 'utf8' }).stderr,
+			)?.[1];
+		console.log('  brightness at 0 s, 0.5 s, 5 s:', luma(0), luma(0.5), luma(5));
+		const pcm = spawnSync(ffmpeg, ['-v', 'error', '-ss', '4', '-t', '4', '-i', path, '-ac', '1', '-ar', '48000', '-f', 'f32le', '-'], { maxBuffer: 1 << 26 }).stdout;
+		const wave = new Float32Array(pcm.buffer, pcm.byteOffset, Math.floor(pcm.length / 4));
+		let crossings = 0;
+		for (let n = 1; n < wave.length; n++) if ((wave[n - 1] ?? 0) < 0 && (wave[n] ?? 0) >= 0) crossings += 1;
+		console.log('  pitch:', Math.round((crossings * 48000) / wave.length), 'Hz (source 330)');
+	}
+}
+
 // 6. A subtitle file added to the video as a track, copied into it.
 await open(sample('clip.mkv'));
 await tool('Subtitles');

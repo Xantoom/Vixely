@@ -1,5 +1,5 @@
 import { useEffect, useId } from 'react';
-import { isShortened, keptRanges, outputDuration } from '@/document/kept';
+import { isShortened, keptRanges } from '@/document/kept';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { Section } from '@/editor/panel-parts';
 import { codecName } from '@/lib/format';
@@ -10,7 +10,7 @@ import { FieldRow, NumberField, OptionList, Select } from '@/ui/fields';
 import { fitRatio } from '../image/crop';
 import { type ImageDoc, orientedSize, type Size } from '../image/document';
 import { copiedRanges, copiesParts } from './copy-tracks';
-import { pictureChange } from './document';
+import { pictureChange, timeShaped, videoLength } from './document';
 import {
 	type AudioChoice,
 	audioFits,
@@ -65,6 +65,7 @@ export function useCopyBlocker(): string | null {
 	const doc = useVideoDoc();
 	const burn = useVideoEditor((state) => state.exportSettings?.burn ?? null);
 	if (pictureChange(doc.picture) === 'drawn') return m.copy_blocked_picture();
+	if (timeShaped(doc)) return m.copy_blocked_time();
 	return burn ? m.copy_blocked_burn() : null;
 }
 
@@ -246,7 +247,7 @@ function VideoSettings({ upright }: { upright: Size }) {
 	const limited =
 		settings.sizeLimit === null
 			? null
-			: bitrateForSize(settings.sizeLimit, outputDuration(doc), source.audioCodec ? sound : 0);
+			: bitrateForSize(settings.sizeLimit, videoLength(doc), source.audioCodec ? sound : 0);
 
 	const chooseContainer = (container: VideoContainer) => {
 		const codecs = CONTAINERS[container].codecs;

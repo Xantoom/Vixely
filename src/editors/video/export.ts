@@ -28,15 +28,26 @@ import {
 	WebMOutputFormat,
 } from 'mediabunny';
 import { isShortened, keptRanges } from '@/document/kept';
-import { isKept, toOutput } from '@/document/timemap';
+import { isKept, toOutput, totalLength } from '@/document/timemap';
 import { drawOverlays, loadOverlayAssets } from '@/editor/overlays/draw';
 import type { LogoId } from '@/ui/BrandLogo';
 import { ensureEncoder } from '../audio/export';
 import { effectiveCrop, type ImageDoc, orientedSize, type Size } from '../image/document';
 import { ImageRenderer } from '../image/renderer';
 import { gainOf, placeAudio, placeRanges } from './audio-pieces';
+import { AudioShaper } from './audio-shaping';
 import { type BurnJob, type Box, createBurner, type SubtitleBurner } from './burn';
-import { editTurn, pictureChange, type Turn, type VideoDoc, type VideoMeta } from './document';
+import {
+	editTurn,
+	fadeLevel,
+	fadeOf,
+	pictureChange,
+	speedOf,
+	timeShaped,
+	type Turn,
+	type VideoDoc,
+	type VideoMeta,
+} from './document';
 
 export type VideoContainer = 'mp4' | 'mov' | 'mkv' | 'webm';
 export type VideoCodecId = 'avc' | 'hevc' | 'vp9' | 'av1';
@@ -815,8 +826,17 @@ class PictureProcessor {
 		this.composite = canvas && context ? { canvas, context } : null;
 	}
 
-	/** The picture at `timestamp` in the output, `time` in the source. */
-	async draw(sample: VideoSample, timestamp: number, time: number): Promise<VideoSample> {
+	/**
+	 * The picture at `timestamp` in the output, `time` in the source, lasting `duration`, `level`
+	 * visible (1 but in a fade).
+	 */
+	async draw(
+		sample: VideoSample,
+		timestamp: number,
+		time: number,
+		duration: number,
+		level = 1,
+	): Promise<VideoSample> {
 		this.renderer.setFrame(
 			sample.toCanvasImageSource(),
 			{ width: sample.squarePixelWidth, height: sample.squarePixelHeight },
@@ -826,14 +846,20 @@ class PictureProcessor {
 			region: effectiveCrop(this.picture, this.upright),
 			seed: time * 97,
 			time,
+			// Over text and subtitles, the fade darkens the whole picture once drawn.
+			fade: this.composite ? 1 : level,
 		});
-		if (!this.composite) return new VideoSample(this.canvas, { timestamp, duration: sample.duration });
+		if (!this.composite) return new VideoSample(this.canvas, { timestamp, duration });
 		const { canvas, context } = this.composite;
 		context.clearRect(0, 0, canvas.width, canvas.height);
 		context.drawImage(this.canvas, 0, 0);
 		drawOverlays(context, this.picture.overlays, canvas, time);
 		if (this.burner) await this.burner.draw(context, time);
-		return new VideoSample(canvas, { timestamp, duration: sample.duration });
+		if (level < 1) {
+			context.fillStyle = `rgb(0 0 0 / ${1 - level})`;
+			context.fillRect(0, 0, canvas.width, canvas.height);
+		}
+		return new VideoSample(canvas, { timestamp, duration });
 	}
 
 	dispose() {
@@ -912,23 +938,35 @@ export async function convertVideo(
 				)
 			: null;
 	const change = pictureChange(doc.picture);
-	const drawn = change !== 'none' || burner !== null;
+	const speed = speedOf(doc);
+	const fade = fadeOf(doc);
+	const fading = fade.in > 0 || fade.out > 0;
+	const shaped = timeShaped(doc);
+	// The output's length, for the fade out: what is kept, at its new pace.
+	const length = totalLength(ranges) / speed;
+	const drawn = change !== 'none' || burner !== null || fading;
 	// Text and stickers are drawn with their fonts and pictures, loaded before the first frame.
 	if (doc.picture.overlays.length > 0) await loadOverlayAssets(doc.picture.overlays);
 	const size = outputSize(doc.picture, job.upright, settings.height);
 	// Conversion times start at the trim; the edit's ranges are in source time.
 	const offset = isShortened(doc) ? doc.trim.start : 0;
 	let processor: PictureProcessor | null = null;
+	// Played faster, pictures come closer together: kept at the source's rate, the extra ones go.
+	let sourceRate: number | undefined;
+	if (speed !== 1 && settings.frameRate === null) {
+		const stats = await (await input.getPrimaryVideoTrack())?.computePacketStats(120);
+		sourceRate = stats ? Math.round(stats.averagePacketRate * 1000) / 1000 : undefined;
+	}
 
 	const video = (track: InputVideoTrack): ConversionVideoOptions => {
 		if (track.number > 1) return { discard: true };
 		const options: ConversionVideoOptions = {
 			codec: settings.codec,
 			quality: videoQuality(settings),
-			frameRate: settings.frameRate ?? undefined,
+			frameRate: settings.frameRate ?? sourceRate,
 			forceTranscode: true,
 		};
-		if (!drawn && !cuts) return { ...options, width: size.width, height: size.height, fit: 'fill' };
+		if (!drawn && !cuts && speed === 1) return { ...options, width: size.width, height: size.height, fit: 'fill' };
 		if (drawn) {
 			processor = new PictureProcessor(doc.picture, job.upright, size, burner);
 			options.processedWidth = size.width;
@@ -943,8 +981,16 @@ export async function convertVideo(
 		options.process = async (sample) => {
 			const time = sample.timestamp + offset;
 			if (cuts && !isKept(ranges, time)) return null;
-			const timestamp = cuts ? toOutput(ranges, time) : sample.timestamp;
-			if (processor) return processor.draw(sample, timestamp, time);
+			const timestamp = (cuts ? toOutput(ranges, time) : sample.timestamp) / speed;
+			if (processor) {
+				return processor.draw(
+					sample,
+					timestamp,
+					time,
+					sample.duration / speed,
+					fadeLevel(fade, timestamp, length),
+				);
+			}
 			const moved = sample.clone();
 			moved.setTimestamp(timestamp);
 			return moved;
@@ -957,7 +1003,7 @@ export async function convertVideo(
 		const decibels = job.audioTracks.get(track.id);
 		if (decibels === undefined) return { discard: true };
 		// Removed passages and level changes are made on decoded sound: it is then encoded again.
-		const copy = settings.audio === 'copy' && !cuts && decibels === 0;
+		const copy = settings.audio === 'copy' && !cuts && decibels === 0 && !shaped;
 		const options: ConversionAudioOptions = copy
 			? {}
 			: {
@@ -966,7 +1012,14 @@ export async function convertVideo(
 					quality: new Quality({ bitrate: settings.audioBitrate * 1000 }),
 				};
 		const gain = gainOf(decibels);
-		if (cuts || gain !== 1) options.process = (sample) => placeAudio(sample, placed, offset, gain);
+		const placing = cuts || gain !== 1;
+		const shaper = shaped ? new AudioShaper(speed, fade, length) : null;
+		if (placing || shaper) {
+			options.process = (sample) => {
+				const pieces = placing ? placeAudio(sample, placed, offset, gain) : [sample];
+				return shaper ? shaper.shape(pieces, sample) : pieces;
+			};
+		}
 		return options;
 	};
 
@@ -995,7 +1048,7 @@ export async function convertVideo(
 
 	try {
 		// Browsers without their own AAC encoder (Chromium) get the WebAssembly one.
-		if (encodesAac(settings, cuts || [...job.audioTracks.values()].some((decibels) => decibels !== 0))) {
+		if (encodesAac(settings, cuts || shaped || [...job.audioTracks.values()].some((decibels) => decibels !== 0))) {
 			await ensureEncoder('aac', { numberOfChannels: 2, sampleRate: 48_000 });
 		}
 		const conversion = await Conversion.init({

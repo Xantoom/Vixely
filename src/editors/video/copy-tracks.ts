@@ -25,6 +25,8 @@ import {
 import type { Range } from '@/document/timemap';
 import { ensureEncoder } from '../audio/export';
 import { gainOf, type Placed, placeAudio, placeRanges } from './audio-pieces';
+import { AudioShaper } from './audio-shaping';
+import type { VideoFade } from './document';
 import { composeTurn, type Turn, type VideoMeta } from './document';
 import { CONTAINERS, type VideoContainer, writeMeta } from './export';
 
@@ -158,6 +160,8 @@ export interface AudioPlan {
 	bitrate: number;
 	/** Source ranges it takes, in order; absent, those of the pictures. */
 	ranges?: readonly Range[];
+	/** The video's speed and fades, which the sound follows: it is then encoded again. */
+	shape?: { speed: number; fade: VideoFade; length: number };
 	language: string;
 	name: string;
 	default: boolean;
@@ -298,6 +302,7 @@ export async function copyTracks(
 			const copied =
 				plan.encode === null &&
 				plan.decibels === 0 &&
+				!plan.shape &&
 				own !== null &&
 				CONTAINERS[job.container].audio.includes(own);
 			if (!copied) {
@@ -310,7 +315,10 @@ export async function copyTracks(
 				const source = new AudioSampleSource({ codec, bitrate: bitrate * 1000 });
 				output.addAudioTrack(source, metadata);
 				const gain = gainOf(plan.decibels);
-				pumps.push(async () => encodeAudio(track, source, where, gain, pace, 1 + index, signal));
+				const shaper = plan.shape
+					? new AudioShaper(plan.shape.speed, plan.shape.fade, plan.shape.length)
+					: null;
+				pumps.push(async () => encodeAudio(track, source, where, gain, shaper, pace, 1 + index, signal));
 			} else {
 				const source = new EncodedAudioPacketSource(own);
 				output.addAudioTrack(source, metadata);
@@ -418,6 +426,7 @@ async function encodeAudio(
 	source: AudioSampleSource,
 	placed: readonly Placed[],
 	gain: number,
+	shaper: AudioShaper | null,
 	pace: Pace,
 	index: number,
 	signal: AbortSignal,
@@ -432,7 +441,8 @@ async function encodeAudio(
 			);
 			// oxlint-disable-next-line no-await-in-loop -- parts are encoded in order
 			for await (const sample of samples) {
-				const pieces = placeAudio(sample, [part], 0, gain);
+				const placedPieces = placeAudio(sample, [part], 0, gain);
+				const pieces = shaper ? shaper.shape(placedPieces, sample) : placedPieces;
 				sample.close();
 				for (const piece of pieces) {
 					if (!signal.aborted) {

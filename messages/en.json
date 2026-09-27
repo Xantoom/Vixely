@@ -885,6 +885,7 @@
 	"video_final_length": "Final length",
 	"copy_keyframe_kept": "Kept: the copy starts on a key frame",
 	"copy_blocked_picture": "Crop, turns and colours need the video encoded again",
+	"copy_blocked_time": "Speed and fades need the video encoded again",
 	"copy_blocked_burn": "Burned-in subtitles need the video encoded again",
 	"export_rate_control": "Rate control",
 	"rate_bitrate": "Target bitrate",

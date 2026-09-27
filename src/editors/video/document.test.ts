@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cut, isShortened, keptRanges, outputDuration, setTrim } from '@/document/kept';
 import { createText } from '@/editor/overlays/model';
-import { composeTurn, createVideoDoc, editTurn, pictureChange } from './document';
+import { composeTurn, createVideoDoc, editTurn, fadeLevel, pictureChange, timeShaped, videoLength } from './document';
 
 describe('video document', () => {
 	it('removes passages without touching the pictures', () => {
@@ -56,5 +56,23 @@ describe('video document', () => {
 		const doc = createVideoDoc(10);
 		expect(isShortened(doc)).toBe(false);
 		expect(isShortened(setTrim(doc, { start: 1, end: 10 }))).toBe(true);
+	});
+});
+
+describe('pace and fades', () => {
+	it('shortens the output by the speed', () => {
+		const doc = { ...createVideoDoc(60), speed: 2 };
+		expect(videoLength(doc)).toBe(30);
+		expect(timeShaped(doc)).toBe(true);
+		expect(timeShaped(createVideoDoc(60))).toBe(false);
+	});
+
+	it('fades in from nothing and out to nothing', () => {
+		const fade = { in: 2, out: 4 };
+		expect(fadeLevel(fade, 0, 30)).toBe(0);
+		expect(fadeLevel(fade, 1, 30)).toBe(0.5);
+		expect(fadeLevel(fade, 10, 30)).toBe(1);
+		expect(fadeLevel(fade, 28, 30)).toBe(0.5);
+		expect(fadeLevel(fade, 30, 30)).toBe(0);
 	});
 });

@@ -42,7 +42,7 @@ export const EDITORS: Record<MediaKind, EditorDefinition> = {
 		path: '/video',
 		label: () => m.media_video(),
 		page: () => m.editor_page_video(),
-		tools: ['info', 'presets', 'trim', 'crop', 'adjust', 'layers', 'audio', 'subtitles'],
+		tools: ['info', 'presets', 'trim', 'speed', 'crop', 'adjust', 'layers', 'audio', 'subtitles'],
 		timed: true,
 	},
 	image: {

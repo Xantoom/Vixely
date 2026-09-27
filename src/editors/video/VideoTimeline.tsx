@@ -1,6 +1,6 @@
 import { ChevronsLeftRight, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
 import { type PointerEvent as ReactPointerEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { keptRanges, outputDuration, restoreCut, setTrim } from '@/document/kept';
+import { keptRanges, restoreCut, setTrim } from '@/document/kept';
 import type { Range } from '@/document/timemap';
 import { beyond, MIN_VIEW, totalLength } from '@/document/timemap';
 import type { OverlayEditing } from '@/editor/overlays/editing';
@@ -21,7 +21,7 @@ import { useBoxSize } from '@/ui/use-box-size';
 import { shownCues } from '../subtitles/document';
 import { useSubtitleProject } from '../subtitles/project';
 import { useSubtitleDoc } from '../subtitles/store';
-import type { VideoDoc } from './document';
+import { type VideoDoc, videoLength } from './document';
 import { useVideoDoc, useVideoEditor } from './store';
 
 /** Height of the picture lane, in CSS pixels. */
@@ -309,7 +309,7 @@ function Toolbar() {
 		<div className="flex items-center gap-3">
 			<span className="text-ui text-muted">{m.video_final_length()}</span>
 			<span className="tabular font-mono text-[12.5px]">
-				{formatPreciseTime(copied ? totalLength(copied) : outputDuration(doc))}
+				{formatPreciseTime(copied ? totalLength(copied) : videoLength(doc))}
 			</span>
 			<div className="flex-1" />
 			<div className="flex gap-0.5">

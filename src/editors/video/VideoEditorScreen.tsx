@@ -11,13 +11,14 @@ import { Timeline } from '@/editor/Timeline';
 import { Viewer } from '@/editor/Viewer';
 import { ZoomStatus } from '@/editor/ZoomStage';
 import { EDITORS, type ToolId } from '@/editors/registry';
-import { usePlayback } from '@/media/playback';
+import { NO_SHAPING, usePlayback } from '@/media/playback';
 import { useOpened, useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { effectiveCrop } from '../image/document';
 import { AdjustPanel, CropPanel } from '../image/panels';
 import { useSubtitleProject } from '../subtitles/project';
 import { VideoBatchFooter } from './BatchFooter';
+import { fadeOf, speedOf, videoLength } from './document';
 import { resolveAudio } from './export';
 import {
 	useCopiedRanges,
@@ -31,6 +32,7 @@ import { muxContainer } from './mux';
 import { MuxFooter } from './MuxPanel';
 import { OpenIn, VideoAudioPanel, VideoPresetsPanel, VideoSubtitlesPanel } from './panels';
 import { useVideoDoc, useVideoEditor, useVideoPictureEditing, useVideoUndoState, videoOverlayEditing } from './store';
+import { VideoFades, VideoSpeedPanel } from './TimePanels';
 import { VideoPreview } from './VideoPreview';
 import { VideoTimeline } from './VideoTimeline';
 
@@ -126,7 +128,18 @@ function VideoTrimPanel() {
 	const doc = useVideoDoc();
 	const apply = useVideoEditor((state) => state.apply);
 	const playhead = usePlayback((state) => state.time);
-	return <KeptPanel editing={{ doc, apply, playhead, lengthLabel: m.video_final_length() }} />;
+	return (
+		<KeptPanel
+			editing={{
+				doc,
+				apply,
+				playhead,
+				lengthLabel: m.video_final_length(),
+				length: videoLength(doc),
+				extra: <VideoFades />,
+			}}
+		/>
+	);
 }
 
 /**
@@ -184,9 +197,16 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 		// Only the kept ranges matter here, not the picture.
 		// oxlint-disable-next-line react-hooks/exhaustive-deps
 	}, [ready, trim, cuts]);
+	// Playback goes at the video's speed, with its fades.
+	const speed = speedOf(doc);
+	const { in: fadeIn, out: fadeOut } = fadeOf(doc);
+	useEffect(() => {
+		usePlayback.getState().setShaping({ speed, fade: { in: fadeIn, out: fadeOut } });
+	}, [speed, fadeIn, fadeOut]);
 	useEffect(
 		() => () => {
 			usePlayback.getState().setRanges(null);
+			usePlayback.getState().setShaping(NO_SHAPING);
 		},
 		[],
 	);
@@ -222,6 +242,7 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 		if (!ready) return <ToolLater kind="video" tool={tool} />;
 		if (tool === 'presets') return <VideoPresetsPanel upright={upright} />;
 		if (tool === 'trim') return <VideoTrimPanel />;
+		if (tool === 'speed') return <VideoSpeedPanel />;
 		if (tool === 'crop') return <CropPanel editing={editing} />;
 		if (tool === 'adjust') return <AdjustPanel editing={editing} />;
 		if (tool === 'layers') return <LayersPanel editing={overlays} textRef={textRef} />;

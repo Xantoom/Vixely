@@ -1,6 +1,8 @@
 import { useNavigate } from '@tanstack/react-router';
 import { Camera, Captions } from 'lucide-react';
 import { type CSSProperties, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { keptRanges } from '@/document/kept';
+import { toOutput } from '@/document/timemap';
 import { CropOverlay } from '@/editor/CropOverlay';
 import type { OverlayEditing } from '@/editor/overlays/editing';
 import { shownAt } from '@/editor/overlays/model';
@@ -21,6 +23,8 @@ import { isAdded, useProjectTracks, useSubtitleProject } from '../subtitles/proj
 import { useSubtitleDoc } from '../subtitles/store';
 import { SubtitleLayer } from '../subtitles/SubtitleViewer';
 import { capturePicture, carryEdits } from './capture';
+import { fadeLevel, fadeOf, speedOf, videoLength } from './document';
+import { useVideoDoc } from './store';
 
 const OFF = 'off';
 
@@ -213,6 +217,23 @@ function subtitleBox(picture: ImageDoc, crop: Rect, upright: Size, scale: number
  * frame on top. Shares its player with the subtitle editor: going from one to the other keeps the
  * moment and the tracks.
  */
+/** Black over the picture during the fades, as dark as the export will be at this moment. */
+function FadeVeil({ time }: { time: number }) {
+	const doc = useVideoDoc();
+	const fade = fadeOf(doc);
+	if (fade.in <= 0 && fade.out <= 0) return null;
+	const output = toOutput(keptRanges(doc), time) / speedOf(doc);
+	const level = fadeLevel(fade, output, videoLength(doc));
+	if (level >= 1) return null;
+	return (
+		<div
+			aria-hidden="true"
+			className="pointer-events-none absolute inset-0 rounded-[3px] bg-black"
+			style={{ opacity: 1 - level }}
+		/>
+	);
+}
+
 export function VideoPreview({
 	opened,
 	editing,
@@ -298,6 +319,7 @@ export function VideoPreview({
 									</div>
 								</div>
 							)}
+							{!cropping && !comparing && <FadeVeil time={time} />}
 							{cropping && (
 								<VideoCropOverlay editing={editing} crop={crop} scale={scale} bounds={bounds} />
 							)}

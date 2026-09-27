@@ -1,5 +1,5 @@
 import type { Rotation } from 'mediabunny';
-import type { Kept } from '@/document/kept';
+import { type Kept, outputDuration } from '@/document/kept';
 import { createImageDoc, type ImageDoc, isAdjusted } from '../image/document';
 
 /** A picture embedded in the file, as players and file browsers show it. */
@@ -29,10 +29,54 @@ export interface VideoDoc extends Kept {
 	picture: ImageDoc;
 	/** The title, artist, date and cover as edited; null keeps the file's. */
 	meta: VideoMeta | null;
+	/** How fast it plays, sound at the same pitch: 0.5 is half speed. Absent plays as it was shot. */
+	speed?: number;
+	/** Fades from and to black and silence, in seconds of the output. Absent for none. */
+	fade?: VideoFade;
 }
+
+export interface VideoFade {
+	in: number;
+	out: number;
+}
+
+export const NO_FADE: VideoFade = { in: 0, out: 0 };
+
+/** Speeds offered, as in the GIF editor. */
+export const VIDEO_SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
 
 export function createVideoDoc(duration: number): VideoDoc {
 	return { duration, trim: { start: 0, end: duration }, cuts: [], picture: createImageDoc(), meta: null };
+}
+
+/** Length of the output, in seconds: what is kept, at its new pace. */
+export function videoLength(doc: VideoDoc): number {
+	return outputDuration(doc) / speedOf(doc);
+}
+
+export function speedOf(doc: VideoDoc): number {
+	return doc.speed ?? 1;
+}
+
+export function fadeOf(doc: VideoDoc): VideoFade {
+	return doc.fade ?? NO_FADE;
+}
+
+/** Whether the pace or the fades change the output, which then must be encoded again. */
+export function timeShaped(doc: VideoDoc): boolean {
+	const fade = fadeOf(doc);
+	return speedOf(doc) !== 1 || fade.in > 0 || fade.out > 0;
+}
+
+/**
+ * How visible the picture and how loud the sound are at `time` seconds of an output `length`
+ * long: rising from 0 over the fade in, falling back to 0 over the fade out.
+ */
+export function fadeLevel(fade: VideoFade, time: number, length: number): number {
+	let level = 1;
+	if (fade.in > 0) level = Math.min(level, Math.max(0, time / fade.in));
+	if (fade.out > 0) level = Math.min(level, Math.max(0, (length - time) / fade.out));
+	return level;
 }
 
 /**

@@ -86,7 +86,17 @@ interface PlaybackState {
 	setClockLength: (length: number) => void;
 	/** Plays only these parts of the file: the video editor's trim and cuts. Null plays it all. */
 	setRanges: (ranges: Range[] | null) => void;
+	/** How fast the video plays and its fades, in seconds of what is seen. */
+	shaping: Shaping;
+	setShaping: (shaping: Shaping) => void;
 }
+
+export interface Shaping {
+	speed: number;
+	fade: { in: number; out: number };
+}
+
+export const NO_SHAPING: Shaping = { speed: 1, fade: { in: 0, out: 0 } };
 
 const clock = new Clock();
 /** Where a range played with `playRange` stops. */
@@ -129,6 +139,7 @@ export const usePlayback = create<PlaybackState>((set, get) => {
 		audioTrack: null,
 		clockLength: 0,
 		ranges: null,
+		shaping: NO_SHAPING,
 
 		load(file) {
 			if (file === get().file) return;
@@ -153,6 +164,7 @@ export const usePlayback = create<PlaybackState>((set, get) => {
 						if (get().player !== player) return;
 						set({ details });
 						player.setRanges(get().ranges);
+						player.setShaping(get().shaping.speed, get().shaping.fade);
 						player.seek(get().time);
 					},
 					() => {
@@ -200,6 +212,11 @@ export const usePlayback = create<PlaybackState>((set, get) => {
 		setRanges(ranges) {
 			set({ ranges });
 			get().player?.setRanges(ranges);
+		},
+
+		setShaping(shaping) {
+			set({ shaping });
+			get().player?.setShaping(shaping.speed, shaping.fade);
 		},
 
 		setClockLength(length) {
