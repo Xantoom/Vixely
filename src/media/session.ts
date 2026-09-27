@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { StillImage } from '@/editors/gif/source';
 import type { MediaKind } from '@/editors/registry';
 import { m } from '@/paraglide/messages.js';
 import { identify } from './identify';
@@ -15,6 +16,8 @@ export interface OpenedFile {
 	/** Null when the file could be identified but not read further. */
 	info: MediaInfo | null;
 	poster: ImageBitmap | null;
+	/** An animation made from still images, `file` being the first: all of them, in order. */
+	images?: StillImage[];
 }
 
 /** A file of a batch: identified, not read yet. */
@@ -57,6 +60,10 @@ interface SessionState {
 	select: (item: BatchFile) => Promise<void>;
 	addToBatch: (files: File[]) => Promise<void>;
 	removeFromBatch: (id: number) => void;
+	/** Opens still images in the GIF editor as the frames of one animation. */
+	makeGif: (files: File[]) => Promise<boolean>;
+	/** Adds still images at the end of the animation made from images; false if none were. */
+	addImages: (files: File[]) => Promise<boolean>;
 	clearError: () => void;
 }
 
@@ -131,6 +138,15 @@ async function batchKindOf(files: File[], prefer: MediaKind | undefined): Promis
 	return null;
 }
 
+/** The still images among files, in order, and how many other files there were. */
+async function stillImages(files: readonly File[]): Promise<{ images: StillImage[]; others: number }> {
+	const results = await Promise.all(files.map(async (file) => ({ file, result: await identify(file) })));
+	const images = results.flatMap(({ file, result }) =>
+		result.ok && result.value.kind === 'image' ? [{ file, format: result.value.format }] : [],
+	);
+	return { images, others: files.length - images.length };
+}
+
 export const useSession = create<SessionState>((set, get) => ({
 	opened: {},
 	current: null,
@@ -146,6 +162,15 @@ export const useSession = create<SessionState>((set, get) => ({
 		const reading =
 			files.length > 1 ? m.drop_reading_many({ count: files.length }) : m.drop_reading({ name: first.name });
 		set({ reading, error: null });
+
+		// Still images dropped on the GIF editor become the frames of one animation.
+		if (prefer === 'gif') {
+			const { images, others } = await stillImages(files);
+			if (images.length > 0 && (others === 0 || files.length > 1)) {
+				set({ reading: null });
+				return (await get().makeGif(images.map((image) => image.file))) ? 'gif' : null;
+			}
+		}
 
 		if (files.length > 1) {
 			const kind = await batchKindOf(files, prefer);
@@ -247,6 +272,42 @@ export const useSession = create<SessionState>((set, get) => ({
 		// Keep a batch of one as a batch, so the strip stays until the user leaves it.
 		set({ batch });
 		if (current && first && !batch.some((item) => item.file === current.file)) void get().select(first);
+	},
+
+	async makeGif(files) {
+		const { images, others } = await stillImages(files);
+		const [lead] = images;
+		if (!lead) {
+			set({ error: { reason: 'unknown' } });
+			return false;
+		}
+		const opened: OpenedFile = {
+			...(await read(lead.file, 'image', lead.format)),
+			kind: 'gif',
+			format: 'images',
+			images,
+		};
+		set({
+			opened: withOpened(get().opened, 'gif', opened),
+			current: opened,
+			...(get().batchKind === 'gif' ? { batch: null, batchKind: null, batchKey: null } : {}),
+			error: others > 0 ? { reason: 'skipped', count: others } : null,
+		});
+		return true;
+	},
+
+	async addImages(files) {
+		const current = get().opened.gif;
+		if (!current?.images) return false;
+		const { images, others } = await stillImages(files);
+		if (images.length === 0) return false;
+		const opened = { ...current, images: [...current.images, ...images] };
+		set({
+			opened: withOpened(get().opened, 'gif', opened),
+			...(get().current === current ? { current: opened } : {}),
+			error: others > 0 ? { reason: 'skipped', count: others } : null,
+		});
+		return true;
 	},
 
 	clearError() {

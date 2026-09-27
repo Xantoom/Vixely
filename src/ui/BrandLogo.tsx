@@ -1,7 +1,7 @@
 import { Globe, Mail, Square } from 'lucide-react';
 import { BRANDS, type BrandId } from './brands';
 
-export type LogoId = BrandId | 'email' | 'linkedin' | 'square' | 'uhd' | 'web';
+export type LogoId = BrandId | 'email' | 'linkedin' | 'slack' | 'square' | 'uhd' | 'web';
 
 /** Whether white reads on a colour; dark glyphs go on light ones such as Snapchat's yellow. */
 function takesWhite(hex: string): boolean {
@@ -34,6 +34,18 @@ export function BrandLogo({ logo, size = 28 }: { logo: LogoId; size?: number }) 
 						4K
 					</span>
 				)}
+			</span>
+		);
+	}
+	// Slack's logo is not free to use: its colour and a hash, as its channels are named.
+	if (logo === 'slack') {
+		return (
+			<span
+				className={`${tile} font-bold text-white`}
+				style={{ width: size, height: size, background: '#4A154B', fontSize: size * 0.56 }}
+				aria-hidden="true"
+			>
+				#
 			</span>
 		);
 	}

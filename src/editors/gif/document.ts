@@ -36,6 +36,10 @@ export interface GifDoc {
 	fade: Fade;
 	/** Bands around the picture to reach a shape (a square for a sticker); null for none. */
 	bands: Bands | null;
+	/** How long frames show, in seconds, by the source time they show, when changed by hand. */
+	delays?: Record<number, number>;
+	/** The frames' play order, by the source time they show; frames not listed follow, in order. */
+	order?: number[] | null;
 }
 
 export type FadeColor = 'black' | 'white' | 'transparent';
@@ -102,7 +106,9 @@ export function framesUntouched(doc: GifDoc): boolean {
 		doc.skip === 1 &&
 		doc.fade.in === 0 &&
 		doc.fade.out === 0 &&
-		doc.bands === null
+		doc.bands === null &&
+		Object.keys(doc.delays ?? {}).length === 0 &&
+		!doc.order
 	);
 }
 
@@ -122,28 +128,29 @@ export interface FrameLayout {
 
 /**
  * The frame's size and where the picture goes: the crop, turned, then widened or heightened by
- * the bands to their shape, scaled to `width` (never enlarged). Video encoders need even sizes.
+ * the bands to their shape, scaled to `width` (never enlarged), or stretched to `exact`. Video
+ * encoders need even sizes.
  */
-export function frameLayout(doc: GifDoc, source: Size, width: number | null, even = false): FrameLayout {
+export function frameLayout(
+	doc: GifDoc,
+	source: Size,
+	width: number | null,
+	even = false,
+	exact: Size | null = null,
+): FrameLayout {
 	const crop = effectiveCrop(doc.picture, source);
-	let natural: Size = { width: crop.width, height: crop.height };
-	if (doc.bands) {
-		const ratio = doc.bands.ratio;
-		natural =
-			crop.width / crop.height > ratio
-				? { width: crop.width, height: crop.width / ratio }
-				: { width: crop.height * ratio, height: crop.height };
-	}
+	const natural = naturalSize(doc, source);
 	const scale = Math.min(1, (width ?? natural.width) / natural.width);
-	let outWidth = Math.max(1, Math.round(natural.width * scale));
-	let outHeight = Math.max(1, Math.round(natural.height * scale));
+	let outWidth = Math.max(1, Math.round(exact?.width ?? natural.width * scale));
+	let outHeight = Math.max(1, Math.round(exact?.height ?? natural.height * scale));
 	if (even) {
 		outWidth = Math.max(2, outWidth - (outWidth % 2));
 		outHeight = Math.max(2, outHeight - (outHeight % 2));
 	}
-	const k = outWidth / natural.width;
-	const contentWidth = Math.min(outWidth, Math.round(crop.width * k));
-	const contentHeight = Math.min(outHeight, Math.round(crop.height * k));
+	const kx = outWidth / natural.width;
+	const ky = exact ? outHeight / natural.height : kx;
+	const contentWidth = Math.min(outWidth, Math.round(crop.width * kx));
+	const contentHeight = Math.min(outHeight, Math.round(crop.height * ky));
 	return {
 		width: outWidth,
 		height: outHeight,
@@ -154,6 +161,16 @@ export function frameLayout(doc: GifDoc, source: Size, width: number | null, eve
 			height: contentHeight,
 		},
 	};
+}
+
+/** The frame's own size, before any resizing: the crop, turned, with its bands. */
+export function naturalSize(doc: GifDoc, source: Size): Size {
+	const crop = effectiveCrop(doc.picture, source);
+	if (!doc.bands) return { width: crop.width, height: crop.height };
+	const ratio = doc.bands.ratio;
+	return crop.width / crop.height > ratio
+		? { width: crop.width, height: Math.round(crop.width / ratio) }
+		: { width: Math.round(crop.height * ratio), height: crop.height };
 }
 
 export function setTrim(doc: GifDoc, trim: Range): GifDoc {
@@ -177,19 +194,31 @@ export interface SourceTiming {
 	duration: number;
 }
 
+/** `frames` in the order of `order`, by frame key; the frames it does not list follow, in order. */
+function ordered<T extends { source: number }>(frames: readonly T[], order: readonly number[]): T[] {
+	const rank = new Map(order.map((key, index) => [key, index]));
+	return frames
+		.map((frame, index) => ({ frame, rank: rank.get(frameKey(frame.source)) ?? order.length + index }))
+		.toSorted((a, b) => a.rank - b.rank)
+		.map(({ frame }) => frame);
+}
+
 /** The frames played forward over the trim, before direction is applied. */
 function forwardFrames(doc: GifDoc, timing: readonly SourceTiming[] | null): { source: number; duration: number }[] {
 	const { start, end } = doc.trim;
 	if (doc.fps === null && timing) {
-		// The source's own frames: each keeps its delay, shortened at the trim edges, then sped up.
-		return timing
+		// The source's own frames: each keeps its delay, or the one given, shortened at the trim
+		// edges, then sped up; in the order given, if any.
+		const frames = timing
 			.filter((frame) => frame.start + frame.duration > start && frame.start < end)
 			.map((frame) => {
 				const from = Math.max(frame.start, start);
 				const to = Math.min(frame.start + frame.duration, end);
-				return { source: from, duration: (to - from) / doc.speed };
+				const delay = doc.delays?.[frameKey(from)] ?? frame.duration;
+				return { source: from, duration: (delay * (to - from)) / frame.duration / doc.speed };
 			})
 			.filter((frame) => frame.duration > 1e-6);
+		return doc.order ? ordered(frames, doc.order) : frames;
 	}
 	const fps = doc.fps ?? 20;
 	const length = (end - start) / doc.speed;
@@ -229,6 +258,31 @@ export function outputFrames(doc: GifDoc, timing: readonly SourceTiming[] | null
 		clock += frame.duration;
 		return output;
 	});
+}
+
+/** The frames kept, forward, by key: the order the Frames tool shows before the direction. */
+export function keptKeys(doc: GifDoc, timing: readonly SourceTiming[] | null): number[] {
+	const removed = new Set(doc.removed);
+	return forwardFrames(doc, timing)
+		.map((frame) => frameKey(frame.source))
+		.filter((key) => !removed.has(key));
+}
+
+/** The frame `key` moved to `index` among the frames kept, forward. */
+export function moveFrame(doc: GifDoc, timing: readonly SourceTiming[] | null, key: number, index: number): GifDoc {
+	const keys = keptKeys(doc, timing);
+	const from = keys.indexOf(key);
+	if (from < 0) return doc;
+	keys.splice(from, 1);
+	keys.splice(Math.min(keys.length, Math.max(0, index)), 0, key);
+	return { ...doc, order: keys };
+}
+
+/** Frames shown `seconds` each on the output, whatever the speed. */
+export function setFrameDelays(doc: GifDoc, keys: readonly number[], seconds: number): GifDoc {
+	const delays = { ...doc.delays };
+	for (const key of keys) delays[key] = seconds * doc.speed;
+	return { ...doc, delays };
 }
 
 export function outputLength(frames: readonly OutputFrame[]): number {

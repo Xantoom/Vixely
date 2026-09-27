@@ -1,5 +1,7 @@
-import { Check, Plus, X } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
+import { Check, Film, Plus, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { EDITORS } from '@/editors/registry';
 import { type BatchFile, useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { useDragScroll } from '@/ui/drag-scroll';
@@ -96,6 +98,8 @@ export function BatchStrip({ statuses, locked }: { statuses: ReadonlyMap<number,
 	const select = useSession((state) => state.select);
 	const remove = useSession((state) => state.removeFromBatch);
 	const add = useSession((state) => state.addToBatch);
+	const makeGif = useSession((state) => state.makeGif);
+	const navigate = useNavigate();
 	const error = useSession((state) => state.error);
 	const inputRef = useRef<HTMLInputElement>(null);
 
@@ -105,6 +109,19 @@ export function BatchStrip({ statuses, locked }: { statuses: ReadonlyMap<number,
 				<span className="text-ui">
 					<span className="font-semibold">{m.batch_count({ count: batch.length })}</span>
 				</span>
+				<button
+					type="button"
+					disabled={locked}
+					onClick={() => {
+						void makeGif(batch.map((item) => item.file)).then(async (made) => {
+							if (made) await navigate({ to: EDITORS.gif.path });
+						});
+					}}
+					className="text-ui text-ink-2 enabled:hover:bg-surface enabled:hover:text-ink ml-auto flex h-8 items-center gap-1.5 rounded-sm px-2.5 font-medium transition-colors disabled:opacity-40"
+				>
+					<Film size={15} aria-hidden="true" />
+					{m.batch_make_gif()}
+				</button>
 				<button
 					type="button"
 					disabled={locked}

@@ -159,7 +159,9 @@ export function GifTimeline({ engine }: { engine: GifEngine }) {
 					ref={stripRef}
 					role="group"
 					aria-label={m.filmstrip()}
-					className="bg-surface-2 relative cursor-pointer touch-none overflow-visible rounded-xs select-none"
+					// Focusable, so the keyboard reaches it: the arrows step through the frames.
+					tabIndex={0}
+					className="bg-surface-2 focus-visible:outline-ed-text relative cursor-pointer touch-none overflow-visible rounded-xs select-none"
 					style={{ height: STRIP_HEIGHT }}
 					onPointerDown={(event) => {
 						if (event.button !== 0) return;

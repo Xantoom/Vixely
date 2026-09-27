@@ -170,6 +170,36 @@ const FAQ: Record<string, Record<Locale, Qa[]>> = {
 			],
 		],
 	},
+	'images-to-gif': {
+		en: [
+			[
+				'How do I make a GIF from photos?',
+				'Drop all your images at once: each one becomes a frame, in the order they were chosen. Drag the frames to change the order, and set how long each one shows.',
+			],
+			[
+				'What if my images are not the same size?',
+				'The GIF takes the shape of the first image; the others are fitted whole inside it. Crop and resize the result like any GIF.',
+			],
+			[
+				'Can I save it as a video instead?',
+				'Yes: the export also makes MP4, WebM, animated WebP and APNG, which weigh less than a GIF.',
+			],
+		],
+		fr: [
+			[
+				'Comment faire un GIF à partir de photos ?',
+				'Déposez toutes vos images d’un coup : chacune devient une image du GIF, dans l’ordre choisi. Faites glisser les images pour changer l’ordre et réglez la durée de chacune.',
+			],
+			[
+				'Et si mes images n’ont pas la même taille ?',
+				'Le GIF prend la forme de la première image ; les autres y sont placées en entier. Recadrez et redimensionnez le résultat comme n’importe quel GIF.',
+			],
+			[
+				'Puis-je l’enregistrer en vidéo ?',
+				'Oui : l’export fait aussi du MP4, du WebM, du WebP animé et de l’APNG, plus légers qu’un GIF.',
+			],
+		],
+	},
 	'video-to-gif': {
 		en: [
 			[

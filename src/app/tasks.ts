@@ -73,6 +73,13 @@ export const TASKS: Task[] = [
 		description: () => m.tool_video_to_gif_desc(),
 	},
 	{
+		slug: 'images-to-gif',
+		editor: 'gif',
+		tool: 'frames',
+		title: () => m.tool_images_to_gif(),
+		description: () => m.tool_images_to_gif_desc(),
+	},
+	{
 		slug: 'gif-to-mp4',
 		editor: 'gif',
 		tool: 'export',

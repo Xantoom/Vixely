@@ -174,6 +174,8 @@ function sessionFiles(): File[] {
 		const files = batch.map((item) => item.file);
 		return current ? [current.file, ...files.filter((file) => file !== current.file)] : files;
 	}
+	// An animation made from images needs every one of them.
+	if (current?.images) return current.images.map((image) => image.file);
 	return current ? [current.file] : [];
 }
 

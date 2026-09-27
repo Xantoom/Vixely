@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useDropHandler } from '@/app/GlobalDrop';
 import { useLeaveGuard } from '@/app/leave-guard';
 import { type ItemStatus, BatchList } from '@/editor/BatchList';
 import { EditorLayout } from '@/editor/EditorLayout';
@@ -25,6 +26,7 @@ import {
 	SpeedPanel,
 	TrimPanel,
 } from './panels';
+import { GifResizePanel } from './ResizePanel';
 import { useGifEditor, useGifPictureEditing, useGifUndoState } from './store';
 
 /**
@@ -112,6 +114,18 @@ export function GifEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	useEditorShortcuts({ undo, redo });
 	useGifShortcuts(engine);
 
+	// An animation made from images opens on its frames, and takes more images dropped on it.
+	const fromImages = Boolean(opened?.images);
+	const lead = opened?.file ?? null;
+	useEffect(() => {
+		if (fromImages && (initialTool ?? 'info') === 'info') setTool('frames');
+	}, [lead, fromImages, initialTool]);
+	const addImages = useSession((state) => state.addImages);
+	useDropHandler(async (files) => {
+		if (!fromImages) return false;
+		return addImages(files);
+	});
+
 	const inspector = () => {
 		if (tool === 'info' || !source) return <GifInfoPanel engine={engine} opened={opened} />;
 		if (tool === 'presets') return <GifPresetsPanel engine={engine} />;
@@ -123,6 +137,7 @@ export function GifEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 					<BandsSection width={source.width} height={source.height} />
 				</>
 			);
+		if (tool === 'resize') return <GifResizePanel source={source} />;
 		if (tool === 'adjust') return <AdjustPanel editing={editing} />;
 		if (tool === 'layers') return <LayersPanel editing={overlayEditing(editing)} textRef={textRef} />;
 		if (tool === 'speed') return <SpeedPanel animated={source.timing !== null} />;

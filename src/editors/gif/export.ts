@@ -11,6 +11,7 @@ import {
 } from 'mediabunny';
 import { effectiveCrop, type Size } from '@/editors/image/document';
 import { GifEncoder, trimGif, WebpStillEncoder } from '@/media/gif-codec';
+import { readGifInfo, setLastDelay } from '@/media/gif-info';
 import { assembleWebp, type WebpFrame } from '@/media/webp-animation';
 import { FrameComposer } from './compose';
 import {
@@ -46,8 +47,13 @@ export async function videoCodec(width: number, height: number, alpha = false): 
 }
 
 /** The frame's size and layout for these settings. */
-export function exportLayout(doc: GifDoc, source: Size, settings: Pick<GifExportSettings, 'width' | 'format'>) {
-	return frameLayout(doc, source, settings.width, settings.format === 'video');
+export function exportLayout(
+	doc: GifDoc,
+	source: Size,
+	settings: Pick<GifExportSettings, 'width' | 'exact' | 'format'>,
+) {
+	// Settings kept from before the exact size existed have none.
+	return frameLayout(doc, source, settings.width, settings.format === 'video', settings.exact ?? null);
 }
 
 let webpSupport: Promise<boolean> | null = null;
@@ -75,7 +81,7 @@ export function copyBlocker(
 	isGif: boolean,
 ): 'frames' | 'source' | null {
 	if (!isGif || !source.timing) return 'source';
-	const resized = settings.width !== null && settings.width < source.width;
+	const resized = (settings.width !== null && settings.width < source.width) || Boolean(settings.exact);
 	if (doc.speed !== 1 || doc.direction !== 'forward' || doc.fps !== null || !framesUntouched(doc) || resized)
 		return 'frames';
 	return null;
@@ -103,7 +109,7 @@ function stopped(): DOMException {
  * pixels to `add`.
  */
 async function drawFrames(
-	{ source, doc, signal, onProgress }: ExportGifOptions,
+	{ source, doc, settings, signal, onProgress }: ExportGifOptions,
 	frames: readonly OutputFrame[],
 	layout: FrameLayout,
 	add: (image: ImageData, frame: OutputFrame) => Promise<void> | void,
@@ -125,7 +131,11 @@ async function drawFrames(
 			if (signal.aborted) throw stopped();
 			const frame = frames[index];
 			if (frame) {
-				composer.draw(context, picture, source, doc, layout, { time: frame.start, length });
+				composer.draw(context, picture, source, doc, layout, {
+					time: frame.start,
+					length,
+					sampling: settings.sampling ?? 'smooth',
+				});
 				// Frames are drawn and encoded in order; each waits for the previous one.
 				// oxlint-disable-next-line no-await-in-loop
 				await add(context.getImageData(0, 0, layout.width, layout.height), frame);
@@ -165,6 +175,10 @@ async function exportPalette(options: ExportGifOptions, frames: readonly OutputF
 		options.onProgress(null);
 		const bytes = await encoder.finish();
 		if (signal.aborted) throw stopped();
+		const last = frames.at(-1);
+		// gifski merges a frame the same as the one before: the last delay is then theirs together.
+		if (format === 'gif' && last && readGifInfo(bytes)?.delays.length === frames.length)
+			setLastDelay(bytes, last.duration * 1000);
 		return new Blob([bytes.slice()], { type: FORMAT_FILES[format].mime });
 	} finally {
 		signal.removeEventListener('abort', stop);
@@ -327,9 +341,14 @@ export async function exportWithinLimit(
 	for (let attempt = 1; attempt < FIT_ATTEMPTS && width > FIT_MIN_WIDTH; attempt++) {
 		width = Math.max(FIT_MIN_WIDTH, Math.floor(width * Math.sqrt(limit / blob.size) * 0.92));
 		onRetry(width);
+		// An exact size shrinks as a whole, keeping its shape.
+		const exact = settings.exact && {
+			width,
+			height: Math.max(1, Math.round((settings.exact.height * width) / settings.exact.width)),
+		};
 		// Attempts depend on each other: each width comes from the last size.
 		// oxlint-disable-next-line no-await-in-loop
-		blob = await exportGif({ ...options, settings: { ...settings, width } });
+		blob = await exportGif({ ...options, settings: { ...settings, width, exact } });
 		if (blob.size <= limit) return { blob, fittedWidth: width, fits: true };
 	}
 	return { blob, fittedWidth: width, fits: false };

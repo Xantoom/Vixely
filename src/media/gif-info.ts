@@ -73,3 +73,40 @@ export function readGifInfo(bytes: Uint8Array): GifInfo | null {
 	}
 	return info;
 }
+
+/**
+ * Sets the delay of a GIF's last frame, in place. gifski times frames by when they start, so it
+ * can only guess how long the last one lasts; the delay asked for is written over its guess.
+ * Returns false when the file has no delay to set.
+ */
+export function setLastDelay(bytes: Uint8Array, milliseconds: number): boolean {
+	const byte = (at: number) => bytes[at] ?? 0;
+	const skipBlocks = (from: number) => {
+		let position = from;
+		while (position < bytes.length && byte(position) !== 0) position += byte(position) + 1;
+		return position + 1;
+	};
+	let at = 13;
+	if (byte(10) & 0x80) at += (2 << (byte(10) & 0x07)) * 3;
+	let control = -1;
+	let last = -1;
+	while (at < bytes.length) {
+		const kind = byte(at);
+		if (kind === 0x21) {
+			if (byte(at + 1) === 0xf9) control = at;
+			at = skipBlocks(at + 2);
+		} else if (kind === 0x2c) {
+			const local = byte(at + 9);
+			at += 10;
+			if (local & 0x80) at += (2 << (local & 0x07)) * 3;
+			at = skipBlocks(at + 1);
+			last = control;
+			control = -1;
+		} else break;
+	}
+	if (last < 0) return false;
+	const hundredths = Math.max(2, Math.min(0xffff, Math.round(milliseconds / 10)));
+	bytes[last + 4] = hundredths & 0xff;
+	bytes[last + 5] = hundredths >> 8;
+	return true;
+}

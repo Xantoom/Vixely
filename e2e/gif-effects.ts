@@ -82,7 +82,8 @@ console.log('transparent video', out.name, out.data.length);
 
 // Presets: a Discord emoji is a 128 px square under 256 KB.
 await tool('Formats');
-await page.getByRole('button', { name: /Discord · Emoji/ }).click();
+await page.getByRole('button', { name: 'Discord', exact: true }).click();
+await page.getByRole('button', { name: /^Discord Emoji/ }).click();
 console.log('preset:', await status());
 await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 out = await exportNow();

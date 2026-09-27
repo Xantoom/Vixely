@@ -5,6 +5,8 @@ import {
 	frameAt,
 	frameKey,
 	frameLayout,
+	moveFrame,
+	setFrameDelays,
 	framesUntouched,
 	outputFrames,
 	outputLength,
@@ -32,6 +34,26 @@ describe('gif document', () => {
 		expect(frames).toHaveLength(6);
 		expect(frames[0]?.source).toBeCloseTo(0.25);
 		expect(outputLength(frames)).toBeCloseTo(0.25);
+	});
+
+	it('shows frames as long as asked, in the order asked', () => {
+		const doc = { ...createGifDoc(1, null), delays: { [frameKey(0.2)]: 0.5 }, order: [frameKey(0.2), frameKey(0)] };
+		const frames = outputFrames(doc, timing);
+		expect(frames.map((frame) => frame.source).slice(0, 3)).toEqual([0.2, 0, 0.1]);
+		expect(frames[0]?.duration).toBeCloseTo(0.5);
+		expect(outputLength(frames)).toBeCloseTo(1.4);
+		expect(framesUntouched(doc)).toBe(false);
+	});
+
+	it('moves a frame and sets frame delays', () => {
+		let doc = moveFrame({ ...createGifDoc(1, null), removed: [frameKey(0.5)] }, timing, frameKey(0.8), 0);
+		expect(
+			outputFrames(doc, timing)
+				.map((frame) => frame.source)
+				.slice(0, 2),
+		).toEqual([0.8, 0]);
+		doc = setFrameDelays({ ...doc, speed: 2 }, [frameKey(0.8)], 0.3);
+		expect(outputFrames(doc, timing)[0]?.duration).toBeCloseTo(0.3);
 	});
 
 	it('samples at a fixed rate when one is chosen', () => {

@@ -14,7 +14,7 @@ cd "work/$browser"
 # A group name stands for its scenarios, for a quick pass over what a change touches.
 declare -A groups=(
 	[image]="image-editor image-overlays"
-	[gif]="gif-editor gif-formats gif-effects gif-batch"
+	[gif]="gif-editor gif-formats gif-effects gif-batch gif-images"
 	[audio]="audio-sound"
 	[subtitles]="subtitles-editor subtitles-tracks subtitles-mux subtitles-batch subtitles-tools"
 	[video]="video-editor video-export video-complete video-batch"

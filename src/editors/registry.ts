@@ -58,7 +58,7 @@ export const EDITORS: Record<MediaKind, EditorDefinition> = {
 		path: '/gif',
 		label: () => m.media_gif(),
 		page: () => m.editor_page_gif(),
-		tools: ['info', 'presets', 'trim', 'crop', 'adjust', 'layers', 'speed', 'frames'],
+		tools: ['info', 'presets', 'trim', 'crop', 'resize', 'adjust', 'layers', 'speed', 'frames'],
 		timed: true,
 	},
 	audio: {

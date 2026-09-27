@@ -53,7 +53,9 @@ const afterBack = await trimmed();
 console.log('back in the video:', (await header.innerText()).replace(/\n/g, ' '), '| final length', afterBack, afterBack === before ? 'KEPT' : 'LOST');
 
 // A GIF made from the video, its frames shown without a click.
-await tools.getByRole('button', { name: 'Info' }).click();
+// The editor comes back on Info: clicking it again would close the panel.
+if ((await tools.getByRole('button', { name: 'Info' }).getAttribute('aria-pressed')) !== 'true')
+	await tools.getByRole('button', { name: 'Info' }).click();
 await aside.getByRole('button', { name: 'Make a GIF' }).click();
 await page.waitForURL('**/gif**', { timeout: 60000 });
 await page.waitForTimeout(2500);

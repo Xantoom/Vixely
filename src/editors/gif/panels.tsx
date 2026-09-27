@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import type { ItemStatus } from '@/editor/BatchList';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { ExportAnnounce } from '@/editor/ExportAnnounce';
+import { FormatGroups } from '@/editor/FormatGroups';
 import { FilePanel } from '@/editor/Inspector';
 import { Group, ResetButton, Section } from '@/editor/panel-parts';
 import { fitRatio } from '@/editors/image/crop';
@@ -21,7 +22,7 @@ import { exportGifBatch } from './batch-export';
 import { type Direction, type FadeColor, FRAME_RATES, frameLayout, NO_FADE, SPEEDS, setTrim } from './document';
 import type { GifEngine } from './engine';
 import { browserEncodesWebp, copyBlocker, exportLayout, exportWithinLimit, FORMAT_FILES, videoCodec } from './export';
-import { GIF_PRESETS, type GifPreset } from './presets';
+import { GIF_PRESET_GROUPS, GIF_PRESETS, type GifPreset } from './presets';
 import { type AnimationFormat, useGifDoc, useGifEditor } from './store';
 
 export function TrimPanel({ engine }: { engine: GifEngine }) {
@@ -284,9 +285,6 @@ export function SpeedPanel({ animated }: { animated: boolean }) {
 /** Size limits offered: what chats, forums and mail commonly accept. */
 const SIZE_LIMITS = [25_000_000, 15_000_000, 10_000_000, 8_000_000, 5_000_000, 2_000_000, 1_000_000];
 
-/** Widths offered, besides the picture's own. */
-const WIDTHS = [320, 480, 640, 800, 1080];
-
 const FORMATS: { value: AnimationFormat; label: () => string }[] = [
 	{ value: 'gif', label: () => 'GIF' },
 	{ value: 'apng', label: () => 'APNG' },
@@ -314,17 +312,13 @@ export function ExportPanel({ engine, isGif }: { engine: GifEngine; isGif: boole
 	const doc = useGifDoc();
 	const settings = useGifEditor((state) => state.exportSettings);
 	const setExport = useGifEditor((state) => state.setExport);
-	const widthId = useId();
 	const loopId = useId();
 	const limitId = useId();
 	const source = engine.source;
 	const width = source?.width ?? 1;
 	const height = source?.height ?? 1;
-	// Widths are those of the whole frame, bands included.
-	const natural = frameLayout(doc, { width, height }, null).width;
 	const output = exportLayout(doc, { width, height }, settings);
 	const encoders = useEncoders(output.width, output.height);
-	const widths = [...new Set([...WIDTHS.filter((value) => value < natural), natural])].toSorted((a, b) => a - b);
 	const blocker = source ? copyBlocker(doc, settings, source, isGif) : 'source';
 	const copying = settings.mode === 'copy' && blocker === null;
 	const note =
@@ -387,19 +381,6 @@ export function ExportPanel({ engine, isGif }: { engine: GifEngine; isGif: boole
 				</div>
 
 				<div className="grid gap-4">
-					<div className="grid gap-1.5">
-						<FieldRow label={m.gif_width()} htmlFor={widthId}>
-							<Select
-								id={widthId}
-								value={String(Math.min(settings.width ?? natural, natural))}
-								options={widths.map((value) => ({ value: String(value), label: `${value} px` }))}
-								onChange={(value) => {
-									const chosen = Number(value);
-									setExport({ width: chosen === natural ? null : chosen });
-								}}
-							/>
-						</FieldRow>
-					</div>
 					{settings.format !== 'apng' && settings.format !== 'frames' && (
 						<Slider
 							label={m.export_quality()}
@@ -697,6 +678,7 @@ export function GifPresetsPanel({ engine }: { engine: GifEngine }) {
 			mode: 'encode',
 			format: preset.format,
 			width: preset.width,
+			exact: null,
 			maxBytes: preset.maxBytes,
 			preset: preset.id,
 		});
@@ -705,31 +687,25 @@ export function GifPresetsPanel({ engine }: { engine: GifEngine }) {
 	return (
 		<>
 			<PanelTitle>{m.tool_presets()}</PanelTitle>
-			<div className="grid gap-1.5">
-				{GIF_PRESETS.map((preset) => {
-					const name = preset.platform ? `${preset.platform} · ${preset.label()}` : preset.label();
-					return (
-						<button
-							key={preset.id}
-							type="button"
-							aria-pressed={chosen === preset.id}
-							onClick={() => {
-								choose(preset);
-							}}
-							className="bg-surface hover:bg-surface-2 aria-pressed:bg-ed-soft aria-pressed:shadow-[inset_0_0_0_1.5px_var(--ed)] ease-spring grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-sm px-3.5 py-2.5 text-left transition-[background-color,transform] duration-200 active:scale-[0.98]"
-						>
-							<span className="text-ui truncate font-medium">{name}</span>
-							<span className="text-small text-muted tabular text-right font-mono">
-								{preset.square ? `${preset.width} × ${preset.width}` : `${preset.width} px`}
-								<span className="text-caption block">
-									{FORMAT_FILES[preset.format].extension.toUpperCase()}
-									{preset.maxBytes ? ` · ≤ ${formatBytes(preset.maxBytes)}` : ''}
-								</span>
-							</span>
-						</button>
-					);
-				})}
-			</div>
+			<FormatGroups
+				groups={GIF_PRESET_GROUPS.map((group) => ({
+					title: group.title(),
+					logo: group.logo,
+					choices: group.presets.map((preset) => ({
+						id: preset.id,
+						label: preset.label(),
+						detail: `${preset.square ? `${preset.width} × ${preset.width}` : `${preset.width} px`} · ${FORMAT_FILES[preset.format].extension.toUpperCase()}${preset.maxBytes ? ` · ≤ ${formatBytes(preset.maxBytes)}` : ''}`,
+						// Square, or the shape of the animation as it is.
+						width: preset.square ? 1 : (source?.width ?? 16),
+						height: preset.square ? 1 : (source?.height ?? 9),
+					})),
+				}))}
+				chosen={chosen}
+				onChoose={(id) => {
+					const preset = GIF_PRESETS.find((item) => item.id === id);
+					if (preset) choose(preset);
+				}}
+			/>
 		</>
 	);
 }

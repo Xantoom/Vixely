@@ -1,4 +1,5 @@
 import { m } from '@/paraglide/messages.js';
+import type { LogoId } from '@/ui/BrandLogo';
 import type { AnimationFormat } from './store';
 
 export interface GifPreset {
@@ -99,4 +100,23 @@ export const GIF_PRESETS: GifPreset[] = [
 		maxBytes: 2_000_000,
 		fps: 12,
 	},
+];
+
+export interface GifPresetGroup {
+	/** A platform's own name, or a generic heading. */
+	title: () => string;
+	logo: LogoId;
+	presets: GifPreset[];
+}
+
+const byId = (id: string): GifPreset[] => GIF_PRESETS.filter((preset) => preset.id === id);
+
+/** The presets by platform, as the Formats tool lists them. */
+export const GIF_PRESET_GROUPS: GifPresetGroup[] = [
+	{ title: () => 'Discord', logo: 'discord', presets: [...byId('discord-emoji'), ...byId('discord-sticker')] },
+	{ title: () => 'Twitch', logo: 'twitch', presets: byId('twitch-emote') },
+	{ title: () => 'Slack', logo: 'slack', presets: byId('slack-emoji') },
+	{ title: () => 'X', logo: 'x', presets: byId('x-gif') },
+	{ title: () => 'TikTok', logo: 'tiktok', presets: byId('tiktok-gif') },
+	{ title: () => m.preset_group_web(), logo: 'web', presets: [...byId('reaction'), ...byId('small')] },
 ];

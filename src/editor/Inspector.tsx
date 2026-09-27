@@ -84,6 +84,20 @@ function CameraSection({ photo }: { photo: PhotoMetadata }) {
 
 export function InfoPanel({ opened }: { opened: OpenedFile | null }) {
 	if (!opened) return null;
+	// An animation made from images: all of them, not only the first.
+	if (opened.images) {
+		const dimensions = opened.info?.dimensions;
+		return (
+			<dl className="grid gap-3.5">
+				<Row label={m.info_images()} value={String(opened.images.length)} />
+				<Row
+					label={m.info_size()}
+					value={formatBytes(opened.images.reduce((sum, image) => sum + image.file.size, 0))}
+				/>
+				{dimensions && <Row label={m.info_resolution()} value={`${dimensions.width} × ${dimensions.height}`} />}
+			</dl>
+		);
+	}
 	const info = opened.info;
 	if (!info) {
 		return (

@@ -19,6 +19,10 @@ export interface GifExportSettings {
 	format: AnimationFormat;
 	/** Output width in pixels; null keeps the cropped width. The height follows. */
 	width: number | null;
+	/** Output size in pixels, stretched if need be; wins over `width`. Null for none. */
+	exact: Size | null;
+	/** How the picture is scaled: smooth, or square pixels kept sharp (pixel art). */
+	sampling: 'smooth' | 'pixel';
 	/** 0 loops forever, −1 plays once, n plays n + 1 times. */
 	repeat: number;
 	/** Quality, 1 to 100: gifski's for GIF, the encoder's for WebP and video. APNG is lossless. */
@@ -66,6 +70,8 @@ function defaultExport(width: number | null, copyable: boolean): GifExportSettin
 		mode: copyable && !video ? 'copy' : 'encode',
 		format: video ? 'video' : 'gif',
 		width,
+		exact: null,
+		sampling: 'smooth',
 		repeat: 0,
 		quality: 90,
 		compression: 0,
