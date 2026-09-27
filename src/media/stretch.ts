@@ -173,3 +173,126 @@ export class TimeStretcher {
 		return { data, frames };
 	}
 }
+
+/**
+ * Plays audio `factor` times faster by reading it at another pace, as a stream: pitch and speed
+ * move together, as with a tape. Four-point cubic interpolation between the samples.
+ */
+export class Resampler {
+	/** The last three input frames of each channel, then the new ones. */
+	private tail: Float32Array[];
+	/** Where the next output frame reads, in input frames from the start of `tail`: the first real one. */
+	private position = 3;
+
+	constructor(
+		private readonly channels: number,
+		private readonly factor: number,
+	) {
+		this.tail = Array.from({ length: channels }, () => new Float32Array(3));
+	}
+
+	push({ data, frames }: Planar): Planar {
+		const kept = this.tail[0]?.length ?? 0;
+		const length = kept + frames;
+		const joined = this.tail.map((tail, c) => {
+			const channel = new Float32Array(length);
+			channel.set(tail);
+			channel.set(data.subarray(c * frames, (c + 1) * frames), kept);
+			return channel;
+		});
+		// Output frames whose four neighbours are all in: reading at most three frames from the end.
+		const count = this.position <= length - 3 ? Math.floor((length - 3 - this.position) / this.factor) + 1 : 0;
+		const output = new Float32Array(count * this.channels);
+		for (let c = 0; c < this.channels; c++) {
+			const channel = joined[c];
+			if (!channel) continue;
+			for (let i = 0; i < count; i++) {
+				const at = this.position + i * this.factor;
+				const k = Math.floor(at);
+				const t = at - k;
+				const p0 = channel[k - 1] ?? 0;
+				const p1 = channel[k] ?? 0;
+				const p2 = channel[k + 1] ?? 0;
+				const p3 = channel[k + 2] ?? 0;
+				// Catmull-Rom: smooth, and exact on the samples themselves.
+				output[c * count + i] =
+					p1 + 0.5 * t * (p2 - p0 + t * (2 * p0 - 5 * p1 + 4 * p2 - p3 + t * (3 * (p1 - p2) + p3 - p0)));
+			}
+		}
+		const next = this.position + count * this.factor;
+		// Keeps what the next reads need: from one frame before where they start.
+		const keepFrom = Math.max(0, Math.min(length, Math.floor(next) - 1));
+		this.tail = joined.map((channel) => channel.slice(keepFrom));
+		this.position = next - keepFrom;
+		return { data: output, frames: count };
+	}
+
+	/** The last frames, once the input has ended. */
+	flush(): Planar {
+		return this.push({ data: new Float32Array(this.channels * 2), frames: 2 });
+	}
+}
+
+/** Semitones a pitch may move, down or up. */
+export const PITCH_RANGE = { min: -12, max: 12 } as const;
+
+/**
+ * Speed and pitch changed apart, as a stream: `speed` sets how long the audio lasts, `semitones`
+ * how high it sounds. The time stretch makes the length right for a tape-like change of pace,
+ * which then moves the pitch and the length together.
+ */
+export class SpeedPitch {
+	private readonly stretcher: TimeStretcher | null;
+	private readonly resampler: Resampler | null;
+	/** Frames taken in and given out: the output ends at the length the speed asks for. */
+	private received = 0;
+	private emitted = 0;
+
+	constructor(
+		channels: number,
+		sampleRate: number,
+		private readonly speed: number,
+		semitones: number,
+	) {
+		const factor = 2 ** (semitones / 12);
+		const tempo = speed / factor;
+		this.stretcher = Math.abs(tempo - 1) > 1e-6 ? new TimeStretcher(channels, sampleRate, tempo) : null;
+		this.resampler = Math.abs(factor - 1) > 1e-6 ? new Resampler(channels, factor) : null;
+	}
+
+	push(chunk: Planar): Planar {
+		this.received += chunk.frames;
+		const stretched = this.stretcher ? this.stretcher.push(chunk) : chunk;
+		const out = this.resampler ? this.resampler.push(stretched) : stretched;
+		this.emitted += out.frames;
+		return out;
+	}
+
+	/** The rest of the output, once the input has ended, up to the length the speed asks for. */
+	flush(): Planar {
+		const rest = this.drain();
+		const wanted = Math.max(0, Math.round(this.received / this.speed) - this.emitted);
+		if (rest.frames <= wanted) return rest;
+		const channels = rest.frames > 0 ? rest.data.length / rest.frames : 0;
+		const data = new Float32Array(wanted * channels);
+		for (let c = 0; c < channels; c++)
+			data.set(rest.data.subarray(c * rest.frames, c * rest.frames + wanted), c * wanted);
+		return { data, frames: wanted };
+	}
+
+	private drain(): Planar {
+		if (!this.stretcher) return this.resampler ? this.resampler.flush() : { data: new Float32Array(0), frames: 0 };
+		const rest = this.stretcher.flush();
+		if (!this.resampler) return rest;
+		const last = this.resampler.push(rest);
+		const end = this.resampler.flush();
+		const frames = last.frames + end.frames;
+		const channels = frames > 0 ? (last.data.length + end.data.length) / frames : 0;
+		const data = new Float32Array(frames * channels);
+		for (let c = 0; c < channels; c++) {
+			data.set(last.data.subarray(c * last.frames, (c + 1) * last.frames), c * frames);
+			data.set(end.data.subarray(c * end.frames, (c + 1) * end.frames), c * frames + last.frames);
+		}
+		return { data, frames };
+	}
+}

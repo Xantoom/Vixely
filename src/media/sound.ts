@@ -6,6 +6,7 @@
  */
 import { loadAudio } from '@/wasm/audio';
 import type { NoiseReducer } from '@/wasm/vixely-audio/vixely_audio.js';
+import { Compressor, type CompressorSettings } from './dynamics';
 
 export type BandKind = 'lowshelf' | 'peaking' | 'highshelf';
 
@@ -148,6 +149,8 @@ export interface SoundChanges {
 	eq: readonly number[];
 	/** Share of denoised sound, 0 to 1; 0 leaves the sound as it is. */
 	denoise: number;
+	/** Loud passages turned down, after the noise reduction; absent or null for none. */
+	compressor?: CompressorSettings | null;
 }
 
 /** Planar audio and how many frames it holds. */
@@ -157,12 +160,13 @@ export interface Planar {
 }
 
 /**
- * The noise reduction then the equalizer, over a stream of planar audio. The output lines up with
+ * The noise reduction, the compressor then the equalizer, over a stream of planar audio. The output lines up with
  * the input and has the same length once `finish` is called, but may come a little behind it.
  */
 export class SoundProcessor {
 	private constructor(
 		private readonly reducer: NoiseReducer | null,
+		private readonly compressor: Compressor | null,
 		private readonly equalizer: Equalizer | null,
 		private readonly channels: number,
 	) {}
@@ -170,8 +174,9 @@ export class SoundProcessor {
 	static async create(changes: SoundChanges, channels: number, rate: number): Promise<SoundProcessor> {
 		const reducer =
 			changes.denoise > 0 ? new (await loadAudio()).NoiseReducer(channels, rate, changes.denoise) : null;
+		const compressor = changes.compressor ? new Compressor(channels, rate, changes.compressor) : null;
 		const equalizer = isFlat(changes.eq) ? null : new Equalizer(changes.eq, channels, rate);
-		return new SoundProcessor(reducer, equalizer, channels);
+		return new SoundProcessor(reducer, compressor, equalizer, channels);
 	}
 
 	push(input: Planar): Planar {
@@ -192,12 +197,15 @@ export class SoundProcessor {
 	}
 
 	private equalize(planar: Planar): Planar {
-		if (planar.frames > 0) this.equalizer?.process(planar.data, planar.frames, this.channels);
+		if (planar.frames > 0) {
+			this.compressor?.process(planar);
+			this.equalizer?.process(planar.data, planar.frames, this.channels);
+		}
 		return planar;
 	}
 }
 
 /** Whether the sound itself changes, which rules out copying it as it is. */
 export function changesSound(changes: SoundChanges): boolean {
-	return changes.denoise > 0 || !isFlat(changes.eq);
+	return changes.denoise > 0 || !isFlat(changes.eq) || Boolean(changes.compressor);
 }

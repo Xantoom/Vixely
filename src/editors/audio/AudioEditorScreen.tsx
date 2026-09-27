@@ -14,7 +14,7 @@ import { cut, setTrim } from './document';
 import { type AudioEngine, useAudioEngine } from './engine';
 import { readSourceFormat, type SourceFormat } from './export';
 import { ExportFooter, ExportPanel } from './ExportPanel';
-import { SoundPanel, TrimPanel, VolumePanel } from './panels';
+import { AudioSpeedPanel, SoundPanel, TrimPanel, VolumePanel } from './panels';
 import { useAudioEditor, useAudioUndoState } from './store';
 
 /** Seconds the arrow keys move the playhead; with Shift, ten times more. */
@@ -168,8 +168,9 @@ export function AudioEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 
 	const inspector = () => {
 		if (tool === 'info' || !editable) return <FilePanel opened={opened} />;
-		if (tool === 'trim') return <TrimPanel />;
+		if (tool === 'trim') return <TrimPanel engine={engine} />;
 		if (tool === 'volume') return <VolumePanel engine={engine} />;
+		if (tool === 'speed') return <AudioSpeedPanel />;
 		if (tool === 'sound') return <SoundPanel />;
 		if (tool === 'export' && sourceFormat)
 			return (

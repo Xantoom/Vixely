@@ -3,7 +3,7 @@ import { readPeaks } from '@/media/peaks';
 import { outputName, uniqueName } from '@/media/save';
 import type { BatchDestination } from '@/media/save-target';
 import type { BatchFile } from '@/media/session';
-import { type AudioDoc, envelope, keptRanges, resolveGain } from './document';
+import { type AudioDoc, compressOf, envelope, keptRanges, resolveGain } from './document';
 import { type AudioExportSettings, exportAudio, outputType, readSourceFormat, type SourceFormat } from './export';
 
 export type { ItemStatus } from '@/editor/BatchList';
@@ -53,7 +53,8 @@ export async function exportAudioBatch(job: AudioBatchJob): Promise<number> {
 			// oxlint-disable-next-line no-await-in-loop
 			const { duration, source } = await describe(item.file);
 			let doc: AudioDoc = { ...job.template, duration, trim: { start: 0, end: duration }, cuts: [] };
-			const measuring = doc.normalize !== null;
+			// Normalizing and compressing both need the loudness of each file.
+			const measuring = doc.normalize !== null || compressOf(doc) > 0;
 			if (measuring) {
 				const reader = readPeaks(item.file, duration, () => {
 					report(reader.peaks.progress() / 2);

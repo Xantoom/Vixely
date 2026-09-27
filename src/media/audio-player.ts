@@ -4,8 +4,9 @@ import { type Range, sameRanges, toOutput, toSource, totalLength } from '@/docum
 import { findAudioTrack } from './audio-tracks';
 import { DECODER_PREROLL } from './decoder';
 import { canDecodeAudio } from './decoders';
+import { sameCompressor } from './dynamics';
 import { EQ_BANDS, EQ_Q, type Planar, type SoundChanges, SoundProcessor } from './sound';
-import { TimeStretcher } from './stretch';
+import { SpeedPitch } from './stretch';
 
 /** What to play: the source ranges in order, the volume curve over output time, and the sound changes. */
 export interface PlaybackPlan {
@@ -15,6 +16,8 @@ export interface PlaybackPlan {
 	sound?: SoundChanges;
 	/** How fast it plays, pitch kept; absent plays at normal speed. */
 	speed?: number;
+	/** How far the pitch moves, in semitones; absent keeps it. */
+	pitch?: number;
 }
 
 const NO_CHANGES: SoundChanges = { eq: [], denoise: 0 };
@@ -96,10 +99,14 @@ export class AudioPlayer {
 	 */
 	setPlan(plan: PlaybackPlan) {
 		// Noise reduction works on the decoded buffers: a change is heard from a fresh start.
+		const sound = plan.sound ?? NO_CHANGES;
+		const before = this.plan.sound ?? NO_CHANGES;
 		const restart =
 			!sameRanges(plan.ranges, this.plan.ranges) ||
 			(plan.speed ?? 1) !== this.speed ||
-			(plan.sound ?? NO_CHANGES).denoise !== (this.plan.sound ?? NO_CHANGES).denoise;
+			(plan.pitch ?? 0) !== (this.plan.pitch ?? 0) ||
+			sound.denoise !== before.denoise ||
+			!sameCompressor(sound.compressor ?? null, before.compressor ?? null);
 		const time = this.time();
 		this.plan = plan;
 		this.setFilters();
@@ -239,11 +246,15 @@ export class AudioPlayer {
 		if (!context || !inlet) return;
 		const ranges = this.plan.ranges;
 		const denoise = this.plan.sound?.denoise ?? 0;
+		const compressor = this.plan.sound?.compressor ?? null;
 		const speed = this.speed;
+		const pitch = this.plan.pitch ?? 0;
+		const processing = denoise > 0 || compressor !== null;
+		const shaping = speed !== 1 || pitch !== 0;
 		// With noise reduction or another speed, the kept audio goes through them end to end and
 		// plays from where the run starts, a little behind the decoding.
 		let reducer: Promise<SoundProcessor> | null = null;
-		let stretcher: TimeStretcher | null = null;
+		let shaper: SpeedPitch | null = null;
 		let emitted = 0;
 		// A buffer that arrives late plays from where the clock already is.
 		const play = (buffer: AudioBuffer, when: number, offset: number, length: number) => {
@@ -268,13 +279,14 @@ export class AudioPlayer {
 			for (let c = 0; c < channels; c++)
 				buffer.copyFromChannel(decoded.subarray(c * frames, (c + 1) * frames), c, first);
 			let chunk: Planar = { data: decoded, frames };
-			if (denoise > 0) {
-				reducer ??= SoundProcessor.create({ eq: [], denoise }, channels, sampleRate);
+			if (processing) {
+				// The equalizer runs on the filters after this, as it does without processing.
+				reducer ??= SoundProcessor.create({ eq: [], denoise, compressor }, channels, sampleRate);
 				chunk = (await reducer).push(chunk);
 			}
-			if (speed !== 1) {
-				stretcher ??= new TimeStretcher(channels, sampleRate, speed);
-				chunk = stretcher.push(chunk);
+			if (shaping) {
+				shaper ??= new SpeedPitch(channels, sampleRate, speed, pitch);
+				chunk = shaper.push(chunk);
 			}
 			if (chunk.frames === 0 || run !== this.run) return;
 			const shaped = context.createBuffer(channels, chunk.frames, sampleRate);
@@ -284,7 +296,7 @@ export class AudioPlayer {
 			emitted += chunk.frames;
 		};
 		try {
-			await this.scheduleRanges(sink, run, from, ranges, denoise > 0 || speed !== 1 ? process : play);
+			await this.scheduleRanges(sink, run, from, ranges, processing || shaping ? process : play);
 		} finally {
 			void (reducer as Promise<SoundProcessor> | null)?.then((done) => {
 				done.dispose();

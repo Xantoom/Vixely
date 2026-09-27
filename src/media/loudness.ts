@@ -87,4 +87,28 @@ export class Loudness {
 		const integrated = lufs(kept.reduce((sum, level) => sum + energy(level), 0) / kept.length);
 		return { integrated, truePeak: 20 * Math.log10(peak) };
 	}
+
+	/**
+	 * Stretches of source time where the sound stays under `threshold` (dBFS, by its peaks, 100 ms
+	 * at a time) for at least `shortest` seconds, in order.
+	 */
+	quietSpans(threshold: number, shortest: number): Range[] {
+		const limit = 10 ** (threshold / 20);
+		const spans: Range[] = [];
+		let from: number | null = null;
+		const close = (end: number) => {
+			if (from !== null && end - from >= shortest) spans.push({ start: from, end });
+			from = null;
+		};
+		for (let k = 0; k < this.peaks.length; k++) {
+			// Step k holds the peak of the 100 ms ending at (k + 1) steps; unread steps end a stretch.
+			// The first 400 ms have no momentary loudness of their own: the next ones tell they were read.
+			const read = [k, k + 1, k + 2, k + 3].some((at) => !Number.isNaN(this.momentary[at] ?? Number.NaN));
+			const start = this.start + k * LOUDNESS_STEP;
+			if (read && (this.peaks[k] ?? 0) < limit) from ??= start;
+			else close(start);
+		}
+		close(this.start + this.peaks.length * LOUDNESS_STEP);
+		return spans;
+	}
 }

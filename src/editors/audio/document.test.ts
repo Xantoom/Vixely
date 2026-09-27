@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { toOutput, toSource } from '@/document/timemap';
 import {
+	audioLength,
 	createAudioDoc,
 	cut,
 	DECLICK,
@@ -11,7 +12,9 @@ import {
 	normalizationGain,
 	outputDuration,
 	resolveGain,
+	removeSilences,
 	restoreCut,
+	SILENCE_MARGIN,
 	setFades,
 	setGain,
 	setTrim,
@@ -117,5 +120,25 @@ describe('loudness normalization', () => {
 		expect(resolveGain({ ...doc, normalize: -16 }, reading).gain).toBe(4);
 		expect(resolveGain({ ...doc, normalize: -16 }, null).gain).toBe(3);
 		expect(normalizationGain(-14, { integrated: Number.NEGATIVE_INFINITY, truePeak: -90 })).toBeNull();
+	});
+
+	it('removes silences, keeping a margin against the sound', () => {
+		const { doc, count } = removeSilences(createAudioDoc(20), [
+			{ start: 0, end: 1 },
+			{ start: 5, end: 7 },
+			{ start: 10, end: 10.2 },
+			{ start: 18, end: 20 },
+		]);
+		// The start and end go whole, the middle one keeps its margins, the short one stays.
+		expect(count).toBe(3);
+		expect(doc.trim).toEqual({ start: 1 - SILENCE_MARGIN, end: 18 + SILENCE_MARGIN });
+		expect(doc.cuts).toEqual([{ start: 5 + SILENCE_MARGIN, end: 7 - SILENCE_MARGIN }]);
+	});
+
+	it('lasts less when faster, its fades heard at the new pace', () => {
+		const doc = { ...setFades(createAudioDoc(10), { fadeIn: 1 }), speed: 2 };
+		expect(audioLength(doc)).toBeCloseTo(5);
+		// A 1 s fade at double speed covers 2 s of the source.
+		expect(gainAt(envelope(doc), 1)).toBeCloseTo(0.5, 1);
 	});
 });

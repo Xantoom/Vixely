@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AudioPlayer } from '@/media/audio-player';
 import type { Loudness, LoudnessReading } from '@/media/loudness';
 import { type Peaks, readPeaks } from '@/media/peaks';
-import { type AudioDoc, envelope, keptRanges, resolveGain } from './document';
+import { type AudioDoc, envelope, keptRanges, pitchOf, resolveGain, soundChanges, speedOf } from './document';
 import { useAudioDoc, useAudioEditor } from './store';
 
 export interface WaveformState {
@@ -72,21 +72,23 @@ export function useAudioEngine(file: File | null, duration: number, track: numbe
 
 	const complete = waveform.peaks?.complete ?? false;
 	const { loudness } = waveform;
-	const { trim, cuts, fadeIn, fadeOut, duration: length } = doc;
+	const { trim, cuts, fadeIn, fadeOut, duration: length, speed } = doc;
 	const reading = useMemo(() => {
 		if (!complete || !loudness) return null;
 		const unity = { ...doc, gain: 0 };
 		return loudness.measure(keptRanges(unity), envelope(unity));
 		// Only what changes the measured audio: gain is applied afterwards, as an offset.
 		// oxlint-disable-next-line react-hooks/exhaustive-deps
-	}, [complete, loudness, trim, cuts, fadeIn, fadeOut, length]);
+	}, [complete, loudness, trim, cuts, fadeIn, fadeOut, length, speed]);
 	const resolved = useMemo(() => resolveGain(doc, reading), [doc, reading]);
 
 	const plan = useMemo(
 		() => ({
 			ranges: keptRanges(resolved),
 			envelope: envelope(resolved),
-			sound: { eq: resolved.eq, denoise: resolved.denoise },
+			sound: soundChanges(resolved),
+			speed: speedOf(resolved),
+			pitch: pitchOf(resolved),
 		}),
 		[resolved],
 	);

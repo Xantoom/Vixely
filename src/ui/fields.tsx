@@ -250,7 +250,9 @@ export function Slider({
 							event.currentTarget.blur();
 						}
 					}}
-					className="tabular hover:bg-surface focus:bg-bg focus:shadow-[inset_0_0_0_1px_var(--line-2)] w-20 rounded-xs bg-transparent px-1.5 py-0.5 text-right font-mono text-small outline-none transition-colors"
+					// As wide as what it shows, digits being all the same width: nothing is cut off.
+					style={{ width: `calc(${Math.max(6, (draft ?? format(value)).length + 1)}ch + 0.75rem)` }}
+					className="tabular hover:bg-surface focus:bg-bg focus:shadow-[inset_0_0_0_1px_var(--line-2)] max-w-40 rounded-xs bg-transparent px-1.5 py-0.5 text-right font-mono text-small outline-none transition-colors"
 				/>
 			</div>
 			<input

@@ -26,7 +26,17 @@ import { findAudioTrack } from '@/media/audio-tracks';
 import { DECODER_PREROLL } from '@/media/decoder';
 import type { SaveTarget } from '@/media/save-target';
 import { changesSound, type Planar, SoundProcessor } from '@/media/sound';
-import { envelope, keptRanges, type AudioDoc } from './document';
+import { SpeedPitch } from '@/media/stretch';
+import {
+	audioLength,
+	envelope,
+	keptRanges,
+	pitchOf,
+	soundChanges,
+	speedOf,
+	timeShaped,
+	type AudioDoc,
+} from './document';
 
 export type AudioFormat = 'mp3' | 'aac' | 'opus' | 'flac' | 'wav';
 
@@ -260,7 +270,14 @@ export function outputType(
  */
 export function copyBlocker(doc: AudioDoc, source: SourceFormat | null): 'volume' | 'codec' | null {
 	if (!source?.codec || !copyTarget(source.codec)) return 'codec';
-	if (doc.gain !== 0 || doc.normalize !== null || doc.fadeIn > 0 || doc.fadeOut > 0 || changesSound(doc)) {
+	if (
+		doc.gain !== 0 ||
+		doc.normalize !== null ||
+		doc.fadeIn > 0 ||
+		doc.fadeOut > 0 ||
+		changesSound(soundChanges(doc)) ||
+		timeShaped(doc)
+	) {
 		return 'volume';
 	}
 	return null;
@@ -473,7 +490,8 @@ async function encodeAudio({
 }: ExportAudioOptions) {
 	const info = AUDIO_FORMATS[settings.format];
 	const ranges = keptRanges(doc);
-	const total = totalLength(ranges);
+	// What the file lasts once sped up or slowed down.
+	const length = audioLength(doc);
 	const rate = outputRate(settings, source);
 	const channels = outputChannels(settings, source);
 	const depth = info.bitDepth ? settings.bitDepth : 16;
@@ -483,7 +501,7 @@ async function encodeAudio({
 
 	const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
 	const output = new Output({
-		format: outputFormat(settings, pcmBytes(total, rate, channels, depth)),
+		format: outputFormat(settings, pcmBytes(length, rate, channels, depth)),
 		target: save.target,
 	});
 	try {
@@ -505,28 +523,27 @@ async function encodeAudio({
 		const curve = new CurveReader(envelope(doc));
 		// Rounding to 16 bits after a volume change leaves a faint distortion on quiet passages;
 		// a little triangular noise (dither) turns it into an inaudible hiss, as mastering tools do.
+		const changes = soundChanges(doc);
 		const dither =
-			depth === 16 && info.bitDepth && (doc.gain !== 0 || doc.fadeIn > 0 || doc.fadeOut > 0 || changesSound(doc));
+			depth === 16 &&
+			info.bitDepth &&
+			(doc.gain !== 0 || doc.fadeIn > 0 || doc.fadeOut > 0 || changesSound(changes) || timeShaped(doc));
 		const lsb = 1 / 32_768;
 		const sink = new AudioSampleSink(track);
 		let processor: SoundProcessor | null = null;
+		let shaper: SpeedPitch | null = null;
 		let sampleRate = 0;
 		let planes = 0;
+		/** Frames through the volume curve, before the speed change; and frames encoded. */
+		let curved = 0;
 		let written = 0;
 
-		/** Applies the volume curve to processed audio and hands it to the encoder. */
-		const emit = async ({ data, frames }: Planar) => {
+		/** Hands audio to the encoder, dithered. */
+		const send = async ({ data, frames }: Planar) => {
 			if (frames === 0) return;
-			const outputTime = written / sampleRate;
-			for (let i = 0; i < frames; i++) {
-				const gain = curve.at(outputTime + i / sampleRate);
-				for (let c = 0; c < planes; c++) {
-					const at = c * frames + i;
-					let value = (data[at] ?? 0) * gain;
-					if (dither) value += (Math.random() - Math.random()) * lsb;
-					data[at] = value;
-				}
-			}
+			if (dither)
+				for (let at = 0; at < data.length; at++)
+					data[at] = (data[at] ?? 0) + (Math.random() - Math.random()) * lsb;
 			const edited = new AudioSample({
 				data,
 				format: 'f32-planar',
@@ -538,7 +555,25 @@ async function encodeAudio({
 			// Waits for the encoder and the disk, so decoding never runs far ahead of them.
 			await encoder.add(edited);
 			edited.close();
-			onProgress(Math.min(1, written / sampleRate / total));
+			onProgress(Math.min(1, written / sampleRate / length));
+		};
+
+		/** Applies the volume curve to processed audio, then the speed and pitch. */
+		const emit = async ({ data, frames }: Planar) => {
+			if (frames === 0) return;
+			const outputTime = curved / sampleRate;
+			for (let i = 0; i < frames; i++) {
+				const gain = curve.at(outputTime + i / sampleRate);
+				for (let c = 0; c < planes; c++) {
+					const at = c * frames + i;
+					data[at] = (data[at] ?? 0) * gain;
+				}
+			}
+			curved += frames;
+			if (timeShaped(doc)) {
+				shaper ??= new SpeedPitch(planes, sampleRate, speedOf(doc), pitchOf(doc));
+				await send(shaper.push({ data, frames }));
+			} else await send({ data, frames });
 		};
 
 		for (const range of ranges) {
@@ -572,7 +607,7 @@ async function encodeAudio({
 				sample.close();
 				// The noise reduction and the equalizer run on the kept audio, end to end.
 				// oxlint-disable-next-line no-await-in-loop
-				processor ??= await SoundProcessor.create(doc, planes, sampleRate);
+				processor ??= await SoundProcessor.create(changes, planes, sampleRate);
 				// oxlint-disable-next-line no-await-in-loop
 				await emit(processor.push({ data, frames: count }));
 			}
@@ -581,6 +616,9 @@ async function encodeAudio({
 			await emit(processor.finish());
 			processor.dispose();
 		}
+		// Set inside `emit`, which TypeScript does not follow.
+		const shaped = shaper as SpeedPitch | null;
+		if (shaped) await send(shaped.flush());
 		await output.finalize();
 		await save.commit();
 	} catch (error) {

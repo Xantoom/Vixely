@@ -16,7 +16,7 @@ import { m } from '@/paraglide/messages.js';
 import { IconButton } from '@/ui/Button';
 import { useCssColors } from '@/ui/css-colors';
 import { useBoxSize } from '@/ui/use-box-size';
-import { type AudioDoc, envelope, keptRanges, outputDuration, restoreCut, setTrim, sourceGainAt } from './document';
+import { type AudioDoc, audioLength, envelope, keptRanges, restoreCut, setTrim, sourceGainAt } from './document';
 import type { AudioEngine } from './engine';
 import { MIN_VIEW, useAudioDoc, useAudioEditor } from './store';
 
@@ -98,9 +98,7 @@ function Transport({ engine }: { engine: AudioEngine }) {
 			<div className="flex-1" />
 			<AudioTrackPicker />
 			<span className="text-ui text-muted max-sm:hidden">{m.audio_final_length()}</span>
-			<span className="tabular font-mono text-[12.5px] max-sm:hidden">
-				{formatPreciseTime(outputDuration(doc))}
-			</span>
+			<span className="tabular font-mono text-[12.5px] max-sm:hidden">{formatPreciseTime(audioLength(doc))}</span>
 			<div className="ml-2 flex gap-0.5">
 				<IconButton
 					label={m.zoom_out()}

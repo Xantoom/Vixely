@@ -34,4 +34,18 @@ describe('loudness', () => {
 		expect(loudness.measure([{ start: 0, end: 25 }], half)?.integrated).toBeCloseTo(-26.02, 2);
 		expect(loudness.measure([{ start: 35, end: 60 }], [])?.integrated).toBeCloseTo(-10, 3);
 	});
+
+	it('finds the quiet stretches long enough', () => {
+		const loudness = new Loudness();
+		loudness.reserve(0, 10);
+		// Loud, then 2 s nearly silent from 3 s, loud, then 0.3 s silent at 7 s (too short).
+		const peaks = Float32Array.from({ length: 100 }, (_, k) =>
+			(k >= 30 && k < 50) || (k >= 70 && k < 73) ? 0.001 : 0.5,
+		);
+		loudness.append(0, new Float32Array(100).fill(-20), peaks);
+		const spans = loudness.quietSpans(-40, 0.5);
+		expect(spans).toHaveLength(1);
+		expect(spans[0]?.start).toBeCloseTo(3);
+		expect(spans[0]?.end).toBeCloseTo(5);
+	});
 });

@@ -66,7 +66,7 @@ export const EDITORS: Record<MediaKind, EditorDefinition> = {
 		path: '/audio',
 		label: () => m.media_audio(),
 		page: () => m.editor_page_audio(),
-		tools: ['info', 'trim', 'volume', 'sound'],
+		tools: ['info', 'trim', 'volume', 'speed', 'sound'],
 		timed: true,
 	},
 	subtitles: {
