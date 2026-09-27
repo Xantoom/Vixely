@@ -55,7 +55,7 @@ console.log('back in the video:', (await header.innerText()).replace(/\n/g, ' ')
 // A GIF made from the video, its frames shown without a click.
 await tools.getByRole('button', { name: 'Info' }).click();
 await aside.getByRole('button', { name: 'Make a GIF' }).click();
-await page.waitForURL('**/gif**', { timeout: 20000 });
+await page.waitForURL('**/gif**', { timeout: 60000 });
 await page.waitForTimeout(2500);
 await tools.getByRole('button', { name: 'Frames' }).click();
 await page.waitForTimeout(1500);

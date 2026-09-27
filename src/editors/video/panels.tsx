@@ -1,23 +1,27 @@
 import { useNavigate } from '@tanstack/react-router';
 import { AudioLines, Camera, Captions, Film, ImagePlus, Speech, Trash2 } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
+import { outputDuration } from '@/document/kept';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { Section } from '@/editor/panel-parts';
 import { EDITORS } from '@/editors/registry';
+import { formatClock } from '@/lib/format';
 import { usePlayback } from '@/media/playback';
 import { type OpenedFile, useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
+import { BrandLogo } from '@/ui/BrandLogo';
 import { Button } from '@/ui/Button';
 import { FieldRow, Select } from '@/ui/fields';
 import { MEDIA_ICONS } from '@/ui/icons';
 import type { Size } from '../image/document';
 import { capturePicture } from './capture';
 import type { CoverImage, VideoMeta } from './document';
-import { CODEC_LABELS, CONTAINERS, outputSize, PRESET_ORDER, PRESETS, shortSide } from './export';
+import { outputSize, PRESET_GROUP_ORDER, PRESET_ORDER, type PresetGroupId, PRESETS, shortSide } from './export';
 import { exportTarget, presetPicture, useChoosePreset, useExportMode } from './ExportPanel';
 import { type MuxKind, useMuxTracks } from './mux';
 import { AudioTrackList, SubtitleTrackList, trackLabel } from './MuxPanel';
 import { useVideoDoc, useVideoEditor } from './store';
+import { NEW_KEY, type SubtitleTool, TracksDialog } from './TracksDialog';
 
 const OPEN_IN = {
 	audio: () => m.audio_from_video(),
@@ -46,23 +50,6 @@ export function OpenIn({ kind }: { kind: 'audio' | 'gif' | 'subtitles' }) {
 	);
 }
 
-/** Opens the subtitle editor on the Transcribe tool, to make subtitles from what is said. */
-function GenerateSubtitles() {
-	const openAs = useSession((state) => state.openAs);
-	const navigate = useNavigate();
-	return (
-		<Button
-			onClick={() => {
-				openAs('subtitles');
-				void navigate({ to: EDITORS.subtitles.path, search: { tool: 'transcribe' } });
-			}}
-		>
-			<Speech size={16} aria-hidden="true" />
-			{m.subs_generate()}
-		</Button>
-	);
-}
-
 /** The container the tracks go into, and the subtitle track burned into the pictures. */
 function useTarget() {
 	const mode = useExportMode();
@@ -70,14 +57,47 @@ function useTarget() {
 	return { target: exportTarget(mode, settings), burned: mode === 'encode' ? (settings?.burn ?? null) : null };
 }
 
+/** Which track the tracks dialog shows, and the subtitle tool it opens on; null when closed. */
+type Editing = { key: string | null; tool?: SubtitleTool } | null;
+
+/** The tracks dialog, open while `editing` says which track it shows. */
+function TracksEditor({ opened, editing, onClose }: { opened: OpenedFile; editing: Editing; onClose: () => void }) {
+	const { target, burned } = useTarget();
+	if (!editing) return null;
+	return (
+		<TracksDialog
+			opened={opened}
+			target={target}
+			burned={burned}
+			initial={editing.key}
+			initialTool={editing.tool ?? null}
+			onClose={onClose}
+		/>
+	);
+}
+
 /** The Audio tool: the sound tracks that go into the video, and sound added from other files. */
 export function VideoAudioPanel({ opened }: { opened: OpenedFile }) {
 	const { target } = useTarget();
+	const [editing, setEditing] = useState<Editing>(null);
 	return (
 		<>
 			<PanelTitle>{m.tool_audio()}</PanelTitle>
-			<AudioTrackList opened={opened} target={target} />
+			<AudioTrackList
+				opened={opened}
+				target={target}
+				onEdit={(key) => {
+					setEditing({ key });
+				}}
+			/>
 			{opened.info?.audio && <OpenIn kind="audio" />}
+			<TracksEditor
+				opened={opened}
+				editing={editing}
+				onClose={() => {
+					setEditing(null);
+				}}
+			/>
 		</>
 	);
 }
@@ -120,13 +140,46 @@ function BurnSection({ opened }: { opened: OpenedFile }) {
  */
 export function VideoSubtitlesPanel({ opened }: { opened: OpenedFile }) {
 	const { target, burned } = useTarget();
+	const [editing, setEditing] = useState<Editing>(null);
 	return (
 		<>
 			<PanelTitle>{m.tool_subtitles()}</PanelTitle>
-			<SubtitleTrackList opened={opened} target={target} burned={burned} />
+			<SubtitleTrackList
+				opened={opened}
+				target={target}
+				burned={burned}
+				onEdit={(key) => {
+					setEditing({ key });
+				}}
+			/>
+			<div className="grid gap-2">
+				<Button
+					onClick={() => {
+						setEditing({ key: NEW_KEY });
+					}}
+				>
+					<Captions size={16} aria-hidden="true" />
+					{m.subs_write_new()}
+				</Button>
+				{opened.info?.audio && (
+					<Button
+						onClick={() => {
+							setEditing({ key: NEW_KEY, tool: 'transcribe' });
+						}}
+					>
+						<Speech size={16} aria-hidden="true" />
+						{m.subs_generate()}
+					</Button>
+				)}
+			</div>
 			<BurnSection opened={opened} />
-			<OpenIn kind="subtitles" />
-			{opened.info?.audio && <GenerateSubtitles />}
+			<TracksEditor
+				opened={opened}
+				editing={editing}
+				onClose={() => {
+					setEditing(null);
+				}}
+			/>
 		</>
 	);
 }
@@ -390,6 +443,14 @@ export function MetadataSection({ opened }: { opened: OpenedFile }) {
 	);
 }
 
+const PRESET_GROUP_TITLES: Record<PresetGroupId, () => string> = {
+	messages: () => m.preset_group_messages(),
+	vertical: () => m.preset_group_vertical(),
+	social: () => m.preset_group_social(),
+	video: () => m.preset_group_video(),
+	general: () => m.preset_group_general(),
+};
+
 /**
  * The Formats tool: the settings of the places videos are sent to, one click each. Vertical
  * formats crop the pictures to 9:16 from the middle, which the crop tool can then move.
@@ -397,42 +458,67 @@ export function MetadataSection({ opened }: { opened: OpenedFile }) {
 export function VideoPresetsPanel({ upright }: { upright: Size }) {
 	const chosen = useVideoEditor((state) => state.exportSettings?.preset ?? null);
 	const ready = useVideoEditor((state) => state.exportSource !== null);
-	const picture = useVideoDoc().picture;
+	const doc = useVideoDoc();
+	const length = outputDuration(doc);
 	const choose = useChoosePreset(upright);
 	return (
 		<>
 			<PanelTitle>{m.tool_presets()}</PanelTitle>
-			<div className="grid gap-1.5">
-				{PRESET_ORDER.map((id) => {
-					const preset = PRESETS[id];
-					const short = Math.min(
-						shortSide(outputSize(presetPicture(picture, upright, id), upright, null)),
-						preset.maxHeight,
-					);
-					return (
-						<button
-							key={id}
-							type="button"
-							aria-pressed={chosen === id}
-							disabled={!ready}
-							onClick={() => {
-								choose(id);
-							}}
-							className="bg-surface enabled:hover:bg-surface-2 aria-pressed:bg-ed-soft aria-pressed:shadow-[inset_0_0_0_1.5px_var(--ed)] ease-spring grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-sm px-3.5 py-2.5 text-left transition-[background-color,transform] duration-200 enabled:active:scale-[0.98] disabled:opacity-50"
-						>
-							<span className="text-ui truncate font-medium">{preset.label}</span>
-							<span className="text-small text-muted tabular text-right font-mono">
-								{preset.aspect ? `${preset.aspect} · ` : ''}
-								{short} p
-								<span className="text-caption block">
-									{CONTAINERS[preset.container].label} {CODEC_LABELS[preset.codec]}
-									{preset.sizeLimit ? ` · ≤ ${m.size_mb({ size: preset.sizeLimit })}` : ''}
-								</span>
-							</span>
-						</button>
-					);
-				})}
-			</div>
+			{PRESET_GROUP_ORDER.map((group) => (
+				<Section key={group} title={PRESET_GROUP_TITLES[group]()}>
+					<div className="-mt-1 grid gap-1">
+						{PRESET_ORDER.filter((id) => PRESETS[id].group === group).map((id) => {
+							const preset = PRESETS[id];
+							const box = outputSize(presetPicture(doc.picture, upright, id), upright, null);
+							const scale = Math.min(1, preset.maxHeight / shortSide(box));
+							const size = `${Math.round(box.width * scale)}×${Math.round(box.height * scale)}`;
+							const tooLong = preset.maxSeconds !== undefined && length > preset.maxSeconds + 0.05;
+							const facts = [
+								size,
+								preset.sizeLimit === null
+									? null
+									: `≤ ${preset.sizeLimit >= 1000 ? m.size_gb({ size: preset.sizeLimit / 1000 }) : m.size_mb({ size: preset.sizeLimit })}`,
+							].filter(Boolean);
+							return (
+								<button
+									key={id}
+									type="button"
+									aria-pressed={chosen === id}
+									disabled={!ready}
+									onClick={() => {
+										choose(id);
+									}}
+									className="enabled:hover:bg-surface aria-pressed:bg-ed-soft aria-pressed:shadow-[inset_0_0_0_1.5px_var(--ed)] ease-spring -mx-2 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-sm px-2 py-1.5 text-left transition-[background-color,transform] duration-200 enabled:active:scale-[0.98] disabled:opacity-50"
+								>
+									<BrandLogo logo={preset.logo} size={30} />
+									<span className="grid min-w-0">
+										<span className="text-ui truncate font-medium">{preset.label}</span>
+										<span className="text-caption text-muted tabular truncate font-mono">
+											{facts.join(' · ')}
+										</span>
+									</span>
+									{preset.maxSeconds !== undefined && (
+										<span
+											title={
+												tooLong
+													? m.preset_too_long({ length: formatClock(preset.maxSeconds) })
+													: undefined
+											}
+											className={`text-caption tabular rounded-full px-2 py-0.5 font-mono ${
+												tooLong
+													? 'bg-[color-mix(in_srgb,var(--danger)_14%,transparent)] text-(--danger)'
+													: 'text-muted'
+											}`}
+										>
+											≤ {formatClock(preset.maxSeconds)}
+										</span>
+									)}
+								</button>
+							);
+						})}
+					</div>
+				</Section>
+			))}
 		</>
 	);
 }

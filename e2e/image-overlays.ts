@@ -14,19 +14,21 @@ await page.goto(`${BASE}/image`);
 await page.setInputFiles('input[type=file]', '../public/samples/lake.jpg');
 await page.waitForSelector('[data-status]', { timeout: 20000 });
 const rail = page.locator('nav[aria-label="Editing tools"]');
-await rail.getByRole('button', { name: 'Text' }).click();
+await rail.getByRole('button', { name: 'Layers' }).click();
 await page.getByRole('button', { name: 'MEME' }).click();
 const field = page.getByRole('textbox', { name: 'Text' });
 await field.fill('WHEN THE EXPORT\nMATCHES THE PREVIEW');
 await field.blur();
+await page.getByRole('tab', { name: 'Text' }).click();
 await page.getByRole('button', { name: 'Caption' }).click();
 await page.getByRole('textbox', { name: 'Text' }).fill('Lake at sunset');
 await page.getByRole('textbox', { name: 'Text' }).blur();
 await page.waitForTimeout(300);
 await page.screenshot({ path: 'shots/overlay-text.png' });
 
-await rail.getByRole('button', { name: 'Stickers' }).click();
+await page.getByRole('tab', { name: 'Sticker' }).click();
 await page.getByRole('button', { name: '🔥' }).click();
+await page.getByRole('tab', { name: 'Shape' }).click();
 await page.getByRole('button', { name: 'Arrow' }).click();
 // Drag the arrow to the right and turn it with the knob.
 const arrow = page.getByRole('button', { name: 'Shape' });

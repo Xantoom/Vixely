@@ -67,21 +67,21 @@ const firstLines = (path: string, stream: string) => {
 	console.log('  lines:', srt.split('\n\n').slice(3, 6).map((cue) => cue.split('\n').slice(1).join(' ')).join(' | '));
 };
 
-// 1. MKV: 0:10 → 0:20 removed, colours changed, subtitles and fonts carried over.
-await open(sample('film.mkv'));
-await removePassage(10, 20, 60);
+// 1. MKV: 0:04 → 0:08 removed, colours changed, subtitles and fonts carried over.
+await open(sample('clip.mkv'));
+await removePassage(4, 8, 24);
 await tools.getByRole('button', { name: 'Adjust' }).click();
 await aside.getByRole('slider', { name: 'Saturation' }).focus();
 for (let i = 0; i < 30; i++) await page.keyboard.press('ArrowLeft');
 const mkv = await convert('converted.mkv');
 probe(mkv);
 if (ffprobe) console.log('  source lines:');
-firstLines(sample('film.mkv'), '0:s:0');
+firstLines(sample('clip.mkv'), '0:s:0');
 firstLines(mkv, '0:s:0');
 
 // 2. MP4 with timed text, kept as MP4.
-await open(sample('film.mp4'));
-await removePassage(10, 20, 60);
+await open(sample('clip.mp4'));
+await removePassage(4, 8, 24);
 probe(await convert('converted.mp4'));
 
 // 3. WebM at 480p.
@@ -97,11 +97,11 @@ probe(
 
 // 4. MKV trimmed and copied: nothing encoded again, subtitles and fonts kept, lines moved to
 // where the copy really starts (the key frame before the trim).
-await open(sample('film.mkv'));
+await open(sample('clip.mkv'));
 await tools.getByRole('button', { name: 'Trim' }).click();
 await aside.getByLabel('Start').fill('0:10.300');
 await aside.getByLabel('Start').press('Enter');
-await aside.getByLabel('End').fill('0:40.000');
+await aside.getByLabel('End').fill('0:18.000');
 await aside.getByLabel('End').press('Enter');
 const copied = await convert('trimmed.mkv', async () => {}, /Original/);
 probe(copied);
@@ -113,9 +113,9 @@ if (ffprobe) {
 }
 
 // 5. MKV with two passages removed, copied: the parts widened to key frames, lines moved with them.
-await open(sample('film.mkv'));
-await removePassage(12, 21, 60);
-await removePassage(33, 44, 60);
+await open(sample('clip.mkv'));
+await removePassage(5, 12, 24);
+await removePassage(15, 21, 24);
 const cutCopy = await convert(
 	'cut-copy.mkv',
 	async () => {
@@ -128,8 +128,8 @@ probe(cutCopy);
 firstLines(cutCopy, '0:s:0');
 
 // 6. The same in an MP4.
-await open(sample('film.mp4'));
-await removePassage(12, 21, 60);
+await open(sample('clip.mp4'));
+await removePassage(5, 12, 24);
 probe(await convert('cut-copy.mp4', async () => {}, /Original/));
 
 const loudness = (path: string, stream: string) => {
@@ -140,22 +140,25 @@ const loudness = (path: string, stream: string) => {
 };
 
 // 7. MKV as it is, its sound 6 dB louder and a WAV added: pictures copied, sound encoded again.
-await open(sample('film.mkv'));
+await open(sample('clip.mkv'));
 await tools.getByRole('button', { name: 'Audio' }).click();
-await aside.getByRole('button', { name: 'Volume' }).first().click();
-await aside.getByRole('slider', { name: 'Gain' }).focus();
+await aside.getByRole('button', { name: /^Edit / }).first().click();
+const tracks = page.getByRole('dialog', { name: 'Tracks' });
+await tracks.getByRole('slider', { name: 'Volume' }).focus();
 for (let i = 0; i < 12; i++) await page.keyboard.press('ArrowRight');
+await tracks.screenshot({ path: 'shots/tracks-dialog.png' });
+await tracks.getByRole('button', { name: 'Close the panel' }).click();
 await aside.locator('input[type=file]').setInputFiles('samples/long.wav');
 await aside.getByText('Audio, long').waitFor();
 await aside.screenshot({ path: 'shots/audio-tool.png' });
 const louder = await convert('louder.mkv', async () => {}, /Original/);
 probe(louder);
-loudness(sample('film.mkv'), '0:a:0');
+loudness(sample('clip.mkv'), '0:a:0');
 loudness(louder, '0:a:0');
 
 // 8. MP4 converted with a passage removed and a WAV added: the sound added follows the cut.
-await open(sample('film.mp4'));
-await removePassage(10, 20, 60);
+await open(sample('clip.mp4'));
+await removePassage(4, 8, 24);
 await tools.getByRole('button', { name: 'Audio' }).click();
 await aside.locator('input[type=file]').setInputFiles('samples/long.wav');
 await aside.getByText('Audio, long').waitFor();
@@ -171,7 +174,7 @@ const frames = (path: string, times: number[], name: string) => {
 };
 
 // 9. MKV converted to MP4 with its styled English subtitles burned in.
-await open(sample('film.mkv'));
+await open(sample('clip.mkv'));
 await tools.getByRole('button', { name: 'Subtitles' }).click();
 await aside.getByLabel('Track', { exact: true }).click();
 await page.getByRole('option', { name: /English \(styled\)/ }).click();

@@ -30,6 +30,7 @@ import {
 import { isShortened, keptRanges } from '@/document/kept';
 import { isKept, toOutput } from '@/document/timemap';
 import { drawOverlays, loadOverlayAssets } from '@/editor/overlays/draw';
+import type { LogoId } from '@/ui/BrandLogo';
 import { ensureEncoder } from '../audio/export';
 import { effectiveCrop, type ImageDoc, orientedSize, type Size } from '../image/document';
 import { ImageRenderer } from '../image/renderer';
@@ -257,11 +258,11 @@ export function audioFits(source: VideoSource, container: VideoContainer): boole
 
 /**
  * The sound as it will be written: copied when asked and possible, else encoded in the codec the
- * container takes. Removed passages always need it encoded again.
+ * container takes. With passages removed, the sound of each kept part is copied on its own.
  */
-export function resolveAudio(settings: VideoExportSettings, source: VideoSource, cuts: boolean): AudioChoice {
+export function resolveAudio(settings: VideoExportSettings, source: VideoSource): AudioChoice {
 	if (settings.audio !== 'copy') return settings.container === 'webm' ? 'opus' : settings.audio;
-	if (!cuts && audioFits(source, settings.container)) return 'copy';
+	if (audioFits(source, settings.container)) return 'copy';
 	return settings.container === 'webm' ? 'opus' : 'aac';
 }
 
@@ -311,25 +312,40 @@ export function bitrateForSize(megabytes: number, seconds: number, audio: number
 
 export type PresetId =
 	| 'discord'
+	| 'discord-basic'
+	| 'discord-nitro'
 	| 'whatsapp'
+	| 'telegram'
+	| 'signal'
+	| 'messenger'
 	| 'email'
-	| 'x'
-	| 'instagram'
-	| 'youtube'
-	| 'web'
 	| 'tiktok'
 	| 'reels'
 	| 'shorts'
+	| 'snapchat'
 	| 'instagram-feed'
-	| 'discord-nitro'
-	| 'twitch'
-	| 'bluesky'
+	| 'instagram'
+	| 'facebook'
+	| 'x'
 	| 'x-premium'
+	| 'threads'
+	| 'bluesky'
+	| 'linkedin'
+	| 'reddit'
+	| 'youtube'
+	| 'vimeo'
+	| 'twitch'
 	| 'square'
-	| 'uhd';
+	| 'uhd'
+	| 'web';
 
-interface Preset {
+export type PresetGroupId = 'messages' | 'vertical' | 'social' | 'video' | 'general';
+
+export interface Preset {
 	label: string;
+	group: PresetGroupId;
+	/** The logo shown, a brand's or a generic one. */
+	logo: LogoId;
 	/** The frame the pictures are cropped to, from the middle; absent keeps theirs. */
 	aspect?: `${number}:${number}`;
 	container: VideoContainer;
@@ -340,188 +356,298 @@ interface Preset {
 	maxFrameRate: number;
 	/** Video bitrate in kb/s, when no size limit applies. */
 	bitrate: number;
+	/** Largest file taken, in MB; null when far beyond what a video here weighs. */
 	sizeLimit: number | null;
+	/** Longest video taken, in seconds. */
+	maxSeconds?: number;
 	audio: 'aac' | 'opus';
 	audioBitrate: number;
 }
 
+const mp4 = (preset: Omit<Preset, 'container' | 'codec' | 'audio'>): Preset => ({
+	container: 'mp4',
+	codec: 'avc',
+	audio: 'aac',
+	...preset,
+});
+
 /**
- * Settings for the places videos go, from their published limits: Discord and WhatsApp cap files
- * at 10 and 16 MB, mail at 25 MB; X, Instagram and YouTube take H.264 in MP4 and re-encode it.
+ * Settings for the places videos go, from their published limits (September 2026). Services
+ * re-encode what they get, so H.264 in MP4 at their recommended bitrates goes everywhere. Mail
+ * servers take 25 MB, but attachments grow by a third on the way: 18 MB is what fits.
  */
 export const PRESETS: Record<PresetId, Preset> = {
-	discord: {
+	'discord': mp4({
 		label: 'Discord',
-		container: 'mp4',
-		codec: 'avc',
+		group: 'messages',
+		logo: 'discord',
 		maxHeight: 720,
 		maxFrameRate: 30,
 		bitrate: 2500,
-		sizeLimit: 10,
-		audio: 'aac',
+		sizeLimit: 20,
 		audioBitrate: 96,
-	},
-	whatsapp: {
-		label: 'WhatsApp',
-		container: 'mp4',
-		codec: 'avc',
-		maxHeight: 720,
-		maxFrameRate: 30,
-		bitrate: 2500,
-		sizeLimit: 16,
-		audio: 'aac',
-		audioBitrate: 96,
-	},
-	email: {
-		label: 'E-mail',
-		container: 'mp4',
-		codec: 'avc',
-		maxHeight: 720,
-		maxFrameRate: 30,
-		bitrate: 2500,
-		sizeLimit: 25,
-		audio: 'aac',
-		audioBitrate: 96,
-	},
-	x: {
-		label: 'X',
-		container: 'mp4',
-		codec: 'avc',
-		maxHeight: 1080,
-		maxFrameRate: 60,
-		bitrate: 8000,
-		sizeLimit: null,
-		audio: 'aac',
-		audioBitrate: 128,
-	},
-	instagram: {
-		label: 'Instagram',
-		container: 'mp4',
-		codec: 'avc',
+	}),
+	'discord-basic': mp4({
+		label: 'Discord Nitro Basic',
+		group: 'messages',
+		logo: 'discord',
 		maxHeight: 1080,
 		maxFrameRate: 30,
 		bitrate: 5000,
-		sizeLimit: null,
-		audio: 'aac',
+		sizeLimit: 50,
 		audioBitrate: 128,
-	},
-	youtube: {
-		label: 'YouTube',
-		container: 'mp4',
-		codec: 'avc',
-		maxHeight: 2160,
-		maxFrameRate: 60,
-		bitrate: 12000,
-		sizeLimit: null,
-		audio: 'aac',
-		audioBitrate: 192,
-	},
-	tiktok: {
-		label: 'TikTok',
-		aspect: '9:16',
-		container: 'mp4',
-		codec: 'avc',
-		maxHeight: 1080,
-		maxFrameRate: 60,
-		bitrate: 8000,
-		sizeLimit: null,
-		audio: 'aac',
-		audioBitrate: 128,
-	},
-	reels: {
-		label: 'Instagram Reels',
-		aspect: '9:16',
-		container: 'mp4',
-		codec: 'avc',
-		maxHeight: 1080,
-		maxFrameRate: 30,
-		bitrate: 5000,
-		sizeLimit: null,
-		audio: 'aac',
-		audioBitrate: 128,
-	},
-	shorts: {
-		label: 'YouTube Shorts',
-		aspect: '9:16',
-		container: 'mp4',
-		codec: 'avc',
-		maxHeight: 1080,
-		maxFrameRate: 60,
-		bitrate: 8000,
-		sizeLimit: null,
-		audio: 'aac',
-		audioBitrate: 192,
-	},
-	'instagram-feed': {
-		label: 'Instagram 4:5',
-		aspect: '4:5',
-		container: 'mp4',
-		codec: 'avc',
-		maxHeight: 1080,
-		maxFrameRate: 30,
-		bitrate: 5000,
-		sizeLimit: null,
-		audio: 'aac',
-		audioBitrate: 128,
-	},
-	'discord-nitro': {
+	}),
+	'discord-nitro': mp4({
 		label: 'Discord Nitro',
-		container: 'mp4',
-		codec: 'avc',
+		group: 'messages',
+		logo: 'discord',
 		maxHeight: 1080,
 		maxFrameRate: 60,
 		bitrate: 8000,
 		sizeLimit: 500,
-		audio: 'aac',
 		audioBitrate: 160,
-	},
-	twitch: {
-		label: 'Twitch',
-		container: 'mp4',
-		codec: 'avc',
+	}),
+	'whatsapp': mp4({
+		label: 'WhatsApp',
+		group: 'messages',
+		logo: 'whatsapp',
+		maxHeight: 720,
+		maxFrameRate: 30,
+		bitrate: 2500,
+		sizeLimit: 16,
+		audioBitrate: 96,
+	}),
+	'telegram': mp4({
+		label: 'Telegram',
+		group: 'messages',
+		logo: 'telegram',
 		maxHeight: 1080,
 		maxFrameRate: 60,
 		bitrate: 6000,
 		sizeLimit: null,
-		audio: 'aac',
-		audioBitrate: 160,
-	},
-	bluesky: {
-		label: 'Bluesky',
-		container: 'mp4',
-		codec: 'avc',
-		maxHeight: 1080,
-		maxFrameRate: 60,
-		bitrate: 5000,
-		sizeLimit: 100,
-		audio: 'aac',
 		audioBitrate: 128,
-	},
-	'x-premium': {
-		label: 'X Premium',
-		container: 'mp4',
-		codec: 'avc',
+	}),
+	'signal': mp4({
+		label: 'Signal',
+		group: 'messages',
+		logo: 'signal',
+		maxHeight: 1080,
+		maxFrameRate: 30,
+		bitrate: 4000,
+		sizeLimit: 100,
+		audioBitrate: 128,
+	}),
+	'messenger': mp4({
+		label: 'Messenger',
+		group: 'messages',
+		logo: 'messenger',
+		maxHeight: 720,
+		maxFrameRate: 30,
+		bitrate: 2500,
+		sizeLimit: 25,
+		audioBitrate: 96,
+	}),
+	'email': mp4({
+		label: 'E-mail',
+		group: 'messages',
+		logo: 'email',
+		maxHeight: 720,
+		maxFrameRate: 30,
+		bitrate: 2500,
+		sizeLimit: 18,
+		audioBitrate: 96,
+	}),
+	'tiktok': mp4({
+		label: 'TikTok',
+		group: 'vertical',
+		logo: 'tiktok',
+		aspect: '9:16',
 		maxHeight: 1080,
 		maxFrameRate: 60,
-		bitrate: 12000,
+		bitrate: 10000,
 		sizeLimit: null,
-		audio: 'aac',
-		audioBitrate: 192,
-	},
-	square: {
-		label: '1:1',
-		aspect: '1:1',
-		container: 'mp4',
-		codec: 'avc',
+		maxSeconds: 3600,
+		audioBitrate: 128,
+	}),
+	'reels': mp4({
+		label: 'Instagram Reels',
+		group: 'vertical',
+		logo: 'instagram',
+		aspect: '9:16',
 		maxHeight: 1080,
 		maxFrameRate: 30,
 		bitrate: 5000,
 		sizeLimit: null,
-		audio: 'aac',
+		maxSeconds: 900,
 		audioBitrate: 128,
-	},
-	uhd: {
+	}),
+	'shorts': mp4({
+		label: 'YouTube Shorts',
+		group: 'vertical',
+		logo: 'youtubeshorts',
+		aspect: '9:16',
+		maxHeight: 1080,
+		maxFrameRate: 60,
+		bitrate: 8000,
+		sizeLimit: null,
+		maxSeconds: 180,
+		audioBitrate: 192,
+	}),
+	'snapchat': mp4({
+		label: 'Snapchat',
+		group: 'vertical',
+		logo: 'snapchat',
+		aspect: '9:16',
+		maxHeight: 1080,
+		maxFrameRate: 30,
+		bitrate: 5000,
+		sizeLimit: null,
+		maxSeconds: 180,
+		audioBitrate: 128,
+	}),
+	'instagram-feed': mp4({
+		label: 'Instagram 4:5',
+		group: 'social',
+		logo: 'instagram',
+		aspect: '4:5',
+		maxHeight: 1080,
+		maxFrameRate: 30,
+		bitrate: 5000,
+		sizeLimit: null,
+		maxSeconds: 900,
+		audioBitrate: 128,
+	}),
+	'instagram': mp4({
+		label: 'Instagram',
+		group: 'social',
+		logo: 'instagram',
+		maxHeight: 1080,
+		maxFrameRate: 30,
+		bitrate: 5000,
+		sizeLimit: null,
+		maxSeconds: 900,
+		audioBitrate: 128,
+	}),
+	'facebook': mp4({
+		label: 'Facebook',
+		group: 'social',
+		logo: 'facebook',
+		maxHeight: 1080,
+		maxFrameRate: 60,
+		bitrate: 8000,
+		sizeLimit: null,
+		audioBitrate: 128,
+	}),
+	'x': mp4({
+		label: 'X',
+		group: 'social',
+		logo: 'x',
+		maxHeight: 1080,
+		maxFrameRate: 60,
+		bitrate: 8000,
+		sizeLimit: 512,
+		maxSeconds: 140,
+		audioBitrate: 128,
+	}),
+	'x-premium': mp4({
+		label: 'X Premium',
+		group: 'social',
+		logo: 'x',
+		maxHeight: 1080,
+		maxFrameRate: 60,
+		bitrate: 12000,
+		sizeLimit: 8000,
+		audioBitrate: 192,
+	}),
+	'threads': mp4({
+		label: 'Threads',
+		group: 'social',
+		logo: 'threads',
+		maxHeight: 1080,
+		maxFrameRate: 60,
+		bitrate: 8000,
+		sizeLimit: 1000,
+		maxSeconds: 300,
+		audioBitrate: 128,
+	}),
+	'bluesky': mp4({
+		label: 'Bluesky',
+		group: 'social',
+		logo: 'bluesky',
+		maxHeight: 1080,
+		maxFrameRate: 60,
+		bitrate: 5000,
+		sizeLimit: 300,
+		maxSeconds: 600,
+		audioBitrate: 128,
+	}),
+	'linkedin': mp4({
+		label: 'LinkedIn',
+		group: 'social',
+		logo: 'linkedin',
+		maxHeight: 1080,
+		maxFrameRate: 30,
+		bitrate: 8000,
+		sizeLimit: 5000,
+		maxSeconds: 900,
+		audioBitrate: 128,
+	}),
+	'reddit': mp4({
+		label: 'Reddit',
+		group: 'social',
+		logo: 'reddit',
+		maxHeight: 1080,
+		maxFrameRate: 60,
+		bitrate: 8000,
+		sizeLimit: 1000,
+		maxSeconds: 900,
+		audioBitrate: 128,
+	}),
+	'youtube': mp4({
+		label: 'YouTube',
+		group: 'video',
+		logo: 'youtube',
+		maxHeight: 2160,
+		maxFrameRate: 60,
+		bitrate: 12000,
+		sizeLimit: null,
+		audioBitrate: 192,
+	}),
+	'vimeo': mp4({
+		label: 'Vimeo',
+		group: 'video',
+		logo: 'vimeo',
+		maxHeight: 2160,
+		maxFrameRate: 60,
+		bitrate: 16000,
+		sizeLimit: null,
+		audioBitrate: 320,
+	}),
+	'twitch': mp4({
+		label: 'Twitch',
+		group: 'video',
+		logo: 'twitch',
+		maxHeight: 1080,
+		maxFrameRate: 60,
+		bitrate: 6000,
+		sizeLimit: null,
+		audioBitrate: 160,
+	}),
+	'square': mp4({
+		label: '1:1',
+		group: 'general',
+		logo: 'square',
+		aspect: '1:1',
+		maxHeight: 1080,
+		maxFrameRate: 30,
+		bitrate: 5000,
+		sizeLimit: null,
+		audioBitrate: 128,
+	}),
+	'uhd': {
 		label: '4K UHD',
+		group: 'general',
+		logo: 'uhd',
 		container: 'mp4',
 		codec: 'hevc',
 		maxHeight: 2160,
@@ -531,8 +657,10 @@ export const PRESETS: Record<PresetId, Preset> = {
 		audio: 'aac',
 		audioBitrate: 192,
 	},
-	web: {
+	'web': {
 		label: 'Web',
+		group: 'general',
+		logo: 'web',
 		container: 'webm',
 		codec: 'vp9',
 		maxHeight: 1080,
@@ -544,20 +672,33 @@ export const PRESETS: Record<PresetId, Preset> = {
 	},
 };
 
+export const PRESET_GROUP_ORDER: PresetGroupId[] = ['messages', 'vertical', 'social', 'video', 'general'];
+
+/** Presets in the order they are listed: by group, the free version of a service first. */
 export const PRESET_ORDER: PresetId[] = [
 	'discord',
+	'discord-basic',
 	'discord-nitro',
 	'whatsapp',
+	'telegram',
+	'signal',
+	'messenger',
 	'email',
 	'tiktok',
 	'reels',
 	'shorts',
+	'snapchat',
 	'instagram-feed',
 	'instagram',
+	'facebook',
 	'x',
 	'x-premium',
+	'threads',
 	'bluesky',
+	'linkedin',
+	'reddit',
 	'youtube',
+	'vimeo',
 	'twitch',
 	'square',
 	'uhd',

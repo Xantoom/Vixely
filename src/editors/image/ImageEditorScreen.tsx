@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLeaveGuard } from '@/app/leave-guard';
 import { EditorLayout } from '@/editor/EditorLayout';
 import { FilePanel, ToolLater } from '@/editor/Inspector';
-import { StickersPanel, TextPanel } from '@/editor/overlays/panels';
+import { LayersPanel } from '@/editor/overlays/panels';
 import { useEditorShortcuts } from '@/editor/shortcuts';
 import { Viewer } from '@/editor/Viewer';
 import { ZoomStatus } from '@/editor/ZoomStage';
@@ -75,8 +75,7 @@ export function ImageEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 		if (tool === 'crop') return <CropPanel editing={editing} />;
 		if (tool === 'adjust') return <AdjustPanel editing={editing} />;
 		if (tool === 'presets') return <PresetsPanel editing={editing} />;
-		if (tool === 'text') return <TextPanel editing={overlayEditing(editing)} textRef={textRef} />;
-		if (tool === 'stickers') return <StickersPanel editing={overlayEditing(editing)} />;
+		if (tool === 'layers') return <LayersPanel editing={overlayEditing(editing)} textRef={textRef} />;
 		if (tool === 'export') return <ExportPanel source={source} photo={opened.info?.photo ?? null} />;
 		return <ToolLater kind="image" tool={tool} />;
 	};
@@ -104,9 +103,9 @@ export function ImageEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 					<ImageViewer
 						source={source}
 						cropping={tool === 'crop'}
-						overlays={tool === 'text' || tool === 'stickers' ? overlayEditing(editing) : undefined}
+						overlays={tool === 'layers' ? overlayEditing(editing) : undefined}
 						onEditText={() => {
-							setTool('text');
+							setTool('layers');
 							requestAnimationFrame(() => {
 								textRef.current?.focus();
 							});

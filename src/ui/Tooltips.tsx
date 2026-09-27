@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { layerOf } from './layer';
 
 /** Wait before the first tooltip; once one shows, the next ones follow at once. */
 const DELAY = 450;
@@ -137,6 +138,6 @@ export function Tooltips() {
 		>
 			{tip.text}
 		</div>,
-		document.body,
+		layerOf(tip.target),
 	);
 }

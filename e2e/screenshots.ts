@@ -65,7 +65,7 @@ export const SHOTS: Record<string, Shot> = {
 	},
 	'gif-text': async (page) => {
 		await open(page, '/gif', 'sunset.gif');
-		await tool(page, 'Text');
+		await tool(page, 'Layers');
 		await aside(page).getByRole('button', { name: /^Title/ }).click();
 		await aside(page).getByLabel('Text', { exact: true }).fill('Golden hour');
 	},

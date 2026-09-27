@@ -10,6 +10,7 @@ import {
 	useState,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { layerOf } from './layer';
 import { type Place, placeList } from './place';
 
 export interface MenuItem<T extends string> {
@@ -236,7 +237,7 @@ export function Menu<T extends string>({
 							</div>
 						))}
 					</div>,
-					document.body,
+					layerOf(buttonRef.current),
 				)}
 		</span>
 	);

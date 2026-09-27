@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { m } from '@/paraglide/messages.js';
+import { layerOf } from './layer';
 import { type Place, placeList } from './place';
 
 interface Hsv {
@@ -268,7 +269,7 @@ export function ColorPopover({
 					>
 						<ColorChooser value={value} onChange={onChange} />
 					</div>,
-					document.body,
+					layerOf(buttonRef.current),
 				)}
 		</>
 	);

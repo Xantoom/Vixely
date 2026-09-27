@@ -97,7 +97,7 @@ function EditedPicture({
 			return;
 		}
 		rendererRef.current = renderer;
-		player.attach(canvas, (sample) => {
+		const detach = player.attach(canvas, (sample) => {
 			renderer.setFrame(
 				sample.toCanvasImageSource(),
 				{ width: sample.squarePixelWidth, height: sample.squarePixelHeight },
@@ -106,7 +106,7 @@ function EditedPicture({
 			renderer.render(shown.current.doc, { region: shown.current.region, original: shown.current.original });
 		});
 		return () => {
-			player.attach(null);
+			detach();
 			renderer.dispose();
 			rendererRef.current = null;
 		};

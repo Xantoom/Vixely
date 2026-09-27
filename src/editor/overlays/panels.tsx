@@ -7,11 +7,16 @@ import {
 	Bold,
 	Copy,
 	Italic,
+	Plus,
+	Shapes,
+	Smile,
 	Trash2,
+	Type,
 } from 'lucide-react';
-import { type ReactNode, type RefObject, useId } from 'react';
+import { type ReactNode, type RefObject, useId, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { Section } from '@/editor/panel-parts';
+import { formatClock } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
 import { IconButton } from '@/ui/Button';
 import { Button } from '@/ui/Button';
@@ -39,6 +44,7 @@ import {
 	SWATCHES,
 	TEXT_STYLE_IDS,
 	TEXT_STYLES,
+	type TextOverlay,
 	type TextStyleId,
 } from './model';
 import { STICKER_GROUPS } from './sticker-list';
@@ -304,195 +310,176 @@ const STYLE_LABELS: Record<TextStyleId, () => string> = {
 /** Where each style starts: memes at the top, captions near the bottom. */
 const STYLE_Y: Record<TextStyleId, number> = { title: 0.5, body: 0.5, meme: 0.1, caption: 0.85, handwritten: 0.5 };
 
-export function TextPanel({
+/** The words and look of a text layer. */
+function TextSettings({
 	editing,
+	text,
 	textRef,
 }: {
 	editing: OverlayEditing;
-	/** The text field, focused by a double-click on the picture. */
+	text: TextOverlay;
 	textRef: RefObject<HTMLTextAreaElement | null>;
 }) {
-	const selectedId = useOverlaySelection((state) => state.selected);
-	const select = useOverlaySelection((state) => state.select);
-	const selected = editing.overlays.find((overlay) => overlay.id === selectedId);
-	const text = selected?.kind === 'text' ? selected : null;
 	const change = (next: Parameters<typeof updateText>[1]) => {
-		if (text) editing.apply(updateText(text.id, next));
+		editing.apply(updateText(text.id, next));
 	};
-
-	const add = (style: TextStyleId) => {
-		const overlay = createText(
-			style,
-			style === 'meme' ? m.text_placeholder_meme() : m.text_placeholder(),
-			STYLE_Y[style],
-		);
-		editing.apply((list) => [...list, overlay]);
-		select(overlay.id);
-		requestAnimationFrame(() => {
-			textRef.current?.select();
-		});
-	};
-
 	return (
 		<>
-			<PanelTitle>{m.tool_text()}</PanelTitle>
-			<div className="grid grid-cols-2 gap-2">
-				{TEXT_STYLE_IDS.map((style) => {
-					const look = TEXT_STYLES[style];
-					const font = fontInfo(look.font);
-					return (
-						<button
-							key={style}
-							type="button"
+			<Section title={m.text_content()}>
+				<textarea
+					ref={textRef}
+					aria-label={m.text_content()}
+					value={text.text}
+					rows={Math.min(5, text.text.split('\n').length + 1)}
+					onChange={(event) => {
+						editing.preview(updateText(text.id, { text: event.target.value }));
+					}}
+					onBlur={editing.settle}
+					className="bg-surface text-body focus:shadow-[inset_0_0_0_1.5px_var(--ed)] w-full resize-none rounded-sm px-3.5 py-2.5 outline-none"
+				/>
+			</Section>
+			<Section title={m.text_style()}>
+				<FieldRow label={m.text_font()} htmlFor="text-font">
+					<Select
+						id="text-font"
+						value={text.font}
+						options={FONTS.map((font) => ({ value: font.id, label: font.label }))}
+						onChange={(font: FontId) => {
+							change({ font });
+						}}
+					/>
+				</FieldRow>
+				<div className="flex gap-1">
+					<Toggle
+						label={m.text_bold()}
+						pressed={text.bold}
+						onClick={() => {
+							change({ bold: !text.bold });
+						}}
+					>
+						<Bold className="size-5" />
+					</Toggle>
+					<Toggle
+						label={m.text_italic()}
+						pressed={text.italic}
+						onClick={() => {
+							change({ italic: !text.italic });
+						}}
+					>
+						<Italic className="size-5" />
+					</Toggle>
+					<span className="bg-line mx-1 w-px self-stretch" aria-hidden="true" />
+					{(
+						[
+							['left', AlignLeft, m.text_align_left()],
+							['center', AlignCenter, m.text_align_center()],
+							['right', AlignRight, m.text_align_right()],
+						] as const
+					).map(([align, Icon, label]) => (
+						<Toggle
+							key={align}
+							label={label}
+							pressed={text.align === align}
 							onClick={() => {
-								add(style);
+								change({ align });
 							}}
-							className="bg-surface hover:bg-surface-2 ease-spring grid h-16 place-items-center rounded-sm px-2 transition-[background-color,transform] duration-200 active:scale-[0.97]"
 						>
-							<span
-								className="truncate text-[1.2rem] leading-none"
-								style={{
-									fontFamily: `"${font.family}"`,
-									fontWeight: look.bold && font.bold ? 700 : 400,
-								}}
-							>
-								{STYLE_LABELS[style]()}
-							</span>
+							<Icon className="size-5" />
+						</Toggle>
+					))}
+				</div>
+				<ColorPicker
+					label={m.text_color()}
+					value={text.color}
+					onChange={(color) => {
+						change({ color });
+					}}
+				/>
+				<Slider
+					label={m.text_outline()}
+					value={Math.round(text.outline * 100)}
+					min={0}
+					max={30}
+					format={String}
+					onChange={(value) => {
+						editing.preview(updateText(text.id, { outline: value / 100 }));
+					}}
+					onEnd={editing.settle}
+				/>
+				{text.outline > 0 && (
+					<ColorPicker
+						label={m.text_outline_color()}
+						value={text.outlineColor}
+						onChange={(outlineColor) => {
+							change({ outlineColor });
+						}}
+					/>
+				)}
+				<div className="flex flex-wrap gap-2">
+					{(
+						[
+							[
+								m.text_box(),
+								text.background !== null,
+								{ background: text.background ? null : '#000000b3' },
+							],
+							[m.text_shadow(), text.shadow, { shadow: !text.shadow }],
+						] as const
+					).map(([label, pressed, next]) => (
+						<button
+							key={label}
+							type="button"
+							aria-pressed={pressed}
+							onClick={() => {
+								change(next);
+							}}
+							className="text-ui aria-pressed:bg-ed-soft aria-pressed:text-ed-text aria-pressed:shadow-[inset_0_0_0_1.5px_var(--ed)] rounded-full px-3.5 py-1.5 font-medium shadow-[inset_0_0_0_1px_var(--line-2)] transition-colors"
+						>
+							{label}
 						</button>
-					);
-				})}
-			</div>
-			{text && (
-				<>
-					<Section title={m.text_content()}>
-						<textarea
-							ref={textRef}
-							aria-label={m.text_content()}
-							value={text.text}
-							rows={Math.min(5, text.text.split('\n').length + 1)}
-							onChange={(event) => {
-								editing.preview(updateText(text.id, { text: event.target.value }));
-							}}
-							onBlur={editing.settle}
-							className="bg-surface text-body focus:shadow-[inset_0_0_0_1.5px_var(--ed)] w-full resize-none rounded-sm px-3.5 py-2.5 outline-none"
-						/>
-					</Section>
-					<Section title={m.text_style()}>
-						<FieldRow label={m.text_font()} htmlFor="text-font">
-							<Select
-								id="text-font"
-								value={text.font}
-								options={FONTS.map((font) => ({ value: font.id, label: font.label }))}
-								onChange={(font: FontId) => {
-									change({ font });
-								}}
-							/>
-						</FieldRow>
-						<div className="flex gap-1">
-							<Toggle
-								label={m.text_bold()}
-								pressed={text.bold}
-								onClick={() => {
-									change({ bold: !text.bold });
-								}}
-							>
-								<Bold className="size-5" />
-							</Toggle>
-							<Toggle
-								label={m.text_italic()}
-								pressed={text.italic}
-								onClick={() => {
-									change({ italic: !text.italic });
-								}}
-							>
-								<Italic className="size-5" />
-							</Toggle>
-							<span className="bg-line mx-1 w-px self-stretch" aria-hidden="true" />
-							{(
-								[
-									['left', AlignLeft, m.text_align_left()],
-									['center', AlignCenter, m.text_align_center()],
-									['right', AlignRight, m.text_align_right()],
-								] as const
-							).map(([align, Icon, label]) => (
-								<Toggle
-									key={align}
-									label={label}
-									pressed={text.align === align}
-									onClick={() => {
-										change({ align });
-									}}
-								>
-									<Icon className="size-5" />
-								</Toggle>
-							))}
-						</div>
-						<ColorPicker
-							label={m.text_color()}
-							value={text.color}
-							onChange={(color) => {
-								change({ color });
-							}}
-						/>
-						<Slider
-							label={m.text_outline()}
-							value={Math.round(text.outline * 100)}
-							min={0}
-							max={30}
-							format={String}
-							onChange={(value) => {
-								editing.preview(updateText(text.id, { outline: value / 100 }));
-							}}
-							onEnd={editing.settle}
-						/>
-						{text.outline > 0 && (
-							<ColorPicker
-								label={m.text_outline_color()}
-								value={text.outlineColor}
-								onChange={(outlineColor) => {
-									change({ outlineColor });
-								}}
-							/>
-						)}
-						<div className="flex flex-wrap gap-2">
-							{(
-								[
-									[
-										m.text_box(),
-										text.background !== null,
-										{ background: text.background ? null : '#000000b3' },
-									],
-									[m.text_shadow(), text.shadow, { shadow: !text.shadow }],
-								] as const
-							).map(([label, pressed, next]) => (
-								<button
-									key={label}
-									type="button"
-									aria-pressed={pressed}
-									onClick={() => {
-										change(next);
-									}}
-									className="text-ui aria-pressed:bg-ed-soft aria-pressed:text-ed-text aria-pressed:shadow-[inset_0_0_0_1.5px_var(--ed)] rounded-full px-3.5 py-1.5 font-medium shadow-[inset_0_0_0_1px_var(--line-2)] transition-colors"
-								>
-									{label}
-								</button>
-							))}
-						</div>
-						{text.background && (
-							<ColorPicker
-								label={m.text_box_color()}
-								value={text.background}
-								onChange={(color) => {
-									// The box stays a little see-through, as captions are.
-									change({ background: `${color}b3` });
-								}}
-							/>
-						)}
-					</Section>
-					<Arrange editing={editing} overlay={text} />
-				</>
-			)}
+					))}
+				</div>
+				{text.background && (
+					<ColorPicker
+						label={m.text_box_color()}
+						value={text.background}
+						onChange={(color) => {
+							// The box stays a little see-through, as captions are.
+							change({ background: `${color}b3` });
+						}}
+					/>
+				)}
+			</Section>
 		</>
+	);
+}
+
+/** Starting looks for text, each written in its font. */
+function TextStyles({ onAdd }: { onAdd: (style: TextStyleId) => void }) {
+	return (
+		<div className="grid grid-cols-2 gap-2">
+			{TEXT_STYLE_IDS.map((style) => {
+				const look = TEXT_STYLES[style];
+				const font = fontInfo(look.font);
+				return (
+					<button
+						key={style}
+						type="button"
+						onClick={() => {
+							onAdd(style);
+						}}
+						className="bg-surface hover:bg-surface-2 ease-spring grid h-16 place-items-center rounded-sm px-2 transition-[background-color,transform] duration-200 active:scale-[0.97]"
+					>
+						<span
+							className="truncate text-[1.2rem] leading-none"
+							style={{ fontFamily: `"${font.family}"`, fontWeight: look.bold && font.bold ? 700 : 400 }}
+						>
+							{STYLE_LABELS[style]()}
+						</span>
+					</button>
+				);
+			})}
+		</div>
 	);
 }
 
@@ -524,67 +511,32 @@ const GROUP_LABELS: Record<keyof typeof STICKER_GROUPS, () => string> = {
 	activities: () => m.stickers_activities(),
 };
 
-export function StickersPanel({ editing }: { editing: OverlayEditing }) {
-	const selectedId = useOverlaySelection((state) => state.selected);
-	const select = useOverlaySelection((state) => state.select);
-	const selected = editing.overlays.find((overlay) => overlay.id === selectedId);
-	const shape = selected?.kind === 'shape' ? selected : null;
+function ShapePicker({ color, onAdd }: { color: string; onAdd: (overlay: Overlay) => void }) {
+	return (
+		<div className="grid grid-cols-6 gap-1.5">
+			{SHAPES.map((id) => (
+				<button
+					key={id}
+					type="button"
+					aria-label={SHAPE_LABELS[id]()}
+					title={SHAPE_LABELS[id]()}
+					onClick={() => {
+						onAdd(createShape(id, color));
+					}}
+					className="bg-surface hover:bg-surface-2 text-ink-2 ease-spring grid aspect-square place-items-center rounded-sm transition-transform duration-200 active:scale-95"
+				>
+					<svg viewBox="0 0 24 24" className="size-6" aria-hidden="true">
+						<path d={SHAPE_ICONS[id]} fill="currentColor" fillRule="evenodd" />
+					</svg>
+				</button>
+			))}
+		</div>
+	);
+}
 
-	const add = (overlay: Overlay) => {
-		editing.apply((list) => [...list, overlay]);
-		select(overlay.id);
-	};
-
+function StickerPicker({ onAdd }: { onAdd: (overlay: Overlay) => void }) {
 	return (
 		<>
-			<PanelTitle>{m.tool_stickers()}</PanelTitle>
-			{selected && selected.kind !== 'text' && (
-				<div className="bg-surface grid gap-4 rounded-md p-4">
-					{shape && (
-						<>
-							<ColorPicker
-								label={m.text_color()}
-								value={shape.color}
-								onChange={(color) => {
-									editing.apply(updateShape(shape.id, { color }));
-								}}
-							/>
-							<Toggle
-								label={m.shape_outlined()}
-								pressed={shape.outlined}
-								onClick={() => {
-									editing.apply(updateShape(shape.id, { outlined: !shape.outlined }));
-								}}
-							>
-								<svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">
-									<circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" strokeWidth="2.5" />
-								</svg>
-							</Toggle>
-						</>
-					)}
-					<Arrange editing={editing} overlay={selected} />
-				</div>
-			)}
-			<Section title={m.stickers_shapes()}>
-				<div className="grid grid-cols-6 gap-1.5">
-					{SHAPES.map((id) => (
-						<button
-							key={id}
-							type="button"
-							aria-label={SHAPE_LABELS[id]()}
-							title={SHAPE_LABELS[id]()}
-							onClick={() => {
-								add(createShape(id, shape?.color ?? '#ff3b30'));
-							}}
-							className="bg-surface hover:bg-surface-2 text-ink-2 ease-spring grid aspect-square place-items-center rounded-sm transition-transform duration-200 active:scale-95"
-						>
-							<svg viewBox="0 0 24 24" className="size-6" aria-hidden="true">
-								<path d={SHAPE_ICONS[id]} fill="currentColor" fillRule="evenodd" />
-							</svg>
-						</button>
-					))}
-				</div>
-			</Section>
 			{STICKER_GROUP_IDS.map((group) => (
 				<Section key={group} title={GROUP_LABELS[group]()}>
 					<div className="grid grid-cols-6 gap-1">
@@ -592,27 +544,243 @@ export function StickersPanel({ editing }: { editing: OverlayEditing }) {
 							<button
 								key={emoji}
 								type="button"
-								aria-label={String.fromCodePoint(
-									...emoji.split('-').map((code) => Number.parseInt(code, 16)),
-								)}
+								aria-label={emojiText(emoji)}
 								onClick={() => {
-									add(createSticker(emoji));
+									onAdd(createSticker(emoji));
 								}}
 								className="hover:bg-surface ease-spring grid aspect-square place-items-center rounded-sm transition-transform duration-200 hover:scale-110 active:scale-95"
 							>
-								<img
-									src={`/stickers/${emoji}.svg`}
-									alt=""
-									loading="lazy"
-									className="size-8"
-									draggable={false}
-								/>
+								<img src={`/stickers/${emoji}.svg`} alt="" className="size-8" draggable={false} />
 							</button>
 						))}
 					</div>
 				</Section>
 			))}
 			<p className="text-caption text-muted">{m.stickers_credit()}</p>
+		</>
+	);
+}
+
+function emojiText(emoji: string): string {
+	return String.fromCodePoint(...emoji.split('-').map((code) => Number.parseInt(code, 16)));
+}
+
+/** A layer's picture in the list: its text in its font, its emoji or its shape. */
+function LayerThumb({ overlay }: { overlay: Overlay }) {
+	if (overlay.kind === 'sticker') {
+		return <img src={`/stickers/${overlay.emoji}.svg`} alt="" className="size-6" draggable={false} />;
+	}
+	if (overlay.kind === 'shape') {
+		return (
+			<svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">
+				<path d={SHAPE_ICONS[overlay.shape]} fill={overlay.color} fillRule="evenodd" />
+			</svg>
+		);
+	}
+	return <Type className="text-ink-2 size-4.5" aria-hidden="true" />;
+}
+
+function layerName(overlay: Overlay): string {
+	if (overlay.kind === 'text') return overlay.text.split('\n')[0] || m.tool_text();
+	if (overlay.kind === 'shape') return SHAPE_LABELS[overlay.shape]();
+	return m.layers_add_sticker();
+}
+
+/**
+ * Every layer, the front one first: pressing one selects it, dragging it moves it in front of or
+ * behind the others.
+ */
+function LayerList({ editing }: { editing: OverlayEditing }) {
+	const selectedId = useOverlaySelection((state) => state.selected);
+	const select = useOverlaySelection((state) => state.select);
+	const [dragged, setDragged] = useState<string | null>(null);
+	const [over, setOver] = useState<number | null>(null);
+	const front = editing.overlays.toReversed();
+	const moveTo = (id: string, position: number) => {
+		editing.apply((list) => {
+			const moving = list.find((overlay) => overlay.id === id);
+			if (!moving) return list;
+			const reversed = list.toReversed().filter((overlay) => overlay.id !== id);
+			reversed.splice(position, 0, moving);
+			return reversed.toReversed();
+		});
+	};
+	return (
+		<ol aria-label={m.layers_list()} className="-mx-2 grid gap-0.5">
+			{front.map((overlay, position) => (
+				<li
+					key={overlay.id}
+					draggable
+					onDragStart={(event) => {
+						event.dataTransfer.effectAllowed = 'move';
+						setDragged(overlay.id);
+					}}
+					onDragOver={(event) => {
+						if (!dragged) return;
+						event.preventDefault();
+						setOver(position);
+					}}
+					onDrop={(event) => {
+						event.preventDefault();
+						if (dragged) moveTo(dragged, position);
+						setDragged(null);
+						setOver(null);
+					}}
+					onDragEnd={() => {
+						setDragged(null);
+						setOver(null);
+					}}
+					className={`relative ${dragged === overlay.id ? 'opacity-40' : ''} ${
+						over === position && dragged !== overlay.id
+							? "before:bg-ed before:absolute before:inset-x-2 before:-top-px before:h-0.5 before:rounded-full before:content-['']"
+							: ''
+					}`}
+				>
+					<div
+						role="button"
+						tabIndex={0}
+						aria-pressed={overlay.id === selectedId}
+						onClick={() => {
+							select(overlay.id === selectedId ? null : overlay.id);
+						}}
+						onKeyDown={(event) => {
+							if (event.key === 'Enter' || event.key === ' ') {
+								event.preventDefault();
+								select(overlay.id === selectedId ? null : overlay.id);
+							}
+						}}
+						className="hover:bg-surface aria-pressed:bg-ed-soft aria-pressed:shadow-[inset_0_0_0_1.5px_var(--ed)] group flex h-11 cursor-grab items-center gap-3 rounded-sm px-2 transition-[background-color,box-shadow] active:cursor-grabbing"
+					>
+						<span className="bg-surface-2 grid size-8 flex-none place-items-center rounded-xs">
+							<LayerThumb overlay={overlay} />
+						</span>
+						<span className="text-ui min-w-0 flex-1 truncate font-medium">{layerName(overlay)}</span>
+						{editing.timing && (
+							<span className="text-caption text-muted tabular flex-none font-mono">
+								{overlay.span
+									? `${formatClock(overlay.span.start)}–${formatClock(overlay.span.end)}`
+									: m.layers_always()}
+							</span>
+						)}
+						<IconButton
+							label={m.overlay_delete()}
+							onClick={(event) => {
+								event.stopPropagation();
+								editing.apply((list) => list.filter((candidate) => candidate.id !== overlay.id));
+								if (overlay.id === selectedId) select(null);
+							}}
+							className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 group-aria-pressed:opacity-100"
+						>
+							<Trash2 className="size-4" />
+						</IconButton>
+					</div>
+				</li>
+			))}
+		</ol>
+	);
+}
+
+type AddKind = 'text' | 'sticker' | 'shape';
+
+const ADD_LABELS: Record<AddKind, () => string> = {
+	text: () => m.layers_add_text(),
+	sticker: () => m.layers_add_sticker(),
+	shape: () => m.layers_add_shape(),
+};
+
+const ADD_ICONS: Record<AddKind, typeof Type> = { text: Type, sticker: Smile, shape: Shapes };
+
+/**
+ * The Layers tool: text, stickers and shapes laid over the picture, as many as wanted, each in
+ * front of or behind the others and, over a video, shown for a part of it. Adding one opens its
+ * choices; the layer selected shows its settings.
+ */
+export function LayersPanel({
+	editing,
+	textRef,
+}: {
+	editing: OverlayEditing;
+	/** The text field, focused by a double-click on the picture. */
+	textRef: RefObject<HTMLTextAreaElement | null>;
+}) {
+	const selectedId = useOverlaySelection((state) => state.selected);
+	const select = useOverlaySelection((state) => state.select);
+	const selected = editing.overlays.find((overlay) => overlay.id === selectedId) ?? null;
+	const [adding, setAdding] = useState<AddKind | null>(editing.overlays.length === 0 ? 'text' : null);
+
+	const add = (overlay: Overlay) => {
+		editing.apply((list) => [...list, overlay]);
+		select(overlay.id);
+		setAdding(null);
+	};
+	const addText = (style: TextStyleId) => {
+		add(createText(style, style === 'meme' ? m.text_placeholder_meme() : m.text_placeholder(), STYLE_Y[style]));
+		requestAnimationFrame(() => {
+			textRef.current?.select();
+		});
+	};
+
+	return (
+		<>
+			<PanelTitle>{m.tool_layers()}</PanelTitle>
+			<div role="tablist" aria-label={m.layers_add()} className="grid grid-cols-3 gap-1.5">
+				{(['text', 'sticker', 'shape'] as const).map((kind) => {
+					const Icon = ADD_ICONS[kind];
+					return (
+						<button
+							key={kind}
+							type="button"
+							role="tab"
+							aria-selected={adding === kind}
+							onClick={() => {
+								setAdding(adding === kind ? null : kind);
+							}}
+							className="text-caption text-ink-2 hover:bg-surface hover:text-ink aria-selected:bg-ed-soft aria-selected:text-ink grid justify-items-center gap-1.5 rounded-sm px-1 pt-2.5 pb-2 font-medium shadow-[inset_0_0_0_1px_var(--line-2)] transition-[background-color,box-shadow,color] aria-selected:shadow-[inset_0_0_0_1.5px_var(--ed)]"
+						>
+							<span className="relative">
+								<Icon size={18} aria-hidden="true" />
+								<Plus
+									size={11}
+									strokeWidth={3}
+									className="bg-bg absolute -right-1.5 -bottom-1 rounded-full"
+									aria-hidden="true"
+								/>
+							</span>
+							{ADD_LABELS[kind]()}
+						</button>
+					);
+				})}
+			</div>
+			{adding === 'text' && <TextStyles onAdd={addText} />}
+			{adding === 'sticker' && <StickerPicker onAdd={add} />}
+			{adding === 'shape' && (
+				<ShapePicker color={selected?.kind === 'shape' ? selected.color : '#ff3b30'} onAdd={add} />
+			)}
+			{editing.overlays.length > 0 && (
+				<Section title={m.layers_list()}>
+					<LayerList editing={editing} />
+				</Section>
+			)}
+			{selected?.kind === 'text' && <TextSettings editing={editing} text={selected} textRef={textRef} />}
+			{selected?.kind === 'shape' && (
+				<Section title={m.text_style()}>
+					<ColorPicker
+						label={m.text_color()}
+						value={selected.color}
+						onChange={(color) => {
+							editing.apply(updateShape(selected.id, { color }));
+						}}
+					/>
+					<Switch
+						label={m.shape_outlined()}
+						checked={selected.outlined}
+						onChange={(outlined) => {
+							editing.apply(updateShape(selected.id, { outlined }));
+						}}
+					/>
+				</Section>
+			)}
+			{selected && <Arrange editing={editing} overlay={selected} />}
 		</>
 	);
 }

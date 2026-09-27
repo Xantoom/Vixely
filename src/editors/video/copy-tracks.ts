@@ -144,9 +144,9 @@ class Pace {
 export interface AudioPlan {
 	/**
 	 * Where the sound comes from: a track of the video, by its ID or its rank among the sound
-	 * tracks (from 1), or the sound of another file.
+	 * tracks (from 1), or the sound of another file: its first track, or the one with that ID.
 	 */
-	from: { id: number } | { number: number } | { file: File };
+	from: { id: number } | { number: number } | { file: File } | { file: File; id: number };
 	/** Change of level, in dB. */
 	decibels: number;
 	/**
@@ -199,7 +199,12 @@ function placeParts(parts: readonly Part[]): PartPlaced[] {
 }
 
 async function audioTrackOf(input: Input, plan: AudioPlan, open: (file: File) => Input) {
-	if ('file' in plan.from) return open(plan.from.file).getPrimaryAudioTrack();
+	if ('file' in plan.from) {
+		const other = open(plan.from.file);
+		if (!('id' in plan.from)) return other.getPrimaryAudioTrack();
+		const { id } = plan.from;
+		return (await other.getAudioTracks()).find((track) => track.id === id) ?? null;
+	}
 	const tracks = await input.getAudioTracks();
 	if ('number' in plan.from) return tracks[plan.from.number - 1] ?? null;
 	const { id } = plan.from;

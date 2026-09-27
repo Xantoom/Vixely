@@ -3,7 +3,7 @@ import { useLeaveGuard } from '@/app/leave-guard';
 import { type ItemStatus, BatchList } from '@/editor/BatchList';
 import { EditorLayout } from '@/editor/EditorLayout';
 import { ToolLater } from '@/editor/Inspector';
-import { StickersPanel, TextPanel } from '@/editor/overlays/panels';
+import { LayersPanel } from '@/editor/overlays/panels';
 import { isTyping, useEditorShortcuts } from '@/editor/shortcuts';
 import { Viewer } from '@/editor/Viewer';
 import { overlayEditing } from '@/editors/image/editing';
@@ -124,8 +124,7 @@ export function GifEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 				</>
 			);
 		if (tool === 'adjust') return <AdjustPanel editing={editing} />;
-		if (tool === 'text') return <TextPanel editing={overlayEditing(editing)} textRef={textRef} />;
-		if (tool === 'stickers') return <StickersPanel editing={overlayEditing(editing)} />;
+		if (tool === 'layers') return <LayersPanel editing={overlayEditing(editing)} textRef={textRef} />;
 		if (tool === 'speed') return <SpeedPanel animated={source.timing !== null} />;
 		if (tool === 'frames') return <FramesPanel engine={engine} fileName={opened?.file.name ?? 'animation'} />;
 		if (tool === 'export') return <ExportPanel engine={engine} isGif={isGif} />;
@@ -138,9 +137,9 @@ export function GifEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 				<GifViewer
 					engine={engine}
 					cropping={tool === 'crop'}
-					overlays={tool === 'text' || tool === 'stickers' ? overlayEditing(editing) : undefined}
+					overlays={tool === 'layers' ? overlayEditing(editing) : undefined}
 					onEditText={() => {
-						setTool('text');
+						setTool('layers');
 						requestAnimationFrame(() => {
 							textRef.current?.focus();
 						});

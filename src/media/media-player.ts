@@ -58,6 +58,8 @@ export class MediaPlayer {
 	private ranges: Range[] | null = null;
 	/** Draws a picture on the canvas; the default fits it in, as it comes. */
 	private painter: Painter | null = null;
+	/** Canvases attached, the last one drawn on. */
+	private views: { canvas: HTMLCanvasElement; painter: Painter | null }[] = [];
 	/** Page clock, for files without sound: page time at which an output time played. */
 	private anchor = { page: 0, output: 0 };
 	private position = 0;
@@ -157,11 +159,29 @@ export class MediaPlayer {
 	/**
 	 * Where pictures are drawn. The caller sizes it; `redraw` shows the current frame again. A
 	 * painter draws each picture its own way (the video editor's, with its edits); by default a
-	 * picture is fitted in the canvas as it comes.
+	 * picture is fitted in the canvas as it comes. Returns a function that detaches it.
 	 */
-	attach(canvas: HTMLCanvasElement | null, painter: Painter | null = null) {
-		this.canvas = canvas;
-		this.painter = painter;
+	attach(canvas: HTMLCanvasElement | null, painter: Painter | null = null): () => void {
+		if (!canvas) {
+			this.views = [];
+			this.show(null);
+			return () => undefined;
+		}
+		const view = { canvas, painter };
+		this.views.push(view);
+		this.show(view);
+		// Detaching gives the pictures back to the canvas shown before, as when a dialog with its own
+		// picture closes over the editor's.
+		return () => {
+			const top = this.views.at(-1) === view;
+			this.views = this.views.filter((entry) => entry !== view);
+			if (top) this.show(this.views.at(-1) ?? null);
+		};
+	}
+
+	private show(view: { canvas: HTMLCanvasElement; painter: Painter | null } | null) {
+		this.canvas = view?.canvas ?? null;
+		this.painter = view?.painter ?? null;
 		this.redraw();
 	}
 

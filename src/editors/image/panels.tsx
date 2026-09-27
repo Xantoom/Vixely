@@ -6,7 +6,7 @@ import { ICO_SIZES } from '@/media/image-formats';
 import type { PhotoMetadata } from '@/media/probe';
 import { m } from '@/paraglide/messages.js';
 import { IconButton } from '@/ui/Button';
-import { FieldRow, NumberField, OptionList, Select, type SelectOption, Slider } from '@/ui/fields';
+import { FieldRow, NumberField, Select, type SelectOption, Slider } from '@/ui/fields';
 import { TRACKS } from '@/ui/tracks';
 import { containRect, fitRatio } from './crop';
 import {
@@ -35,6 +35,63 @@ import {
 	useImageDoc,
 	useImageEditor,
 } from './store';
+
+interface AspectTile {
+	id: AspectId;
+	label: string;
+	/** Width over height of the shape drawn. */
+	ratio: number;
+	size: { width: number; height: number };
+}
+
+/** The crop's shapes as tiles, each drawn at its ratio, with the size it gives. */
+function AspectTiles({
+	value,
+	options,
+	onChange,
+}: {
+	value: AspectId;
+	options: AspectTile[];
+	onChange: (aspect: AspectId) => void;
+}) {
+	return (
+		<div role="radiogroup" aria-label={m.crop_aspect()} className="grid grid-cols-3 gap-2">
+			{options.map(({ id, label, ratio, size }) => {
+				// The shape fits a 30 × 22 box.
+				const width = ratio >= 30 / 22 ? 30 : 22 * ratio;
+				const height = ratio >= 30 / 22 ? 30 / ratio : 22;
+				return (
+					<button
+						key={id}
+						type="button"
+						role="radio"
+						aria-checked={id === value}
+						aria-label={`${label}, ${size.width} × ${size.height}`}
+						onClick={() => {
+							onChange(id);
+						}}
+						className="group text-ink-2 hover:bg-surface aria-checked:bg-ed-soft aria-checked:text-ink grid justify-items-center gap-1.5 rounded-sm px-1 pt-3 pb-2 shadow-[inset_0_0_0_1px_var(--line-2)] transition-[background-color,box-shadow,color] duration-150 aria-checked:shadow-[inset_0_0_0_1.5px_var(--ed)]"
+					>
+						<span className="grid h-6 w-9 place-items-center" aria-hidden="true">
+							<span
+								className={`rounded-[3px] transition-colors duration-150 ${
+									id === 'free'
+										? 'border-[1.5px] border-dashed border-current opacity-70'
+										: 'group-aria-checked:bg-ed border-[1.5px] border-current group-aria-checked:border-(--ed)'
+								}`}
+								style={{ width: Math.max(8, width), height: Math.max(8, height) }}
+							/>
+						</span>
+						<span className="text-caption font-semibold">{label}</span>
+						<span className="text-caption text-muted tabular font-mono text-[11px]">
+							{size.width}×{size.height}
+						</span>
+					</button>
+				);
+			})}
+		</div>
+	);
+}
 
 /** Crop, rotation and mirrors of a picture: an image, or the frames of a video. */
 export function CropPanel({ editing }: { editing: PictureEditing }) {
@@ -73,7 +130,7 @@ export function CropPanel({ editing }: { editing: PictureEditing }) {
 					<ResetButton
 						disabled={doc.crop === null && doc.rotation === 0 && !doc.flipX && !doc.flipY}
 						onClick={() => {
-							setAspect('free');
+							setAspect('original');
 							apply((d) => ({ ...d, crop: null, rotation: 0, flipX: false, flipY: false }));
 						}}
 					/>
@@ -83,15 +140,14 @@ export function CropPanel({ editing }: { editing: PictureEditing }) {
 			</PanelTitle>
 
 			<Section title={m.crop_aspect()}>
-				<OptionList
-					label={m.crop_aspect()}
+				<AspectTiles
 					value={aspect}
 					onChange={chooseAspect}
 					options={[...ASPECTS, ...(isFixedAspect(aspect) ? [] : [aspect])].map((id) => {
 						const r = cropRatio(id, bounds);
 						const size = id === 'free' ? crop : r === null ? bounds : fitRatio(full, r);
 						const label = isFixedAspect(id) ? ASPECT_LABELS[id]() : id;
-						return { value: id, label, detail: `${size.width} × ${size.height}` };
+						return { id, label, ratio: r ?? size.width / size.height, size };
 					})}
 				/>
 			</Section>

@@ -5,12 +5,25 @@ import { adaptDoc, createImageDoc, type ImageDoc, orientedSize, type Size } from
 
 export type ImageFormat = 'jpeg' | 'png' | 'webp' | 'avif' | 'jxl' | 'bmp' | 'tiff' | 'ico';
 
-export type FixedAspect = 'free' | 'original' | '1:1' | '4:5' | '5:4' | '3:2' | '2:3' | '16:9' | '9:16';
+export type FixedAspect =
+	| 'free'
+	| 'original'
+	| '1:1'
+	| '4:5'
+	| '5:4'
+	| '4:3'
+	| '3:4'
+	| '3:2'
+	| '2:3'
+	| '16:9'
+	| '9:16'
+	| '21:9';
 
 /** A listed aspect, or any other ratio a format preset asks for, as `width:height`. */
 export type AspectId = FixedAspect | `${number}:${number}`;
 
-export const ASPECTS: FixedAspect[] = ['free', 'original', '1:1', '4:5', '3:2', '16:9', '9:16'];
+/** The whole picture first: it is where a crop starts. */
+export const ASPECTS: FixedAspect[] = ['original', 'free', '1:1', '4:5', '4:3', '3:2', '16:9', '9:16', '21:9'];
 
 export function isFixedAspect(aspect: AspectId): aspect is FixedAspect {
 	return (ASPECTS as string[]).includes(aspect);
@@ -101,7 +114,7 @@ export const useImageEditor = create<ImageEditorState>((set, get) => ({
 	owner: null,
 	history: createHistory(createImageDoc()),
 	gestureStart: null,
-	cropAspect: 'free',
+	cropAspect: 'original',
 	exportSettings: DEFAULT_EXPORT,
 	adopted: null,
 
@@ -111,7 +124,7 @@ export const useImageEditor = create<ImageEditorState>((set, get) => ({
 			owner,
 			history: createHistory(createImageDoc()),
 			gestureStart: null,
-			cropAspect: 'free',
+			cropAspect: 'original',
 			exportSettings: DEFAULT_EXPORT,
 			adopted: null,
 		});

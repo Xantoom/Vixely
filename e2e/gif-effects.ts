@@ -39,7 +39,7 @@ console.log('analysis:', (await page.locator('aside dl').last().innerText()).rep
 
 await tool('Adjust');
 await page.getByRole('radiogroup', { name: 'Looks' }).getByRole('radio', { name: 'Noir' }).click();
-await tool('Text');
+await tool('Layers');
 await page.getByRole('button', { name: 'MEME' }).click();
 await page.getByRole('textbox', { name: 'Text' }).fill('SUNSET');
 await page.getByRole('textbox', { name: 'Text' }).blur();

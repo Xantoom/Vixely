@@ -32,11 +32,7 @@ export function TrimPanel() {
 	const doc = useAudioDoc();
 	const apply = useAudioEditor((state) => state.apply);
 	const playhead = useAudioEditor((state) => state.playhead);
-	const selection = useAudioEditor((state) => state.selection);
-	const setSelection = useAudioEditor((state) => state.setSelection);
-	return (
-		<KeptPanel editing={{ doc, apply, playhead, selection, setSelection, lengthLabel: m.audio_final_length() }} />
-	);
+	return <KeptPanel editing={{ doc, apply, playhead, lengthLabel: m.audio_final_length() }} />;
 }
 
 /** Loudness targets of the places audio ends up, in LUFS. */

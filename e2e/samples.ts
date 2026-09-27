@@ -9,6 +9,8 @@ import { spawnSync } from 'node:child_process';
  * - film.mkv, live.mkv, film.mp4: a minute of test pattern with French SRT and English ASS tracks
  *   and an embedded font; live.mkv has no cues; film.mp4 carries the SRT as timed text. Made with
  *   FFmpeg when the FFMPEG variable points to it (a static build is enough).
+ * - clip.mkv, clip.mp4: the first 24 s of film.mkv and film.mp4, copied, for the scenarios that
+ *   encode whole videos (key frames at 0, 10 and 20 s).
  * - h264.mp4: 12 s of 1080p H.264 with B-frames and two audio tracks (English, French commentary).
  * - rotated.mp4: the same, stored turned as phones do (a display matrix of 90°); silent.mp4: the
  *   same without sound.
@@ -227,6 +229,11 @@ if (!existsSync('samples/film.mkv') && ffmpeg) {
 } else if (!existsSync('samples/film.mkv')) {
 	console.log('film.mkv: set FFMPEG to an ffmpeg binary to make the subtitle samples');
 }
+for (const ext of ['mkv', 'mp4']) {
+	if (!ffmpeg || existsSync(`samples/clip.${ext}`) || !existsSync(`samples/film.${ext}`)) continue;
+	spawnSync(ffmpeg, ['-v', 'error', '-y', '-i', `samples/film.${ext}`, '-map', '0', '-t', '24', '-c', 'copy', `samples/clip.${ext}`], { stdio: 'inherit' });
+	console.log(`samples/clip.${ext}`);
+}
 
 if (!existsSync('samples/h264.mp4') && ffmpeg) {
 	// Plain 1080p H.264 with B-frames (its first picture comes after zero) and two audio tracks.
@@ -341,7 +348,7 @@ if (ffmpeg && !existsSync('samples/speech.mp4')) {
 if (ffmpeg) {
 	mkdirSync('samples/open', { recursive: true });
 	const probe = ffmpeg.replace(/ffmpeg$/, 'ffprobe');
-	for (const name of ['film.mp4', 'film.mkv', 'live.mkv', 'h264.mp4', 'rotated.mp4', 'silent.mp4', 'speech.mp4', 'vfr.mp4', 'ac3.mkv', 'dts.mkv', 'sample.mkv']) {
+	for (const name of ['film.mp4', 'film.mkv', 'clip.mp4', 'clip.mkv', 'live.mkv', 'h264.mp4', 'rotated.mp4', 'silent.mp4', 'speech.mp4', 'vfr.mp4', 'ac3.mkv', 'dts.mkv', 'sample.mkv']) {
 		const target = `samples/open/${name}`;
 		if (existsSync(target) || !existsSync(`samples/${name}`)) continue;
 		const audio = spawnSync(probe, ['-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=codec_name', '-of', 'csv=p=0', `samples/${name}`], { encoding: 'utf8' }).stdout;

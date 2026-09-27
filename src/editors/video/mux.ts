@@ -471,9 +471,16 @@ export async function exportConverted(
 		const original = job.originals.find((candidate) => candidate.key === track.key);
 		return Object.keys(changed(track, original)).length > 0;
 	});
+	// Converting with passages removed, sound kept as it is is copied part by part from the source
+	// in a second pass: the conversion only encodes the tracks whose level changes.
+	const copiedCut =
+		settings.mode === 'encode' && settings.audio === 'copy' && doc.cuts.length > 0
+			? own.filter(({ track }) => track.decibels === 0)
+			: [];
+	const encodedOwn = own.filter((entry) => !copiedCut.includes(entry));
 	// Sound from other files goes in while copying; a conversion is completed by a copy with it,
 	// which also writes the sound tracks' new details.
-	const merge = settings.mode === 'encode' && (added.length > 0 || renamed);
+	const merge = settings.mode === 'encode' && (added.length > 0 || renamed || copiedCut.length > 0);
 	const step = passes(
 		[settings.mode === 'encode' ? 8 : 2, ...(merge ? [1] : []), ...(remuxed ? [1] : [])],
 		onProgress,
@@ -492,7 +499,7 @@ export async function exportConverted(
 		const target = written?.target ?? save.target;
 		let ranges: Range[] | null;
 		if (settings.mode === 'encode') {
-			const audioTracks = new Map(own.map(({ track, id }) => [id, track.decibels]));
+			const audioTracks = new Map(encodedOwn.map(({ track, id }) => [id, track.decibels]));
 			const convert = { file: job.file, doc, settings, upright: job.upright, audioTracks, burn: burnJob(job) };
 			await convertVideo(convert, target, step(0), signal);
 			ranges = kept;
@@ -520,8 +527,13 @@ export async function exportConverted(
 			const converted = await written.file();
 			written = remuxed ? await scratch() : null;
 			const audio = [
-				// Already encoded with their level: copied as they are.
-				...own.map(({ track }, index) => ({ ...plan(track, { number: index + 1 }, null), decibels: 0 })),
+				// Already encoded with their level: copied as they are. Those kept as they are come from
+				// the source, part by part.
+				...own.map((entry) =>
+					copiedCut.includes(entry)
+						? { ...plan(entry.track, { file: job.file, id: entry.id }, null), ranges: kept ?? undefined }
+						: { ...plan(entry.track, { number: encodedOwn.indexOf(entry) + 1 }, null), decibels: 0 },
+				),
 				...added.map((entry) =>
 					addedPlan(entry, settings.audio === 'copy' ? null : settings.audio, kept ?? undefined),
 				),

@@ -82,7 +82,7 @@ export const useGifEditor = create<GifEditorState>((set, get) => ({
 	gestureStart: null,
 	playhead: 0,
 	playing: false,
-	cropAspect: 'free',
+	cropAspect: 'original',
 	exportSettings: defaultExport(null, false),
 
 	load(owner, doc, width, copyable) {
@@ -93,7 +93,7 @@ export const useGifEditor = create<GifEditorState>((set, get) => ({
 			gestureStart: null,
 			playhead: 0,
 			playing: false,
-			cropAspect: 'free',
+			cropAspect: 'original',
 			exportSettings: defaultExport(width, copyable),
 		});
 		const kept = takeRestore<GifKept>('gif');

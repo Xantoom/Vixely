@@ -293,10 +293,7 @@ export function PlayerPicture({ width, height, children }: { width: number; heig
 		const ratio = Math.min(window.devicePixelRatio || 1, 2);
 		canvas.width = Math.round(width * ratio);
 		canvas.height = Math.round(height * ratio);
-		player.attach(canvas);
-		return () => {
-			player.attach(null);
-		};
+		return player.attach(canvas);
 	}, [player, video, width, height]);
 
 	return (

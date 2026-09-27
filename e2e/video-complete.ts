@@ -67,15 +67,15 @@ const frame = (path: string, time: number, name: string) => {
 };
 
 // 1. Turned a quarter and mirrored: copied as it is, the file says how to show it.
-await open(sample('film.mp4'));
+await open(sample('clip.mp4'));
 await tool('Crop');
 await aside.getByRole('button', { name: 'Rotate right' }).click();
 const turned = await exportAs('turned.mp4', /Original/);
 streams(turned);
-console.log('  first packets (source, copy):', run(['-select_streams', 'v', '-show_entries', 'packet=size', '-read_intervals', '%+#3', '-of', 'csv=p=0'], sample('film.mp4')).replace(/\n/g, ' '), '|', run(['-select_streams', 'v', '-show_entries', 'packet=size', '-read_intervals', '%+#3', '-of', 'csv=p=0'], turned).replace(/\n/g, ' '));
+console.log('  first packets (source, copy):', run(['-select_streams', 'v', '-show_entries', 'packet=size', '-read_intervals', '%+#3', '-of', 'csv=p=0'], sample('clip.mp4')).replace(/\n/g, ' '), '|', run(['-select_streams', 'v', '-show_entries', 'packet=size', '-read_intervals', '%+#3', '-of', 'csv=p=0'], turned).replace(/\n/g, ' '));
 
 // 2. Metadata and a cover made from the picture shown, still copied.
-await open(sample('film.mkv'));
+await open(sample('clip.mkv'));
 await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 await aside.getByLabel('Title').fill('Vixely test');
 await aside.getByLabel('Artist').fill('Xantoom');
@@ -88,7 +88,7 @@ console.log('  tags:', run(['-show_entries', 'format_tags', '-of', 'compact'], t
 console.log('  attachments:', run(['-show_entries', 'stream_tags=filename,mimetype', '-select_streams', 't', '-of', 'compact'], tagged).replace(/\n/g, ' '));
 
 // 2b. The same in an MP4, whose timed text goes through the remuxer too.
-await open(sample('film.mp4'));
+await open(sample('clip.mp4'));
 await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 await aside.getByLabel('Title').fill('Vixely MP4');
 await aside.getByLabel('Title').press('Tab');
@@ -99,8 +99,8 @@ streams(taggedMp4);
 console.log('  tags:', run(['-show_entries', 'format_tags', '-of', 'compact'], taggedMp4));
 
 // 3. A title for the first two seconds only, encoded at constant quality.
-await open(sample('film.mp4'));
-await tool('Text');
+await open(sample('clip.mp4'));
+await tool('Layers');
 await aside.getByRole('button', { name: /^Title/ }).click();
 await aside.getByRole('switch', { name: 'During the whole video' }).click();
 await aside.getByLabel('To', { exact: true }).fill('2');
@@ -117,7 +117,7 @@ frame(titled, 1, 'titled-1s');
 frame(titled, 4, 'titled-4s');
 
 // 4. TikTok: cropped to 9:16 from the middle.
-await open(sample('film.mp4'));
+await open(sample('clip.mp4'));
 await tool('Formats');
 await aside.getByRole('button', { name: /^TikTok/ }).click();
 await page.waitForTimeout(500);
@@ -140,8 +140,44 @@ for (const name of ['ac3', 'dts']) {
 	streams(converted);
 }
 
+// 5b. Converted with a passage removed, the sound copied as it is part by part: its packets are
+// the source's, byte for byte.
+{
+	await open(sample('clip.mp4'));
+	await tool('Trim');
+	const lanes = (await page.getByRole('group', { name: 'Tracks' }).boundingBox())!;
+	await page.mouse.move(lanes.x + lanes.width * 0.3, lanes.y + 20);
+	await page.mouse.down();
+	await page.mouse.move(lanes.x + lanes.width * 0.5, lanes.y + 20, { steps: 6 });
+	await page.mouse.up();
+	await page.getByRole('toolbar', { name: 'Selection' }).getByRole('button', { name: /Delete/ }).click();
+	const path = await exportAs('cut-copied.mp4', /Convert/, async () => {
+		await aside.getByLabel('Codec').nth(1).click();
+		await page.getByRole('option', { name: /^Original/ }).click();
+	});
+	const { Input, BufferSource, ALL_FORMATS, EncodedPacketSink } = await import('mediabunny');
+	const read = (file: string) => new Input({ source: new BufferSource(readFileSync(file)), formats: ALL_FORMATS });
+	const out = read(path);
+	const src = read(sample('clip.mp4'));
+	const outAudio = await out.getPrimaryAudioTrack();
+	const srcAudio = await src.getPrimaryAudioTrack();
+	const video = await out.getPrimaryVideoTrack();
+	console.log(`  video ${await video?.getCodec()} ${(await video?.computeDuration())?.toFixed(2)} s, audio ${await outAudio?.getCodec()} ${(await outAudio?.computeDuration())?.toFixed(2)} s`);
+	if (outAudio && srcAudio) {
+		const sources = new Set<string>();
+		for await (const packet of new EncodedPacketSink(srcAudio).packets()) sources.add(Buffer.from(packet.data).toString('base64'));
+		let same = 0;
+		let total = 0;
+		for await (const packet of new EncodedPacketSink(outAudio).packets()) {
+			total += 1;
+			if (sources.has(Buffer.from(packet.data).toString('base64'))) same += 1;
+		}
+		console.log(`  audio packets copied: ${same} of ${total}${same === total ? '' : ' RE-ENCODED'}`);
+	}
+}
+
 // 6. A subtitle file added to the video as a track, copied into it.
-await open(sample('film.mkv'));
+await open(sample('clip.mkv'));
 await tool('Subtitles');
 await aside.locator('input[type=file]').setInputFiles('samples/extra.fr.srt');
 await page.waitForTimeout(500);

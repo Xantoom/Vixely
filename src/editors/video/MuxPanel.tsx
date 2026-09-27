@@ -11,7 +11,7 @@ import { outputName } from '@/media/save';
 import { openSaveTarget } from '@/media/save-target';
 import type { OpenedFile } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
-import { Button } from '@/ui/Button';
+import { Button, IconButton } from '@/ui/Button';
 import { Checkbox } from '@/ui/Checkbox';
 import { Dropdown } from '@/ui/Dropdown';
 import { Slider } from '@/ui/fields';
@@ -97,7 +97,16 @@ function FlagToggle({
 }
 
 /** One track: whether it goes in, what it is, and its flags; subtitles unfold to rename them. */
-export function TrackRow({ file, track }: { file: File; track: MuxTrack }) {
+export function TrackRow({
+	file,
+	track,
+	onEdit,
+}: {
+	file: File;
+	track: MuxTrack;
+	/** Edits the track in the tracks dialog; without it, the row unfolds its own settings. */
+	onEdit?: (key: string) => void;
+}) {
 	const set = useMuxSettings((state) => state.set);
 	const removeAudio = useMuxSettings((state) => state.removeAudio);
 	const removeSubtitles = useSubtitleProject((state) => state.removeAdded);
@@ -147,8 +156,18 @@ export function TrackRow({ file, track }: { file: File; track: MuxTrack }) {
 				>
 					{track.codec}
 				</span>
+				{onEdit && track.kind !== 'video' && (
+					<IconButton
+						label={m.tracks_edit_one({ name: trackLabel(track) })}
+						onClick={() => {
+							onEdit(track.key);
+						}}
+					>
+						<Pencil size={15} />
+					</IconButton>
+				)}
 			</div>
-			{track.kind !== 'video' && (
+			{track.kind !== 'video' && !onEdit && (
 				<div className="flex items-center gap-0.5 pl-[42px]">
 					<FlagToggle
 						label={m.subs_track_default()}
@@ -261,10 +280,12 @@ export function AudioTrackList({
 	opened,
 	target = null,
 	title = m.mux_tracks(),
+	onEdit,
 }: {
 	opened: OpenedFile;
 	target?: VideoContainer | null;
 	title?: string;
+	onEdit?: (key: string) => void;
 }) {
 	const tracks = useMuxTracks(opened.file, opened.format, target)?.tracks.filter((track) => track.kind === 'audio');
 	const addAudio = useMuxSettings((state) => state.addAudio);
@@ -291,7 +312,7 @@ export function AudioTrackList({
 			) : (
 				<ul className="grid gap-3">
 					{tracks.map((track) => (
-						<TrackRow key={track.key} file={opened.file} track={track} />
+						<TrackRow key={track.key} file={opened.file} track={track} onEdit={onEdit} />
 					))}
 				</ul>
 			)}
@@ -329,11 +350,13 @@ export function SubtitleTrackList({
 	target = null,
 	burned = null,
 	title = m.mux_tracks(),
+	onEdit,
 }: {
 	opened: OpenedFile;
 	target?: VideoContainer | null;
 	burned?: string | null;
 	title?: string;
+	onEdit?: (key: string) => void;
 }) {
 	const tracks = useMuxTracks(opened.file, opened.format, target, burned)?.tracks.filter(
 		(track) => track.kind === 'subtitle',
@@ -361,7 +384,7 @@ export function SubtitleTrackList({
 			) : (
 				<ul className="grid gap-3">
 					{tracks.map((track) => (
-						<TrackRow key={track.key} file={opened.file} track={track} />
+						<TrackRow key={track.key} file={opened.file} track={track} onEdit={onEdit} />
 					))}
 				</ul>
 			)}

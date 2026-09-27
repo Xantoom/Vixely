@@ -54,7 +54,7 @@ const FAQ: Record<string, Record<Locale, Qa[]>> = {
 		en: [
 			[
 				'What size does Discord accept?',
-				'Without Nitro, files up to 10 MB; the Discord preset aims just under it. The Discord Nitro preset aims under 500 MB.',
+				'Without Nitro, files up to 20 MB; the Discord preset aims just under it. The Nitro Basic and Nitro presets aim under 50 MB and 500 MB.',
 			],
 			[
 				'Will the video still look good?',
@@ -68,7 +68,7 @@ const FAQ: Record<string, Record<Locale, Qa[]>> = {
 		fr: [
 			[
 				'Quelle taille Discord accepte-t-il ?',
-				'Sans Nitro, des fichiers jusqu’à 10 Mo ; le préréglage Discord vise juste en dessous. Le préréglage Discord Nitro vise moins de 500 Mo.',
+				'Sans Nitro, des fichiers jusqu’à 20 Mo ; le préréglage Discord vise juste en dessous. Les préréglages Nitro Basic et Nitro visent moins de 50 Mo et 500 Mo.',
 			],
 			[
 				'La vidéo restera-t-elle belle ?',

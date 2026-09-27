@@ -10,6 +10,7 @@ import {
 	useState,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { layerOf } from './layer';
 import { type Place, placeList } from './place';
 
 export interface DropdownOption<T extends string> {
@@ -17,6 +18,8 @@ export interface DropdownOption<T extends string> {
 	label: string;
 	/** Shown dimmed after the label, such as a file extension. */
 	detail?: string;
+	/** A small picture before the label, such as a logo. */
+	leading?: ReactNode;
 	disabled?: boolean;
 	/** Why the option can't be picked: a tooltip on its lock. */
 	reason?: string;
@@ -207,6 +210,7 @@ export function Dropdown<T extends string>({
 			} ${className}`}
 		>
 			{Icon && <Icon size={15} aria-hidden="true" className="flex-none" />}
+			{current?.leading}
 			<span className={`truncate ${compact ? 'text-ui' : ''}`}>{current?.label ?? ''}</span>
 			<span
 				className="border-muted pointer-events-none absolute top-1/2 right-3 size-1.5 -translate-y-[70%] rotate-45 border-r-[1.5px] border-b-[1.5px] transition-transform group-aria-expanded/dropdown:translate-y-[-20%] group-aria-expanded/dropdown:rotate-[225deg]"
@@ -274,6 +278,7 @@ export function Dropdown<T extends string>({
 										<Lock size={12} aria-hidden="true" />
 									) : null}
 								</span>
+								{option.leading}
 								<span className={index === selected ? 'font-medium' : ''}>{option.label}</span>
 								{option.detail && (
 									<span className="text-muted ml-auto pl-4 font-mono">{option.detail}</span>
@@ -281,7 +286,7 @@ export function Dropdown<T extends string>({
 							</div>
 						))}
 					</div>,
-					document.body,
+					layerOf(buttonRef.current),
 				)}
 		</>
 	);

@@ -1,7 +1,6 @@
 import { RotateCcw } from 'lucide-react';
 import { type ReactNode, useId } from 'react';
-import { cut, isShortened, type Kept, keepOnly, outputDuration, restoreCut, setTrim } from '@/document/kept';
-import type { Range } from '@/document/timemap';
+import { isShortened, type Kept, outputDuration, restoreCut, setTrim } from '@/document/kept';
 import { formatPreciseTime } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
 import { Button, IconButton } from '@/ui/Button';
@@ -14,9 +13,6 @@ export interface KeptEditing<T extends Kept> {
 	apply: (change: (doc: T) => T) => void;
 	/** Where playback is, in source seconds: the start or the end can be set there. */
 	playhead: number;
-	/** Passage selected on the timeline, in source seconds. */
-	selection: Range | null;
-	setSelection: (selection: Range | null) => void;
 	/** Name of the output's length: `Final length`, as each editor calls it. */
 	lengthLabel: string;
 }
@@ -40,11 +36,12 @@ function ValueRow({ label, value }: { label: string; value: string }) {
 }
 
 /**
- * Start and end of what is kept, the selection (removed, or kept alone) and the removed passages.
+ * Start and end of what is kept, and the passages removed. A passage selected on the timeline is
+ * removed or kept alone from the bar above it.
  * Shared by the audio and video editors.
  */
 export function KeptPanel<T extends Kept>({ editing }: { editing: KeptEditing<T> }) {
-	const { doc, apply, playhead, selection, setSelection, lengthLabel } = editing;
+	const { doc, apply, playhead, lengthLabel } = editing;
 	const startId = useId();
 	const endId = useId();
 	const edited = isShortened(doc);
@@ -116,38 +113,6 @@ export function KeptPanel<T extends Kept>({ editing }: { editing: KeptEditing<T>
 					</Button>
 				</div>
 			</div>
-
-			<Section title={m.selection_title()}>
-				<ValueRow label={m.trim_start()} value={selection ? formatPreciseTime(selection.start) : '–'} />
-				<ValueRow label={m.trim_end()} value={selection ? formatPreciseTime(selection.end) : '–'} />
-				<ValueRow
-					label={m.selection_length()}
-					value={selection ? formatPreciseTime(selection.end - selection.start) : '–'}
-				/>
-				{/* Always there, greyed until a passage is selected on the timeline. */}
-				<div className="grid grid-cols-2 gap-2">
-					<Button
-						disabled={!selection}
-						onClick={() => {
-							if (!selection) return;
-							apply((current) => cut(current, selection));
-							setSelection(null);
-						}}
-					>
-						{m.selection_delete()}
-					</Button>
-					<Button
-						disabled={!selection}
-						onClick={() => {
-							if (!selection) return;
-							apply((current) => keepOnly(current, selection));
-							setSelection(null);
-						}}
-					>
-						{m.selection_keep()}
-					</Button>
-				</div>
-			</Section>
 
 			{doc.cuts.length > 0 && (
 				<Section title={m.removed_title()}>

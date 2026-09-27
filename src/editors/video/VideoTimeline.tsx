@@ -3,7 +3,10 @@ import { type PointerEvent as ReactPointerEvent, useEffect, useLayoutEffect, use
 import { keptRanges, outputDuration, restoreCut, setTrim } from '@/document/kept';
 import type { Range } from '@/document/timemap';
 import { beyond, MIN_VIEW, totalLength } from '@/document/timemap';
+import type { OverlayEditing } from '@/editor/overlays/editing';
+import { LayerLanes } from '@/editor/overlays/LayerLanes';
 import { usePlaybackPeaks, Waveform } from '@/editor/PlaybackWaveform';
+import { SelectionBar } from '@/editor/SelectionBar';
 import { isVisible, percent, rangeBox, timeAt, zoomView } from '@/editor/timeline-view';
 import { TimeRuler } from '@/editor/TimeRuler';
 import { TrimHandle } from '@/editor/TrimHandle';
@@ -276,6 +279,16 @@ function Lanes({ file, aspect, audio }: { file: File; aspect: number; audio: boo
 					style={rangeBox(selection, view)}
 				/>
 			)}
+			{selection && isVisible(selection, view) && (
+				<SelectionBar
+					selection={selection}
+					view={view}
+					apply={apply}
+					onClear={() => {
+						setSelection(null);
+					}}
+				/>
+			)}
 			<VideoTrimHandle side="start" doc={doc} view={view} />
 			<VideoTrimHandle side="end" doc={doc} view={view} />
 			<Playhead view={view} />
@@ -336,7 +349,21 @@ function Toolbar() {
  * Timeline of the video editor. It shows the whole source: removed passages stay visible, greyed
  * out, so any edit can be seen and undone.
  */
-export function VideoTimeline({ file, aspect, audio }: { file: File; aspect: number; audio: boolean }) {
+export function VideoTimeline({
+	file,
+	aspect,
+	audio,
+	layers,
+	onLayer,
+}: {
+	file: File;
+	aspect: number;
+	audio: boolean;
+	/** Text, stickers and shapes, each on its own row. */
+	layers: OverlayEditing;
+	/** A layer was pressed on its row. */
+	onLayer: () => void;
+}) {
 	const view = useVideoEditor((state) => state.view);
 	const duration = useVideoEditor((state) => state.history.present.duration);
 	const setView = useVideoEditor((state) => state.setView);
@@ -361,6 +388,7 @@ export function VideoTimeline({ file, aspect, audio }: { file: File; aspect: num
 			<div id="video-timeline" className="grid gap-1">
 				<TimeRuler view={view} onSeek={seek} />
 				<Lanes file={file} aspect={aspect} audio={audio} />
+				<LayerLanes editing={layers} view={view} onSelect={onLayer} />
 				<ViewScroll view={view} duration={duration} onView={setView} controls="video-timeline" />
 			</div>
 		</section>

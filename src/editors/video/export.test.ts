@@ -34,10 +34,9 @@ describe('video export settings', () => {
 
 	it('copy the sound only where it fits and nothing was cut', () => {
 		const settings = settingsFromSource(source, ['avc']);
-		expect(resolveAudio(settings, source, false)).toBe('copy');
-		expect(resolveAudio(settings, source, true)).toBe('aac');
-		expect(resolveAudio({ ...settings, container: 'webm' }, source, false)).toBe('opus');
-		expect(resolveAudio({ ...settings, audio: 'aac', container: 'webm' }, source, false)).toBe('opus');
+		expect(resolveAudio(settings, source)).toBe('copy');
+		expect(resolveAudio({ ...settings, container: 'webm' }, source)).toBe('opus');
+		expect(resolveAudio({ ...settings, audio: 'aac', container: 'webm' }, source)).toBe('opus');
 	});
 
 	it('keep even sizes, never larger than the crop', () => {
@@ -103,7 +102,7 @@ describe('size limit', () => {
 describe('presets', () => {
 	it('never enlarge the pictures nor speed them up', () => {
 		const discord = presetSettings('discord', { ...source, frameRate: 59.94 }, ['avc'], 1080);
-		expect(discord).toMatchObject({ container: 'mp4', codec: 'avc', height: 720, frameRate: 30, sizeLimit: 10 });
+		expect(discord).toMatchObject({ container: 'mp4', codec: 'avc', height: 720, frameRate: 30, sizeLimit: 20 });
 		const small = presetSettings('discord', source, ['avc'], 480);
 		expect(small).toMatchObject({ height: null, frameRate: null });
 		expect(presetSettings('youtube', source, ['avc'], 1080).bitrate).toBe(8000);

@@ -1,5 +1,5 @@
 /**
- * A batch of videos converted with the Discord preset: each under 10 MB, keeping its sound and
+ * A batch of videos converted with the Discord preset: each under 20 MB, keeping its sound and
  * subtitle tracks. With FFPROBE set, each file is checked by FFmpeg's probe.
  */
 import { engine, sample, BASE } from './engine';
@@ -21,7 +21,7 @@ mkdirSync('shots', { recursive: true });
 const aside = page.locator('aside');
 
 await page.goto(`${BASE}/video`);
-await page.setInputFiles('input[type=file]', [sample('film.mkv'), sample('h264.mp4'), sample('rotated.mp4')]);
+await page.setInputFiles('input[type=file]', [sample('clip.mkv'), sample('h264.mp4'), sample('rotated.mp4')]);
 await page.getByRole('region', { name: 'Batch' }).waitFor({ timeout: 30000 });
 await page.waitForTimeout(1500);
 await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();

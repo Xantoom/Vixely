@@ -183,7 +183,7 @@ export async function exportVideoBatch(job: VideoBatchJob): Promise<number> {
 					docs: subtitles.docs,
 					fonts: subtitles.fonts,
 					doc: createVideoDoc(sound.duration),
-					settings: { ...own, mode: 'encode', burn: null, audio: resolveAudio(own, source, false) },
+					settings: { ...own, mode: 'encode', burn: null, audio: resolveAudio(own, source) },
 					upright: sound.upright,
 				},
 				save,

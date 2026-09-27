@@ -5,7 +5,7 @@ import { type ItemStatus, BatchList } from '@/editor/BatchList';
 import { EditorLayout } from '@/editor/EditorLayout';
 import { FilePanel, ToolLater } from '@/editor/Inspector';
 import { KeptPanel } from '@/editor/KeptPanel';
-import { StickersPanel, TextPanel } from '@/editor/overlays/panels';
+import { LayersPanel } from '@/editor/overlays/panels';
 import { isTyping, useEditorShortcuts } from '@/editor/shortcuts';
 import { Timeline } from '@/editor/Timeline';
 import { Viewer } from '@/editor/Viewer';
@@ -125,12 +125,8 @@ function useVideoShortcuts() {
 function VideoTrimPanel() {
 	const doc = useVideoDoc();
 	const apply = useVideoEditor((state) => state.apply);
-	const selection = useVideoEditor((state) => state.selection);
-	const setSelection = useVideoEditor((state) => state.setSelection);
 	const playhead = usePlayback((state) => state.time);
-	return (
-		<KeptPanel editing={{ doc, apply, playhead, selection, setSelection, lengthLabel: m.video_final_length() }} />
-	);
+	return <KeptPanel editing={{ doc, apply, playhead, lengthLabel: m.video_final_length() }} />;
 }
 
 /**
@@ -228,8 +224,7 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 		if (tool === 'trim') return <VideoTrimPanel />;
 		if (tool === 'crop') return <CropPanel editing={editing} />;
 		if (tool === 'adjust') return <AdjustPanel editing={editing} />;
-		if (tool === 'text') return <TextPanel editing={overlays} textRef={textRef} />;
-		if (tool === 'stickers') return <StickersPanel editing={overlays} />;
+		if (tool === 'layers') return <LayersPanel editing={overlays} textRef={textRef} />;
 		if (tool === 'audio') return <VideoAudioPanel opened={opened} />;
 		if (tool === 'subtitles') return <VideoSubtitlesPanel opened={opened} />;
 		return <ToolLater kind="video" tool={tool} />;
@@ -265,9 +260,9 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 						opened={opened}
 						editing={editing}
 						cropping={tool === 'crop'}
-						overlays={tool === 'text' || tool === 'stickers' ? overlays : undefined}
+						overlays={tool === 'layers' ? overlays : undefined}
 						onEditText={() => {
-							setTool('text');
+							setTool('layers');
 							textRef.current?.focus();
 						}}
 					/>
@@ -289,6 +284,10 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 						file={opened.file}
 						aspect={upright.width / upright.height}
 						audio={Boolean(opened.info?.audio)}
+						layers={overlays}
+						onLayer={() => {
+							setTool('layers');
+						}}
 					/>
 				) : opened ? (
 					<Timeline file={opened.file} info={opened.info} poster={opened.poster} />
@@ -320,11 +319,7 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 											mode === 'encode'
 												? {
 														...exportSettings,
-														audio: resolveAudio(
-															exportSettings,
-															exportSource.source,
-															doc.cuts.length > 0,
-														),
+														audio: resolveAudio(exportSettings, exportSource.source),
 													}
 												: {
 														...exportSettings,

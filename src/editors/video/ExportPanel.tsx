@@ -5,6 +5,7 @@ import { Section } from '@/editor/panel-parts';
 import { codecName } from '@/lib/format';
 import type { OpenedFile } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
+import { BrandLogo } from '@/ui/BrandLogo';
 import { FieldRow, NumberField, OptionList, Select } from '@/ui/fields';
 import { fitRatio } from '../image/crop';
 import { type ImageDoc, orientedSize, type Size } from '../image/document';
@@ -207,6 +208,7 @@ function PresetSettings({ upright, batch = false }: { upright: Size; batch?: boo
 							value: preset,
 							label: PRESETS[preset].label,
 							detail: presetDetail(preset, height),
+							leading: <BrandLogo logo={PRESETS[preset].logo} size={18} />,
 						})),
 					]}
 					onChange={(value) => {
@@ -263,10 +265,16 @@ function VideoSettings({ upright }: { upright: Size }) {
 					<Select
 						id={ids.container}
 						value={settings.container}
-						options={CONTAINER_ORDER.map((container) => ({
-							value: container,
-							label: CONTAINERS[container].label,
-						}))}
+						options={CONTAINER_ORDER.map((container) => {
+							const usable = CONTAINERS[container].codecs.some((codec) => encodable.includes(codec));
+							return {
+								value: container,
+								label: CONTAINERS[container].label,
+								detail: CONTAINERS[container].codecs.map((codec) => CODEC_LABELS[codec]).join(' '),
+								disabled: !usable,
+								reason: usable ? undefined : m.container_unavailable(),
+							};
+						})}
 						onChange={chooseContainer}
 					/>
 				</FieldRow>
@@ -409,17 +417,13 @@ function AudioSettings() {
 	const settings = useVideoEditor((state) => state.exportSettings);
 	const exportSource = useVideoEditor((state) => state.exportSource);
 	const set = useChangeExport();
-	const cuts = useVideoDoc().cuts.length > 0;
 	const ids = { codec: useId(), bitrate: useId() };
 	if (!settings || !exportSource) return null;
 	const { source } = exportSource;
-	const fits = audioFits(source, settings.container);
-	const copyBlocker = cuts
-		? m.audio_copy_cuts()
-		: fits
-			? null
-			: m.audio_copy_container({ container: CONTAINERS[settings.container].label });
-	const choice = resolveAudio(settings, source, cuts);
+	const copyBlocker = audioFits(source, settings.container)
+		? null
+		: m.audio_copy_container({ container: CONTAINERS[settings.container].label });
+	const choice = resolveAudio(settings, source);
 	return (
 		<Section title={m.mux_audio()}>
 			<div className="grid gap-2.5">

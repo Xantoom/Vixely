@@ -3,7 +3,7 @@ import { useLeaveGuard } from '@/app/leave-guard';
 import { BatchList } from '@/editor/BatchList';
 import { EditorLayout } from '@/editor/EditorLayout';
 import { FilePanel, ToolLater } from '@/editor/Inspector';
-import { useEditorShortcuts } from '@/editor/shortcuts';
+import { isTyping, useEditorShortcuts } from '@/editor/shortcuts';
 import { Viewer } from '@/editor/Viewer';
 import type { ToolId } from '@/editors/registry';
 import { useOpened, useSession } from '@/media/session';
@@ -19,16 +19,6 @@ import { useAudioEditor, useAudioUndoState } from './store';
 
 /** Seconds the arrow keys move the playhead; with Shift, ten times more. */
 const ARROW_STEP = 1;
-
-/** Whether the user is typing text, where every key belongs to the field. */
-function isTyping(target: EventTarget | null): boolean {
-	return (
-		(target instanceof HTMLInputElement && target.type !== 'range') ||
-		target instanceof HTMLTextAreaElement ||
-		target instanceof HTMLSelectElement ||
-		(target instanceof HTMLElement && target.isContentEditable)
-	);
-}
 
 /** Sliders use the arrows, Home and End themselves. */
 function isSlider(target: EventTarget | null): boolean {

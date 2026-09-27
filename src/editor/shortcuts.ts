@@ -1,8 +1,12 @@
 import { useEffect } from 'react';
 
-/** Whether a key press goes to a text field rather than to the editor. */
-export function isTyping(target: EventTarget | null): boolean {
+/**
+ * Whether a key press goes to a text field rather than to the editor, or to a dialog open over
+ * it. Shortcuts of a dialog pass `inDialog`: the dialog then doesn't stop them.
+ */
+export function isTyping(target: EventTarget | null, inDialog = false): boolean {
 	return (
+		(!inDialog && document.querySelector('dialog[open]') !== null) ||
 		(target instanceof HTMLInputElement && target.type !== 'range') ||
 		target instanceof HTMLTextAreaElement ||
 		target instanceof HTMLSelectElement ||
@@ -11,10 +15,18 @@ export function isTyping(target: EventTarget | null): boolean {
 }
 
 /** Undo and redo with the usual shortcuts: Ctrl or ⌘ + Z, Ctrl or ⌘ + Shift + Z, and Ctrl + Y. */
-export function useEditorShortcuts({ undo, redo }: { undo: () => void; redo: () => void }) {
+export function useEditorShortcuts({
+	undo,
+	redo,
+	inDialog = false,
+}: {
+	undo: () => void;
+	redo: () => void;
+	inDialog?: boolean;
+}) {
 	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
-			if (!(event.ctrlKey || event.metaKey) || isTyping(event.target)) return;
+			if (!(event.ctrlKey || event.metaKey) || isTyping(event.target, inDialog)) return;
 			const key = event.key.toLowerCase();
 			if (key === 'z' && !event.shiftKey) {
 				event.preventDefault();
@@ -28,5 +40,5 @@ export function useEditorShortcuts({ undo, redo }: { undo: () => void; redo: () 
 		return () => {
 			window.removeEventListener('keydown', onKeyDown);
 		};
-	}, [undo, redo]);
+	}, [undo, redo, inDialog]);
 }

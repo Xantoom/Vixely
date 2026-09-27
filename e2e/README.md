@@ -11,7 +11,10 @@ bun gif-formats.ts                          # any scenario
 
 Every scenario runs in Chromium unless `BROWSER=firefox` or `BROWSER=webkit` names another engine
 (`bunx playwright-core install firefox webkit` once; WebKit also needs `sudo bunx playwright-core install-deps webkit`).
-`./run-all.sh` runs them all in one browser and keeps each output in `runs/`. `BASE=https://…` points them at another
+`./run-all.sh` runs them all in one browser and keeps each output in `runs/`; `./run-all.sh video subtitles-mux` runs a
+group (`image`, `gif`, `audio`, `subtitles`, `video`, `shell`) or single scenarios only. `./run-both.sh` runs Chromium
+and Firefox at once, each in its own `work/<browser>/` folder, where the scenarios save their files in `shots/`.
+`BASE=https://…` points them at another
 server, such as the production image or the preprod; the GIF and subtitle editor scenarios make their samples with the
 dev server's own modules and only run against it.
 

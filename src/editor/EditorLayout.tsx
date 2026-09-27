@@ -30,6 +30,8 @@ import { useStageZoom } from './ZoomStage';
 
 /** Lets the panel's own title close the panel. */
 const PanelContext = createContext<(() => void) | null>(null);
+/** False where a panel shows under a heading of its own, such as a tab: its title is left out. */
+export const PanelTitles = createContext(true);
 
 /**
  * Which ends of a scrolling row or column have more beyond them, to fade those edges: the cue that
@@ -255,7 +257,7 @@ function Panel({
 					onScroll={(event) => {
 						scrolls.current.set(tool, event.currentTarget.scrollTop);
 					}}
-					className="panel-in grid min-h-0 flex-1 auto-rows-max content-start gap-6 overflow-auto px-5 pb-6 md:w-(--panel-w)"
+					className="panel-in grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] auto-rows-max content-start gap-6 overflow-auto px-5 pb-6 md:w-(--panel-w)"
 				>
 					{children}
 				</aside>
@@ -328,7 +330,7 @@ export function EditorLayout({
 
 	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
-			if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+			if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k' && !isTyping(null)) {
 				event.preventDefault();
 				setDialog('palette');
 			} else if (event.key === '?' && !isTyping(event.target)) {
@@ -583,6 +585,7 @@ export function EditorLayout({
 /** The panel's heading, with an optional action (reset) and the button closing the panel. */
 export function PanelTitle({ children, action }: { children: string; action?: ReactNode }) {
 	const close = use(PanelContext);
+	if (!use(PanelTitles)) return null;
 	return (
 		<div className="bg-bg sticky top-0 z-10 -mx-5 -mb-2 flex items-center gap-2 px-5 pt-5 pb-3 max-md:pt-1">
 			<span aria-hidden="true" className="separator absolute inset-x-5 bottom-0" />

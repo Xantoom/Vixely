@@ -9,8 +9,7 @@ export type ToolId =
 	| 'crop'
 	| 'adjust'
 	| 'presets'
-	| 'text'
-	| 'stickers'
+	| 'layers'
 	| 'frames'
 	| 'volume'
 	| 'sound'
@@ -42,7 +41,7 @@ export const EDITORS: Record<MediaKind, EditorDefinition> = {
 		path: '/video',
 		label: () => m.media_video(),
 		page: () => m.editor_page_video(),
-		tools: ['info', 'presets', 'trim', 'crop', 'adjust', 'text', 'stickers', 'audio', 'subtitles'],
+		tools: ['info', 'presets', 'trim', 'crop', 'adjust', 'layers', 'audio', 'subtitles'],
 		timed: true,
 	},
 	image: {
@@ -50,7 +49,7 @@ export const EDITORS: Record<MediaKind, EditorDefinition> = {
 		path: '/image',
 		label: () => m.media_image(),
 		page: () => m.editor_page_image(),
-		tools: ['info', 'presets', 'crop', 'adjust', 'text', 'stickers'],
+		tools: ['info', 'presets', 'crop', 'adjust', 'layers'],
 		timed: false,
 	},
 	gif: {
@@ -58,7 +57,7 @@ export const EDITORS: Record<MediaKind, EditorDefinition> = {
 		path: '/gif',
 		label: () => m.media_gif(),
 		page: () => m.editor_page_gif(),
-		tools: ['info', 'presets', 'trim', 'crop', 'adjust', 'text', 'stickers', 'speed', 'frames'],
+		tools: ['info', 'presets', 'trim', 'crop', 'adjust', 'layers', 'speed', 'frames'],
 		timed: true,
 	},
 	audio: {
@@ -91,8 +90,7 @@ export const TOOL_LABELS: Record<ToolId, () => string> = {
 	crop: () => m.tool_crop(),
 	adjust: () => m.tool_adjust(),
 	presets: () => m.tool_presets(),
-	text: () => m.tool_text(),
-	stickers: () => m.tool_stickers(),
+	layers: () => m.tool_layers(),
 	frames: () => m.tool_frames(),
 	volume: () => m.tool_volume(),
 	sound: () => m.tool_sound(),

@@ -3,6 +3,7 @@ import { ALL_FORMATS, BlobSource, Input } from 'mediabunny';
 import { type PointerEvent as ReactPointerEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Range } from '@/document/timemap';
 import { audioTrackDetail, audioTrackLabel, PlayButton, PlayerMenu } from '@/editor/PlayerControls';
+import { SelectionBar } from '@/editor/SelectionBar';
 import { percent, timeAt, zoomView } from '@/editor/timeline-view';
 import { TimeRuler } from '@/editor/TimeRuler';
 import { TrimHandle } from '@/editor/TrimHandle';
@@ -342,6 +343,16 @@ function WaveArea({ engine, trimmable }: { engine: AudioEngine; trimmable: boole
 				<div
 					className="bg-ink/10 pointer-events-none absolute inset-y-0 shadow-[inset_1px_0_0_var(--ink),inset_-1px_0_0_var(--ink)]"
 					style={box(selection)}
+				/>
+			)}
+			{selection && visible(selection) && (
+				<SelectionBar
+					selection={selection}
+					view={view}
+					apply={apply}
+					onClear={() => {
+						useAudioEditor.getState().setSelection(null);
+					}}
 				/>
 			)}
 			{trimmable && <AudioTrimHandle side="start" doc={doc} view={view} />}
