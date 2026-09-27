@@ -267,3 +267,16 @@ export function defaultAssFields(): Record<string, string> {
 		effect: '',
 	};
 }
+
+/** Whether the lines are listed by start time, as they show. */
+export function inTimeOrder(doc: SubtitleDoc): boolean {
+	return doc.cues.every((cue, index) => index === 0 || (doc.cues[index - 1]?.start ?? 0) <= cue.start);
+}
+
+/**
+ * The lines listed by start time, then end time. Lines that start together keep their order,
+ * which in ASS says which one draws on top.
+ */
+export function sortByTime(doc: SubtitleDoc): SubtitleDoc {
+	return { ...doc, cues: doc.cues.toSorted((a, b) => a.start - b.start || a.end - b.end) };
+}

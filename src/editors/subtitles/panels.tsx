@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router';
-import { ArrowDownToLine, ArrowLeft, Ban, Check, Plus, TriangleAlert } from 'lucide-react';
+import { ArrowDownToLine, ArrowDownWideNarrow, ArrowLeft, Ban, Check, Plus, TriangleAlert } from 'lucide-react';
 import { useEffect, useId, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { ExportAnnounce } from '@/editor/ExportAnnounce';
@@ -14,7 +14,16 @@ import { Button, IconButton } from '@/ui/Button';
 import { FieldRow, OptionList, Select, TimeField } from '@/ui/fields';
 import { muxContainer } from '../video/mux';
 import { MuxFooter, MuxTracks } from '../video/MuxPanel';
-import { FRAME_RATES, lastEnd, retime, shownCues, type SubtitleFormat, syncPoints } from './document';
+import {
+	FRAME_RATES,
+	inTimeOrder,
+	lastEnd,
+	retime,
+	shownCues,
+	sortByTime,
+	type SubtitleFormat,
+	syncPoints,
+} from './document';
 import { droppedCues, exportFormats, FORMAT_FILES, writeSubtitles } from './formats';
 import { ENCODINGS, type EncodingId } from './formats/encoding';
 import { cueLabel } from './labels';
@@ -390,6 +399,16 @@ export function TimingPanel() {
 					{m.subs_frame_rate_apply({ scale: (rate(fromRate) / rate(toRate)).toFixed(5) })}
 				</Button>
 			</Section>
+
+			<Button
+				disabled={inTimeOrder(doc)}
+				onClick={() => {
+					apply(sortByTime);
+				}}
+			>
+				<ArrowDownWideNarrow size={16} aria-hidden="true" />
+				{m.subs_sort()}
+			</Button>
 		</>
 	);
 }

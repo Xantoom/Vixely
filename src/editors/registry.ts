@@ -22,6 +22,8 @@ export type ToolId =
 	| 'speed'
 	| 'lines'
 	| 'timing'
+	| 'find'
+	| 'styles'
 	| 'export';
 
 export interface EditorDefinition {
@@ -104,5 +106,7 @@ export const TOOL_LABELS: Record<ToolId, () => string> = {
 	speed: () => m.tool_speed(),
 	lines: () => m.tool_lines(),
 	timing: () => m.tool_timing(),
+	find: () => m.tool_find(),
+	styles: () => m.tool_styles(),
 	export: () => m.export(),
 };

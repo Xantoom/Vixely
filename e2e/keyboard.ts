@@ -63,6 +63,8 @@ async function walk(page: Page, where: string) {
 			if (rect.width === 0 || rect.height === 0) continue;
 			// A tab of a tab list whose tab in the Tab order was reached: arrow keys move between them.
 			if (el.getAttribute('role') === 'tab' && el.closest('[role=tablist]')?.querySelector('[data-walk]')) continue;
+			// An option of a list box whose option in the Tab order was reached: the same, with arrows.
+			if (el.getAttribute('role') === 'option' && el.closest('[role=listbox]')?.querySelector('[data-walk]')) continue;
 			// A label whose field was reached.
 			if (el instanceof HTMLLabelElement && (el.control as HTMLElement | null)?.dataset.walk) continue;
 			// Inside a label whose field was reached.

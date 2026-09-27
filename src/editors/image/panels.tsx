@@ -82,7 +82,7 @@ function AspectTiles({
 							/>
 						</span>
 						<span className="text-caption font-semibold">{label}</span>
-						<span className="text-caption text-muted tabular font-mono text-[11px]">
+						<span className="text-caption text-muted group-aria-checked:text-ink-2 tabular font-mono text-[11px]">
 							{size.width}×{size.height}
 						</span>
 					</button>

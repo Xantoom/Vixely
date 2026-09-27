@@ -13,6 +13,8 @@ import {
 	Scissors,
 	SlidersHorizontal,
 	Timer,
+	TextSearch,
+	Palette,
 	Video,
 	Volume2,
 	Proportions,
@@ -76,5 +78,7 @@ export const TOOL_ICONS: Record<ToolId, LucideIcon> = {
 	speed: Gauge,
 	lines: ListVideo,
 	timing: Timer,
+	find: TextSearch,
+	styles: Palette,
 	export: Download,
 };

@@ -18,12 +18,17 @@ interface Found {
 const found = new Map<string, Found>();
 const errors: string[] = [];
 
-async function audit(page: Page, where: string) {
+/**
+ * `floating`: a list is open. Lists, menus and tips are drawn at the root of the page, above
+ * everything, as their own layer: outside the landmarks by design, so that rule is left out.
+ */
+async function audit(page: Page, where: string, floating = false) {
 	await page.addScriptTag({ content: axe });
-	const result = await page.evaluate(async () => {
+	const result = await page.evaluate(async (floating) => {
 		// @ts-expect-error injected
 		const run = await window.axe.run(document, {
 			runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'] },
+			rules: floating ? { region: { enabled: false } } : {},
 		});
 		return run.violations.map((v: { id: string; impact: string; help: string; nodes: { target: string[]; failureSummary: string }[] }) => ({
 			id: v.id,
@@ -31,7 +36,7 @@ async function audit(page: Page, where: string) {
 			help: v.help,
 			nodes: v.nodes.map((n) => `${n.target.join(' ')} — ${n.failureSummary.split('\n').slice(1, 2).join(' ').trim()}`),
 		}));
-	});
+	}, floating);
 	for (const v of result) {
 		const entry = found.get(v.id) ?? { impact: v.impact, help: v.help, where: new Set(), nodes: new Set() };
 		entry.where.add(where);
@@ -91,7 +96,7 @@ for (const scheme of ['light', 'dark'] as const) {
 				.catch(() => false);
 			if (!opened) continue;
 			await page.waitForTimeout(300);
-			await audit(page, `${scheme} ${path} export list`);
+			await audit(page, `${scheme} ${path} export list`, true);
 			await page.keyboard.press('Escape');
 			break;
 		}

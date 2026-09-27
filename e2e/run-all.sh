@@ -16,7 +16,7 @@ declare -A groups=(
 	[image]="image-editor image-overlays"
 	[gif]="gif-editor gif-formats gif-effects gif-batch gif-images"
 	[audio]="audio-sound audio-tools"
-	[subtitles]="subtitles-editor subtitles-tracks subtitles-mux subtitles-batch subtitles-tools"
+	[subtitles]="subtitles-editor subtitles-tracks subtitles-mux subtitles-batch subtitles-tools subtitles-styles"
 	[video]="video-editor video-export video-complete video-batch"
 	[shell]="site-pages resume editors-roundtrip keyboard layout"
 )

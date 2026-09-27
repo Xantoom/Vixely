@@ -11,9 +11,11 @@ import { usePlayback } from '@/media/playback';
 import { useOpened, useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { lastEnd } from './document';
+import { FindPanel } from './FindPanel';
 import { SubtitleExportFooter, SubtitleExportPanel, SubtitleInfoPanel, TimingPanel } from './panels';
 import { useProjectReady, useSubtitleProject } from './project';
 import { useSubtitleDoc, useSubtitleEditor, useSubtitleUndoState } from './store';
+import { StylesPanel } from './StylesPanel';
 import { SubtitleBatchScreen } from './SubtitleBatchScreen';
 import { OcrPanel, TranscribePanel, TranslatePanel } from './tools';
 import { useSubtitleShortcuts, Workspace } from './Workspace';
@@ -51,6 +53,9 @@ function SingleSubtitleScreen({ initialTool }: { initialTool?: ToolId }) {
 	const tools: ToolId[] = [
 		'info',
 		'timing',
+		'find',
+		// Styles belong to text: not to subtitles made of pictures.
+		...(doc.format === 'pgs' ? [] : (['styles'] as const)),
 		...(media ? (['transcribe'] as const) : []),
 		...(pictures ? (['ocr'] as const) : []),
 		'translate',
@@ -77,6 +82,21 @@ function SingleSubtitleScreen({ initialTool }: { initialTool?: ToolId }) {
 	useEditorShortcuts({ undo, redo });
 	useSubtitleShortcuts();
 
+	// Ctrl + F and Ctrl + H open Find, as in Aegisub.
+	useEffect(() => {
+		if (!ready) return;
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
+			if (event.key.toLowerCase() !== 'f' && event.key.toLowerCase() !== 'h') return;
+			event.preventDefault();
+			setTool('find');
+		};
+		window.addEventListener('keydown', onKeyDown);
+		return () => {
+			window.removeEventListener('keydown', onKeyDown);
+		};
+	}, [ready]);
+
 	// A video dropped on subtitles opened from a file plays under them, as in Aegisub.
 	useDropHandler(async (files) => {
 		const [file] = files;
@@ -90,6 +110,8 @@ function SingleSubtitleScreen({ initialTool }: { initialTool?: ToolId }) {
 	const inspector = () => {
 		if (!opened || !ready) return <FilePanel opened={opened} />;
 		if (tool === 'timing') return <TimingPanel />;
+		if (tool === 'find') return <FindPanel />;
+		if (tool === 'styles') return <StylesPanel title={opened.file.name.replace(/\.[^.]+$/, '')} />;
 		if (tool === 'translate') return <TranslatePanel fileName={opened.file.name} />;
 		if (tool === 'transcribe') return <TranscribePanel />;
 		if (tool === 'ocr') return <OcrPanel fileName={opened.file.name} />;
