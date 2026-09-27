@@ -90,7 +90,7 @@ export const TASKS: Task[] = [
 	{
 		slug: 'resize-image',
 		editor: 'image',
-		tool: 'crop',
+		tool: 'resize',
 		title: () => m.tool_resize_image(),
 		description: () => m.tool_resize_image_desc(),
 	},

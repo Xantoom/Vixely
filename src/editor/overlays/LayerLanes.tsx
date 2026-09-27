@@ -16,6 +16,8 @@ type Grab = { id: string; part: 'start' | 'end' | 'move'; x: number; span: Range
 function label(overlay: Overlay): string {
 	if (overlay.kind === 'text') return overlay.text.split('\n')[0] || m.layers_add_text();
 	if (overlay.kind === 'shape') return m.layers_add_shape();
+	if (overlay.kind === 'zone') return overlay.effect === 'blur' ? m.layers_zone_blur() : m.layers_zone_pixelate();
+	if (overlay.kind === 'drawing') return m.layers_drawing();
 	return m.layers_add_sticker();
 }
 

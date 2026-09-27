@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { isSessionOwner, registerRestorable, takeRestore } from '@/app/resume';
 import { canRedo, canUndo, commit, createHistory, type History, redo, replace, undo } from '@/document/history';
 import { adaptDoc, createImageDoc, type ImageDoc, orientedSize, type Size } from './document';
+import type { Sampling } from './renderer';
 
 export type ImageFormat = 'jpeg' | 'png' | 'webp' | 'avif' | 'jxl' | 'bmp' | 'tiff' | 'ico';
 
@@ -56,10 +57,14 @@ export interface ExportSettings {
 	format: ImageFormat;
 	/** 1 to 100, for lossy formats. */
 	quality: number;
+	/** Largest file wanted, in kilobytes: the quality is lowered until the file fits. Null for none. */
+	maxKb: number | null;
 	/** Longest side of the output, in pixels. Null keeps the cropped size. */
 	longestSide: number | null;
 	/** An exact output size, from a format preset or typed; it wins over `longestSide`. */
 	exact: Size | null;
+	/** How the picture is scaled to its size: smoothly, or keeping hard pixels. */
+	sampling: Sampling;
 	/** The format preset last chosen, while its settings are unchanged. */
 	preset: string | null;
 	/** PNG only: reduce to a palette of 256 colours, much smaller and hard to tell apart. */
@@ -102,8 +107,10 @@ interface ImageEditorState {
 const DEFAULT_EXPORT: ExportSettings = {
 	format: 'jpeg',
 	quality: 85,
+	maxKb: null,
 	longestSide: null,
 	exact: null,
+	sampling: 'smooth',
 	preset: null,
 	pngLossy: false,
 	avifEffort: 'fast',

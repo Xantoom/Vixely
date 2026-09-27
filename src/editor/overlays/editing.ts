@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Overlay, ShapeOverlay, TextOverlay } from './model';
+import type { Overlay, ShapeOverlay, TextOverlay, ZoneOverlay } from './model';
 
 /** Text and stickers of a picture, and how to change them through its history. */
 export interface OverlayEditing {
@@ -42,6 +42,31 @@ export function updateShape(id: string, change: Partial<Omit<ShapeOverlay, 'id' 
 			overlay.id === id && overlay.kind === 'shape' ? { ...overlay, ...change } : overlay,
 		);
 }
+
+/** Changes the effect, strength or shape of one zone. */
+export function updateZone(id: string, change: Partial<Omit<ZoneOverlay, 'id' | 'kind'>>) {
+	return (overlays: Overlay[]): Overlay[] =>
+		overlays.map((overlay) => (overlay.id === id && overlay.kind === 'zone' ? { ...overlay, ...change } : overlay));
+}
+
+interface Brush {
+	/** Pressing on the picture draws, while the Draw tab is open. */
+	active: boolean;
+	color: string;
+	/** Width of the line, as a share of the output's shorter side. */
+	width: number;
+	set: (change: Partial<Omit<Brush, 'set'>>) => void;
+}
+
+/** The brush, shared by the Draw tab and the picture it draws on. */
+export const useBrush = create<Brush>()((set) => ({
+	active: false,
+	color: '#ff3b30',
+	width: 0.012,
+	set: (change) => {
+		set(change);
+	},
+}));
 
 interface Selection {
 	selected: string | null;

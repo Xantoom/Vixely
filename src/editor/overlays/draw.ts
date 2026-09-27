@@ -7,7 +7,15 @@ import '@fontsource/pacifico';
 import '@fontsource/permanent-marker';
 import '@fontsource-variable/caveat';
 import { useEffect, useState } from 'react';
-import { fontInfo, type Overlay, shownAt, type ShapeId, type ShapeOverlay, type TextOverlay } from './model';
+import {
+	type DrawingOverlay,
+	fontInfo,
+	type Overlay,
+	shownAt,
+	type ShapeId,
+	type ShapeOverlay,
+	type TextOverlay,
+} from './model';
 
 /**
  * Draws text and stickers with the 2D canvas, the same code for the preview and the export, so
@@ -132,6 +140,7 @@ export function overlaySize(
 	}
 	const side = overlay.size * unit;
 	if (overlay.kind === 'shape') return { width: side * SHAPE_ASPECT[overlay.shape], height: side };
+	if (overlay.kind === 'zone' || overlay.kind === 'drawing') return { width: side * overlay.aspect, height: side };
 	return { width: side, height: side };
 }
 
@@ -246,7 +255,42 @@ function drawShape(context: Context, overlay: ShapeOverlay, width: number, heigh
 	}
 }
 
-/** Draws the overlays over a picture of `output` size, already on the context. */
+/** Traces one stroke through the middles of its points, so the line comes out smooth. */
+export function traceStroke(context: Context, points: readonly number[], scale: number): void {
+	const at = (index: number) => [(points[index * 2] ?? 0) * scale, (points[index * 2 + 1] ?? 0) * scale] as const;
+	const count = Math.floor(points.length / 2);
+	context.beginPath();
+	const [x0, y0] = at(0);
+	context.moveTo(x0, y0);
+	if (count === 1) {
+		// A single press leaves a dot.
+		context.lineTo(x0 + 0.01, y0);
+		return;
+	}
+	for (let i = 1; i < count - 1; i++) {
+		const [x, y] = at(i);
+		const [nx, ny] = at(i + 1);
+		context.quadraticCurveTo(x, y, (x + nx) / 2, (y + ny) / 2);
+	}
+	const [xl, yl] = at(count - 1);
+	context.lineTo(xl, yl);
+}
+
+function drawDrawing(context: Context, overlay: DrawingOverlay, height: number) {
+	context.lineCap = 'round';
+	context.lineJoin = 'round';
+	for (const stroke of overlay.strokes) {
+		context.strokeStyle = stroke.color;
+		context.lineWidth = stroke.width * height;
+		traceStroke(context, stroke.points, height);
+		context.stroke();
+	}
+}
+
+/**
+ * Draws the overlays over a picture of `output` size, already on the context. Zones are left to
+ * the picture's renderer, which blurs what is under them.
+ */
 export function drawOverlays(
 	context: Context,
 	overlays: readonly Overlay[],
@@ -256,7 +300,7 @@ export function drawOverlays(
 ): void {
 	const unit = Math.min(output.width, output.height);
 	for (const overlay of overlays) {
-		if (!shownAt(overlay, time)) continue;
+		if (overlay.kind === 'zone' || !shownAt(overlay, time)) continue;
 		context.save();
 		context.translate(overlay.x * output.width, overlay.y * output.height);
 		context.rotate((overlay.rotation * Math.PI) / 180);
@@ -265,7 +309,8 @@ export function drawOverlays(
 		else {
 			const { width, height } = overlaySize(overlay, output);
 			if (overlay.kind === 'shape') drawShape(context, overlay, width, height);
-			else {
+			else if (overlay.kind === 'drawing') drawDrawing(context, overlay, height);
+			else if (overlay.kind === 'sticker') {
 				const image = stickers.get(overlay.emoji);
 				if (image) context.drawImage(image, -width / 2, -height / 2, width, height);
 				else void loadSticker(overlay.emoji);

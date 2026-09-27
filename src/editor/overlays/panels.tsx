@@ -5,15 +5,19 @@ import {
 	ArrowDownToLine,
 	ArrowUpToLine,
 	Bold,
+	Brush,
 	Copy,
+	Droplets,
+	Grid3x3,
 	Italic,
+	ScanFace,
 	Plus,
 	Shapes,
 	Smile,
 	Trash2,
 	Type,
 } from 'lucide-react';
-import { type ReactNode, type RefObject, useId, useState } from 'react';
+import { type ReactNode, type RefObject, useEffect, useId, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { Section } from '@/editor/panel-parts';
 import { formatClock } from '@/lib/format';
@@ -28,12 +32,15 @@ import {
 	placeOverlay,
 	updateShape,
 	updateText,
+	updateZone,
+	useBrush,
 	useOverlaySelection,
 } from './editing';
 import {
 	createShape,
 	createSticker,
 	createText,
+	createZone,
 	duplicate,
 	FONTS,
 	fontInfo,
@@ -46,6 +53,8 @@ import {
 	TEXT_STYLES,
 	type TextOverlay,
 	type TextStyleId,
+	type ZoneEffect,
+	type ZoneOverlay,
 } from './model';
 import { STICKER_GROUPS } from './sticker-list';
 
@@ -230,29 +239,33 @@ function Arrange({ editing, overlay }: { editing: OverlayEditing; overlay: Overl
 					}}
 					onEnd={editing.settle}
 				/>
-				<Slider
-					label={m.overlay_rotation()}
-					value={Math.round(overlay.rotation)}
-					min={-180}
-					max={180}
-					format={(value) => `${value}°`}
-					onChange={(rotation) => {
-						place({ rotation });
-					}}
-					onEnd={editing.settle}
-				/>
-				<Slider
-					label={m.overlay_opacity()}
-					value={Math.round(overlay.opacity * 100)}
-					min={0}
-					max={100}
-					defaultValue={100}
-					format={(value) => `${value} %`}
-					onChange={(value) => {
-						place({ opacity: value / 100 });
-					}}
-					onEnd={editing.settle}
-				/>
+				{overlay.kind !== 'zone' && (
+					<Slider
+						label={m.overlay_rotation()}
+						value={Math.round(overlay.rotation)}
+						min={-180}
+						max={180}
+						format={(value) => `${value}°`}
+						onChange={(rotation) => {
+							place({ rotation });
+						}}
+						onEnd={editing.settle}
+					/>
+				)}
+				{overlay.kind !== 'zone' && (
+					<Slider
+						label={m.overlay_opacity()}
+						value={Math.round(overlay.opacity * 100)}
+						min={0}
+						max={100}
+						defaultValue={100}
+						format={(value) => `${value} %`}
+						onChange={(value) => {
+							place({ opacity: value / 100 });
+						}}
+						onEnd={editing.settle}
+					/>
+				)}
 				<div className="flex gap-1">
 					<IconButton
 						label={m.overlay_front()}
@@ -577,13 +590,128 @@ function LayerThumb({ overlay }: { overlay: Overlay }) {
 			</svg>
 		);
 	}
+	if (overlay.kind === 'zone') {
+		const Icon = overlay.effect === 'blur' ? Droplets : Grid3x3;
+		return <Icon className="text-ink-2 size-4.5" aria-hidden="true" />;
+	}
+	if (overlay.kind === 'drawing') {
+		return <Brush className="size-4.5" style={{ color: overlay.strokes[0]?.color }} aria-hidden="true" />;
+	}
 	return <Type className="text-ink-2 size-4.5" aria-hidden="true" />;
 }
 
 function layerName(overlay: Overlay): string {
 	if (overlay.kind === 'text') return overlay.text.split('\n')[0] || m.tool_text();
 	if (overlay.kind === 'shape') return SHAPE_LABELS[overlay.shape]();
+	if (overlay.kind === 'zone') return overlay.effect === 'blur' ? m.layers_zone_blur() : m.layers_zone_pixelate();
+	if (overlay.kind === 'drawing') return m.layers_drawing();
 	return m.layers_add_sticker();
+}
+
+const ZONE_EFFECTS: { id: ZoneEffect; label: () => string; icon: typeof Droplets }[] = [
+	{ id: 'blur', label: () => m.zone_blur(), icon: Droplets },
+	{ id: 'pixelate', label: () => m.zone_pixelate(), icon: Grid3x3 },
+];
+
+/** The two ways to hide a part of the picture, as tiles. */
+function ZoneEffects({
+	value,
+	onChoose,
+	label,
+}: {
+	value: ZoneEffect | null;
+	onChoose: (effect: ZoneEffect) => void;
+	label: string;
+}) {
+	return (
+		<div role="radiogroup" aria-label={label} className="grid grid-cols-2 gap-1.5">
+			{ZONE_EFFECTS.map(({ id, label: name, icon: Icon }) => (
+				<button
+					key={id}
+					type="button"
+					role="radio"
+					aria-checked={value === id}
+					onClick={() => {
+						onChoose(id);
+					}}
+					className="text-ui text-ink-2 hover:bg-surface aria-checked:bg-ed-soft aria-checked:text-ink ease-spring flex h-11 items-center justify-center gap-2 rounded-sm font-medium shadow-[inset_0_0_0_1px_var(--line-2)] transition-[background-color,box-shadow,transform] duration-200 active:scale-[0.98] aria-checked:shadow-[inset_0_0_0_1.5px_var(--ed)]"
+				>
+					<Icon size={18} aria-hidden="true" />
+					{name()}
+				</button>
+			))}
+		</div>
+	);
+}
+
+/** Effect, strength and shape of the zone selected. */
+function ZoneSettings({ editing, zone }: { editing: OverlayEditing; zone: ZoneOverlay }) {
+	return (
+		<Section title={m.zone_effect()}>
+			<ZoneEffects
+				label={m.zone_effect()}
+				value={zone.effect}
+				onChoose={(effect) => {
+					editing.apply(updateZone(zone.id, { effect }));
+				}}
+			/>
+			<Slider
+				label={m.zone_strength()}
+				value={Math.round(zone.strength * 100)}
+				min={0}
+				max={100}
+				defaultValue={50}
+				format={(value) => `${value} %`}
+				onChange={(value) => {
+					editing.preview(updateZone(zone.id, { strength: value / 100 }));
+				}}
+				onEnd={editing.settle}
+			/>
+			<Switch
+				label={m.zone_round()}
+				checked={zone.round}
+				onChange={(round) => {
+					editing.apply(updateZone(zone.id, { round }));
+				}}
+			/>
+		</Section>
+	);
+}
+
+/** The brush's colour and size, while pressing on the picture draws. */
+function BrushSettings() {
+	const color = useBrush((state) => state.color);
+	const width = useBrush((state) => state.width);
+	const set = useBrush((state) => state.set);
+	useEffect(() => {
+		set({ active: true });
+		return () => {
+			set({ active: false });
+		};
+	}, [set]);
+	return (
+		<div className="grid gap-4">
+			<ColorPicker
+				label={m.brush_color()}
+				value={color}
+				onChange={(next) => {
+					set({ color: next });
+				}}
+			/>
+			<Slider
+				label={m.brush_width()}
+				value={Math.round(width * 1000)}
+				min={2}
+				max={80}
+				defaultValue={12}
+				format={String}
+				onChange={(value) => {
+					set({ width: value / 1000 });
+				}}
+				onEnd={() => undefined}
+			/>
+		</div>
+	);
 }
 
 /**
@@ -680,18 +808,26 @@ function LayerList({ editing }: { editing: OverlayEditing }) {
 	);
 }
 
-type AddKind = 'text' | 'sticker' | 'shape';
+type AddKind = 'text' | 'sticker' | 'shape' | 'zone' | 'draw';
 
 const ADD_LABELS: Record<AddKind, () => string> = {
 	text: () => m.layers_add_text(),
 	sticker: () => m.layers_add_sticker(),
 	shape: () => m.layers_add_shape(),
+	zone: () => m.layers_add_zone(),
+	draw: () => m.layers_add_draw(),
 };
 
-const ADD_ICONS: Record<AddKind, typeof Type> = { text: Type, sticker: Smile, shape: Shapes };
+const ADD_ICONS: Record<AddKind, typeof Type> = {
+	text: Type,
+	sticker: Smile,
+	shape: Shapes,
+	zone: ScanFace,
+	draw: Brush,
+};
 
 /**
- * The Layers tool: text, stickers and shapes laid over the picture, as many as wanted, each in
+ * The Layers tool: text, stickers, shapes, drawings and blurred zones over the picture, as many as wanted, each in
  * front of or behind the others and, over a video, shown for a part of it. Adding one opens its
  * choices; the layer selected shows its settings.
  */
@@ -723,8 +859,8 @@ export function LayersPanel({
 	return (
 		<>
 			<PanelTitle>{m.tool_layers()}</PanelTitle>
-			<div role="tablist" aria-label={m.layers_add()} className="grid grid-cols-3 gap-1.5">
-				{(['text', 'sticker', 'shape'] as const).map((kind) => {
+			<div role="tablist" aria-label={m.layers_add()} className="grid grid-cols-5 gap-1.5">
+				{(['text', 'sticker', 'shape', 'zone', 'draw'] as const).map((kind) => {
 					const Icon = ADD_ICONS[kind];
 					return (
 						<button
@@ -756,6 +892,16 @@ export function LayersPanel({
 			{adding === 'shape' && (
 				<ShapePicker color={selected?.kind === 'shape' ? selected.color : '#ff3b30'} onAdd={add} />
 			)}
+			{adding === 'zone' && (
+				<ZoneEffects
+					label={m.layers_add_zone()}
+					value={null}
+					onChoose={(effect) => {
+						add(createZone(effect));
+					}}
+				/>
+			)}
+			{adding === 'draw' && <BrushSettings />}
 			{editing.overlays.length > 0 && (
 				<Section title={m.layers_list()}>
 					<LayerList editing={editing} />
@@ -780,6 +926,7 @@ export function LayersPanel({
 					/>
 				</Section>
 			)}
+			{selected?.kind === 'zone' && <ZoneSettings editing={editing} zone={selected} />}
 			{selected && <Arrange editing={editing} overlay={selected} />}
 		</>
 	);

@@ -1,4 +1,5 @@
 import { m } from '@/paraglide/messages.js';
+import type { LogoId } from '@/ui/BrandLogo';
 import type { ImageFormat } from './store';
 
 export interface ImagePreset {
@@ -14,6 +15,7 @@ export interface ImagePreset {
 export interface PresetGroup {
 	/** A platform's own name, or a generic heading. */
 	title: () => string;
+	logo: LogoId;
 	presets: ImagePreset[];
 }
 
@@ -40,6 +42,7 @@ const sharp = (id: string, label: () => string, width: number, height: number): 
 export const PRESET_GROUPS: PresetGroup[] = [
 	{
 		title: () => 'Instagram',
+		logo: 'instagram',
 		presets: [
 			photo('instagram-square', () => m.preset_square_post(), 1080, 1080),
 			photo('instagram-portrait', () => m.preset_portrait_post(), 1080, 1350),
@@ -49,6 +52,7 @@ export const PRESET_GROUPS: PresetGroup[] = [
 	},
 	{
 		title: () => 'YouTube',
+		logo: 'youtube',
 		presets: [
 			photo('youtube-thumbnail', () => m.preset_thumbnail(), 1280, 720, 90),
 			photo('youtube-banner', () => m.preset_banner(), 2560, 1440),
@@ -57,6 +61,7 @@ export const PRESET_GROUPS: PresetGroup[] = [
 	},
 	{
 		title: () => 'TikTok',
+		logo: 'tiktok',
 		presets: [
 			photo('tiktok-cover', () => m.preset_cover(), 1080, 1920),
 			photo('tiktok-profile', () => m.preset_profile(), 200, 200, 90),
@@ -64,6 +69,7 @@ export const PRESET_GROUPS: PresetGroup[] = [
 	},
 	{
 		title: () => 'X',
+		logo: 'x',
 		presets: [
 			photo('x-post', () => m.preset_post(), 1200, 675),
 			photo('x-header', () => m.preset_header(), 1500, 500),
@@ -72,6 +78,7 @@ export const PRESET_GROUPS: PresetGroup[] = [
 	},
 	{
 		title: () => 'Facebook',
+		logo: 'facebook',
 		presets: [
 			photo('facebook-post', () => m.preset_post(), 1200, 630),
 			photo('facebook-cover', () => m.preset_cover(), 851, 315),
@@ -80,6 +87,7 @@ export const PRESET_GROUPS: PresetGroup[] = [
 	},
 	{
 		title: () => 'Bluesky',
+		logo: 'bluesky',
 		presets: [
 			photo('bluesky-post', () => m.preset_post(), 2000, 1125, 80),
 			photo('bluesky-banner', () => m.preset_banner(), 3000, 1000, 78),
@@ -88,14 +96,20 @@ export const PRESET_GROUPS: PresetGroup[] = [
 	},
 	{
 		title: () => 'LinkedIn',
+		logo: 'linkedin',
 		presets: [
 			photo('linkedin-post', () => m.preset_post(), 1200, 627),
 			photo('linkedin-banner', () => m.preset_banner(), 1584, 396),
 		],
 	},
-	{ title: () => 'Pinterest', presets: [photo('pinterest-pin', () => m.preset_pin(), 1000, 1500)] },
+	{
+		title: () => 'Pinterest',
+		logo: 'pinterest',
+		presets: [photo('pinterest-pin', () => m.preset_pin(), 1000, 1500)],
+	},
 	{
 		title: () => 'Discord',
+		logo: 'discord',
 		presets: [
 			sharp('discord-avatar', () => m.preset_profile(), 128, 128),
 			sharp('discord-emoji', () => m.preset_emoji(), 128, 128),
@@ -105,6 +119,7 @@ export const PRESET_GROUPS: PresetGroup[] = [
 	},
 	{
 		title: () => 'Twitch',
+		logo: 'twitch',
 		presets: [
 			sharp('twitch-emote', () => m.preset_emote(), 112, 112),
 			sharp('twitch-panel', () => m.preset_panel(), 320, 160),
@@ -114,6 +129,7 @@ export const PRESET_GROUPS: PresetGroup[] = [
 	},
 	{
 		title: () => m.preset_group_web(),
+		logo: 'web',
 		presets: [
 			photo('web-link', () => m.preset_link_preview(), 1200, 630),
 			{
@@ -128,6 +144,7 @@ export const PRESET_GROUPS: PresetGroup[] = [
 	},
 	{
 		title: () => m.preset_group_wallpaper(),
+		logo: 'uhd',
 		presets: [
 			photo('wallpaper-hd', () => 'Full HD', 1920, 1080, 92),
 			photo('wallpaper-qhd', () => 'QHD', 2560, 1440, 92),

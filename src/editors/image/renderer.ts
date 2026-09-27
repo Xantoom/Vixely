@@ -1,3 +1,4 @@
+import { shownAt } from '@/editor/overlays/model';
 import {
 	type Adjustments,
 	createImageDoc,
@@ -9,6 +10,9 @@ import {
 	type Size,
 	sourceTransform,
 } from './document';
+
+/** Most zones blurred at once in one picture. */
+export const MAX_ZONES = 16;
 
 /** `a` after `b`, for column-major 3×3 matrices: a point goes through `b`, then `a`. */
 function multiply(a: Float32Array, b: Float32Array): Float32Array {
@@ -84,15 +88,62 @@ uniform float uHue;
 uniform float uSepia;
 /** Straight to the output; otherwise the blur passes follow and finish the picture. */
 uniform bool uFinish;
+uniform mat3 uTransform;
+/** Zones blurred or pixelated: centre and half size, as shares of the output. */
+uniform int uZoneCount;
+uniform vec4 uZones[${MAX_ZONES}];
+/** Per zone: 1 to blur rather than pixelate, the size of a block in output pixels, 1 for an ellipse. */
+uniform vec3 uZoneStyles[${MAX_ZONES}];
+uniform vec2 uOutSize;
 out vec4 outColor;
 ${FINISH}
+
+/** The source under a point of the output, read at a detail level that suits a block of b pixels. */
+vec4 sourceAt(vec2 p, float lod) { return textureLod(uSource, (uTransform * vec3(p, 1.0)).xy, lod); }
+
+/** The mean colour of one block of the grid, from four points inside it. */
+vec4 block(vec2 cell, float b, float lod) {
+	vec4 sum = vec4(0.0);
+	for (int i = 0; i < 4; i++) {
+		vec2 at = (cell + vec2(float(i % 2) * 0.5 + 0.25, float(i / 2) * 0.5 + 0.25)) * b;
+		sum += sourceAt(at / uOutSize, lod);
+	}
+	return sum * 0.25;
+}
+
+/** The picture blurred or pixelated where a zone covers it: nothing of the detail is left. */
+vec4 zoned(vec4 source) {
+	vec2 sourcePixels = vec2(textureSize(uSource, 0));
+	float perOutput = length(vec2(uTransform[0][0], uTransform[0][1]) * sourcePixels) / uOutSize.x;
+	for (int i = 0; i < ${MAX_ZONES}; i++) {
+		if (i >= uZoneCount) break;
+		vec4 zone = uZones[i];
+		vec3 style = uZoneStyles[i];
+		vec2 d = (vOut - zone.xy) / zone.zw;
+		bool inside = style.z > 0.5 ? dot(d, d) <= 1.0 : max(abs(d.x), abs(d.y)) <= 1.0;
+		if (!inside) continue;
+		float b = style.y;
+		float lod = log2(max(1.0, b * 0.5 * perOutput));
+		vec2 px = vOut * uOutSize;
+		if (style.x < 0.5) return block(floor(px / b), b, lod);
+		// Blocks blended smoothly into each other: a blur that keeps no more than the pixelation.
+		vec2 f = px / b - 0.5;
+		vec2 c0 = floor(f);
+		vec2 t = smoothstep(0.0, 1.0, f - c0);
+		vec4 top = mix(block(c0, b, lod), block(c0 + vec2(1.0, 0.0), b, lod), t.x);
+		vec4 bottom = mix(block(c0 + vec2(0.0, 1.0), b, lod), block(c0 + vec2(1.0, 1.0), b, lod), t.x);
+		return mix(top, bottom, t.y);
+	}
+	return source;
+}
 
 vec3 toLinear(vec3 c) { return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)); }
 vec3 toSrgb(vec3 c) { return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
 float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 
 void main() {
-	vec4 source = texture(uSource, vUv);
+	// Read first, where every pixel reads: the level of detail needs its neighbours.
+	vec4 source = zoned(texture(uSource, vUv));
 
 	// Exposure and white balance act on light, so they work in linear space.
 	vec3 c = toLinear(source.rgb) * exp2(uExposure);
@@ -186,6 +237,10 @@ type ColorUniform =
 	| 'uSepia'
 	| 'uFinish'
 	| 'uFlipY'
+	| 'uZoneCount'
+	| 'uZones'
+	| 'uZoneStyles'
+	| 'uOutSize'
 	| FinishUniform;
 
 type BlurUniform = 'uInput' | 'uStep' | 'uRadius' | 'uFinish' | 'uFlipY' | FinishUniform;
@@ -205,7 +260,16 @@ export interface RenderOptions {
 	flipY?: boolean;
 	/** Moves the grain: a video passes its time, so the grain lives instead of sitting on the screen. */
 	seed?: number;
+	/** Time in the source video, in seconds: only the zones shown then are blurred. */
+	time?: number;
+	/** How the picture is scaled: smoothly, or keeping hard pixels, for pixel art. */
+	sampling?: Sampling;
 }
+
+export type Sampling = 'smooth' | 'pixel';
+
+/** Size of a zone's blocks at its strongest, as a share of the output's shorter side. */
+const ZONE_BLOCK = 0.07;
 
 /** Blur radius at 100, as a share of the picture's shorter side: the same look at any size. */
 const BLUR_SHARE = 0.03;
@@ -304,6 +368,10 @@ export class ImageRenderer {
 			'uSepia',
 			'uFinish',
 			'uFlipY',
+			'uZoneCount',
+			'uZones',
+			'uZoneStyles',
+			'uOutSize',
 			...FINISH_UNIFORMS,
 		]);
 		this.blur = new Program<BlurUniform>(gl, PASS_VERTEX, BLUR_FRAGMENT, [
@@ -411,7 +479,10 @@ export class ImageRenderer {
 		gl.uniform1i(program.at('uOpaque'), options.opaque ? 1 : 0);
 	}
 
-	render(doc: ImageDoc, { region, original = false, opaque = false, flipY = false, seed = 0 }: RenderOptions): void {
+	render(
+		doc: ImageDoc,
+		{ region, original = false, opaque = false, flipY = false, seed = 0, time, sampling = 'smooth' }: RenderOptions,
+	): void {
 		const gl = this.gl;
 		if (!this.texture || !this.sourceSize) return;
 		const adjust: Adjustments = original ? NEUTRAL_ADJUSTMENTS : doc.adjust;
@@ -427,7 +498,11 @@ export class ImageRenderer {
 		gl.bindFramebuffer(gl.FRAMEBUFFER, pair ? pair[0].framebuffer : null);
 		gl.activeTexture(gl.TEXTURE0);
 		gl.bindTexture(gl.TEXTURE_2D, this.texture);
+		const pixel = sampling === 'pixel';
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, pixel ? gl.NEAREST : gl.LINEAR_MIPMAP_LINEAR);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, pixel ? gl.NEAREST : gl.LINEAR);
 		gl.uniform1i(color.at('uSource'), 0);
+		this.setZones(doc, original, time);
 		const transform = sourceTransform(doc, this.sourceSize, region);
 		gl.uniformMatrix3fv(color.at('uTransform'), false, this.base ? multiply(this.base, transform) : transform);
 		gl.uniform1f(color.at('uExposure'), adjust.exposure / 50);
@@ -465,6 +540,30 @@ export class ImageRenderer {
 			gl.uniform1i(blur.at('uFlipY'), last && flipY ? 1 : 0);
 			gl.drawArrays(gl.TRIANGLES, 0, 6);
 		}
+	}
+
+	/** The zones to blur or pixelate at `time`, as the colour pass reads them. */
+	private setZones(doc: ImageDoc, original: boolean, time: number | undefined): void {
+		const gl = this.gl;
+		const color = this.color;
+		const { width, height } = this.canvas;
+		const unit = Math.min(width, height);
+		const zones = original
+			? []
+			: doc.overlays.filter((overlay) => overlay.kind === 'zone' && shownAt(overlay, time)).slice(0, MAX_ZONES);
+		const places = new Float32Array(MAX_ZONES * 4);
+		const styles = new Float32Array(MAX_ZONES * 3);
+		zones.forEach((zone, index) => {
+			if (zone.kind !== 'zone') return;
+			const side = zone.size * unit;
+			places.set([zone.x, zone.y, (side * zone.aspect) / 2 / width, side / 2 / height], index * 4);
+			const block = Math.max(2, unit * ZONE_BLOCK * (0.12 + 0.88 * zone.strength));
+			styles.set([zone.effect === 'blur' ? 1 : 0, block, zone.round ? 1 : 0], index * 3);
+		});
+		gl.uniform1i(color.at('uZoneCount'), zones.length);
+		gl.uniform4fv(color.at('uZones'), places);
+		gl.uniform3fv(color.at('uZoneStyles'), styles);
+		gl.uniform2f(color.at('uOutSize'), width, height);
 	}
 
 	/** Straight RGBA pixels of the last render. Render with `flipY` to get rows from the top. */

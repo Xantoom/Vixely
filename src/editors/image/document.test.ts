@@ -11,6 +11,7 @@ import {
 	rotate,
 	type Size,
 	sourceTransform,
+	straightenScale,
 } from './document';
 
 const source = { width: 400, height: 200 };
@@ -141,5 +142,41 @@ describe('crop', () => {
 		expect(rect.x + rect.width).toBeLessThanOrEqual(1000);
 		expect(rect.y + rect.height).toBeLessThanOrEqual(500);
 		expect(rect.width).toBe(rect.height);
+	});
+});
+
+describe('straightening', () => {
+	it('enlarges the picture just enough to cover its frame', () => {
+		expect(straightenScale({ width: 400, height: 200 }, 0)).toBe(1);
+		const scale = straightenScale({ width: 400, height: 200 }, 10);
+		const theta = (10 * Math.PI) / 180;
+		// The corner of the frame, turned back, lands exactly on the enlarged picture's edge.
+		const [hw, hh] = [200, 100];
+		const x = hw * Math.cos(theta) + hh * Math.sin(theta);
+		const y = hw * Math.sin(theta) + hh * Math.cos(theta);
+		expect(Math.max(x / (hw * scale), y / (hh * scale))).toBeCloseTo(1, 6);
+	});
+
+	it('keeps the middle in place and every corner inside the source', () => {
+		const doc: ImageDoc = { ...createImageDoc(), angle: 12 };
+		const m = sourceTransform(doc, source, { x: 0, y: 0, ...source });
+		expect(apply(m, 0.5, 0.5)[0]).toBeCloseTo(0.5, 6);
+		expect(apply(m, 0.5, 0.5)[1]).toBeCloseTo(0.5, 6);
+		for (const [u, v] of [
+			[0, 0],
+			[1, 0],
+			[0, 1],
+			[1, 1],
+		] as const) {
+			const [x, y] = apply(m, u, v);
+			expect(x).toBeGreaterThanOrEqual(-1e-6);
+			expect(x).toBeLessThanOrEqual(1 + 1e-6);
+			expect(y).toBeGreaterThanOrEqual(-1e-6);
+			expect(y).toBeLessThanOrEqual(1 + 1e-6);
+		}
+	});
+
+	it('turns the other way when mirrored', () => {
+		expect(flip({ ...createImageDoc(), angle: 5 }, source, 'x').angle).toBe(-5);
 	});
 });

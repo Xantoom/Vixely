@@ -85,6 +85,7 @@ function EditedPicture({
 	const rendererRef = useRef<ImageRenderer | null>(null);
 	// Read by the painter, which draws pictures as playback delivers them.
 	const shown = useRef({ doc, region, original });
+	const frameTime = useRef<number | undefined>(undefined);
 	shown.current = { doc, region, original };
 
 	useEffect(() => {
@@ -103,7 +104,12 @@ function EditedPicture({
 				{ width: sample.squarePixelWidth, height: sample.squarePixelHeight },
 				sample.rotation,
 			);
-			renderer.render(shown.current.doc, { region: shown.current.region, original: shown.current.original });
+			frameTime.current = sample.timestamp;
+			renderer.render(shown.current.doc, {
+				region: shown.current.region,
+				original: shown.current.original,
+				time: sample.timestamp,
+			});
 		});
 		return () => {
 			detach();
@@ -120,7 +126,7 @@ function EditedPicture({
 		const pixels = { width: backingSize(width, region.width), height: backingSize(height, region.height) };
 		if (canvas.width !== pixels.width) canvas.width = pixels.width;
 		if (canvas.height !== pixels.height) canvas.height = pixels.height;
-		if (renderer?.ready) renderer.render(doc, { region, original });
+		if (renderer?.ready) renderer.render(doc, { region, original, time: frameTime.current });
 	}, [width, height, doc, region, original]);
 
 	return (
@@ -192,7 +198,7 @@ function CaptureButton({ file, doc }: { file: File; doc: ImageDoc }) {
  * turned or mirrored, they simply cover the picture shown.
  */
 function subtitleBox(picture: ImageDoc, crop: Rect, upright: Size, scale: number): CSSProperties {
-	if (picture.rotation !== 0 || picture.flipX || picture.flipY) return { inset: 0 };
+	if (picture.rotation !== 0 || picture.flipX || picture.flipY || picture.angle) return { inset: 0 };
 	return {
 		left: -crop.x * scale,
 		top: -crop.y * scale,

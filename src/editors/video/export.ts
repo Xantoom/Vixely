@@ -785,7 +785,7 @@ export const FRAME_RATES = [60, 50, 30, 25, 24];
  * the crop, as the preview lays them. Once turned or mirrored, they simply cover the picture.
  */
 export function burnBox(picture: ImageDoc, upright: Size, size: Size): Box {
-	if (picture.rotation !== 0 || picture.flipX || picture.flipY) return { x: 0, y: 0, ...size };
+	if (picture.rotation !== 0 || picture.flipX || picture.flipY || picture.angle) return { x: 0, y: 0, ...size };
 	const crop = effectiveCrop(picture, upright);
 	const scale = size.width / crop.width;
 	return { x: -crop.x * scale, y: -crop.y * scale, width: upright.width * scale, height: upright.height * scale };
@@ -822,7 +822,11 @@ class PictureProcessor {
 			{ width: sample.squarePixelWidth, height: sample.squarePixelHeight },
 			sample.rotation,
 		);
-		this.renderer.render(this.picture, { region: effectiveCrop(this.picture, this.upright), seed: time * 97 });
+		this.renderer.render(this.picture, {
+			region: effectiveCrop(this.picture, this.upright),
+			seed: time * 97,
+			time,
+		});
 		if (!this.composite) return new VideoSample(this.canvas, { timestamp, duration: sample.duration });
 		const { canvas, context } = this.composite;
 		context.clearRect(0, 0, canvas.width, canvas.height);

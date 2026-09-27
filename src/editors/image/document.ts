@@ -5,10 +5,11 @@ import type { Overlay } from '@/editor/overlays/model';
  *
  * Order of operations, shared by the preview and the export:
  * 1. orient the source (rotation, then mirror, as the user sees it),
- * 2. crop the oriented image,
- * 3. apply the adjustments,
- * 4. scale to the export size,
- * 5. draw the text and stickers.
+ * 2. straighten it by a free angle, enlarged just enough to leave no empty corner,
+ * 3. crop the result,
+ * 4. apply the adjustments, and blur or pixelate the zones asked for,
+ * 5. scale to the export size,
+ * 6. draw the text, stickers, shapes and drawings.
  */
 
 export type Rotation = 0 | 90 | 180 | 270;
@@ -50,6 +51,8 @@ export interface ImageDoc {
 	rotation: Rotation;
 	flipX: boolean;
 	flipY: boolean;
+	/** Straightening, in degrees clockwise, from -45 to 45; absent for none. */
+	angle?: number;
 	/** Crop in oriented image pixels. Null keeps the whole image. */
 	crop: Rect | null;
 	adjust: Adjustments;
@@ -163,7 +166,9 @@ export function flip(doc: ImageDoc, source: Size, axis: 'x' | 'y'): ImageDoc {
 		x: axis === 'x' ? bounds.width - doc.crop.x - doc.crop.width : doc.crop.x,
 		y: axis === 'y' ? bounds.height - doc.crop.y - doc.crop.height : doc.crop.y,
 	};
-	return axis === 'x' ? { ...doc, flipX: !doc.flipX, crop } : { ...doc, flipY: !doc.flipY, crop };
+	// A mirror turns a tilt the other way: the straightening follows, so the picture stays level.
+	const angle = doc.angle ? -doc.angle : doc.angle;
+	return axis === 'x' ? { ...doc, flipX: !doc.flipX, crop, angle } : { ...doc, flipY: !doc.flipY, crop, angle };
 }
 
 /** Maps a point of the oriented image (normalised 0 to 1) back to the source texture. */
@@ -182,18 +187,38 @@ function orientedToSource(doc: ImageDoc, u: number, v: number): [number, number]
 	}
 }
 
+export const MAX_ANGLE = 45;
+
+/**
+ * How much a picture of `bounds` turned by `angle` degrees is enlarged to cover its own frame, so
+ * straightening leaves no empty corner.
+ */
+export function straightenScale(bounds: Size, angle: number): number {
+	const theta = (Math.abs(angle) * Math.PI) / 180;
+	const cos = Math.cos(theta);
+	const sin = Math.sin(theta);
+	return Math.max(cos + (bounds.height / bounds.width) * sin, cos + (bounds.width / bounds.height) * sin);
+}
+
 /**
  * Affine transform from output coordinates (0 to 1, top left origin) to source texture
  * coordinates, as a column-major 3×3 matrix ready for a WebGL uniform.
  */
 export function sourceTransform(doc: ImageDoc, source: Size, region: Rect): Float32Array {
 	const bounds = orientedSize(source, doc.rotation);
-	const at = (u: number, v: number) =>
-		orientedToSource(
-			doc,
-			(region.x + u * region.width) / bounds.width,
-			(region.y + v * region.height) / bounds.height,
-		);
+	const angle = doc.angle ?? 0;
+	const theta = (-angle * Math.PI) / 180;
+	const scale = angle === 0 ? 1 : straightenScale(bounds, angle);
+	const [cx, cy] = [bounds.width / 2, bounds.height / 2];
+	const at = (u: number, v: number) => {
+		// The point of the straightened picture, back to the oriented one: turned the other way
+		// around the middle, and shrunk by the enlargement.
+		const dx = region.x + u * region.width - cx;
+		const dy = region.y + v * region.height - cy;
+		const x = cx + (dx * Math.cos(theta) - dy * Math.sin(theta)) / scale;
+		const y = cy + (dx * Math.sin(theta) + dy * Math.cos(theta)) / scale;
+		return orientedToSource(doc, x / bounds.width, y / bounds.height);
+	};
 	const [x0, y0] = at(0, 0);
 	const [x1, y1] = at(1, 0);
 	const [x2, y2] = at(0, 1);

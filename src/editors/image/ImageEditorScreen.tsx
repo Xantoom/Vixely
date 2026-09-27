@@ -16,7 +16,8 @@ import { outputSize, sourceExportSettings } from './export';
 import { ExportFooter } from './ExportFooter';
 import { ImageViewer } from './ImageViewer';
 import { AdjustPanel, CropPanel, ExportPanel } from './panels';
-import { PresetsPanel } from './PresetsPanel';
+import { PlatformFormats } from './PlatformFormats';
+import { ResizePanel } from './ResizePanel';
 import { useImageDoc, useImageEditor, useUndoState } from './store';
 
 export function ImageEditorScreen({ initialTool }: { initialTool?: ToolId }) {
@@ -72,9 +73,9 @@ export function ImageEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	const inspector = () => {
 		if (tool === 'info' || !opened) return <FilePanel opened={opened} />;
 		if (!source) return <ToolLater kind="image" tool={tool} />;
-		if (tool === 'crop') return <CropPanel editing={editing} />;
+		if (tool === 'crop') return <CropPanel editing={editing} formats={<PlatformFormats editing={editing} />} />;
+		if (tool === 'resize') return <ResizePanel source={source} />;
 		if (tool === 'adjust') return <AdjustPanel editing={editing} />;
-		if (tool === 'presets') return <PresetsPanel editing={editing} />;
 		if (tool === 'layers') return <LayersPanel editing={overlayEditing(editing)} textRef={textRef} />;
 		if (tool === 'export') return <ExportPanel source={source} photo={opened.info?.photo ?? null} />;
 		return <ToolLater kind="image" tool={tool} />;

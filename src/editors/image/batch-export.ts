@@ -14,13 +14,17 @@ export interface BatchJob {
 	editedSize: Size;
 	ratio: number | null;
 	settings: ExportSettings;
-	onStatus: (id: number, status: ItemStatus) => void;
+	/** Each image's progress; once done, the weights of its file before and after. */
+	onStatus: (id: number, status: ItemStatus, weights?: { before: number; after: number }) => void;
 	signal: AbortSignal;
 }
 
+/** Images worked on at once: one is drawn while the other is encoded, and memory stays flat. */
+const CONCURRENCY = 2;
+
 /**
- * Exports every image of a batch with the same edits and settings, one at a time so memory
- * stays flat whatever the number of photos. Each image keeps its own metadata.
+ * Exports every image of a batch with the same edits and settings, two at a time so memory stays
+ * flat whatever the number of photos. Each image keeps its own metadata.
  * Resolves with the number of images exported.
  */
 export async function exportBatch({
@@ -37,29 +41,32 @@ export async function exportBatch({
 	const taken = new Set<string>();
 	let exported = 0;
 
-	for (const item of items) {
-		if (signal.aborted) break;
-		onStatus(item.id, 'working');
-		try {
-			// oxlint-disable-next-line no-await-in-loop -- one image at a time keeps memory flat
-			const [bitmap, photo] = await Promise.all([
-				decodeStill(item.file, item.format),
-				readPhotoMetadata(item.file),
-			]);
-			if (!bitmap) throw new Error('Unreadable image');
-			const itemDoc = adaptDoc(doc, editedSize, bitmap, ratio);
-			// oxlint-disable-next-line no-await-in-loop
-			const blob = await exportImage(bitmap, itemDoc, settings, photo).finally(() => {
-				bitmap.close();
-			});
-			// oxlint-disable-next-line no-await-in-loop
-			await destination.write(uniqueName(exportName(item.file.name, settings.format), taken), blob);
-			exported += 1;
-			onStatus(item.id, 'done');
-		} catch {
-			onStatus(item.id, 'failed');
+	const queue = [...items];
+	const worker = async () => {
+		for (let item = queue.shift(); item && !signal.aborted; item = queue.shift()) {
+			onStatus(item.id, 'working');
+			try {
+				// oxlint-disable-next-line no-await-in-loop -- a few images at a time keeps memory flat
+				const [bitmap, photo] = await Promise.all([
+					decodeStill(item.file, item.format),
+					readPhotoMetadata(item.file),
+				]);
+				if (!bitmap) throw new Error('Unreadable image');
+				const itemDoc = adaptDoc(doc, editedSize, bitmap, ratio);
+				// oxlint-disable-next-line no-await-in-loop
+				const blob = await exportImage(bitmap, itemDoc, settings, photo).finally(() => {
+					bitmap.close();
+				});
+				// oxlint-disable-next-line no-await-in-loop
+				await destination.write(uniqueName(exportName(item.file.name, settings.format), taken), blob);
+				exported += 1;
+				onStatus(item.id, 'done', { before: item.file.size, after: blob.size });
+			} catch {
+				onStatus(item.id, 'failed');
+			}
 		}
-	}
+	};
+	await Promise.all(Array.from({ length: Math.min(CONCURRENCY, items.length) }, worker));
 
 	if (exported > 0) await destination.finish();
 	return exported;

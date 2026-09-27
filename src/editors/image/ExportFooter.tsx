@@ -1,6 +1,7 @@
 import { Check } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { ExportAnnounce } from '@/editor/ExportAnnounce';
+import { formatBytes } from '@/lib/format';
 import type { PhotoMetadata } from '@/media/probe';
 import type { BatchFile } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
@@ -29,6 +30,8 @@ export function ExportFooter({ source, file, photo, batch, onStatus, onRunning }
 	const aspect = useImageEditor((state) => state.cropAspect);
 	const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
 	const [progress, setProgress] = useState({ done: 0, total: 0, exported: 0 });
+	/** Weights of the files before and after the last export, to show what was saved. */
+	const [weights, setWeights] = useState<{ before: number; after: number } | null>(null);
 	const abort = useRef<AbortController | null>(null);
 
 	useEffect(() => {
@@ -43,8 +46,10 @@ export function ExportFooter({ source, file, photo, batch, onStatus, onRunning }
 
 	const saveOne = async () => {
 		setStatus('saving');
+		setWeights(null);
 		try {
 			const blob = await exportImage(source, doc, settings, photo);
+			setWeights({ before: file.size, after: blob.size });
 			setStatus((await saveFile(blob, exportName(file.name, settings.format))) ? 'saved' : 'idle');
 		} catch {
 			setStatus('failed');
@@ -57,6 +62,7 @@ export function ExportFooter({ source, file, photo, batch, onStatus, onRunning }
 		abort.current = controller;
 		setStatus('saving');
 		setProgress({ done: 0, total: items.length, exported: 0 });
+		setWeights({ before: 0, after: 0 });
 		onRunning(true);
 		try {
 			const exported = await exportBatch({
@@ -66,8 +72,13 @@ export function ExportFooter({ source, file, photo, batch, onStatus, onRunning }
 				ratio: cropRatio(aspect, orientedSize(source, doc.rotation)),
 				settings,
 				signal: controller.signal,
-				onStatus: (id, itemStatus) => {
+				onStatus: (id, itemStatus, itemWeights) => {
 					onStatus(id, itemStatus);
+					if (itemWeights)
+						setWeights((total) => ({
+							before: (total?.before ?? 0) + itemWeights.before,
+							after: (total?.after ?? 0) + itemWeights.after,
+						}));
 					if (itemStatus !== 'working') setProgress((p) => ({ ...p, done: p.done + 1 }));
 				},
 			});
@@ -125,6 +136,20 @@ export function ExportFooter({ source, file, photo, batch, onStatus, onRunning }
 				)}
 			</div>
 			<ExportAnnounce status={status} />
+			{weights && weights.after > 0 && status !== 'saving' && (
+				<p className="text-small text-muted tabular text-center font-mono">
+					{m.weight_change({
+						before: formatBytes(weights.before),
+						after: formatBytes(weights.after),
+						change: `${weights.after <= weights.before ? '−' : '+'}${Math.abs(Math.round((1 - weights.after / weights.before) * 100))} %`,
+					})}
+				</p>
+			)}
+			{weights && settings.maxKb !== null && weights.after > settings.maxKb * 1000 && status !== 'saving' && (
+				<p role="status" className="text-small text-danger text-center">
+					{m.weight_over_limit({ limit: formatBytes(settings.maxKb * 1000) })}
+				</p>
+			)}
 			{status === 'failed' && (
 				<p role="alert" className="text-small text-danger">
 					{m.export_failed()}

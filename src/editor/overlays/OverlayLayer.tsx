@@ -1,13 +1,14 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { m } from '@/paraglide/messages.js';
 import { backingSize } from '../ZoomStage';
-import { drawOverlays, overlaySize, useOverlayAssets } from './draw';
-import { type OverlayEditing, placeOverlay, useOverlaySelection } from './editing';
-import type { Overlay } from './model';
+import { drawOverlays, overlaySize, traceStroke, useOverlayAssets } from './draw';
+import { type OverlayEditing, placeOverlay, updateZone, useBrush, useOverlaySelection } from './editing';
+import { createDrawing, fitDrawing, type Overlay } from './model';
 
 type Gesture =
 	| { kind: 'move'; id: string; x: number; y: number; start: Overlay }
 	| { kind: 'resize'; id: string; distance: number; start: Overlay }
+	| { kind: 'stretch'; id: string; start: Overlay }
 	| { kind: 'rotate'; id: string; start: Overlay };
 
 /** How close to the middle, in screen pixels, a moved overlay snaps to it. */
@@ -16,6 +17,8 @@ const SNAP = 6;
 function describe(overlay: Overlay): string {
 	if (overlay.kind === 'text') return m.overlay_text({ text: overlay.text.split('\n')[0] ?? '' });
 	if (overlay.kind === 'sticker') return m.overlay_sticker();
+	if (overlay.kind === 'zone') return overlay.effect === 'blur' ? m.layers_zone_blur() : m.layers_zone_pixelate();
+	if (overlay.kind === 'drawing') return m.layers_drawing();
 	return m.overlay_shape();
 }
 
@@ -46,6 +49,11 @@ export function OverlayLayer({
 	const select = useOverlaySelection((state) => state.select);
 	const gesture = useRef<Gesture | null>(null);
 	const [guides, setGuides] = useState({ x: false, y: false });
+	const brush = useBrush();
+	const drawing = brush.active && editing !== undefined;
+	/** The line being drawn, points as shares of the output, until the pointer lifts. */
+	const stroke = useRef<number[] | null>(null);
+	const inkRef = useRef<HTMLCanvasElement>(null);
 
 	useLayoutEffect(() => {
 		const canvas = canvasRef.current;
@@ -106,6 +114,13 @@ export function OverlayLayer({
 			if (snapY) y = 0.5;
 			setGuides({ x: snapX, y: snapY });
 			editing.preview(placeOverlay(current.id, { x, y }));
+		} else if (current.kind === 'stretch') {
+			// A zone's corners pull its sides freely, around its centre.
+			const point = centre(start);
+			const halfWidth = Math.max(4, Math.abs(event.clientX - point.x));
+			const halfHeight = Math.max(4, Math.abs(event.clientY - point.y));
+			const unit = Math.min(width, height);
+			editing.preview(updateZone(current.id, { size: (halfHeight * 2) / unit, aspect: halfWidth / halfHeight }));
 		} else if (current.kind === 'resize') {
 			const point = centre(start);
 			const distance = Math.hypot(event.clientX - point.x, event.clientY - point.y);
@@ -127,6 +142,48 @@ export function OverlayLayer({
 		gesture.current = null;
 		setGuides({ x: false, y: false });
 		editing.settle();
+	};
+
+	/** Where the pointer is, as shares of the output. */
+	const share = (event: React.PointerEvent) => {
+		const rect = boxRef.current?.getBoundingClientRect();
+		return [(event.clientX - (rect?.left ?? 0)) / width, (event.clientY - (rect?.top ?? 0)) / height];
+	};
+	const paint = () => {
+		const canvas = inkRef.current;
+		const context = canvas?.getContext('2d');
+		const points = stroke.current;
+		if (!canvas || !context || !points) return;
+		const pixels = { width: backingSize(width, 8192), height: backingSize(height, 8192) };
+		if (canvas.width !== pixels.width) canvas.width = pixels.width;
+		if (canvas.height !== pixels.height) canvas.height = pixels.height;
+		context.clearRect(0, 0, canvas.width, canvas.height);
+		context.lineCap = 'round';
+		context.lineJoin = 'round';
+		context.strokeStyle = brush.color;
+		context.lineWidth = brush.width * Math.min(canvas.width, canvas.height);
+		const inPixels = points.map((value, index) => value * (index % 2 === 0 ? canvas.width : canvas.height));
+		traceStroke(context, inPixels, 1);
+		context.stroke();
+	};
+	const endStroke = () => {
+		const points = stroke.current;
+		stroke.current = null;
+		inkRef.current?.getContext('2d')?.clearRect(0, 0, inkRef.current.width, inkRef.current.height);
+		if (!points || !editing) return;
+		const line = { color: brush.color, width: brush.width, points };
+		const output = { width, height };
+		// Lines drawn one after the other gather in the drawing selected.
+		const current = editing.overlays.find((overlay) => overlay.id === selected);
+		if (current?.kind === 'drawing') {
+			const next = fitDrawing(current, [line], output);
+			if (next) editing.apply((list) => list.map((overlay) => (overlay.id === current.id ? next : overlay)));
+			return;
+		}
+		const made = createDrawing([line], output);
+		if (!made) return;
+		editing.apply((list) => [...list, made]);
+		select(made.id);
 	};
 
 	const begin = (event: React.PointerEvent, next: Gesture) => {
@@ -180,7 +237,7 @@ export function OverlayLayer({
 							onPointerMove={onMove}
 							onPointerUp={onUp}
 							onPointerCancel={onUp}
-							className={`pointer-events-auto absolute cursor-move touch-none rounded-[2px] outline-none ${active ? 'shadow-[0_0_0_1.5px_var(--ed),0_0_0_3px_rgb(255_255_255/0.6)]' : 'hover:shadow-[0_0_0_1px_rgb(255_255_255/0.8),0_0_0_2px_rgb(0_0_0/0.25)] focus-visible:shadow-[0_0_0_1.5px_var(--ed)]'}`}
+							className={`pointer-events-auto absolute cursor-move touch-none outline-none ${overlay.kind === 'zone' && overlay.round ? 'rounded-[50%]' : 'rounded-[2px]'} ${overlay.kind === 'zone' && !active ? 'outline-1 outline-dashed outline-white/70' : ''} ${active ? 'shadow-[0_0_0_1.5px_var(--ed),0_0_0_3px_rgb(255_255_255/0.6)]' : 'hover:shadow-[0_0_0_1px_rgb(255_255_255/0.8),0_0_0_2px_rgb(0_0_0/0.25)] focus-visible:shadow-[0_0_0_1.5px_var(--ed)]'}`}
 							style={{
 								left: overlay.x * width,
 								top: overlay.y * height,
@@ -204,6 +261,10 @@ export function OverlayLayer({
 											key={corner}
 											aria-hidden="true"
 											onPointerDown={(event) => {
+												if (overlay.kind === 'zone') {
+													begin(event, { kind: 'stretch', id: overlay.id, start: overlay });
+													return;
+												}
 												const point = centre(overlay);
 												begin(event, {
 													kind: 'resize',
@@ -220,21 +281,60 @@ export function OverlayLayer({
 											className={`border-ed absolute size-3 cursor-nwse-resize rounded-full border-2 bg-white shadow-sm ${corner}`}
 										/>
 									))}
-									<span aria-hidden="true" className="bg-ed absolute -top-6 left-1/2 h-4.5 w-px" />
-									<span
-										aria-hidden="true"
-										onPointerDown={(event) => {
-											begin(event, { kind: 'rotate', id: overlay.id, start: overlay });
-										}}
-										onPointerMove={onMove}
-										onPointerUp={onUp}
-										className="border-ed absolute -top-8 left-1/2 size-3.5 -translate-x-1/2 cursor-grab rounded-full border-2 bg-white shadow-sm"
-									/>
+									{overlay.kind !== 'zone' && (
+										<>
+											<span
+												aria-hidden="true"
+												className="bg-ed absolute -top-6 left-1/2 h-4.5 w-px"
+											/>
+											<span
+												aria-hidden="true"
+												onPointerDown={(event) => {
+													begin(event, { kind: 'rotate', id: overlay.id, start: overlay });
+												}}
+												onPointerMove={onMove}
+												onPointerUp={onUp}
+												className="border-ed absolute -top-8 left-1/2 size-3.5 -translate-x-1/2 cursor-grab rounded-full border-2 bg-white shadow-sm"
+											/>
+										</>
+									)}
 								</>
 							)}
 						</div>
 					);
 				})}
+			{drawing && (
+				<>
+					<canvas ref={inkRef} className="pointer-events-none absolute inset-0 size-full" />
+					<div
+						data-no-pan
+						aria-label={m.brush_surface()}
+						className="pointer-events-auto absolute inset-0 cursor-crosshair touch-none"
+						onPointerDown={(event) => {
+							if (event.button !== 0) return;
+							event.stopPropagation();
+							event.currentTarget.setPointerCapture(event.pointerId);
+							stroke.current = share(event);
+							paint();
+						}}
+						onPointerMove={(event) => {
+							if (!stroke.current) return;
+							// Every coalesced point, so fast lines stay round.
+							const events = event.nativeEvent.getCoalescedEvents?.() ?? [event.nativeEvent];
+							const rect = boxRef.current?.getBoundingClientRect();
+							for (const point of events) {
+								stroke.current.push(
+									(point.clientX - (rect?.left ?? 0)) / width,
+									(point.clientY - (rect?.top ?? 0)) / height,
+								);
+							}
+							paint();
+						}}
+						onPointerUp={endStroke}
+						onPointerCancel={endStroke}
+					/>
+				</>
+			)}
 		</div>
 	);
 }

@@ -93,6 +93,7 @@ export function framesUntouched(doc: GifDoc): boolean {
 	return (
 		picture.crop === null &&
 		picture.rotation === 0 &&
+		!picture.angle &&
 		!picture.flipX &&
 		!picture.flipY &&
 		!isAdjusted(picture.adjust) &&

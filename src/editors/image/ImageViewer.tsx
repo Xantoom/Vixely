@@ -43,6 +43,7 @@ function Picture({
 	onEditText?: () => void;
 }) {
 	const doc = useImageDoc();
+	const sampling = useImageEditor((state) => state.exportSettings.sampling);
 	const comparing = useStageZoom((state) => state.comparing);
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const rendererRef = useRef<ImageRenderer | null>(null);
@@ -67,7 +68,7 @@ function Picture({
 		if (!canvas || !renderer) return;
 		canvas.width = backingSize(region.width * scale, region.width);
 		canvas.height = backingSize(region.height * scale, region.height);
-		renderer.render(doc, { region, original: comparing });
+		renderer.render(doc, { region, original: comparing, sampling });
 	});
 
 	return (

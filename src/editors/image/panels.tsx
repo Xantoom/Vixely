@@ -1,21 +1,20 @@
-import { FlipHorizontal2, FlipVertical2, Link2, RotateCcw, RotateCw, Unlink2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { FlipHorizontal2, FlipVertical2, RotateCcw, RotateCw } from 'lucide-react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { ASPECT_LABELS, Group, ResetButton, Section, ToolButton } from '@/editor/panel-parts';
 import { ICO_SIZES } from '@/media/image-formats';
 import type { PhotoMetadata } from '@/media/probe';
 import { m } from '@/paraglide/messages.js';
-import { IconButton } from '@/ui/Button';
-import { FieldRow, NumberField, Select, type SelectOption, Slider } from '@/ui/fields';
+import { FieldRow, NumberField, Select, type SelectOption, Slider, Switch } from '@/ui/fields';
 import { TRACKS } from '@/ui/tracks';
 import { containRect, fitRatio } from './crop';
 import {
 	ADJUSTMENT_RANGE,
 	type AdjustmentId,
 	effectiveCrop,
-	fitWithin,
 	flip,
 	isAdjusted,
+	MAX_ANGLE,
 	NEUTRAL_ADJUSTMENTS,
 	orientedSize,
 	type Rect,
@@ -94,8 +93,8 @@ function AspectTiles({
 }
 
 /** Crop, rotation and mirrors of a picture: an image, or the frames of a video. */
-export function CropPanel({ editing }: { editing: PictureEditing }) {
-	const { doc, apply, aspect, setAspect, size: source } = editing;
+export function CropPanel({ editing, formats }: { editing: PictureEditing; formats?: ReactNode }) {
+	const { doc, apply, preview, settle, aspect, setAspect, size: source } = editing;
 	const bounds = orientedSize(source, doc.rotation);
 	const crop = effectiveCrop(doc, source);
 	const full: Rect = { x: 0, y: 0, ...bounds };
@@ -128,10 +127,10 @@ export function CropPanel({ editing }: { editing: PictureEditing }) {
 			<PanelTitle
 				action={
 					<ResetButton
-						disabled={doc.crop === null && doc.rotation === 0 && !doc.flipX && !doc.flipY}
+						disabled={doc.crop === null && doc.rotation === 0 && !doc.flipX && !doc.flipY && !doc.angle}
 						onClick={() => {
 							setAspect('original');
-							apply((d) => ({ ...d, crop: null, rotation: 0, flipX: false, flipY: false }));
+							apply((d) => ({ ...d, crop: null, rotation: 0, flipX: false, flipY: false, angle: 0 }));
 						}}
 					/>
 				}
@@ -151,6 +150,8 @@ export function CropPanel({ editing }: { editing: PictureEditing }) {
 					})}
 				/>
 			</Section>
+
+			{formats}
 
 			<Section title={m.crop_orientation()}>
 				<div className="grid grid-cols-4 gap-2">
@@ -187,6 +188,19 @@ export function CropPanel({ editing }: { editing: PictureEditing }) {
 						}}
 					/>
 				</div>
+				<Slider
+					label={m.crop_straighten()}
+					value={doc.angle ?? 0}
+					min={-MAX_ANGLE}
+					max={MAX_ANGLE}
+					step={0.1}
+					defaultValue={0}
+					format={(value) => `${value > 0 ? '+' : ''}${value.toFixed(1)}°`}
+					onChange={(angle) => {
+						preview((d) => ({ ...d, angle }));
+					}}
+					onEnd={settle}
+				/>
 			</Section>
 
 			<Section title={m.crop_geometry()}>
@@ -345,9 +359,6 @@ export function AdjustPanel({ editing }: { editing: PictureEditing }) {
 	);
 }
 
-/** Longest sides offered as export sizes, when smaller than the crop. */
-const SIZE_STEPS = [3840, 2560, 1920, 1600, 1280, 1080, 800, 640];
-
 function qualityLevel(quality: number): string {
 	if (quality >= 90) return m.quality_top();
 	if (quality >= 75) return m.quality_good();
@@ -360,15 +371,11 @@ export function ExportPanel({ source, photo }: { source: ImageBitmap; photo: Pho
 	const settings = useImageEditor((state) => state.exportSettings);
 	const setExport = useImageEditor((state) => state.setExport);
 	const [webp, setWebp] = useState(false);
-	// Width and height move together unless unlinked.
-	const [linked, setLinked] = useState(true);
 
 	useEffect(() => {
 		void canEncodeWebp().then(setWebp);
 	}, []);
 
-	const crop = effectiveCrop(doc, source);
-	const longest = Math.max(crop.width, crop.height);
 	const current = outputSize(doc, source, settings);
 	const lossless = settings.format === 'jxl' && settings.quality >= 100;
 	const hasMetadata = photo !== null && photo.exifFull.length > 0;
@@ -384,28 +391,6 @@ export function ExportPanel({ source, photo }: { source: ImageBitmap; photo: Pho
 		{ value: 'bmp', label: 'BMP' },
 		{ value: 'ico', label: 'ICO' },
 	];
-	const sizes: SelectOption<string>[] = [
-		{ value: 'original', label: m.size_original() },
-		...SIZE_STEPS.filter((step) => step < longest).map((step) => {
-			const size = fitWithin(crop, step);
-			return { value: String(step), label: `${size.width} × ${size.height}` };
-		}),
-		{ value: 'custom', label: m.size_custom() },
-	];
-	const sizeChoice = settings.exact
-		? 'custom'
-		: settings.longestSide === null
-			? 'original'
-			: String(settings.longestSide);
-
-	const setWidth = (width: number) => {
-		const height = linked ? Math.max(1, Math.round((width * current.height) / current.width)) : current.height;
-		setExport({ exact: { width, height }, longestSide: null });
-	};
-	const setHeight = (height: number) => {
-		const width = linked ? Math.max(1, Math.round((height * current.width) / current.height)) : current.width;
-		setExport({ exact: { width, height }, longestSide: null });
-	};
 	const iconSizes = ICO_SIZES.filter((side) => side <= Math.min(256, Math.max(current.width, current.height)));
 
 	return (
@@ -473,44 +458,6 @@ export function ExportPanel({ source, photo }: { source: ImageBitmap; photo: Pho
 						/>
 					</FieldRow>
 				)}
-				{settings.format !== 'ico' && (
-					<FieldRow label={m.export_size()} htmlFor="export-size">
-						<Select
-							id="export-size"
-							value={sizeChoice}
-							options={sizes}
-							onChange={(value) => {
-								if (value === 'custom') setExport({ exact: current, longestSide: null });
-								else
-									setExport({
-										exact: null,
-										longestSide: value === 'original' ? null : Number(value),
-									});
-							}}
-						/>
-					</FieldRow>
-				)}
-				{settings.exact && settings.format !== 'ico' && (
-					<div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-2">
-						<label className="grid gap-1.5">
-							<span className="text-ui text-ink-2">{m.field_width()}</span>
-							<NumberField value={current.width} unit="px" min={1} max={16384} onCommit={setWidth} />
-						</label>
-						<IconButton
-							label={m.size_link()}
-							aria-pressed={linked}
-							onClick={() => {
-								setLinked((value) => !value);
-							}}
-						>
-							{linked ? <Link2 className="size-5" /> : <Unlink2 className="size-5" />}
-						</IconButton>
-						<label className="grid gap-1.5">
-							<span className="text-ui text-ink-2">{m.field_height()}</span>
-							<NumberField value={current.height} unit="px" min={1} max={16384} onCommit={setHeight} />
-						</label>
-					</div>
-				)}
 			</div>
 			{usesQuality(settings) && (
 				<Slider
@@ -530,6 +477,31 @@ export function ExportPanel({ source, photo }: { source: ImageBitmap; photo: Pho
 					}}
 					onEnd={() => {}}
 				/>
+			)}
+			{usesQuality(settings) && (
+				<div className="grid gap-2.5">
+					<Switch
+						label={m.export_limit_weight()}
+						checked={settings.maxKb !== null}
+						onChange={(on) => {
+							setExport({ maxKb: on ? 500 : null });
+						}}
+					/>
+					{settings.maxKb !== null && (
+						<FieldRow label={m.export_max_weight()} htmlFor="export-max-weight">
+							<NumberField
+								id="export-max-weight"
+								value={settings.maxKb}
+								unit={m.unit_kb()}
+								min={10}
+								max={100000}
+								onCommit={(maxKb) => {
+									setExport({ maxKb });
+								}}
+							/>
+						</FieldRow>
+					)}
+				</div>
 			)}
 			<p className="text-small text-muted">
 				{settings.format === 'ico'

@@ -4,7 +4,7 @@ import { encodeBmp, encodeTiff, ICO_SIZES, jpegQuality, packIco } from '@/media/
 import type { PhotoMetadata } from '@/media/probe';
 import { download, isPickerCancel, outputName } from '@/media/save';
 import { effectiveCrop, fitWithin, type ImageDoc, type Size } from './document';
-import { ImageRenderer } from './renderer';
+import { ImageRenderer, type Sampling } from './renderer';
 import type { ExportSettings, ImageFormat } from './store';
 
 export const FORMAT_INFO: Record<ImageFormat, { mime: string; extension: string; alpha: boolean }> = {
@@ -85,6 +85,7 @@ async function renderPicture(
 	doc: ImageDoc,
 	size: Size,
 	opaque: boolean,
+	sampling: Sampling = 'smooth',
 ): Promise<{ canvas: OffscreenCanvas; rgba: Uint8Array }> {
 	const canvas = new OffscreenCanvas(size.width, size.height);
 	const renderer = new ImageRenderer(canvas);
@@ -93,12 +94,12 @@ async function renderPicture(
 	try {
 		if (doc.overlays.length === 0) {
 			// Read straight from WebGL: exact values, even for see-through pixels.
-			renderer.render(doc, { region, opaque, flipY: true });
+			renderer.render(doc, { region, opaque, flipY: true, sampling });
 			const rgba = renderer.readPixels();
-			renderer.render(doc, { region, opaque });
+			renderer.render(doc, { region, opaque, sampling });
 			return { canvas, rgba };
 		}
-		renderer.render(doc, { region, opaque });
+		renderer.render(doc, { region, opaque, sampling });
 		const composite = new OffscreenCanvas(size.width, size.height);
 		const context = composite.getContext('2d');
 		if (!context) throw new Error('No 2D canvas');
@@ -125,38 +126,65 @@ export async function exportImage(
 	const size = outputSize(doc, source, settings);
 	const { width, height } = size;
 	const info = FORMAT_INFO[settings.format];
-	if (settings.format === 'ico') return exportIco(source, doc, size);
+	if (settings.format === 'ico') return exportIco(source, doc, size, settings.sampling);
 
-	const picture = await renderPicture(source, doc, size, !info.alpha);
-	if (settings.format === 'webp')
-		return picture.canvas.convertToBlob({ type: info.mime, quality: settings.quality / 100 });
+	const picture = await renderPicture(source, doc, size, !info.alpha, settings.sampling);
 	const { rgba } = picture;
 	if (settings.format === 'bmp') return new Blob([encodeBmp(rgba, width, height).slice()], { type: info.mime });
 	if (settings.format === 'tiff') return new Blob([encodeTiff(rgba, width, height).slice()], { type: info.mime });
 
-	const base = {
-		op: 'encode',
-		rgba,
-		width,
-		height,
-		quality: settings.quality,
-		exif: exifFor(settings, photo),
-	} as const;
-	const bytes = await (settings.format === 'png'
-		? encodeImage({ ...base, format: 'png', lossless: !settings.pngLossy })
-		: settings.format === 'avif'
-			? encodeImage({ ...base, format: 'avif', speed: AVIF_SPEED[settings.avifEffort] })
-			: settings.format === 'jxl'
-				? encodeImage({ ...base, format: 'jxl', effort: JXL_EFFORT })
-				: encodeImage({ ...base, format: 'jpeg' }));
-	return new Blob([new Uint8Array(bytes)], { type: info.mime });
+	const exif = exifFor(settings, photo);
+	const encode = async (quality: number, last: boolean): Promise<Blob> => {
+		if (settings.format === 'webp')
+			return picture.canvas.convertToBlob({ type: info.mime, quality: quality / 100 });
+		// The worker takes the pixels it is given: a copy, unless this is the last encode.
+		const base = { op: 'encode', rgba: last ? rgba : rgba.slice(), width, height, quality, exif } as const;
+		const bytes = await (settings.format === 'png'
+			? encodeImage({ ...base, format: 'png', lossless: !settings.pngLossy })
+			: settings.format === 'avif'
+				? encodeImage({ ...base, format: 'avif', speed: AVIF_SPEED[settings.avifEffort] })
+				: settings.format === 'jxl'
+					? encodeImage({ ...base, format: 'jxl', effort: JXL_EFFORT })
+					: encodeImage({ ...base, format: 'jpeg' }));
+		return new Blob([new Uint8Array(bytes)], { type: info.mime });
+	};
+	if (settings.maxKb === null || !usesQuality(settings)) return encode(settings.quality, true);
+	return fitWeight(encode, settings.quality, settings.maxKb * 1000);
+}
+
+/** Tries of the quality when a file must fit a weight: enough to land within a step or two. */
+const WEIGHT_TRIES = 7;
+
+/**
+ * The best quality, up to `quality`, whose file weighs at most `limit` bytes: the chosen quality
+ * first, then a halving search below it. When even the lowest doesn't fit, its file is given.
+ */
+async function fitWeight(
+	encode: (quality: number, last: boolean) => Promise<Blob>,
+	quality: number,
+	limit: number,
+): Promise<Blob> {
+	const first = await encode(quality, false);
+	if (first.size <= limit) return first;
+	let [low, high] = [1, quality - 1];
+	let best: Blob | null = null;
+	for (let tries = 0; tries < WEIGHT_TRIES && low <= high; tries++) {
+		const middle = Math.floor((low + high) / 2);
+		// oxlint-disable-next-line no-await-in-loop -- each try decides the next
+		const blob = await encode(middle, false);
+		if (blob.size <= limit) {
+			best = blob;
+			low = middle + 1;
+		} else high = middle - 1;
+	}
+	return best ?? encode(1, true);
 }
 
 /**
  * An icon: the picture drawn square at each icon size up to its own, each from the source so small
  * sizes stay sharp, stored as PNGs.
  */
-async function exportIco(source: ImageBitmap, doc: ImageDoc, size: Size): Promise<Blob> {
+async function exportIco(source: ImageBitmap, doc: ImageDoc, size: Size, sampling: Sampling): Promise<Blob> {
 	const largest = Math.min(256, Math.max(size.width, size.height));
 	const sizes = ICO_SIZES.filter((side) => side <= largest);
 	if (sizes.length === 0) sizes.push(largest);
@@ -170,7 +198,7 @@ async function exportIco(source: ImageBitmap, doc: ImageDoc, size: Size): Promis
 		};
 		// Sequential on purpose: one picture and one encoder call at a time.
 		// oxlint-disable-next-line no-await-in-loop
-		const picture = await renderPicture(source, doc, inner, false);
+		const picture = await renderPicture(source, doc, inner, false, sampling);
 		const square = new OffscreenCanvas(side, side);
 		const context = square.getContext('2d');
 		if (!context) throw new Error('No 2D canvas');

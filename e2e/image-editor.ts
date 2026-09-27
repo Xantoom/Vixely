@@ -1,4 +1,7 @@
-/** Image editor: looks, the 13 adjustments, export matching the preview. */
+/**
+ * Image editor: looks, the 13 adjustments, platform sizes in Crop, straightening, resizing, a
+ * file size limit, blurred zones and drawings, export matching the preview.
+ */
 import { engine, BASE } from './engine';
 import { readFileSync } from 'node:fs';
 
@@ -41,7 +44,8 @@ const exportNow = async () => {
 await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 console.log('source defaults:', await page.locator('#export-format').innerText(), await page.getByRole('slider', { name: 'Quality' }).inputValue());
 
-await rail.getByRole('button', { name: 'Formats' }).click();
+await rail.getByRole('button', { name: 'Crop' }).click();
+await page.getByRole('button', { name: 'Instagram', exact: true }).click();
 await page.screenshot({ path: 'shots/image-presets.png' });
 await page.getByRole('button', { name: /^Instagram Story/ }).click();
 console.log('preset status:', await page.locator('[data-status]').innerText());
@@ -56,5 +60,37 @@ for (const format of ['TIFF', 'BMP', 'ICO']) {
 	require('node:fs').writeFileSync(`shots/out-${out.name}`, out.data);
 	console.log(format, out.name, out.data.length);
 }
+
+// Straightened, halved, and kept under 15 KB.
+await rail.getByRole('button', { name: 'Crop' }).click();
+await page.getByRole('slider', { name: 'Straighten' }).fill('6');
+await rail.getByRole('button', { name: 'Resize' }).click();
+await page.getByRole('radio', { name: '50 %' }).click();
+console.log('resized:', await page.locator('[data-status]').innerText());
+await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+await page.locator('#export-format').click();
+await page.getByRole('option', { name: 'JPEG', exact: true }).click();
+await page.getByRole('switch', { name: 'Limit the file size' }).click();
+await page.getByLabel('At most').fill('15');
+await page.getByLabel('At most').press('Enter');
+out = await exportNow();
+console.log('limited', out.name, out.data.length, out.data.length <= 15000 ? 'FITS' : 'TOO BIG', '|', await page.locator('aside + div').innerText().then((t) => t.replace(/\s+/g, ' ')));
+
+// A pixelated zone and a line drawn with the brush, in the file.
+await rail.getByRole('button', { name: 'Layers' }).click();
+await page.getByRole('tab', { name: 'Blur' }).click();
+await page.getByRole('radio', { name: 'Pixelate' }).click();
+await page.getByRole('tab', { name: 'Draw' }).click();
+const surface = (await page.getByLabel('Drawing surface').boundingBox())!;
+await page.mouse.move(surface.x + surface.width * 0.2, surface.y + surface.height * 0.8);
+await page.mouse.down();
+await page.mouse.move(surface.x + surface.width * 0.8, surface.y + surface.height * 0.7, { steps: 12 });
+await page.mouse.up();
+console.log('layers:', await page.getByRole('list', { name: 'Layers' }).innerText().then((t) => t.replace(/\s+/g, ' ')));
+await page.screenshot({ path: 'shots/image-zone-drawing.png' });
+await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+out = await exportNow();
+require('node:fs').writeFileSync(`shots/out-layers-${out.name}`, out.data);
+console.log('layers export', out.name, out.data.length);
 console.log('errors', errors);
 await browser.close();

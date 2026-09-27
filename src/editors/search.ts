@@ -4,6 +4,7 @@ const TOOLS = new Set<string>([
 	'info',
 	'trim',
 	'crop',
+	'resize',
 	'adjust',
 	'presets',
 	'layers',

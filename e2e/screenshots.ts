@@ -37,7 +37,8 @@ export const SHOTS: Record<string, Shot> = {
 	},
 	'image-formats': async (page) => {
 		await open(page, '/image', 'lake.jpg');
-		await tool(page, 'Formats');
+		await tool(page, 'Crop');
+		await aside(page).getByRole('button', { name: 'Instagram', exact: true }).click();
 	},
 	'image-export': async (page) => {
 		await open(page, '/image', 'lake.jpg');

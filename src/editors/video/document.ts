@@ -40,7 +40,8 @@ export function createVideoDoc(duration: number): VideoDoc {
  * and the file says how to show them; anything else draws them again, so they must be encoded.
  */
 export function pictureChange(picture: ImageDoc): 'none' | 'turn' | 'drawn' {
-	if (picture.crop !== null || isAdjusted(picture.adjust) || picture.overlays.length > 0) return 'drawn';
+	if (picture.crop !== null || picture.angle || isAdjusted(picture.adjust) || picture.overlays.length > 0)
+		return 'drawn';
 	return picture.rotation !== 0 || picture.flipX || picture.flipY ? 'turn' : 'none';
 }
 

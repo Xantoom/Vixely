@@ -1,6 +1,7 @@
 /**
- * Text and stickers laid over a picture: an image, the frames of a GIF or of a video. Positions
- * and sizes are shares of the output, so they hold whatever the export size and survive crops.
+ * Layers over a picture: an image, the frames of a GIF or of a video. Text, stickers, shapes and
+ * drawings are drawn over it; zones blur or pixelate what is under them. Positions and sizes are
+ * shares of the output, so they hold whatever the export size and survive crops.
  */
 
 export type FontId = 'geist' | 'anton' | 'bebas' | 'oswald' | 'playfair' | 'pacifico' | 'marker' | 'caveat' | 'mono';
@@ -81,7 +82,41 @@ export interface ShapeOverlay extends OverlayBase {
 	outlined: boolean;
 }
 
-export type Overlay = TextOverlay | StickerOverlay | ShapeOverlay;
+export type ZoneEffect = 'blur' | 'pixelate';
+
+/** A part of the picture made unreadable: a face, a number plate, an address. Never turned. */
+export interface ZoneOverlay extends OverlayBase {
+	kind: 'zone';
+	effect: ZoneEffect;
+	/** 0 to 1: how large the blocks are, so how little is left to see. */
+	strength: number;
+	/** Width over height. */
+	aspect: number;
+	/** An ellipse rather than a rectangle, for a face. */
+	round: boolean;
+}
+
+/** One line of a drawing, as the brush went. */
+export interface Stroke {
+	color: string;
+	/** Width of the line, as a share of the drawing's height. */
+	width: number;
+	/**
+	 * Points one after the other as x, y pairs, in the drawing's box: y from -0.5 to 0.5, x from
+	 * -aspect / 2 to aspect / 2.
+	 */
+	points: number[];
+}
+
+/** Lines drawn with the brush. Its size is the height of the box around them. */
+export interface DrawingOverlay extends OverlayBase {
+	kind: 'drawing';
+	strokes: Stroke[];
+	/** Width over height of the box around the lines. */
+	aspect: number;
+}
+
+export type Overlay = TextOverlay | StickerOverlay | ShapeOverlay | ZoneOverlay | DrawingOverlay;
 
 let counter = 0;
 const newId = () => `${Date.now().toString(36)}-${(counter++).toString(36)}`;
@@ -179,6 +214,98 @@ export function createShape(shape: ShapeId, color: string): ShapeOverlay {
 		size: 0.25,
 		rotation: 0,
 		opacity: 1,
+	};
+}
+
+export function createZone(effect: ZoneEffect): ZoneOverlay {
+	return {
+		id: newId(),
+		kind: 'zone',
+		effect,
+		strength: 0.5,
+		aspect: 1.4,
+		round: false,
+		x: 0.5,
+		y: 0.5,
+		size: 0.3,
+		rotation: 0,
+		opacity: 1,
+	};
+}
+
+/**
+ * A drawing from strokes whose points are shares of the output (x across its width, y down its
+ * height), placed where they were drawn.
+ */
+export function createDrawing(strokes: Stroke[], output: { width: number; height: number }): DrawingOverlay | null {
+	return fitDrawing(
+		{ id: newId(), kind: 'drawing', strokes: [], aspect: 1, x: 0.5, y: 0.5, size: 1, rotation: 0, opacity: 1 },
+		strokes,
+		output,
+	);
+}
+
+/**
+ * Adds strokes drawn over the output (points as shares of it, widths as shares of its shorter
+ * side) to a drawing, and fits its box around all its lines again.
+ */
+export function fitDrawing(
+	drawing: DrawingOverlay,
+	added: Stroke[],
+	output: { width: number; height: number },
+): DrawingOverlay | null {
+	const unit = Math.min(output.width, output.height);
+	const scale = drawing.size * unit;
+	const turn = (drawing.rotation * Math.PI) / 180;
+	const [cos, sin] = [Math.cos(turn), Math.sin(turn)];
+	// Everything in output pixels, turned back to the drawing's own axes around its centre.
+	const centre = { x: drawing.x * output.width, y: drawing.y * output.height };
+	const own = drawing.strokes.map((stroke) => ({
+		color: stroke.color,
+		width: stroke.width * scale,
+		points: stroke.points.map((value) => value * scale),
+	}));
+	const drawn = added.map((stroke) => {
+		const points: number[] = [];
+		for (let i = 0; i + 1 < stroke.points.length; i += 2) {
+			const dx = (stroke.points[i] ?? 0) * output.width - centre.x;
+			const dy = (stroke.points[i + 1] ?? 0) * output.height - centre.y;
+			points.push(dx * cos + dy * sin, -dx * sin + dy * cos);
+		}
+		return { color: stroke.color, width: stroke.width * unit, points };
+	});
+	const all = [...own, ...drawn];
+	let [left, top, right, bottom] = [Infinity, Infinity, -Infinity, -Infinity];
+	for (const stroke of all) {
+		const pad = stroke.width / 2;
+		for (let i = 0; i + 1 < stroke.points.length; i += 2) {
+			const x = stroke.points[i] ?? 0;
+			const y = stroke.points[i + 1] ?? 0;
+			left = Math.min(left, x - pad);
+			right = Math.max(right, x + pad);
+			top = Math.min(top, y - pad);
+			bottom = Math.max(bottom, y + pad);
+		}
+	}
+	if (!Number.isFinite(left)) return null;
+	const height = Math.max(bottom - top, 1);
+	const width = Math.max(right - left, 1);
+	// The box's middle, back in output shares, turned with the drawing.
+	const mx = (left + right) / 2;
+	const my = (top + bottom) / 2;
+	const x = (centre.x + mx * cos - my * sin) / output.width;
+	const y = (centre.y + mx * sin + my * cos) / output.height;
+	return {
+		...drawing,
+		x,
+		y,
+		size: height / unit,
+		aspect: width / height,
+		strokes: all.map((stroke) => ({
+			color: stroke.color,
+			width: stroke.width / height,
+			points: stroke.points.map((value, index) => (value - (index % 2 === 0 ? mx : my)) / height),
+		})),
 	};
 }
 
