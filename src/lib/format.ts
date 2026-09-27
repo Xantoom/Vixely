@@ -1,3 +1,5 @@
+import { getLocale } from '@/paraglide/runtime.js';
+
 /** Thin space, used as a thousands separator in technical values (`12 000 kb/s`). */
 const THIN_SPACE = ' ';
 
@@ -5,17 +7,27 @@ export function groupDigits(value: number): string {
 	return String(Math.round(value)).replace(/\B(?=(\d{3})+(?!\d))/g, THIN_SPACE);
 }
 
-/** Decimal units, like operating systems show file sizes: 1 MB = 1 000 000 bytes. */
+/** A number with a fixed count of decimals, written as the language writes them: `0.5`, `0,5`. */
+export function decimal(value: number, digits: number): string {
+	const text = value.toFixed(digits);
+	return getLocale() === 'fr' ? text.replace('.', ',') : text;
+}
+
+/**
+ * Decimal units, like operating systems show file sizes: 1 MB = 1 000 000 bytes. French writes
+ * them in octets: `12,5 Mo`.
+ */
 export function formatBytes(bytes: number): string {
-	if (bytes < 1000) return `${bytes} B`;
-	const units = ['KB', 'MB', 'GB', 'TB'];
+	const french = getLocale() === 'fr';
+	if (bytes < 1000) return `${bytes} ${french ? 'o' : 'B'}`;
+	const units = french ? ['Ko', 'Mo', 'Go', 'To'] : ['KB', 'MB', 'GB', 'TB'];
 	let value = bytes / 1000;
 	let unit = 0;
 	while (value >= 1000 && unit < units.length - 1) {
 		value /= 1000;
 		unit += 1;
 	}
-	return `${value >= 100 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
+	return `${value >= 100 ? Math.round(value) : decimal(value, 1)} ${units[unit]}`;
 }
 
 /** Editing timecode `HH:MM:SS:FF`, with frames counted at the given rate. */
@@ -66,7 +78,7 @@ export function formatFrameRate(fps: number): string {
 	const known = [23.976, 24, 25, 29.97, 30, 48, 50, 59.94, 60, 120];
 	const match = known.find((rate) => Math.abs(rate - fps) < 0.02);
 	const value = match ?? Math.round(fps * 100) / 100;
-	return `${value} fps`;
+	return `${getLocale() === 'fr' ? String(value).replace('.', ',') : value} fps`;
 }
 
 export function formatSampleRate(hz: number): string {
@@ -128,7 +140,7 @@ export function formatCoordinates(latitude: number, longitude: number): string {
 /** Signed decibels with a true minus sign: `+3.0`, `−1.2`, `0.0`. */
 export function signedDb(db: number): string {
 	const rounded = Math.round(db * 10) / 10;
-	return `${rounded > 0 ? '+' : rounded < 0 ? '−' : ''}${Math.abs(rounded).toFixed(1)}`;
+	return `${rounded > 0 ? '+' : rounded < 0 ? '−' : ''}${decimal(Math.abs(rounded), 1)}`;
 }
 
 export function formatDb(db: number): string {

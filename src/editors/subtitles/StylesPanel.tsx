@@ -2,6 +2,7 @@ import { Bold, Copy, Italic, Strikethrough, Trash2, Underline } from 'lucide-rea
 import { useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { Section } from '@/editor/panel-parts';
+import { decimal } from '@/lib/format';
 import { usePlayback } from '@/media/playback';
 import { m } from '@/paraglide/messages.js';
 import { Button, IconButton } from '@/ui/Button';
@@ -267,7 +268,7 @@ export function StylesPanel({ title }: { title: string }) {
 							value={Math.round((Number(style.outline) || 0) * 2)}
 							min={0}
 							max={40}
-							format={(halves) => String(halves / 2)}
+							format={(halves) => decimal(halves / 2, halves % 2 ? 1 : 0)}
 							onChange={(halves) => {
 								preview((before) => updateStyle(before, index, { outline: String(halves / 2) }));
 							}}
@@ -278,7 +279,7 @@ export function StylesPanel({ title }: { title: string }) {
 							value={Math.round((Number(style.shadow) || 0) * 2)}
 							min={0}
 							max={40}
-							format={(halves) => String(halves / 2)}
+							format={(halves) => decimal(halves / 2, halves % 2 ? 1 : 0)}
 							onChange={(halves) => {
 								preview((before) => updateStyle(before, index, { shadow: String(halves / 2) }));
 							}}

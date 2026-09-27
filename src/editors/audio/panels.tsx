@@ -3,7 +3,7 @@ import { type ReactNode, useMemo, useRef, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { KeptPanel } from '@/editor/KeptPanel';
 import { Group, ResetButton } from '@/editor/panel-parts';
-import { formatDb, formatPreciseTime, signedDb } from '@/lib/format';
+import { decimal, formatDb, formatPreciseTime, signedDb } from '@/lib/format';
 import { EQ_BANDS, EQ_PRESET_IDS, EQ_PRESETS, EQ_RANGE, type EqPresetId, FLAT_EQ, responseAt } from '@/media/sound';
 import { PITCH_RANGE } from '@/media/stretch';
 import { m } from '@/paraglide/messages.js';
@@ -104,7 +104,7 @@ function SilenceSection({ engine }: { engine: AudioEngine }) {
 				min={2}
 				max={50}
 				defaultValue={SILENCE_DEFAULTS.shortest * 10}
-				format={(tenths) => `${(tenths / 10).toFixed(1)} s`}
+				format={(tenths) => `${decimal(tenths / 10, 1)} s`}
 				onChange={(tenths) => {
 					setShortest(tenths / 10);
 				}}
@@ -146,7 +146,31 @@ export function VolumePanel({ engine }: { engine: AudioEngine }) {
 
 	return (
 		<>
-			<PanelTitle>{m.volume_title()}</PanelTitle>
+			<PanelTitle
+				action={
+					<ResetButton
+						disabled={
+							doc.gain === 0 &&
+							doc.normalize === null &&
+							compressOf(doc) === 0 &&
+							doc.fadeIn === 0 &&
+							doc.fadeOut === 0
+						}
+						onClick={() => {
+							apply((current) => ({
+								...current,
+								gain: 0,
+								normalize: null,
+								compress: 0,
+								fadeIn: 0,
+								fadeOut: 0,
+							}));
+						}}
+					/>
+				}
+			>
+				{m.volume_title()}
+			</PanelTitle>
 
 			<Section title={m.level_title()}>
 				<OptionList
@@ -157,7 +181,7 @@ export function VolumePanel({ engine }: { engine: AudioEngine }) {
 						...TARGETS.map((option) => ({
 							value: String(option.value),
 							label: option.name(),
-							detail: `${signedDb(option.value).replace('.0', '')} LUFS`,
+							detail: `${signedDb(option.value).replace(/[.,]0$/, '')} LUFS`,
 						})),
 					]}
 					onChange={(value) => {
@@ -211,7 +235,7 @@ export function VolumePanel({ engine }: { engine: AudioEngine }) {
 				/>
 				{truePeak !== null && truePeak > 0.05 && (
 					<p role="status" className="text-small text-danger font-medium">
-						{m.volume_clipping({ db: (Math.round(truePeak * 10) / 10).toFixed(1) })}
+						{m.volume_clipping({ db: decimal(Math.round(truePeak * 10) / 10, 1) })}
 					</p>
 				)}
 				{doc.normalize === null && (
@@ -235,7 +259,7 @@ export function VolumePanel({ engine }: { engine: AudioEngine }) {
 					min={0}
 					max={fadeMax}
 					step={0.1}
-					format={(value) => `${value.toFixed(1)} s`}
+					format={(value) => `${decimal(value, 1)} s`}
 					onChange={(fadeIn) => {
 						preview((current) => setFades(current, { fadeIn }));
 					}}
@@ -247,7 +271,7 @@ export function VolumePanel({ engine }: { engine: AudioEngine }) {
 					min={0}
 					max={fadeMax}
 					step={0.1}
-					format={(value) => `${value.toFixed(1)} s`}
+					format={(value) => `${decimal(value, 1)} s`}
 					onChange={(fadeOut) => {
 						preview((current) => setFades(current, { fadeOut }));
 					}}
@@ -527,7 +551,18 @@ export function SoundPanel() {
 	const chosen = EQ_PRESET_IDS.find((id) => EQ_PRESETS[id].every((gain, index) => gain === doc.eq[index]));
 	return (
 		<>
-			<PanelTitle>{m.tool_sound()}</PanelTitle>
+			<PanelTitle
+				action={
+					<ResetButton
+						disabled={doc.denoise === 0 && doc.eq.every((gain) => gain === 0)}
+						onClick={() => {
+							apply((current) => ({ ...current, denoise: 0, eq: FLAT_EQ }));
+						}}
+					/>
+				}
+			>
+				{m.tool_sound()}
+			</PanelTitle>
 
 			<Section title={m.denoise_title()}>
 				<Slider

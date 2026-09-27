@@ -6,7 +6,7 @@ import { ExportAnnounce } from '@/editor/ExportAnnounce';
 import { Section } from '@/editor/panel-parts';
 import { saveFile } from '@/editors/image/export';
 import { EDITORS } from '@/editors/registry';
-import { formatBytes, formatPreciseTime } from '@/lib/format';
+import { decimal, formatBytes, formatPreciseTime } from '@/lib/format';
 import { usePlayback } from '@/media/playback';
 import { type OpenedFile, useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
@@ -206,7 +206,7 @@ export function SubtitleInfoPanel({ opened }: { opened: OpenedFile }) {
 /** `+1.500 s`, `−0.250 s`: a shift, with a true minus sign. */
 export function signedSeconds(milliseconds: number): string {
 	const sign = milliseconds > 0 ? '+' : milliseconds < 0 ? '\u2212' : '';
-	return `${sign}${(Math.abs(milliseconds) / 1000).toFixed(3)} s`;
+	return `${sign}${decimal(Math.abs(milliseconds) / 1000, 3)} s`;
 }
 
 /** Signed seconds, typed as `-1.5`, `+0,250` or `2`. */
@@ -354,7 +354,7 @@ export function TimingPanel() {
 					{sync ? (
 						<p className="text-small text-muted tabular font-mono">
 							{m.subs_sync_result({
-								scale: sync.scale.toFixed(5),
+								scale: decimal(sync.scale, 5),
 								offset: signedSeconds(Math.round(sync.offset)),
 							})}
 						</p>
@@ -396,7 +396,7 @@ export function TimingPanel() {
 						apply((current) => retime(current, rate(fromRate) / rate(toRate), 0));
 					}}
 				>
-					{m.subs_frame_rate_apply({ scale: (rate(fromRate) / rate(toRate)).toFixed(5) })}
+					{m.subs_frame_rate_apply({ scale: decimal(rate(fromRate) / rate(toRate), 5) })}
 				</Button>
 			</Section>
 

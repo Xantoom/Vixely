@@ -11,7 +11,7 @@ import {
 	Underline,
 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
-import { formatPreciseTime, parseTime } from '@/lib/format';
+import { decimal, formatPreciseTime, parseTime } from '@/lib/format';
 import { usePlayback } from '@/media/playback';
 import { m } from '@/paraglide/messages.js';
 import { IconButton } from '@/ui/Button';
@@ -214,7 +214,7 @@ export function EditBox() {
 							speed > FAST_READING ? 'bg-danger text-white' : 'text-muted'
 						}`}
 					>
-						{m.subs_cps({ value: speed.toFixed(1) })}
+						{m.subs_cps({ value: decimal(speed, 1) })}
 					</span>
 				)}
 				{cue && styles.length > 0 && (

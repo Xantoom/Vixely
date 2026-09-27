@@ -9,7 +9,7 @@ import { Group, ResetButton, Section } from '@/editor/panel-parts';
 import { fitRatio } from '@/editors/image/crop';
 import { orientedSize } from '@/editors/image/document';
 import { saveFile } from '@/editors/image/export';
-import { formatBytes, formatPreciseTime } from '@/lib/format';
+import { decimal, formatBytes, formatFrameRate, formatPreciseTime } from '@/lib/format';
 import { type FileDestination, openFileDestination } from '@/media/file-destination';
 import { type GifInfo, readGifInfo } from '@/media/gif-info';
 import { outputName } from '@/media/save';
@@ -97,7 +97,7 @@ function FadeSection({ length }: { length: number }) {
 			value={Math.round(doc.fade[edge] * 10)}
 			min={0}
 			max={most}
-			format={(tenths) => `${(tenths / 10).toFixed(1)} s`}
+			format={(tenths) => `${decimal(tenths / 10, 1)} s`}
 			onChange={(tenths) => {
 				preview((current) => ({ ...current, fade: { ...current.fade, [edge]: tenths / 10 } }));
 			}}
@@ -218,7 +218,29 @@ export function SpeedPanel({ animated }: { animated: boolean }) {
 
 	return (
 		<>
-			<PanelTitle>{m.tool_speed()}</PanelTitle>
+			<PanelTitle
+				action={
+					<ResetButton
+						disabled={
+							doc.speed === 1 &&
+							doc.direction === 'forward' &&
+							doc.skip === 1 &&
+							(!animated || doc.fps === null)
+						}
+						onClick={() => {
+							apply((current) => ({
+								...current,
+								speed: 1,
+								direction: 'forward',
+								skip: 1,
+								fps: animated ? null : current.fps,
+							}));
+						}}
+					/>
+				}
+			>
+				{m.tool_speed()}
+			</PanelTitle>
 			<div className="grid gap-4">
 				<Slider
 					label={m.speed_label()}
@@ -735,19 +757,19 @@ export function GifInfoPanel({ engine, opened }: { engine: GifEngine; opened: Op
 			[m.analysis_frames(), String(delays.length)],
 			[
 				m.analysis_delays(),
-				`${Math.min(...delays)} / ${Math.round((total * 1000) / delays.length)} / ${Math.max(...delays)} ms`,
+				Math.min(...delays) === Math.max(...delays)
+					? `${Math.min(...delays)} ms`
+					: m.analysis_delay_range({ min: Math.min(...delays), max: Math.max(...delays) }),
 			],
-			[m.analysis_rate(), `${(delays.length / Math.max(total, 1e-3)).toFixed(2)} fps`],
+			[m.analysis_rate(), formatFrameRate(delays.length / Math.max(total, 1e-3)).replace(' fps', '')],
 		);
 	}
 	if (info) {
 		rows.push(
-			[
-				m.analysis_palette(),
-				info.localPalettes > 0
-					? m.analysis_palette_local({ colors: info.globalColors, count: info.localPalettes })
-					: String(info.globalColors),
-			],
+			[m.analysis_palette(), String(info.globalColors)],
+			...(info.localPalettes > 0
+				? [[m.analysis_palette_local(), String(info.localPalettes)] as [string, string]]
+				: []),
 			[m.analysis_transparency(), info.transparent ? m.yes() : m.no()],
 			[
 				m.loop(),

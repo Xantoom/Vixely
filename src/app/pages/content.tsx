@@ -95,14 +95,14 @@ const ABOUT: Record<Locale, PageContent> = {
 	fr: {
 		title: 'À propos de Vixely',
 		description:
-			"Vixely modifie vidéos, images, GIF, sons et sous-titres dans votre navigateur. Gratuit, code ouvert, rien n'est envoyé.",
+			'Vixely modifie vidéos, images, GIF, sons et sous-titres dans votre navigateur. Gratuit, code ouvert, rien n’est envoyé.',
 		sections: [
 			{
 				title: 'Tout reste sur votre appareil',
 				body: (
 					<p>
 						Vixely modifie vidéos, images, GIF, sons et sous-titres directement dans votre navigateur. Vos
-						fichiers sont lus, modifiés et enregistrés sur votre appareil : aucun n'est jamais envoyé à un
+						fichiers sont lus, modifiés et enregistrés sur votre appareil : aucun n’est jamais envoyé à un
 						serveur, sans compte et sans limite de taille.
 					</p>
 				),
@@ -112,7 +112,7 @@ const ABOUT: Record<Locale, PageContent> = {
 				body: (
 					<p>
 						Chaque format a son encodeur, compilé pour tourner dans le navigateur : jpegli pour le JPEG,
-						gifski pour le GIF, libimagequant et oxipng pour le PNG, rav1e pour l'AVIF, les encodeurs
+						gifski pour le GIF, libimagequant et oxipng pour le PNG, rav1e pour l’AVIF, les encodeurs
 						matériels du navigateur pour la vidéo, et libass pour dessiner les sous-titres comme les
 						lecteurs.
 					</p>
@@ -152,10 +152,10 @@ function privacy(lang: Locale): PageContent {
 			body: (
 				<p>
 					Pour savoir quelles pages servent, chaque page affichée est comptée avec{' '}
-					<TextLink href="https://www.goatcounter.com">GoatCounter</TextLink> : son adresse, le site d'où vous
+					<TextLink href="https://www.goatcounter.com">GoatCounter</TextLink> : son adresse, le site d’où vous
 					venez, la largeur de votre écran, et le navigateur et le système que votre navigateur annonce. Aucun
-					cookie n'est déposé et rien n'est enregistré sur votre appareil ; GoatCounter n'enregistre aucune
-					adresse IP et ne peut pas suivre un visiteur d'un site ou d'un jour à l'autre.
+					cookie n’est déposé et rien n’est enregistré sur votre appareil ; GoatCounter n’enregistre aucune
+					adresse IP et ne peut pas suivre un visiteur d’un site ou d’un jour à l’autre.
 				</p>
 			),
 		},
@@ -235,7 +235,7 @@ function privacy(lang: Locale): PageContent {
 						<p>
 							Vixely fonctionne entièrement dans votre navigateur. Les fichiers que vous ouvrez sont lus,
 							modifiés et enregistrés sur votre appareil, et ne sont jamais envoyés nulle part. Les gros
-							exports peuvent passer un instant par le stockage privé de votre navigateur avant d'être
+							exports peuvent passer un instant par le stockage privé de votre navigateur avant d’être
 							enregistrés ; ils y sont ensuite effacés.
 						</p>
 					),
@@ -247,7 +247,7 @@ function privacy(lang: Locale): PageContent {
 							Vixely retient votre thème et votre langue dans le stockage local de votre navigateur.
 							Pendant que vous modifiez un fichier, votre travail en cours et une copie de ses fichiers y
 							sont gardés : un onglet fermé ou rechargé ne fait rien perdre ; le bouton Oublier de la page
-							d'accueil les efface. Le code du site y est gardé aussi, pour qu'il marche sans réseau. Il
+							d’accueil les efface. Le code du site y est gardé aussi, pour qu’il marche sans réseau. Il
 							ne dépose aucun cookie. Vous pouvez tout effacer à tout moment depuis votre navigateur.
 						</p>
 					),
@@ -261,7 +261,7 @@ function privacy(lang: Locale): PageContent {
 							parole (Whisper, depuis <TextLink href="https://huggingface.co">Hugging Face</TextLink>) et
 							les langues de reconnaissance de texte (Tesseract, depuis{' '}
 							<TextLink href="https://www.jsdelivr.com">jsDelivr</TextLink>). Ces serveurs voient un
-							téléchargement, comme toute requête web ; vos fichiers et ce qui s'y dit ou s'y lit restent
+							téléchargement, comme toute requête web ; vos fichiers et ce qui s’y dit ou s’y lit restent
 							sur votre appareil.
 						</p>
 					),
@@ -271,7 +271,7 @@ function privacy(lang: Locale): PageContent {
 					title: 'Hébergement',
 					body: (
 						<p>
-							Le site est servi par Railway, dont les serveurs, comme tout serveur web, voient l'adresse
+							Le site est servi par Railway, dont les serveurs, comme tout serveur web, voient l’adresse
 							IP de chaque requête et peuvent la garder peu de temps dans leurs journaux, pour la sécurité
 							et le fonctionnement.
 						</p>
@@ -281,8 +281,8 @@ function privacy(lang: Locale): PageContent {
 					title: 'Vos droits',
 					body: (
 						<p>
-							Le RGPD vous permet de demander l'accès aux données vous concernant ou leur effacement.
-							Vixely n'en détenant pas d'autres que celles décrites ici, vos questions peuvent être posées
+							Le RGPD vous permet de demander l’accès aux données vous concernant ou leur effacement.
+							Vixely n’en détenant pas d’autres que celles décrites ici, vos questions peuvent être posées
 							sur <TextLink href={ISSUES}>GitHub</TextLink>. Vous pouvez aussi saisir la{' '}
 							<TextLink href="https://www.cnil.fr">CNIL</TextLink>.
 						</p>
@@ -342,16 +342,16 @@ const TERMS: Record<Locale, PageContent> = {
 		],
 	},
 	fr: {
-		title: "Conditions d'utilisation",
+		title: 'Conditions d’utilisation',
 		description:
-			"Les conditions d'utilisation de Vixely, un éditeur de médias gratuit qui fonctionne dans votre navigateur.",
+			'Les conditions d’utilisation de Vixely, un éditeur de médias gratuit qui fonctionne dans votre navigateur.',
 		lede: UPDATED.fr,
 		sections: [
 			{
 				title: 'Utilisation',
 				body: (
 					<p>
-						Vixely s'utilise gratuitement, à titre personnel ou professionnel, sans compte. L'utiliser vaut
+						Vixely s’utilise gratuitement, à titre personnel ou professionnel, sans compte. L’utiliser vaut
 						acceptation de ces conditions.
 					</p>
 				),
@@ -361,7 +361,7 @@ const TERMS: Record<Locale, PageContent> = {
 				body: (
 					<p>
 						Vos fichiers restent les vôtres : Vixely ne les reçoit jamais et ne revendique aucun droit
-						dessus. Vous êtes responsable d'avoir le droit de modifier et de diffuser ce que vous traitez
+						dessus. Vous êtes responsable d’avoir le droit de modifier et de diffuser ce que vous traitez
 						avec lui.
 					</p>
 				),
@@ -370,9 +370,9 @@ const TERMS: Record<Locale, PageContent> = {
 				title: 'Absence de garantie',
 				body: (
 					<p>
-						Vixely est fourni en l'état, sans garantie d'aucune sorte. Ce qu'il sait faire dépend de votre
-						navigateur et de votre appareil. Gardez vos fichiers d'origine : l'éditeur ne peut être tenu
-						responsable d'un export raté ou incomplet, ni d'une perte de données.
+						Vixely est fourni en l’état, sans garantie d’aucune sorte. Ce qu’il sait faire dépend de votre
+						navigateur et de votre appareil. Gardez vos fichiers d’origine : l’éditeur ne peut être tenu
+						responsable d’un export raté ou incomplet, ni d’une perte de données.
 					</p>
 				),
 			},
@@ -434,14 +434,14 @@ const LEGAL: Record<Locale, PageContent> = {
 	fr: {
 		title: 'Mentions légales',
 		description: 'Mentions légales de Vixely.',
-		lede: "Conformément à l'article 6 de la loi n° 2004-575 pour la confiance dans l'économie numérique (LCEN).",
+		lede: 'Conformément à l’article 6 de la loi n° 2004-575 pour la confiance dans l’économie numérique (LCEN).',
 		sections: [
 			{
 				title: 'Éditeur',
 				body: (
 					<p>
 						Vixely est édité par un particulier, à titre non professionnel, qui a choisi de rester anonyme
-						comme le permet l'article 6-III-2 de la LCEN ; son identité a été communiquée à l'hébergeur.
+						comme le permet l’article 6-III-2 de la LCEN ; son identité a été communiquée à l’hébergeur.
 						Contact : <TextLink href={ISSUES}>github.com/Xantoom/Vixely/issues</TextLink>.
 					</p>
 				),

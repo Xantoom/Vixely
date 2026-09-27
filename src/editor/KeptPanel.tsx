@@ -6,6 +6,7 @@ import { m } from '@/paraglide/messages.js';
 import { Button, IconButton } from '@/ui/Button';
 import { FieldRow, TimeField } from '@/ui/fields';
 import { PanelTitle } from './EditorLayout';
+import { ResetButton } from './panel-parts';
 
 /** What a timed editor keeps of its source, and what the trim panel needs to change it. */
 export interface KeptEditing<T extends Kept> {
@@ -54,21 +55,12 @@ export function KeptPanel<T extends Kept>({ editing }: { editing: KeptEditing<T>
 		<>
 			<PanelTitle
 				action={
-					edited ? (
-						<button
-							type="button"
-							onClick={() => {
-								apply((current) => ({
-									...current,
-									trim: { start: 0, end: current.duration },
-									cuts: [],
-								}));
-							}}
-							className="text-ui text-muted hover:text-ink transition-colors"
-						>
-							{m.reset()}
-						</button>
-					) : undefined
+					<ResetButton
+						disabled={!edited}
+						onClick={() => {
+							apply((current) => ({ ...current, trim: { start: 0, end: current.duration }, cuts: [] }));
+						}}
+					/>
 				}
 			>
 				{m.trim_title()}

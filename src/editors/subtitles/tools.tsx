@@ -42,7 +42,10 @@ export function TranslatePanel({ fileName }: { fileName: string }) {
 	const texts = tracks.filter((track) => track.doc && track.doc.format !== 'pgs' && track.doc.cues.length > 0);
 	const [source, setSource] = useState<string>(String(current));
 	const chosen = texts.find((track) => String(track.key) === source) ?? texts[0];
-	const [language, setLanguage] = useState('eng');
+	const [picked, setLanguage] = useState<string | null>(null);
+	// Into the interface's language, or English when the lines are already in it.
+	const own = getLocale() === 'fr' ? 'fre' : 'eng';
+	const language = picked ?? (chosen?.info?.language === own ? (own === 'eng' ? 'fre' : 'eng') : own);
 
 	const left = origin ? untranslated(doc, origin) : 0;
 	const next = () => {

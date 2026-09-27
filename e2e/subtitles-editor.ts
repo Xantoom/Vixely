@@ -130,7 +130,7 @@ await page.locator('nav[aria-label="Editing tools"]').getByRole('button', { name
 await aside.getByLabel('Shift by').fill('1.5');
 await aside.getByLabel('Shift by').press('Enter');
 await aside.getByRole('button', { name: /^Shift \+1\.500 s/ }).click();
-const fields = aside.getByLabel('Should start at');
+const fields = aside.getByLabel('New start');
 await fields.nth(1).fill('55');
 await fields.nth(1).press('Enter');
 console.log('sync:', (await aside.innerText()).match(/Speed ×[^\n]*/)?.[0]);

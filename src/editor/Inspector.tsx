@@ -8,8 +8,8 @@ import {
 	formatFocalLength,
 	formatFrameRate,
 	formatSampleRate,
+	formatPreciseTime,
 	formatShutter,
-	formatTimecode,
 } from '@/lib/format';
 import type { PhotoMetadata } from '@/media/probe';
 import type { OpenedFile } from '@/media/session';
@@ -109,7 +109,6 @@ export function InfoPanel({ opened }: { opened: OpenedFile | null }) {
 	}
 	const video = info.video;
 	const audio = info.audio;
-	const fps = video?.fps ?? 30;
 
 	return (
 		<div className="grid gap-7">
@@ -123,7 +122,7 @@ export function InfoPanel({ opened }: { opened: OpenedFile | null }) {
 			<dl className="grid gap-3.5">
 				<Row label={m.info_format()} value={info.format} />
 				<Row label={m.info_size()} value={formatBytes(info.size)} />
-				{info.duration !== null && <Row label={m.info_duration()} value={formatTimecode(info.duration, fps)} />}
+				{info.duration !== null && <Row label={m.info_duration()} value={formatPreciseTime(info.duration)} />}
 				{info.dimensions && (
 					<Row label={m.info_resolution()} value={`${info.dimensions.width} × ${info.dimensions.height}`} />
 				)}

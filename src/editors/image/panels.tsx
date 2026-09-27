@@ -2,6 +2,7 @@ import { FlipHorizontal2, FlipVertical2, RotateCcw, RotateCw } from 'lucide-reac
 import { type ReactNode, useEffect, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { ASPECT_LABELS, Group, ResetButton, Section, ToolButton } from '@/editor/panel-parts';
+import { decimal } from '@/lib/format';
 import { ICO_SIZES } from '@/media/image-formats';
 import type { PhotoMetadata } from '@/media/probe';
 import { m } from '@/paraglide/messages.js';
@@ -195,7 +196,7 @@ export function CropPanel({ editing, formats }: { editing: PictureEditing; forma
 					max={MAX_ANGLE}
 					step={0.1}
 					defaultValue={0}
-					format={(value) => `${value > 0 ? '+' : ''}${value.toFixed(1)}°`}
+					format={(value) => `${value > 0 ? '+' : ''}${decimal(value, 1)}°`}
 					onChange={(angle) => {
 						preview((d) => ({ ...d, angle }));
 					}}

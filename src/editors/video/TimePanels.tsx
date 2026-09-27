@@ -1,6 +1,6 @@
 import { PanelTitle } from '@/editor/EditorLayout';
 import { Group, ResetButton } from '@/editor/panel-parts';
-import { formatPreciseTime } from '@/lib/format';
+import { decimal, formatPreciseTime } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
 import { getLocale } from '@/paraglide/runtime.js';
 import { Slider } from '@/ui/fields';
@@ -91,7 +91,7 @@ export function VideoFades() {
 			value={Math.min(most, Math.round(fade[edge] * 10))}
 			min={0}
 			max={most}
-			format={(tenths) => `${(tenths / 10).toFixed(1)} s`}
+			format={(tenths) => `${decimal(tenths / 10, 1)} s`}
 			onChange={(tenths) => {
 				preview((current) => ({ ...current, fade: { ...fadeOf(current), [edge]: tenths / 10 } }));
 			}}
