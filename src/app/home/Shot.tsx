@@ -1,8 +1,9 @@
+import { getLocale } from '@/paraglide/runtime.js';
 import { useTheme } from '../theme';
 
 /**
- * A picture of the app (e2e/screenshots.ts), in the theme on screen. `sizes` says how wide it is
- * shown, so phones load the small one.
+ * A picture of the app (e2e/screenshots.ts), in the theme and language on screen. `sizes` says
+ * how wide it is shown, so phones load the small one.
  */
 export function Shot({
 	name,
@@ -19,7 +20,8 @@ export function Shot({
 	className?: string;
 }) {
 	const { theme } = useTheme();
-	const path = (width: number) => `/shots/${name}-${theme}-${width}.webp`;
+	const language = getLocale() === 'fr' ? '-fr' : '';
+	const path = (width: number) => `/shots/${name}${language}-${theme}-${width}.webp`;
 	return (
 		<img
 			src={path(960)}

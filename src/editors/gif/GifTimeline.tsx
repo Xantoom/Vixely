@@ -122,7 +122,9 @@ export function GifTimeline({ engine }: { engine: GifEngine }) {
 				<span className="tabular font-mono text-[15px] font-medium" aria-label={m.playhead()}>
 					{formatPreciseTime(playhead)}
 				</span>
-				<span className="text-ui text-muted tabular font-mono">/ {formatPreciseTime(engine.length)}</span>
+				<span className="text-ui text-muted tabular font-mono whitespace-nowrap">
+					/ {formatPreciseTime(engine.length)}
+				</span>
 				<div className="ml-auto flex gap-0.5">
 					<IconButton
 						label={m.zoom_out()}

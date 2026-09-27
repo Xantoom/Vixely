@@ -664,7 +664,21 @@
 	"style_margin_vertical": "Vertical",
 	"style_duplicate": "Duplicate",
 	"style_delete": "Delete",
-	"style_lines": "{count} lines",
+	"style_lines": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} line",
+				"countPlural=other": "{count} lines"
+			}
+		}
+	],
 	"subs_sort": "Sort by time",
 	"align_7": "Top left",
 	"align_8": "Top",

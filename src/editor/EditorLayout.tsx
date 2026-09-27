@@ -14,7 +14,17 @@ import {
 	ZoomIn,
 	ZoomOut,
 } from 'lucide-react';
-import { createContext, Fragment, type ReactNode, use, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+	createContext,
+	Fragment,
+	type ReactNode,
+	use,
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from 'react';
 import { AppBar, type EditorActions } from '@/app/AppBar';
 import { changeLocale, LOCALE_NAMES } from '@/app/locale';
 import { useTask } from '@/app/task-context';
@@ -69,11 +79,14 @@ function Rail({
 	open,
 	onSelect,
 	exportable,
+	disabled,
 }: {
 	tools: ToolId[];
 	current: ToolId;
 	open: boolean;
 	onSelect: (tool: ToolId) => void;
+	/** Before a file is open: the tools show what the editor does, and wait for it. */
+	disabled: boolean;
 	/** Export sits at the end of the rail, apart, once the file can be exported. */
 	exportable: boolean;
 }) {
@@ -156,6 +169,7 @@ function Rail({
 										: undefined
 								}
 								type="button"
+								disabled={disabled}
 								aria-pressed={pressed}
 								onClick={(event) => {
 									onSelect(tool);
@@ -165,7 +179,7 @@ function Rail({
 										behavior: 'smooth',
 									});
 								}}
-								className={`group text-caption hover:bg-surface hover:text-ink aria-pressed:text-ed-text relative grid min-w-15 aria-pressed:hover:bg-transparent flex-1 justify-items-center gap-1.5 rounded-md px-1 pt-3 pb-2.5 font-medium transition-colors duration-200 md:flex-none ${last ? 'text-ed-text' : 'text-muted'}`}
+								className={`group text-caption enabled:hover:bg-surface enabled:hover:text-ink disabled:opacity-40 aria-pressed:text-ed-text relative grid min-w-15 aria-pressed:hover:bg-transparent flex-1 justify-items-center gap-1.5 rounded-md px-1 pt-3 pb-2.5 font-medium transition-colors duration-200 md:flex-none ${last ? 'text-ed-text' : 'text-muted'}`}
 							>
 								<Icon
 									strokeWidth={1.75}
@@ -195,6 +209,7 @@ function Panel({
 	children,
 	footer,
 	tool,
+	onSheet,
 }: {
 	open: boolean;
 	onClose: () => void;
@@ -202,6 +217,8 @@ function Panel({
 	footer?: ReactNode;
 	/** Each tool keeps its own scroll position; one never scrolled starts at the top. */
 	tool: ToolId;
+	/** Where the sheet's top comes to rest, from the top of the editor, in pixels; null when closed. */
+	onSheet: (top: number | null) => void;
 }) {
 	const scrolls = useRef(new Map<ToolId, number>());
 	const asideRef = useRef<HTMLElement>(null);
@@ -216,8 +233,15 @@ function Panel({
 		if (open) setRest(SHEET_HALF);
 	}, [open]);
 	const hidden = drag ?? rest;
+	const sheetRef = useRef<HTMLDivElement>(null);
+	useLayoutEffect(() => {
+		const sheet = sheetRef.current;
+		// Measured without its transform: where it will be once it has slid there.
+		onSheet(open && sheet ? sheet.offsetTop + (sheet.offsetHeight * hidden) / 100 : null);
+	}, [open, hidden, onSheet]);
 	return (
 		<div
+			ref={sheetRef}
 			data-open={open}
 			style={{ '--sheet': `${open ? hidden : 105}%` }}
 			className={`border-line bg-bg flex min-h-0 flex-col overflow-hidden md:h-full max-md:absolute max-md:inset-x-0 max-md:bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] max-md:z-20 max-md:h-[82%] max-md:translate-y-(--sheet) max-md:rounded-t-[1.25rem] max-md:shadow-[0_-12px_40px_-12px_rgb(0_0_0/0.35)] md:border-r ${drag === null ? 'ease-spring transition-transform duration-[340ms]' : ''}`}
@@ -283,7 +307,8 @@ interface EditorLayoutProps {
 	workspace?: ReactNode;
 	/** The bar under the preview: zoom and the size of the picture. */
 	status?: ReactNode;
-	inspector: ReactNode;
+	/** Null before a file is open: there is nothing to show in it yet. */
+	inspector: ReactNode | null;
 	/** Sticks to the bottom of the inspector, for the final action of a panel. */
 	inspectorFooter?: ReactNode;
 }
@@ -310,7 +335,21 @@ export function EditorLayout({
 	const editor = EDITORS[kind];
 	const task = useTask();
 	// On a phone the sheet would hide the picture: it waits for a tool to be chosen.
-	const [open, setOpen] = useState(() => !window.matchMedia('(max-width: 767.98px)').matches);
+	const [panelOpen, setOpen] = useState(() => !window.matchMedia('(max-width: 767.98px)').matches);
+	const open = panelOpen && inspector !== null;
+	// On a phone, the picture moves up to the room the sheet leaves it, rather than hiding under it.
+	const previewRef = useRef<HTMLElement>(null);
+	const [cover, setCover] = useState(0);
+	const onSheet = useCallback((top: number | null) => {
+		const preview = previewRef.current;
+		const phone = window.matchMedia('(max-width: 767.98px)').matches;
+		if (top === null || !preview || !phone) {
+			setCover(0);
+			return;
+		}
+		// A strip of the picture stays when the sheet is pulled up to the top.
+		setCover(Math.min(preview.offsetHeight - 96, Math.max(0, preview.offsetTop + preview.offsetHeight - top)));
+	}, []);
 	const close = () => {
 		setOpen(false);
 	};
@@ -537,10 +576,11 @@ export function EditorLayout({
 						open={open}
 						onSelect={select}
 						exportable={Boolean(actions?.onExport)}
+						disabled={inspector === null}
 					/>
 				</div>
 				<div className="contents md:row-span-3 md:block md:min-h-0">
-					<Panel open={open} onClose={close} footer={inspectorFooter} tool={tool}>
+					<Panel open={open} onClose={close} footer={inspectorFooter} tool={tool} onSheet={onSheet}>
 						{inspector}
 					</Panel>
 				</div>
@@ -557,11 +597,15 @@ export function EditorLayout({
 					) : (
 						<>
 							<section
+								ref={previewRef}
 								aria-label={m.preview()}
 								className="bg-canvas relative min-h-0 min-w-0 overflow-hidden max-md:order-1"
 							>
 								{/* A box with a definite size, so the media can be contained in it whatever its resolution. */}
-								<div className="absolute inset-4 flex items-center justify-center md:inset-8">
+								<div
+									style={cover > 0 ? { bottom: cover + 16 } : undefined}
+									className="ease-spring absolute inset-4 flex items-center justify-center transition-[bottom] duration-[340ms] md:inset-8"
+								>
 									{viewer}
 								</div>
 							</section>

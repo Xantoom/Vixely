@@ -349,7 +349,7 @@ const FR: HomeCopy = {
 				{
 					name: 'gif-text',
 					caption: 'Texte et stickers',
-					alt: 'Un GIF de coucher de soleil avec la légende Golden hour.',
+					alt: 'Un GIF de coucher de soleil avec la légende Heure dorée.',
 				},
 				{
 					name: 'gif-frames',

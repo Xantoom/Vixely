@@ -146,7 +146,7 @@ export function StylesPanel({ title }: { title: string }) {
 							{item.name}
 						</span>
 						<span className="text-small text-muted tabular font-mono">
-							{m.style_lines({ count: String(use.get(item.name ?? '') ?? 0) })}
+							{m.style_lines({ count: use.get(item.name ?? '') ?? 0 })}
 						</span>
 					</button>
 				))}

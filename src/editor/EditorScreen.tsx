@@ -2,7 +2,6 @@ import { type ComponentType, lazy, Suspense, useEffect, useState } from 'react';
 import { EDITOR_ORDER, type MediaKind, type ToolId } from '@/editors/registry';
 import { useSession } from '@/media/session';
 import { EditorLayout } from './EditorLayout';
-import { FilePanel } from './Inspector';
 import { EmptyViewer } from './Viewer';
 
 type Screen = ComponentType<{ initialTool?: ToolId }>;
@@ -34,16 +33,10 @@ const SCREENS: Record<MediaKind, Screen> = {
 	subtitles: screen('subtitles'),
 };
 
-/** Every editor before a file is open: somewhere to drop one, the tools, an empty file panel. */
+/** Every editor before a file is open: somewhere to drop one, and its tools, waiting for it. */
 function EmptyEditor({ kind, tool, onTool }: { kind: MediaKind; tool: ToolId; onTool: (tool: ToolId) => void }) {
 	return (
-		<EditorLayout
-			kind={kind}
-			tool={tool}
-			onTool={onTool}
-			viewer={<EmptyViewer kind={kind} />}
-			inspector={<FilePanel opened={null} />}
-		/>
+		<EditorLayout kind={kind} tool={tool} onTool={onTool} viewer={<EmptyViewer kind={kind} />} inspector={null} />
 	);
 }
 
