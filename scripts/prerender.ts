@@ -7,7 +7,6 @@
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { PAGES } from '../src/app/pages/content';
-import { taskFaq } from '../src/app/task-faq';
 import { TASKS } from '../src/app/tasks';
 import { m } from '../src/paraglide/messages.js';
 
@@ -20,8 +19,6 @@ interface Page {
 	description: string;
 	/** Pages of little interest to search engines, such as the legal notice. */
 	index?: boolean;
-	/** Questions answered on the page, given to search engines as structured data. */
-	faq?: [string, string][];
 	/**
 	 * Its page component, whose code is announced to the browser early. An editor's own code is
 	 * left out: the empty editor doesn't need it, and it would slow the first picture down.
@@ -52,7 +49,6 @@ const pages: Page[] = [
 		path: `/tools/${task.slug}`,
 		title: `${task.title()} — Vixely`,
 		description: task.description(),
-		faq: taskFaq(task.slug, 'en'),
 		sources: [route('tools.$task')],
 	})),
 	...(['about', 'privacy', 'terms', 'legal'] as const).map((name) => {
@@ -73,20 +69,6 @@ function escape(text: string): string {
 	return text.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 }
 
-/** A page's questions as schema.org FAQPage data, which search engines may show with the link. */
-function structured(faq: [string, string][]): string {
-	const data = {
-		'@context': 'https://schema.org',
-		'@type': 'FAQPage',
-		mainEntity: faq.map(([question, answer]) => ({
-			'@type': 'Question',
-			name: question,
-			acceptedAnswer: { '@type': 'Answer', text: answer },
-		})),
-	};
-	return `<script type="application/ld+json">${JSON.stringify(data).replaceAll('<', '\\u003c')}</script>`;
-}
-
 function head(page: Page): string {
 	const url = `${SITE}${page.path}`;
 	const title = escape(page.title);
@@ -105,7 +87,6 @@ function head(page: Page): string {
 		'<meta property="og:image:width" content="1200" />',
 		'<meta property="og:image:height" content="630" />',
 		'<meta name="twitter:card" content="summary_large_image" />',
-		page.faq ? structured(page.faq) : '',
 	]
 		.filter(Boolean)
 		.join('\n\t\t');

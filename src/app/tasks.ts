@@ -1,6 +1,6 @@
 /**
  * Tasks: an editor opened for one job, at an address of its own (`/tools/compress-video`). They
- * are the quick ways in from the home page and the pages search engines list. The addresses of
+ * are the quick ways in from the home page. The addresses of
  * the first Vixely are kept.
  */
 import type { MediaKind, ToolId } from '@/editors/registry';

@@ -70,12 +70,12 @@ const ABOUT: Record<Locale, PageContent> = {
 				),
 			},
 			{
-				title: 'The best encoders there are',
+				title: 'Encoders',
 				body: (
 					<p>
-						For each format, Vixely uses the best encoder that runs in a browser: jpegli for JPEG, gifski
-						for GIF, libimagequant and oxipng for PNG, rav1e for AVIF, the browser's own hardware encoders
-						for video, and libass to draw subtitles exactly as players do.
+						Each format has its own encoder, built to run in the browser: jpegli for JPEG, gifski for GIF,
+						libimagequant and oxipng for PNG, rav1e for AVIF, the browser's own hardware encoders for video,
+						and libass to draw subtitles exactly as players do.
 					</p>
 				),
 			},
@@ -95,7 +95,7 @@ const ABOUT: Record<Locale, PageContent> = {
 	fr: {
 		title: 'À propos de Vixely',
 		description:
-			"Vixely modifie vidéos, images, GIF, sons et sous-titres dans votre navigateur. Gratuit, open source, rien n'est envoyé.",
+			"Vixely modifie vidéos, images, GIF, sons et sous-titres dans votre navigateur. Gratuit, code ouvert, rien n'est envoyé.",
 		sections: [
 			{
 				title: 'Tout reste sur votre appareil',
@@ -108,18 +108,18 @@ const ABOUT: Record<Locale, PageContent> = {
 				),
 			},
 			{
-				title: 'Les meilleurs encodeurs',
+				title: 'Encodeurs',
 				body: (
 					<p>
-						Pour chaque format, Vixely utilise le meilleur encodeur qui tourne dans un navigateur : jpegli
-						pour le JPEG, gifski pour le GIF, libimagequant et oxipng pour le PNG, rav1e pour l'AVIF, les
-						encodeurs matériels du navigateur pour la vidéo, et libass pour dessiner les sous-titres comme
-						les lecteurs.
+						Chaque format a son encodeur, compilé pour tourner dans le navigateur : jpegli pour le JPEG,
+						gifski pour le GIF, libimagequant et oxipng pour le PNG, rav1e pour l'AVIF, les encodeurs
+						matériels du navigateur pour la vidéo, et libass pour dessiner les sous-titres comme les
+						lecteurs.
 					</p>
 				),
 			},
 			{
-				title: 'Gratuit et open source',
+				title: 'Gratuit et code ouvert',
 				body: (
 					<p>
 						Vixely est gratuit, sans publicité, et son code source est public sous licence AGPL-3.0 :{' '}

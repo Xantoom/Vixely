@@ -22,7 +22,6 @@ export interface EditorCopy {
 
 export interface HomeCopy {
 	nav: { label: string; editors: string; tasks: string; formats: string; faq: string; open: string };
-	eyebrow: string;
 	title: string;
 	lede: string;
 	open: string;
@@ -31,18 +30,13 @@ export interface HomeCopy {
 	heroAlt: string;
 	trust: string[];
 	editorsTitle: string;
-	editorsLede: string;
 	editors: Record<MediaKind, EditorCopy>;
 	tasksTitle: string;
 	tasksLede: string;
 	formatsTitle: string;
-	formatsLede: string;
 	formats: { kind: MediaKind; title: string; items: string[] }[];
-	whyTitle: string;
-	why: { big: string; title: string; text: string }[];
 	faqTitle: string;
 	faq: [string, string][];
-	finalTitle: string;
 	footer: {
 		tagline: string;
 		editors: string;
@@ -63,23 +57,21 @@ const EN: HomeCopy = {
 		faq: 'Questions',
 		open: 'Open a file',
 	},
-	eyebrow: 'Free · open source · 100 % in your browser',
-	title: 'Edit anything, upload nothing.',
-	lede: 'Video, photos, GIFs, sound and subtitles: five complete editors that work on your own device.',
+	title: 'Edit video, images, GIFs, sound and subtitles in your browser.',
+	lede: 'Your files stay on your device: they are read and saved here, never uploaded.',
 	open: 'Open a file',
 	reading: 'Reading…',
 	dropHint: 'or drop it anywhere on the page, or paste it',
 	heroAlt:
 		'The image editor: a photo of a lake at sunset with the Vivid look, its light and colour settings beside it.',
 	trust: ['Nothing is uploaded', 'No account, no ads', 'Open source, AGPL-3.0', 'Works offline'],
-	editorsTitle: 'Five editors, one place',
-	editorsLede: 'Each has its colour, the same gestures, and the real values in front of you.',
+	editorsTitle: 'The editors',
 	editors: {
 		video: {
 			title: 'Video',
 			lede: 'Trim, crop, compress and convert, with every track kept.',
 			points: [
-				['Cuts without re-encoding', 'Removed passages are skipped and the rest copied as it is, in seconds.'],
+				['Cuts without re-encoding', 'Removed passages are skipped and the rest copied as it is.'],
 				['A size you choose', 'Discord, WhatsApp, e-mail: the bitrate is worked out to fit.'],
 				['Sound and subtitle tracks', 'Keep, rename, add, set their volume, or burn subtitles in.'],
 			],
@@ -104,10 +96,10 @@ const EN: HomeCopy = {
 		},
 		image: {
 			title: 'Image',
-			lede: 'Crop, adjust, lighten and convert, with the best encoders.',
+			lede: 'Crop, adjust, compress and convert, one image or many.',
 			points: [
 				['jpegli, AVIF, JPEG XL', 'Lighter files at the same quality.'],
-				['13 settings and ready looks', 'Sliders that show what they do.'],
+				['Settings and looks', 'Light, colour, sharpness, and ready-made looks.'],
 				['In batches', 'Fifty photos at once, into a folder or a ZIP.'],
 			],
 			open: 'Open the image editor',
@@ -131,11 +123,11 @@ const EN: HomeCopy = {
 		},
 		gif: {
 			title: 'GIF',
-			lede: 'Turn a video into a sharp GIF, or make an existing one lighter.',
+			lede: 'Make a GIF from a video or from images, or make an existing one lighter.',
 			points: [
 				['gifski', 'GIFs without colour bands, even in gradients.'],
 				['A maximum size', 'Discord emoji, sticker, reaction: it fits the limit.'],
-				['Frame by frame', 'Remove, extract, reverse, play back and forth.'],
+				['Frame by frame', 'Reorder, time, remove, extract or reverse frames.'],
 			],
 			open: 'Open the GIF editor',
 			shots: [
@@ -160,9 +152,9 @@ const EN: HomeCopy = {
 			title: 'Audio',
 			lede: 'Cut, normalise and convert, even a three-hour recording.',
 			points: [
-				['EBU R128', 'Loudness set like radio does, at −14, −16 or −23 LUFS.'],
+				['EBU R128', 'Loudness set to −14, −16 or −23 LUFS, for music, podcasts or broadcast.'],
 				['Without re-encoding', 'Cut an MP3 or a FLAC without touching its quality.'],
-				['Noise reduction and equalizer', 'The hiss removed, the voice brought forward, here.'],
+				['Cleaner sound', 'Noise reduction, equalizer, volume smoothing, speed and pitch.'],
 			],
 			open: 'Open the audio editor',
 			shots: [
@@ -185,7 +177,7 @@ const EN: HomeCopy = {
 		},
 		subtitles: {
 			title: 'Subtitles',
-			lede: 'Resync, correct, translate and convert, as in Aegisub.',
+			lede: 'Resync, correct, style, translate and convert.',
 			points: [
 				['From MKV and MP4', 'Every track at once, fonts included, and back into the video.'],
 				['Transcription here', 'Subtitles made from speech by Whisper, on your device.'],
@@ -213,8 +205,7 @@ const EN: HomeCopy = {
 	},
 	tasksTitle: 'I want to…',
 	tasksLede: 'Each task opens its editor already set up.',
-	formatsTitle: 'Ready to use',
-	formatsLede: 'The everyday formats and the professionals’ ones, to read and to write.',
+	formatsTitle: 'Formats',
 	formats: [
 		{
 			kind: 'video',
@@ -234,36 +225,13 @@ const EN: HomeCopy = {
 			items: ['SRT', 'WebVTT', 'ASS', 'SSA', 'PGS (.sup)', 'MP4 timed text'],
 		},
 	],
-	whyTitle: 'Why it is different',
-	why: [
-		{
-			big: '0 bytes',
-			title: 'sent to a server',
-			text: 'Your browser reads and writes the file. Vixely could not see your files even if it wanted to.',
-		},
-		{
-			big: 'jpegli · gifski',
-			title: 'The best encoders',
-			text: 'jpegli for JPEG, gifski for GIF, libass for subtitles, AV1 and JPEG XL: the professionals’ tools, built for the web.',
-		},
-		{
-			big: '3 h · 2 GB',
-			title: 'No size limit',
-			text: 'Files are read and written piece by piece: a three-hour recording or a whole film goes through without filling the memory.',
-		},
-		{
-			big: 'Offline',
-			title: 'Installable',
-			text: 'Install it as an app and it works without a network. A closed tab loses nothing: your work comes back.',
-		},
-	],
 	faqTitle: 'Questions',
 	faq: [
 		[
 			'Are my files sent anywhere?',
 			'No. Everything happens in your browser: the file never leaves your device. Once the page is loaded you can even cut the network.',
 		],
-		['Is it really free?', 'Yes, with no ads and no account. The code is open, under the AGPL-3.0 licence.'],
+		['Is it free?', 'Yes: no ads, no account, no paid version. The code is open, under the AGPL-3.0 licence.'],
 		[
 			'Which browsers?',
 			'The latest versions of Chrome, Edge, Firefox and Safari, on computers and phones. The System page lists what your browser can decode and encode.',
@@ -281,7 +249,6 @@ const EN: HomeCopy = {
 			'Your unfinished work is kept in your browser. Come back and it is offered again, undo history included.',
 		],
 	],
-	finalTitle: 'Drop a file and off you go.',
 	footer: {
 		tagline: 'Media editors in your browser. Nothing is uploaded.',
 		editors: 'Editors',
@@ -302,26 +269,21 @@ const FR: HomeCopy = {
 		faq: 'Questions',
 		open: 'Ouvrir un fichier',
 	},
-	eyebrow: 'Gratuit · open source · 100 % dans le navigateur',
-	title: 'Retouchez tout, sans rien envoyer.',
-	lede: 'Vidéos, photos, GIF, son et sous-titres : cinq éditeurs complets qui travaillent sur votre appareil.',
+	title: 'Modifiez vidéos, images, GIF, sons et sous-titres dans votre navigateur.',
+	lede: 'Vos fichiers restent sur votre appareil : ils sont lus et enregistrés ici, jamais envoyés.',
 	open: 'Ouvrir un fichier',
 	reading: 'Lecture…',
 	dropHint: 'ou déposez-le n’importe où sur la page, ou collez-le',
 	heroAlt:
 		'L’éditeur d’images : une photo de lac au coucher du soleil avec l’effet Vivid, ses réglages de lumière et de couleur à côté.',
-	trust: ['Rien n’est envoyé', 'Sans compte, sans pub', 'Open source, AGPL-3.0', 'Marche hors ligne'],
-	editorsTitle: 'Cinq éditeurs, un seul endroit',
-	editorsLede: 'Chacun a sa couleur, les mêmes gestes, et les vraies valeurs sous les yeux.',
+	trust: ['Rien n’est envoyé', 'Sans compte ni publicité', 'Code ouvert, AGPL-3.0', 'Fonctionne hors ligne'],
+	editorsTitle: 'Les éditeurs',
 	editors: {
 		video: {
 			title: 'Vidéo',
 			lede: 'Couper, recadrer, compresser et convertir, en gardant toutes les pistes.',
 			points: [
-				[
-					'Des coupes sans réencoder',
-					'Les passages retirés sont sautés et le reste copié tel quel, en quelques secondes.',
-				],
+				['Des coupes sans réencoder', 'Les passages retirés sont sautés et le reste copié tel quel.'],
 				['La taille que vous voulez', 'Discord, WhatsApp, e-mail : le débit est calculé pour tenir.'],
 				[
 					'Pistes son et sous-titres',
@@ -349,10 +311,10 @@ const FR: HomeCopy = {
 		},
 		image: {
 			title: 'Image',
-			lede: 'Recadrer, régler, alléger et convertir, avec les meilleurs encodeurs.',
+			lede: 'Recadrer, régler, compresser et convertir, une image ou plusieurs.',
 			points: [
 				['jpegli, AVIF, JPEG XL', 'Des fichiers plus légers à qualité égale.'],
-				['13 réglages et des effets prêts', 'Des curseurs qui montrent leur effet.'],
+				['Réglages et effets', 'Lumière, couleur, netteté, et des effets prêts.'],
 				['Par lots', 'Cinquante photos d’un coup, dans un dossier ou un ZIP.'],
 			],
 			open: 'Ouvrir l’éditeur d’images',
@@ -376,11 +338,11 @@ const FR: HomeCopy = {
 		},
 		gif: {
 			title: 'GIF',
-			lede: 'Transformer une vidéo en GIF net, ou alléger un GIF existant.',
+			lede: 'Faire un GIF depuis une vidéo ou des images, ou alléger un GIF existant.',
 			points: [
 				['gifski', 'Des GIF sans bandes de couleur, même dans les dégradés.'],
 				['Un poids maximum', 'Emoji Discord, sticker, réaction : il tient dans la limite.'],
-				['Image par image', 'Retirer, extraire, inverser, faire un aller-retour.'],
+				['Image par image', 'Réordonner, minuter, retirer, extraire ou inverser les images.'],
 			],
 			open: 'Ouvrir l’éditeur GIF',
 			shots: [
@@ -405,9 +367,9 @@ const FR: HomeCopy = {
 			title: 'Audio',
 			lede: 'Couper, normaliser et convertir, même un enregistrement de trois heures.',
 			points: [
-				['EBU R128', 'Le volume réglé comme à la radio, à −14, −16 ou −23 LUFS.'],
+				['EBU R128', 'Le volume réglé à −14, −16 ou −23 LUFS, pour la musique, les podcasts ou la radio.'],
 				['Sans réencoder', 'Couper un MP3 ou un FLAC sans toucher à sa qualité.'],
-				['Réduction de bruit et égaliseur', 'Le souffle retiré, la voix mise en avant, ici même.'],
+				['Un son plus propre', 'Réduction de bruit, égaliseur, lissage du volume, vitesse et hauteur.'],
 			],
 			open: 'Ouvrir l’éditeur audio',
 			shots: [
@@ -430,7 +392,7 @@ const FR: HomeCopy = {
 		},
 		subtitles: {
 			title: 'Sous-titres',
-			lede: 'Resynchroniser, corriger, traduire et convertir, comme dans Aegisub.',
+			lede: 'Resynchroniser, corriger, styliser, traduire et convertir.',
 			points: [
 				['Depuis un MKV ou un MP4', 'Toutes les pistes d’un coup, polices comprises, et retour dans la vidéo.'],
 				['Transcription sur place', 'Des sous-titres tirés de la parole par Whisper, sur votre appareil.'],
@@ -458,8 +420,7 @@ const FR: HomeCopy = {
 	},
 	tasksTitle: 'Je veux…',
 	tasksLede: 'Chaque tâche ouvre son éditeur déjà réglé.',
-	formatsTitle: 'Prêt à l’emploi',
-	formatsLede: 'Les formats de tous les jours et ceux des pros, en lecture comme en écriture.',
+	formatsTitle: 'Formats',
 	formats: [
 		{
 			kind: 'video',
@@ -475,36 +436,16 @@ const FR: HomeCopy = {
 		{ kind: 'audio', title: 'Audio', items: ['MP3', 'AAC', 'Opus', 'FLAC', 'WAV', 'Ogg'] },
 		{ kind: 'subtitles', title: 'Sous-titres', items: ['SRT', 'WebVTT', 'ASS', 'SSA', 'PGS (.sup)', 'Texte MP4'] },
 	],
-	whyTitle: 'Pourquoi c’est différent',
-	why: [
-		{
-			big: '0 octet',
-			title: 'envoyé sur un serveur',
-			text: 'Votre navigateur lit et écrit le fichier. Vixely ne pourrait pas voir vos fichiers, même s’il le voulait.',
-		},
-		{
-			big: 'jpegli · gifski',
-			title: 'Les meilleurs encodeurs',
-			text: 'jpegli pour le JPEG, gifski pour le GIF, libass pour les sous-titres, AV1 et JPEG XL : les outils des pros, compilés pour le web.',
-		},
-		{
-			big: '3 h · 2 Go',
-			title: 'Sans limite de taille',
-			text: 'Les fichiers sont lus et écrits morceau par morceau : un enregistrement de trois heures ou un film entier passent sans saturer la mémoire.',
-		},
-		{
-			big: 'Hors ligne',
-			title: 'Installable',
-			text: 'Installez-le comme une application : il marche sans réseau. Un onglet fermé ne fait rien perdre, votre travail revient.',
-		},
-	],
 	faqTitle: 'Questions',
 	faq: [
 		[
 			'Mes fichiers sont-ils envoyés quelque part ?',
 			'Non. Tout se passe dans votre navigateur : le fichier ne quitte jamais votre appareil. Une fois la page chargée, vous pouvez même couper le réseau.',
 		],
-		['C’est vraiment gratuit ?', 'Oui, sans pub ni compte. Le code est ouvert, sous licence AGPL-3.0.'],
+		[
+			'C’est gratuit ?',
+			'Oui : sans publicité, sans compte, sans version payante. Le code est ouvert, sous licence AGPL-3.0.',
+		],
 		[
 			'Quels navigateurs ?',
 			'Les dernières versions de Chrome, Edge, Firefox et Safari, sur ordinateur et sur téléphone. La page Système liste ce que votre navigateur sait décoder et encoder.',
@@ -522,7 +463,6 @@ const FR: HomeCopy = {
 			'Votre travail en cours est gardé dans votre navigateur. Revenez : il vous est proposé à nouveau, historique d’annulation compris.',
 		],
 	],
-	finalTitle: 'Déposez un fichier, c’est parti.',
 	footer: {
 		tagline: 'Des éditeurs de médias dans votre navigateur. Rien n’est envoyé.',
 		editors: 'Éditeurs',

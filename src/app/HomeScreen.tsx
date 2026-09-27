@@ -39,19 +39,7 @@ function Hero() {
 	const error = useSession((state) => state.error);
 	return (
 		<section className="grid justify-items-center gap-6 pt-[clamp(3rem,8vw,6rem)] text-center">
-			<span className="bg-surface text-ui text-ink-2 inline-flex items-center gap-2 rounded-full py-1.5 pr-3.5 pl-2">
-				<span className="flex" aria-hidden="true">
-					{EDITOR_ORDER.map((kind) => (
-						<span
-							key={kind}
-							data-media={kind}
-							className="bg-ed -ml-1 size-3.5 rounded-full shadow-[0_0_0_2px_var(--surface)] first:ml-0"
-						/>
-					))}
-				</span>
-				{copy.eyebrow}
-			</span>
-			<h1 className="max-w-[16ch] text-[clamp(2.5rem,6vw,4.5rem)] leading-[1.02] font-bold tracking-[-0.045em] text-balance">
+			<h1 className="max-w-[22ch] text-[clamp(2.25rem,5vw,3.75rem)] leading-[1.05] font-bold tracking-[-0.045em] text-balance">
 				{copy.title}
 			</h1>
 			<p className="text-muted max-w-[44ch] text-[clamp(1.0625rem,1.6vw,1.3rem)] text-balance">{copy.lede}</p>
@@ -126,7 +114,7 @@ function EditorTabs() {
 
 	return (
 		<section className={SECTION} aria-labelledby="editors">
-			<SectionHeader id="editors" title={copy.editorsTitle} lede={copy.editorsLede} />
+			<SectionHeader id="editors" title={copy.editorsTitle} />
 			<div role="tablist" aria-labelledby="editors" className="flex flex-wrap gap-2">
 				{EDITOR_ORDER.map((id) => (
 					<button
@@ -236,7 +224,7 @@ function Formats() {
 	const copy = homeCopy();
 	return (
 		<section className={SECTION} aria-labelledby="formats">
-			<SectionHeader id="formats" title={copy.formatsTitle} lede={copy.formatsLede} />
+			<SectionHeader id="formats" title={copy.formatsTitle} />
 			<div className="grid grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-4">
 				{copy.formats.map((group) => (
 					<div
@@ -258,26 +246,6 @@ function Formats() {
 								</li>
 							))}
 						</ul>
-					</div>
-				))}
-			</div>
-		</section>
-	);
-}
-
-function Why() {
-	const copy = homeCopy();
-	return (
-		<section className={SECTION} aria-labelledby="why">
-			<SectionHeader id="why" title={copy.whyTitle} />
-			<div className="grid gap-4 sm:grid-cols-2">
-				{copy.why.map((item) => (
-					<div key={item.title} className="bg-surface grid content-start gap-2.5 rounded-md p-6">
-						<span className="font-mono text-[2.25rem] leading-none font-semibold tracking-[-0.04em]">
-							{item.big}
-						</span>
-						<h3 className="text-title font-bold tracking-[-0.02em]">{item.title}</h3>
-						<p className="text-body text-muted">{item.text}</p>
 					</div>
 				))}
 			</div>
@@ -308,19 +276,6 @@ function Faq() {
 	);
 }
 
-function Final() {
-	const copy = homeCopy();
-	return (
-		<section className="bg-ink text-bg mt-[clamp(4rem,8vw,6rem)] grid justify-items-start gap-5 rounded-xl p-[clamp(2.5rem,6vw,4rem)]">
-			<h2 className={`${H2} max-w-[18ch]`}>{copy.finalTitle}</h2>
-			{/* The dark block turns the button light. */}
-			<OpenFileButton reading={copy.reading} className="!bg-bg !text-ink h-13 rounded-md px-6.5 text-[1.0625rem]">
-				{copy.open}
-			</OpenFileButton>
-		</section>
-	);
-}
-
 export function HomeScreen() {
 	useLocale();
 	usePageHead(null);
@@ -333,9 +288,7 @@ export function HomeScreen() {
 				<EditorTabs />
 				<Tasks />
 				<Formats />
-				<Why />
 				<Faq />
-				<Final />
 			</main>
 			<SiteFooter />
 		</div>
