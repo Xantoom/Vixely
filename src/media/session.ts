@@ -84,13 +84,17 @@ export function prepareOpening() {
 	void import('./probe').catch(() => undefined);
 }
 
-async function read(file: File, kind: MediaKind, format: string): Promise<OpenedFile> {
+async function read(original: File, kind: MediaKind, format: string): Promise<OpenedFile> {
+	let file = original;
 	let info: MediaInfo | null = null;
 	let poster: ImageBitmap | null = null;
 	try {
 		// Mediabunny is only needed once a file is open, so it stays out of the first load.
-		const { probe } = await import('./probe');
+		const [{ probe }, { readableFile }] = await Promise.all([import('./probe'), import('./readable')]);
+		file = await readableFile(original, format).catch(() => original);
 		({ info, poster } = await probe(file, kind, format));
+		// A file read as the WAV made from it still shows its own format.
+		if (file !== original) info = { ...info, format: format.toUpperCase(), size: original.size };
 	} catch {
 		// The editor still opens and shows what is known: name, size and format.
 	}

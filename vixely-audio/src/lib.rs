@@ -6,6 +6,7 @@
 //! the file (the audio left after cuts, with its gain and fades) without decoding it again.
 
 mod denoise;
+mod import;
 
 use ebur128::{EbuR128, Mode};
 use wasm_bindgen::prelude::*;
@@ -24,13 +25,19 @@ impl NoiseReducer {
 	/// `amount` is the share of denoised sound, 0 to 1.
 	#[wasm_bindgen(constructor)]
 	pub fn new(channels: u32, rate: u32, amount: f32) -> NoiseReducer {
-		NoiseReducer { inner: denoise::Denoiser::new(channels as usize, rate, amount), channels: channels as usize, frames: 0 }
+		NoiseReducer {
+			inner: denoise::Denoiser::new(channels as usize, rate, amount),
+			channels: channels as usize,
+			frames: 0,
+		}
 	}
 
 	/// Adds `frames` frames of planar input and returns the planar output ready so far; its
 	/// frame count is `ready_frames()`.
 	pub fn process(&mut self, planar: &[f32], frames: usize) -> Vec<f32> {
-		let (out, ready) = self.inner.process(planar, frames.min(planar.len() / self.channels.max(1)));
+		let (out, ready) = self
+			.inner
+			.process(planar, frames.min(planar.len() / self.channels.max(1)));
 		self.frames = ready;
 		out
 	}
@@ -76,22 +83,31 @@ impl LoudnessMeter {
 	/// amplitude where 1 is full scale. True peak includes the overshoot between samples that a
 	/// converter or an encoder produces.
 	pub fn true_peak(&self) -> f64 {
-		(0..self.channels as u32).filter_map(|c| self.meter.prev_true_peak(c).ok()).fold(0.0, f64::max)
+		(0..self.channels as u32)
+			.filter_map(|c| self.meter.prev_true_peak(c).ok())
+			.fold(0.0, f64::max)
 	}
 }
 
 impl LoudnessMeter {
 	fn create(channels: u32, rate: u32) -> Result<LoudnessMeter, String> {
 		let meter = EbuR128::new(channels, rate, Mode::M | Mode::TRUE_PEAK).map_err(|error| error.to_string())?;
-		Ok(LoudnessMeter { meter, channels: channels as usize })
+		Ok(LoudnessMeter {
+			meter,
+			channels: channels as usize,
+		})
 	}
 
 	fn add_planar(&mut self, planar: &[f32], frames: usize) -> Result<(), String> {
 		if planar.len() < frames * self.channels {
 			return Err("Fewer samples than announced.".to_owned());
 		}
-		let planes: Vec<&[f32]> = (0..self.channels).map(|c| &planar[c * frames..(c + 1) * frames]).collect();
-		self.meter.add_frames_planar_f32(&planes).map_err(|error| error.to_string())
+		let planes: Vec<&[f32]> = (0..self.channels)
+			.map(|c| &planar[c * frames..(c + 1) * frames])
+			.collect();
+		self.meter
+			.add_frames_planar_f32(&planes)
+			.map_err(|error| error.to_string())
 	}
 }
 
@@ -132,4 +148,94 @@ mod tests {
 		let mut meter = LoudnessMeter::create(2, 48_000).unwrap();
 		assert!(meter.add_planar(&[0.0; 10], 10).is_err());
 	}
+}
+
+/// An AIFF file as WAV: the header to put in front of its sound data, and how that data changes.
+#[wasm_bindgen]
+pub struct AiffWav {
+	header: Vec<u8>,
+	reorder: import::Reorder,
+	sample_bytes: u32,
+	data_length: u32,
+}
+
+#[wasm_bindgen]
+impl AiffWav {
+	/// From the COMM chunk of an AIFF (or, `compressed`, AIFF-C) file and the length of its sound;
+	/// `trailing` bytes of other chunks follow the sound.
+	#[wasm_bindgen(constructor)]
+	pub fn new(comm: &[u8], compressed: bool, sound_length: u32, trailing: u32) -> Result<AiffWav, JsError> {
+		let format = import::aiff_format(comm, compressed).map_err(|error| JsError::new(&error))?;
+		let sample_bytes = u32::from(format.bits.div_ceil(8));
+		// A cut-off last frame is left out.
+		let frame = sample_bytes * u32::from(format.channels);
+		let data_length = sound_length - sound_length % frame;
+		Ok(AiffWav {
+			header: import::wav_header(
+				format.channels,
+				format.rate,
+				format.bits,
+				format.tag,
+				data_length,
+				trailing,
+			),
+			reorder: format.reorder,
+			sample_bytes,
+			data_length,
+		})
+	}
+
+	pub fn header(&self) -> Vec<u8> {
+		self.header.clone()
+	}
+
+	/// Bytes of one sample: sound data is converted in pieces of a multiple of it.
+	pub fn sample_bytes(&self) -> u32 {
+		self.sample_bytes
+	}
+
+	/// Bytes of sound data the WAV holds, whole frames only.
+	pub fn data_length(&self) -> u32 {
+		self.data_length
+	}
+
+	/// Turns a piece of AIFF sound data, of whole samples, into WAV sound data.
+	pub fn convert(&self, data: &mut [u8]) {
+		import::reorder(data, self.reorder);
+	}
+}
+
+/// Interleaved little-endian PCM samples.
+#[wasm_bindgen]
+pub struct Pcm {
+	inner: import::Pcm,
+}
+
+#[wasm_bindgen]
+impl Pcm {
+	pub fn channels(&self) -> u16 {
+		self.inner.channels
+	}
+
+	pub fn rate(&self) -> u32 {
+		self.inner.rate
+	}
+
+	/// 16, 24 or 32.
+	pub fn bits(&self) -> u16 {
+		self.inner.bits
+	}
+
+	/// The samples, handed over once.
+	pub fn take_data(&mut self) -> Vec<u8> {
+		std::mem::take(&mut self.inner.data)
+	}
+}
+
+/// Decodes the Apple Lossless track of an MP4 (`.m4a`) file.
+#[wasm_bindgen]
+pub fn decode_alac(file: Vec<u8>) -> Result<Pcm, JsError> {
+	import::decode_alac(file)
+		.map(|inner| Pcm { inner })
+		.map_err(|error| JsError::new(&error))
 }

@@ -7,6 +7,8 @@ import { ExportAnnounce } from '@/editor/ExportAnnounce';
 import { Section } from '@/editor/panel-parts';
 import { formatDb } from '@/lib/format';
 import { languageName } from '@/lib/language';
+import { identify } from '@/media/identify';
+import { readableFile } from '@/media/readable';
 import { outputName } from '@/media/save';
 import { openSaveTarget } from '@/media/save-target';
 import type { OpenedFile } from '@/media/session';
@@ -293,7 +295,8 @@ export function AudioTrackList({
 	const picker = useRef<HTMLInputElement>(null);
 
 	/** Adds the sound of each file; with `soundOnly`, files with pictures are left to open. */
-	const add = async (files: File[], soundOnly: boolean): Promise<boolean> => {
+	const add = async (dropped: File[], soundOnly: boolean): Promise<boolean> => {
+		const files = await Promise.all(dropped.map(readableSound));
 		const read = await Promise.all(files.map(async (file) => ({ file, sound: await readSound(file) })));
 		const taken = read.filter(({ sound }) => sound !== null && !(soundOnly && sound.video));
 		if (soundOnly && taken.length === 0) return false;
@@ -424,6 +427,12 @@ export function MuxTracks({ opened }: { opened: OpenedFile }) {
 }
 
 const SUBTITLE_FILE = /\.(srt|ass|ssa|vtt|sup)$/i;
+
+/** The file, or a WAV made from it when browsers can't read its sound (AIFF, Apple Lossless). */
+async function readableSound(file: File): Promise<File> {
+	const found = await identify(file);
+	return found.ok ? readableFile(file, found.value.format).catch(() => file) : file;
+}
 
 /** The codec of a file's sound, and whether it has pictures too; null without sound. */
 async function readSound(file: File): Promise<{ codec: AudioCodec; video: boolean } | null> {

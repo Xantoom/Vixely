@@ -102,8 +102,16 @@ pub fn sniff_bytes(b: &[u8]) -> Option<Sniffed> {
 			found(Audio, "mp3")
 		};
 	}
-	if b.len() > 188 && b[0] == 0x47 && b[188] == 0x47 {
+	// MPEG-TS packets are 188 bytes, 204 with error correction; Blu-ray (M2TS) puts a 4-byte
+	// time stamp before each.
+	if b.len() > 204 && b[0] == 0x47 && (b[188] == 0x47 || b[204] == 0x47) {
 		return found(Video, "ts");
+	}
+	if b.len() > 196 && b[4] == 0x47 && b[196] == 0x47 {
+		return found(Video, "m2ts");
+	}
+	if b.len() >= 12 && b.starts_with(b"FORM") && matches!(&b[8..12], b"AIFF" | b"AIFC") {
+		return found(Audio, "aiff");
 	}
 	if b.starts_with(b"FLV") {
 		return found(Video, "flv");
@@ -294,6 +302,21 @@ mod tests {
 			Some(("audio", "opus"))
 		);
 		assert_eq!(kind_format(b"RIFF\x24\x00\x00\x00AVI LIST"), Some(("video", "avi")));
+		assert_eq!(kind_format(b"FORM\x00\x00\x10\x00AIFCFVER"), Some(("audio", "aiff")));
+	}
+
+	#[test]
+	fn transport_streams() {
+		let packets = |size: usize, offset: usize| {
+			let mut b = vec![0u8; size * 3];
+			for k in 0..3 {
+				b[k * size + offset] = 0x47;
+			}
+			b
+		};
+		assert_eq!(kind_format(&packets(188, 0)), Some(("video", "ts")));
+		assert_eq!(kind_format(&packets(204, 0)), Some(("video", "ts")));
+		assert_eq!(kind_format(&packets(192, 4)), Some(("video", "m2ts")));
 	}
 
 	#[test]

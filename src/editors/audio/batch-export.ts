@@ -1,5 +1,6 @@
 import { ALL_FORMATS, BlobSource, Input } from 'mediabunny';
 import { readPeaks } from '@/media/peaks';
+import { readableFile } from '@/media/readable';
 import { outputName, uniqueName } from '@/media/save';
 import type { BatchDestination } from '@/media/save-target';
 import type { BatchFile } from '@/media/session';
@@ -51,12 +52,14 @@ export async function exportAudioBatch(job: AudioBatchJob): Promise<number> {
 		try {
 			// Files are processed one at a time: each already uses several threads while decoding.
 			// oxlint-disable-next-line no-await-in-loop
-			const { duration, source } = await describe(item.file);
+			const file = await readableFile(item.file, item.format);
+			// oxlint-disable-next-line no-await-in-loop
+			const { duration, source } = await describe(file);
 			let doc: AudioDoc = { ...job.template, duration, trim: { start: 0, end: duration }, cuts: [] };
 			// Normalizing and compressing both need the loudness of each file.
 			const measuring = doc.normalize !== null || compressOf(doc) > 0;
 			if (measuring) {
-				const reader = readPeaks(item.file, duration, () => {
+				const reader = readPeaks(file, duration, () => {
 					report(reader.peaks.progress() / 2);
 				});
 				const stop = () => {
@@ -84,7 +87,7 @@ export async function exportAudioBatch(job: AudioBatchJob): Promise<number> {
 			});
 			// oxlint-disable-next-line no-await-in-loop
 			await exportAudio({
-				file: item.file,
+				file,
 				track: null,
 				doc,
 				settings: { ...settings, tags: null, cover: 'keep' },
