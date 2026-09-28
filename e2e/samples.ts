@@ -15,7 +15,7 @@ import { spawnSync } from 'node:child_process';
  * - rotated.mp4: the same, stored turned as phones do (a display matrix of 90°); silent.mp4: the
  *   same without sound.
  * - ac3.mkv, dts.mkv: 8 s of test pattern with Dolby Digital 5.1 and DTS sound, which browsers
- *   don't decode; truehd.mkv, truehd.m2ts: the same with Dolby TrueHD 5.1, as on Blu-ray; vfr.mp4: 6 s whose pictures come at irregular times, as phones record them;
+ *   don't decode; truehd.mkv, truehd.m2ts, truehd.mp4: the same with Dolby TrueHD 5.1, as on Blu-ray; vfr.mp4: 6 s whose pictures come at irregular times, as phones record them;
  *   extra.fr.srt: a subtitle file to add to a video; noisy.wav: a voice-like buzz in white noise.
  * - samples/open/: every video above with its H.264 pictures as VP9 and its AAC sound as Opus, the
  *   rest copied as it is, for browsers built without patented codecs (Playwright's Firefox).
@@ -306,6 +306,8 @@ if (ffmpeg) {
 	const truehd = ['-c:a', 'truehd', '-strict', '-2', '-ac', '6'];
 	make('truehd.mkv', [...pattern, '-f', 'lavfi', '-i', 'sine=f=550:d=8', ...h264, ...truehd]);
 	make('truehd.m2ts', [...pattern, '-f', 'lavfi', '-i', 'sine=f=550:d=8', ...h264, ...truehd, '-mpegts_m2ts_mode', '1']);
+	// FFmpeg only writes TrueHD into MP4 when copying it.
+	make('truehd.mp4', ['-i', 'samples/truehd.mkv', '-c', 'copy', '-strict', '-2']);
 	// Pictures 17 to 50 ms apart, off any regular lattice.
 	make('vfr.mp4', [
 		'-f',
@@ -335,7 +337,7 @@ if (!existsSync('samples/extra.fr.srt')) {
 if (ffmpeg) {
 	mkdirSync('samples/open', { recursive: true });
 	const probe = ffmpeg.replace(/ffmpeg$/, 'ffprobe');
-	for (const name of ['film.mp4', 'film.mkv', 'clip.mp4', 'clip.mkv', 'live.mkv', 'h264.mp4', 'rotated.mp4', 'silent.mp4', 'vfr.mp4', 'ac3.mkv', 'dts.mkv', 'truehd.mkv', 'truehd.m2ts', 'sample.mkv']) {
+	for (const name of ['film.mp4', 'film.mkv', 'clip.mp4', 'clip.mkv', 'live.mkv', 'h264.mp4', 'rotated.mp4', 'silent.mp4', 'vfr.mp4', 'ac3.mkv', 'dts.mkv', 'truehd.mkv', 'truehd.m2ts', 'truehd.mp4', 'sample.mkv']) {
 		const target = `samples/open/${name}`;
 		if (existsSync(target) || !existsSync(`samples/${name}`)) continue;
 		const audio = spawnSync(probe, ['-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=codec_name', '-of', 'csv=p=0', `samples/${name}`], { encoding: 'utf8' }).stdout;
@@ -346,6 +348,8 @@ if (ffmpeg) {
 				'-v', 'error', '-y', '-noautorotate', '-i', `samples/${name}`, '-map', '0', '-fps_mode', 'passthrough',
 				'-c', 'copy', '-c:v', 'libvpx-vp9', '-deadline', 'realtime', '-cpu-used', '8', '-b:v', '2M',
 				...(aac ? ['-c:a', 'libopus', '-b:a', '128k'] : []),
+				// TrueHD in MP4 is still experimental to FFmpeg.
+				...(audio.includes('truehd') ? ['-strict', '-2'] : []),
 				target,
 			],
 			{ stdio: 'inherit' },

@@ -1,3 +1,6 @@
+diff --git a/node_modules/mediabunny/.bun-tag-d83c6cba9123493a b/.bun-tag-d83c6cba9123493a
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/node_modules/mediabunny/.bun-tag-e2c740541bba70e2 b/.bun-tag-e2c740541bba70e2
 new file mode 100644
 index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
@@ -94,6 +97,53 @@ index 4bf907e113c709d5eeedb2db2ec4e8e003787302..6f8063ac60880af13626a92581180e5b
  ];
  export const validateAudioChunkMetadata = (metadata, trackCodec) => {
      if (!metadata) {
+diff --git a/dist/modules/src/isobmff/isobmff-demuxer.js b/dist/modules/src/isobmff/isobmff-demuxer.js
+index 86b79279f0532c79114f73696e1c2530ab90273c..691c36e4c280252197d29a8becb3b1a78ca3a9b0 100644
+--- a/dist/modules/src/isobmff/isobmff-demuxer.js
++++ b/dist/modules/src/isobmff/isobmff-demuxer.js
+@@ -19,6 +19,7 @@ import { AC3_SAMPLE_RATES } from '../../shared/ac3-misc.js';
+ import { Bitstream } from '../../shared/bitstream.js';
+ import { Aes128CbcContext } from '../aes.js';
+ import { Logging } from '../logging.js';
++import { parseTrueHdFormatInfo } from '../mpeg-ts/mpeg-ts-demuxer.js';
+ export class IsobmffDemuxer extends Demuxer {
+     constructor(input) {
+         super(input);
+@@ -783,6 +784,10 @@ export class IsobmffDemuxer extends Demuxer {
+                             else if (codecName === 'ec-3') {
+                                 track.info.codec = 'eac3';
+                             }
++                            else if (codecName === 'mlpa') {
++                                // Its rate, 32 bits wide here, and channels come from the dmlp box
++                                track.info.codec = 'truehd';
++                            }
+                             else if (DTS_FOURCCS.includes(codecName)) {
+                                 track.info.codec = 'dts';
+                                 track.info.dtsFormat = codecName;
+@@ -1396,6 +1401,23 @@ export class IsobmffDemuxer extends Demuxer {
+                 }
+                 ;
+                 break;
++            case 'dmlp':
++                { // MLPSpecificBox, of TrueHD
++                    const track = this.currentTrack;
++                    if (!track) {
++                        break;
++                    }
++                    assert(track.info?.type === 'audio');
++                    const format = boxInfo.contentSize >= 4 ? parseTrueHdFormatInfo(readU32Be(slice)) : null;
++                    if (!format) {
++                        Logging._warn('Invalid dmlp box contents, ignoring.');
++                        break;
++                    }
++                    track.info.sampleRate = format.sampleRate;
++                    track.info.numberOfChannels = format.eightChannels || format.sixChannels || 2;
++                }
++                ;
++                break;
+             case 'ddts':
+                 { // DTSSpecificBox
+                     const track = this.currentTrack;
 diff --git a/dist/modules/src/matroska/ebml.js b/dist/modules/src/matroska/ebml.js
 index 103c6f227f8606b4c3b50357bff5e45b5e5f3be7..0a93548c498f9e9b49c7181a5cdb4a17cf7e489c 100644
 --- a/dist/modules/src/matroska/ebml.js
@@ -153,7 +203,7 @@ index 7fcb549cadb05f87a425e4ed5971cf0733b0c7c6..5fa9aa5e50d407eabb1c1f33c0e13cb2
 +        && (data[7] === 0xba || data[7] === 0xbb);
 +};
 diff --git a/dist/modules/src/mpeg-ts/mpeg-ts-demuxer.js b/dist/modules/src/mpeg-ts/mpeg-ts-demuxer.js
-index 17717c2e71cdf188ea9dc7a5a22ef3281b994f29..8e9f2b9f78cd23491d5f4d9cf77b0c4b3d0b797a 100644
+index 17717c2e71cdf188ea9dc7a5a22ef3281b994f29..23c757fea92da5658fce3cd672e9c6ac3ade49b8 100644
 --- a/dist/modules/src/mpeg-ts/mpeg-ts-demuxer.js
 +++ b/dist/modules/src/mpeg-ts/mpeg-ts-demuxer.js
 @@ -20,6 +20,7 @@ import { FileSlice, readBytes, readU16Be, readU32Be, readU8 } from '../reader.js
@@ -295,7 +345,7 @@ index 17717c2e71cdf188ea9dc7a5a22ef3281b994f29..8e9f2b9f78cd23491d5f4d9cf77b0c4b
          else {
              const codec = elementaryStream.info.codec;
              const CHUNK_SIZE = 128;
-@@ -2030,3 +2118,39 @@ class PacketBuffer {
+@@ -2030,3 +2118,47 @@ class PacketBuffer {
          this.reorderBuffer.length = 0;
      }
  }
@@ -319,21 +369,29 @@ index 17717c2e71cdf188ea9dc7a5a22ef3281b994f29..8e9f2b9f78cd23491d5f4d9cf77b0c4b
 +    if (view.getUint16(12) !== 0xb752) {
 +        return null;
 +    }
-+    const formatInfo = view.getUint32(8);
++    const format = parseTrueHdFormatInfo(view.getUint32(8));
++    if (!format) {
++        return null;
++    }
++    const substreams = data[20] >> 4;
++    const numberOfChannels = substreams > 2 && format.eightChannels
++        ? format.eightChannels
++        : substreams > 1 && format.sixChannels
++            ? format.sixChannels
++            : 2;
++    return { sampleRate: format.sampleRate, numberOfChannels };
++};
++/** The rate and the channels of the 6- and 8-channel mixes a TrueHD format_info field (major sync, dmlp box) gives. */
++export const parseTrueHdFormatInfo = (formatInfo) => {
 +    const rateCode = formatInfo >>> 28;
 +    if ((rateCode & ~8) > 2) {
 +        return null;
 +    }
-+    const sampleRate = (rateCode & 8 ? 44_100 : 48_000) << (rateCode & 7);
-+    const sixChannels = trueHdChannels((formatInfo >>> 15) & 0x1f);
-+    const eightChannels = trueHdChannels(formatInfo & 0x1fff);
-+    const substreams = data[20] >> 4;
-+    const numberOfChannels = substreams > 2 && eightChannels
-+        ? eightChannels
-+        : substreams > 1 && sixChannels
-+            ? sixChannels
-+            : 2;
-+    return { sampleRate, numberOfChannels };
++    return {
++        sampleRate: (rateCode & 8 ? 44_100 : 48_000) << (rateCode & 7),
++        sixChannels: trueHdChannels((formatInfo >>> 15) & 0x1f),
++        eightChannels: trueHdChannels(formatInfo & 0x1fff),
++    };
 +};
 diff --git a/dist/modules/src/output-format.js b/dist/modules/src/output-format.js
 index 15e14ddbef310cf173ef5186dd6e758116d5e9f8..c6ee3370988d4f4188a8f7ac613071c52a5ba101 100644
