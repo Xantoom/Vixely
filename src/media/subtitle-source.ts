@@ -83,6 +83,9 @@ export class SubtitleSource {
 	private worker: Worker;
 	/** One request at a time: each waits for the previous one. */
 	private queue: Promise<unknown> = Promise.resolve();
+	/** Answers asked ahead by `readAhead`, taken by the first request that matches. */
+	private batchesAhead = new Map<string, Promise<TrackBatch>>();
+	private fontsAhead: Promise<Uint8Array[]> | null = null;
 
 	private constructor(
 		worker: Worker,
@@ -120,6 +123,10 @@ export class SubtitleSource {
 	 * the first time, then handed out a batch at a time: `onProgress` follows that reading.
 	 */
 	async batch(track: number, from: number, count: number, onProgress?: (share: number) => void): Promise<TrackBatch> {
+		const key = `${track}:${from}:${count}`;
+		const early = this.batchesAhead.get(key);
+		this.batchesAhead.delete(key);
+		if (early) return early;
 		const answer = await this.enqueue(async () =>
 			request(this.worker, { type: 'batch', track, from, count }, onProgress),
 		);
@@ -129,10 +136,30 @@ export class SubtitleSource {
 
 	/** The attached fonts, for the subtitle renderer. */
 	async fonts(): Promise<Uint8Array[]> {
+		const early = this.fontsAhead;
+		this.fontsAhead = null;
+		if (early) return early;
 		const indices = this.attachments.flatMap((attachment, index) => (isFont(attachment) ? [index] : []));
 		if (indices.length === 0) return [];
 		const answer = await this.enqueue(async () => request(this.worker, { type: 'attachments', indices }));
 		return answer.type === 'attachments' ? answer.files : [];
+	}
+
+	/**
+	 * Starts reading what will be asked first, while the rest of the page gets ready: the first
+	 * `count` lines of a track, and the attached fonts.
+	 */
+	readAhead(track: number | null, count: number) {
+		if (track !== null) {
+			const batch = this.batch(track, 0, count);
+			batch.catch(() => undefined);
+			this.batchesAhead.set(`${track}:0:${count}`, batch);
+		}
+		if (this.attachments.some(isFont)) {
+			const fonts = this.fonts();
+			fonts.catch(() => undefined);
+			this.fontsAhead = fonts;
+		}
 	}
 
 	close() {

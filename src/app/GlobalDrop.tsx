@@ -2,7 +2,7 @@ import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { isTyping } from '@/editor/shortcuts';
 import { EDITOR_ORDER, EDITORS, type MediaKind } from '@/editors/registry';
-import { useSession } from '@/media/session';
+import { prepareOpening, useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { fetchMessage } from './DropZone';
 import { fetchFile, fileAddress } from './fetch-file';
@@ -83,6 +83,7 @@ export function GlobalDrop() {
 	useEffect(() => {
 		const onDragEnter = (event: DragEvent) => {
 			if (!hasFiles(event)) return;
+			prepareOpening();
 			depth.current += 1;
 			setOver(true);
 		};
@@ -131,7 +132,13 @@ export function GlobalDrop() {
 		};
 		window.addEventListener('drop', onDrop);
 		window.addEventListener('paste', onPaste);
+		// A file dialog opening, from any button of the app.
+		const onClick = (event: MouseEvent) => {
+			if (event.target instanceof HTMLInputElement && event.target.type === 'file') prepareOpening();
+		};
+		window.addEventListener('click', onClick, true);
 		return () => {
+			window.removeEventListener('click', onClick, true);
 			window.removeEventListener('paste', onPaste);
 			window.removeEventListener('dragenter', onDragEnter);
 			window.removeEventListener('dragleave', onDragLeave);

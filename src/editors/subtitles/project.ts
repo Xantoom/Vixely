@@ -185,6 +185,49 @@ const TEXT_FORMATS = new Set(['srt', 'vtt', 'ass']);
 /** Lines of a track read at once. */
 const BATCH = 200;
 
+/** A video's subtitles opened ahead, while the file is still being probed. */
+let prepared: { file: File; source: Promise<SubtitleSource> } | null = null;
+/** How long a source opened ahead waits to be taken, in ms: the file may open in another editor. */
+const PREPARED_WAIT = 20_000;
+
+/**
+ * Starts reading the subtitles of a video as soon as it is known to be one, alongside the rest of
+ * its opening: the track list, the first lines of the track to show and the fonts are then ready,
+ * or nearly, when the editor asks.
+ */
+export function prepareVideo(file: File) {
+	if (prepared?.file === file) return;
+	const source = SubtitleSource.open(file).then((opened) => {
+		opened.readAhead(preferredTrack(opened.tracks)?.id ?? null, BATCH);
+		return opened;
+	});
+	source.catch(() => undefined);
+	const mine = { file, source };
+	dropPrepared();
+	prepared = mine;
+	setTimeout(() => {
+		if (prepared === mine) dropPrepared();
+	}, PREPARED_WAIT);
+}
+
+function dropPrepared() {
+	void prepared?.source.then(
+		(source) => {
+			source.close();
+		},
+		() => undefined,
+	);
+	prepared = null;
+}
+
+/** The source opened ahead for this file, if any: taken once. */
+function takePrepared(file: File): Promise<SubtitleSource> | null {
+	if (prepared?.file !== file) return null;
+	const { source } = prepared;
+	prepared = null;
+	return source;
+}
+
 /** A file left for another one, as it was: going back to it finds its tracks and edits. */
 interface Left {
 	state: Pick<ProjectState, 'source' | 'listFailed' | 'tracks' | 'current' | 'fonts' | 'media' | 'bytes'>;
@@ -266,7 +309,7 @@ export const useSubtitleProject = create<ProjectState>((set, get) => {
 		const newTrack: ProjectTrack = { key: 'new', info: null, original: emptyDoc(), history: null };
 		let source: SubtitleSource | null = null;
 		try {
-			source = await SubtitleSource.open(file);
+			source = await (takePrepared(file) ?? SubtitleSource.open(file));
 			if (mine !== run) return;
 			const opened = source;
 			const infos = opened.tracks;

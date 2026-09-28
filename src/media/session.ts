@@ -76,6 +76,14 @@ function editorFor(kind: MediaKind, info: MediaInfo | null): MediaKind {
 	return kind;
 }
 
+/**
+ * Loads what opening a file needs, from the moment one is about to be opened (a file dialog, a
+ * file dragged over the page): it is then ready when the file comes, rather than fetched after.
+ */
+export function prepareOpening() {
+	void import('./probe').catch(() => undefined);
+}
+
 async function read(file: File, kind: MediaKind, format: string): Promise<OpenedFile> {
 	let info: MediaInfo | null = null;
 	let poster: ImageBitmap | null = null;
@@ -197,6 +205,12 @@ export const useSession = create<SessionState>((set, get) => ({
 		if (!result.ok) {
 			set({ reading: null, error: { reason: result.reason, format: result.format } });
 			return null;
+		}
+		// The subtitles of a video are read while it is probed, rather than after.
+		if (result.value.kind === 'video') {
+			void import('@/editors/subtitles/project').then(({ prepareVideo }) => {
+				prepareVideo(first);
+			});
 		}
 		const opened = await read(first, result.value.kind, result.value.format);
 		// Another drop may have started while this file was being read.
