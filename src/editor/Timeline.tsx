@@ -44,8 +44,28 @@ export function Timeline({ file, info, poster }: { file: File; info: MediaInfo |
 	const fps = info?.video?.fps ?? 30;
 	// Playback may still be opening the file, or be another file's.
 	const live = usePlayback((state) => state.file === file && state.details !== null);
-	const time = usePlayback((state) => state.time);
 	const seek = usePlayback((state) => state.seek);
+	const slider = useRef<HTMLDivElement>(null);
+
+	// The slider's value follows playback on the element itself: drawing the whole timeline
+	// again on every frame only for it would cost far more.
+	useEffect(() => {
+		const element = slider.current;
+		if (!live || !element) return undefined;
+		const show = (time: number) => {
+			element.setAttribute('aria-valuenow', String(time));
+			element.setAttribute('aria-valuetext', formatPreciseTime(time));
+		};
+		show(usePlayback.getState().time);
+		const stop = usePlayback.subscribe((state, previous) => {
+			if (state.time !== previous.time) show(state.time);
+		});
+		return () => {
+			stop();
+			element.removeAttribute('aria-valuenow');
+			element.removeAttribute('aria-valuetext');
+		};
+	}, [live, duration]);
 
 	const seekAt = (event: ReactPointerEvent<HTMLDivElement>) => {
 		if (!duration) return;
@@ -56,6 +76,7 @@ export function Timeline({ file, info, poster }: { file: File; info: MediaInfo |
 	const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
 		if (!duration) return;
 		const step = event.shiftKey ? 1 / fps : KEY_STEP;
+		const { time } = usePlayback.getState();
 		const moves: Record<string, number> = {
 			ArrowLeft: time - step,
 			ArrowRight: time + step,
@@ -79,13 +100,12 @@ export function Timeline({ file, info, poster }: { file: File; info: MediaInfo |
 
 			{duration !== null && duration > 0 && (
 				<div
+					ref={slider}
 					role={live ? 'slider' : undefined}
 					tabIndex={live ? 0 : undefined}
 					aria-label={live ? m.playhead() : undefined}
 					aria-valuemin={live ? 0 : undefined}
 					aria-valuemax={live ? duration : undefined}
-					aria-valuenow={live ? time : undefined}
-					aria-valuetext={live ? formatPreciseTime(time) : undefined}
 					onKeyDown={live ? onKeyDown : undefined}
 					onPointerDown={(event) => {
 						if (!live || event.button !== 0) return;

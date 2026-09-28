@@ -242,7 +242,6 @@ type Scope = 'all' | 'selected';
 export function TimingPanel() {
 	const doc = useSubtitleDoc();
 	const selection = useSubtitleEditor((state) => state.selection);
-	const playhead = usePlayback((state) => state.time);
 	const seek = usePlayback((state) => state.seek);
 	const [offset, setOffset] = useState(0);
 	const [scope, setScope] = useState<Scope>('all');
@@ -338,7 +337,7 @@ export function TimingPanel() {
 										label={m.subs_use_playhead()}
 										onClick={() => {
 											const next: [number, number] = [firstTarget, secondTarget];
-											next[index] = Math.round(playhead * 1000);
+											next[index] = Math.round(usePlayback.getState().time * 1000);
 											setTargets(next);
 										}}
 									>

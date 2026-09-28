@@ -127,13 +127,12 @@ function useVideoShortcuts() {
 function VideoTrimPanel() {
 	const doc = useVideoDoc();
 	const apply = useVideoEditor((state) => state.apply);
-	const playhead = usePlayback((state) => state.time);
 	return (
 		<KeptPanel
 			editing={{
 				doc,
 				apply,
-				playhead,
+				playhead: () => usePlayback.getState().time,
 				lengthLabel: m.video_final_length(),
 				length: videoLength(doc),
 				extra: <VideoFades />,

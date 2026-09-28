@@ -266,10 +266,12 @@ function Toolbar() {
 	const view = useVideoEditor((state) => state.view);
 	const setView = useVideoEditor((state) => state.setView);
 	const copied = useVideoEditor((state) => state.copied);
-	const time = usePlayback((state) => state.time);
 	const span = view.end - view.start;
 	// Zoom around the playhead when it is visible, around the middle otherwise.
-	const anchor = time >= view.start && time <= view.end ? time : view.start + span / 2;
+	const anchor = () => {
+		const { time } = usePlayback.getState();
+		return time >= view.start && time <= view.end ? time : view.start + span / 2;
+	};
 	return (
 		<div className="flex items-center gap-3">
 			<span className="text-ui text-muted">{m.video_final_length()}</span>
@@ -282,7 +284,7 @@ function Toolbar() {
 					label={m.zoom_out()}
 					disabled={span >= doc.duration}
 					onClick={() => {
-						setView(zoomView(view, 2, anchor));
+						setView(zoomView(view, 2, anchor()));
 					}}
 				>
 					<ZoomOut size={17} />
@@ -291,7 +293,7 @@ function Toolbar() {
 					label={m.zoom_in()}
 					disabled={span <= MIN_VIEW}
 					onClick={() => {
-						setView(zoomView(view, 0.5, anchor));
+						setView(zoomView(view, 0.5, anchor()));
 					}}
 				>
 					<ZoomIn size={17} />

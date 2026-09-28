@@ -12,8 +12,11 @@ import { ResetButton } from './panel-parts';
 export interface KeptEditing<T extends Kept> {
 	doc: T;
 	apply: (change: (doc: T) => T) => void;
-	/** Where playback is, in source seconds: the start or the end can be set there. */
-	playhead: number;
+	/**
+	 * Where playback is, in source seconds: the start or the end can be set there. Read when a
+	 * button is pressed, so the panel doesn't draw again on every frame of playback.
+	 */
+	playhead: () => number;
 	/** Name of the output's length: `Final length`, as each editor calls it. */
 	lengthLabel: string;
 	/** The output's length when more than the cuts sets it, such as a video played faster. */
@@ -94,7 +97,7 @@ export function KeptPanel<T extends Kept>({ editing }: { editing: KeptEditing<T>
 					<Button
 						title="I"
 						onClick={() => {
-							apply((current) => setTrim(current, { ...current.trim, start: playhead }));
+							apply((current) => setTrim(current, { ...current.trim, start: playhead() }));
 						}}
 					>
 						{m.trim_start_here()}
@@ -102,7 +105,7 @@ export function KeptPanel<T extends Kept>({ editing }: { editing: KeptEditing<T>
 					<Button
 						title="O"
 						onClick={() => {
-							apply((current) => setTrim(current, { ...current.trim, end: playhead }));
+							apply((current) => setTrim(current, { ...current.trim, end: playhead() }));
 						}}
 					>
 						{m.trim_end_here()}

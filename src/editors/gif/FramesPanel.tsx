@@ -104,7 +104,6 @@ const DELAY_RANGE = { min: 20, max: 60_000 };
 export function FramesPanel({ engine, fileName }: { engine: GifEngine; fileName: string }) {
 	const doc = useGifDoc();
 	const apply = useGifEditor((state) => state.apply);
-	const playhead = useGifEditor((state) => state.playhead);
 	const setPlaying = useGifEditor((state) => state.setPlaying);
 	const open = useSession((state) => state.open);
 	const addImages = useSession((state) => state.addImages);
@@ -117,7 +116,8 @@ export function FramesPanel({ engine, fileName }: { engine: GifEngine; fileName:
 	const dragged = useRef<number | null>(null);
 	const { frames, source } = engine;
 	const timing = source?.timing ?? null;
-	const current = frameAt(frames, playhead);
+	// Only a new frame draws again, not every moment of playback.
+	const current = useGifEditor((state) => frameAt(frames, state.playhead));
 	const index = current ? frames.indexOf(current) : -1;
 	// Frames of their own, as in a GIF or images: they can be moved and timed one by one.
 	const ownFrames = timing !== null && doc.fps === null;

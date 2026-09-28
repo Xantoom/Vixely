@@ -47,13 +47,12 @@ function ValueRow({ label, value }: { label: string; value: string }) {
 export function TrimPanel({ engine }: { engine: AudioEngine }) {
 	const doc = useAudioDoc();
 	const apply = useAudioEditor((state) => state.apply);
-	const playhead = useAudioEditor((state) => state.playhead);
 	return (
 		<KeptPanel
 			editing={{
 				doc,
 				apply,
-				playhead,
+				playhead: () => useAudioEditor.getState().playhead,
 				lengthLabel: m.audio_final_length(),
 				length: audioLength(doc),
 				extra: <SilenceSection engine={engine} />,

@@ -35,7 +35,6 @@ function GifPicture({
 	onEditText?: () => void;
 }) {
 	const doc = useGifDoc();
-	const playhead = useGifEditor((state) => state.playhead);
 	const aspect = useGifEditor((state) => state.cropAspect);
 	const preview = useGifEditor((state) => state.preview);
 	const settle = useGifEditor((state) => state.settle);
@@ -45,7 +44,8 @@ function GifPicture({
 	const { source, frames, length } = engine;
 	const size = { width: source?.width ?? 1, height: source?.height ?? 1 };
 	const shown = cropping ? croppingDoc(doc) : doc;
-	const frame = frameAt(frames, playhead);
+	// Only a new frame draws again, not every moment of playback.
+	const frame = useGifEditor((state) => frameAt(frames, state.playhead));
 	const bounds = orientedSize(size, doc.picture.rotation);
 	const crop = effectiveCrop(doc.picture, size);
 

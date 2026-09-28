@@ -1,6 +1,15 @@
 import { useNavigate } from '@tanstack/react-router';
 import { Camera, Captions } from 'lucide-react';
-import { type CSSProperties, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+	type ComponentProps,
+	type CSSProperties,
+	type ReactNode,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from 'react';
 import { keptRanges } from '@/document/kept';
 import { toOutput } from '@/document/timemap';
 import { CropOverlay } from '@/editor/CropOverlay';
@@ -214,18 +223,18 @@ function subtitleBox(picture: ImageDoc, crop: Rect, upright: Size, scale: number
 }
 
 /**
- * The video playing as edited, with its sound track of choice and its subtitles, including the
- * edits made in the subtitle editor. With the crop tool, the whole picture shows with the crop
- * frame on top. Shares its player with the subtitle editor: going from one to the other keeps the
- * moment and the tracks.
+ * Black over the picture during the fades, as dark as the export will be at this moment. Follows
+ * playback on its own, and draws again only when its darkness changes.
  */
-/** Black over the picture during the fades, as dark as the export will be at this moment. */
-function FadeVeil({ time }: { time: number }) {
+function FadeVeil() {
 	const doc = useVideoDoc();
 	const fade = fadeOf(doc);
-	if (fade.in <= 0 && fade.out <= 0) return null;
-	const output = toOutput(keptRanges(doc), time) / speedOf(doc);
-	const level = fadeLevel(fade, output, videoLength(doc));
+	const ranges = useMemo(() => keptRanges(doc), [doc]);
+	const length = videoLength(doc);
+	const speed = speedOf(doc);
+	const level = usePlayback((state) =>
+		fade.in <= 0 && fade.out <= 0 ? 1 : fadeLevel(fade, toOutput(ranges, state.time) / speed, length),
+	);
 	if (level >= 1) return null;
 	return (
 		<div
@@ -236,6 +245,18 @@ function FadeVeil({ time }: { time: number }) {
 	);
 }
 
+/** The subtitles at the moment playing, following it on their own. */
+function PlayingSubtitles(props: Omit<ComponentProps<typeof SubtitleLayer>, 'time'>) {
+	const time = usePlayback((state) => state.time);
+	return <SubtitleLayer {...props} time={time} />;
+}
+
+/**
+ * The video playing as edited, with its sound track of choice and its subtitles, including the
+ * edits made in the subtitle editor. With the crop tool, the whole picture shows with the crop
+ * frame on top. Shares its player with the subtitle editor: going from one to the other keeps the
+ * moment and the tracks.
+ */
 export function VideoPreview({
 	opened,
 	editing,
@@ -250,7 +271,6 @@ export function VideoPreview({
 	overlays?: OverlayEditing;
 	onEditText?: () => void;
 }) {
-	const time = usePlayback((state) => state.time);
 	const video = usePlayback((state) => state.details?.video ?? null);
 	const projectReady = useSubtitleProject((state) => state.file === opened.file && state.status === 'ready');
 	const fonts = useSubtitleProject((state) => state.fonts);
@@ -269,10 +289,12 @@ export function VideoPreview({
 	const crop = effectiveCrop(picture, upright);
 	const region: Rect = cropping ? { x: 0, y: 0, ...bounds } : crop;
 	// Text and stickers shown at this moment; the list changes only when one appears or goes.
-	const visibleKey = picture.overlays
-		.filter((overlay) => shownAt(overlay, time))
-		.map((overlay) => overlay.id)
-		.join(' ');
+	const visibleKey = usePlayback((state) =>
+		picture.overlays
+			.filter((overlay) => shownAt(overlay, state.time))
+			.map((overlay) => overlay.id)
+			.join(' '),
+	);
 	const visible = useMemo(
 		() => picture.overlays.filter((overlay) => visibleKey.split(' ').includes(overlay.id)),
 		[picture.overlays, visibleKey],
@@ -311,9 +333,8 @@ export function VideoPreview({
 								// as when they are burnt in, rather than being squeezed into the crop.
 								<div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[3px]">
 									<div className="absolute" style={subtitleBox(picture, crop, upright, scale)}>
-										<SubtitleLayer
+										<PlayingSubtitles
 											doc={doc}
-											time={time}
 											title={opened.file.name.replace(/\.[^.]+$/, '')}
 											video={upright}
 											fonts={fonts}
@@ -321,7 +342,7 @@ export function VideoPreview({
 									</div>
 								</div>
 							)}
-							{!cropping && !comparing && <FadeVeil time={time} />}
+							{!cropping && !comparing && <FadeVeil />}
 							{cropping && (
 								<VideoCropOverlay editing={editing} crop={crop} scale={scale} bounds={bounds} />
 							)}

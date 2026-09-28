@@ -67,24 +67,34 @@ function AudioTrackPicker() {
 	);
 }
 
+/** Where playback is, drawn again on its own as it moves. */
+function PlayheadTime() {
+	const playhead = useAudioEditor((state) => state.playhead);
+	return (
+		<span className="tabular font-mono text-[15px] font-medium" aria-label={m.playhead()}>
+			{formatPreciseTime(playhead)}
+		</span>
+	);
+}
+
 function Transport({ engine }: { engine: AudioEngine }) {
 	const doc = useAudioDoc();
 	const playing = useAudioEditor((state) => state.playing);
-	const playhead = useAudioEditor((state) => state.playhead);
 	const view = useAudioEditor((state) => state.view);
 	const setView = useAudioEditor((state) => state.setView);
 	const { peaks, failed } = engine.waveform;
 	const progress = peaks ? peaks.progress() : 0;
 	const span = view.end - view.start;
 	// Zoom around the playhead when it is visible, around the middle otherwise.
-	const anchor = playhead >= view.start && playhead <= view.end ? playhead : view.start + span / 2;
+	const anchor = () => {
+		const { playhead } = useAudioEditor.getState();
+		return playhead >= view.start && playhead <= view.end ? playhead : view.start + span / 2;
+	};
 
 	return (
 		<div className="flex items-center gap-3">
 			<PlayButton playing={playing} onToggle={engine.togglePlay} disabled={!engine.player || failed} />
-			<span className="tabular font-mono text-[15px] font-medium" aria-label={m.playhead()}>
-				{formatPreciseTime(playhead)}
-			</span>
+			<PlayheadTime />
 			{failed ? (
 				<span className="text-small text-danger truncate">{m.waveform_failed()}</span>
 			) : (
@@ -104,7 +114,7 @@ function Transport({ engine }: { engine: AudioEngine }) {
 					label={m.zoom_out()}
 					disabled={span >= doc.duration}
 					onClick={() => {
-						setView(zoomView(view, 2, anchor));
+						setView(zoomView(view, 2, anchor()));
 					}}
 				>
 					<ZoomOut size={17} />
@@ -113,7 +123,7 @@ function Transport({ engine }: { engine: AudioEngine }) {
 					label={m.zoom_in()}
 					disabled={span <= MIN_VIEW}
 					onClick={() => {
-						setView(zoomView(view, 0.5, anchor));
+						setView(zoomView(view, 0.5, anchor()));
 					}}
 				>
 					<ZoomIn size={17} />
