@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { registerRestorable, takeRestore } from '@/app/resume';
 import { canRedo, canUndo, createHistory, type History } from '@/document/history';
+import { probeMediaTracks } from '@/media/media-tracks';
 import { usePlayback } from '@/media/playback';
 import { outputName } from '@/media/save';
 import { useSession } from '@/media/session';
@@ -393,7 +394,10 @@ export const useSubtitleProject = create<ProjectState>((set, get) => {
 			}
 		} catch {
 			if (mine !== run) return;
-			ready([newTrack], 'new', { listFailed: true });
+			// A container vixely-subs doesn't read: its pictures and sound are still exported.
+			const media = await probeMediaTracks(file);
+			if (mine !== run) return;
+			ready([newTrack], 'new', { listFailed: true, media });
 		} finally {
 			source?.close();
 		}
