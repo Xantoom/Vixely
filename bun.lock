@@ -51,6 +51,7 @@
     },
   },
   "patchedDependencies": {
+    "@mediabunny/aac-encoder@1.60.0": "patches/@mediabunny%2Faac-encoder@1.60.0.patch",
     "mediabunny@1.60.0": "patches/mediabunny@1.60.0.patch",
     "jassub@2.5.16": "patches/jassub@2.5.16.patch",
   },

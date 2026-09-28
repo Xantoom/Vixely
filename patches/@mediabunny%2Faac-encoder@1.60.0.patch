@@ -1,0 +1,28 @@
+diff --git a/dist/bundles/mediabunny-aac-encoder.mjs b/dist/bundles/mediabunny-aac-encoder.mjs
+index 4cbb82ec128b845715b6a276abaa9eb453a4c60f..4c17857f33382d164dd66ddeb0826cdd98c5d209 100644
+--- a/dist/bundles/mediabunny-aac-encoder.mjs
++++ b/dist/bundles/mediabunny-aac-encoder.mjs
+@@ -3484,7 +3484,9 @@ var AacEncoder = class extends CustomAudioEncoder {
+       const packet = new EncodedPacket(
+         data,
+         "key",
+-        this.nextPacketTimestampInSamples / this.sampleRate,
++        // libavcodec's own pts, which starts before the first sample by the encoder's delay: the
++        // muxer then trims that priming away rather than play it as a delay.
++        p.pts / this.sampleRate,
+         p.duration / this.sampleRate
+       );
+       this.nextPacketTimestampInSamples += p.duration;
+diff --git a/dist/modules/src/encoder.js b/dist/modules/src/encoder.js
+index 37357dbbd35641b11366846e05173d014067eaa7..bea8ae304dd202a6af0b5d1f335008da48a3b40c 100644
+--- a/dist/modules/src/encoder.js
++++ b/dist/modules/src/encoder.js
+@@ -203,7 +203,7 @@ class AacEncoder extends mediabunny_1.CustomAudioEncoder {
+                 adtsFrame.set(data, header.byteLength);
+                 data = adtsFrame;
+             }
+-            const packet = new mediabunny_1.EncodedPacket(data, 'key', this.nextPacketTimestampInSamples / this.sampleRate, p.duration / this.sampleRate);
++            const packet = new mediabunny_1.EncodedPacket(data, 'key', p.pts / this.sampleRate, p.duration / this.sampleRate);
+             this.nextPacketTimestampInSamples += p.duration;
+             this.onPacket(packet, this.chunkMetadata);
+             this.chunkMetadata = {};
