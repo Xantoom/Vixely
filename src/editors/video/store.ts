@@ -4,6 +4,7 @@ import { peekTaskIntent } from '@/app/tasks';
 import { canRedo, canUndo, commit, createHistory, type History, redo, replace, undo } from '@/document/history';
 import { clampView, type Range } from '@/document/timemap';
 import type { OverlayEditing } from '@/editor/overlays/editing';
+import type { Gpu } from '@/media/gpu';
 import { usePlayback } from '@/media/playback';
 import type { ImageDoc } from '../image/document';
 import { overlayEditing, type PictureEditing } from '../image/editing';
@@ -12,7 +13,8 @@ import { createVideoDoc, type VideoDoc } from './document';
 import {
 	presetSettings,
 	settingsFromSource,
-	type VideoCodecId,
+	type VideoEncoderKind,
+	type VideoEncoders,
 	type VideoExportSettings,
 	type VideoSource,
 } from './export';
@@ -21,17 +23,42 @@ import {
 export interface ExportSource {
 	owner: object;
 	source: VideoSource;
-	/** Codecs this browser encodes at the video's size. */
-	encodable: VideoCodecId[];
+	/** Codecs this browser encodes at the video's size, on the graphics card and the processor. */
+	encoders: VideoEncoders;
+	/** The graphics card, to name the encoder it is used through. */
+	gpu: Gpu | null;
 	/** Shorter side of the upright pictures, which presets bring down. */
 	shortSide: number;
 }
 
+const ENCODER_KEY = 'vixely:video-encoder';
+
+/** The encoder chosen last, kept from one video and one visit to the next. */
+export function preferredEncoder(): VideoEncoderKind | null {
+	try {
+		const kept = localStorage.getItem(ENCODER_KEY);
+		return kept === 'gpu' || kept === 'software' ? kept : null;
+	} catch {
+		return null;
+	}
+}
+
+function keepEncoder(encoder: VideoEncoderKind) {
+	try {
+		localStorage.setItem(ENCODER_KEY, encoder);
+	} catch {
+		// Storage can be unavailable (private mode). The choice then lasts for this video only.
+	}
+}
+
 /** The settings a video starts from: the source's, or those of the task page it was opened from. */
-function startingSettings({ source, encodable, shortSide }: ExportSource): VideoExportSettings {
-	const settings = settingsFromSource(source, encodable);
+function startingSettings({ source, encoders, shortSide }: ExportSource): VideoExportSettings {
+	const encoder = preferredEncoder();
+	const settings = settingsFromSource(source, encoders, encoder);
 	const intent = peekTaskIntent();
-	if (intent?.preset) return { ...settings, ...presetSettings(intent.preset, source, encodable, shortSide) };
+	if (intent?.preset) {
+		return { ...settings, ...presetSettings(intent.preset, source, encoders, shortSide, encoder) };
+	}
 	return intent?.encode ? { ...settings, mode: 'encode' } : settings;
 }
 
@@ -112,6 +139,7 @@ export const useVideoEditor = create<VideoEditorState>((set, get) => ({
 	},
 
 	setExport(settings) {
+		if (settings.encoder) keepEncoder(settings.encoder);
 		const current = get().exportSettings;
 		if (current) set({ exportSettings: { ...current, ...settings } });
 	},

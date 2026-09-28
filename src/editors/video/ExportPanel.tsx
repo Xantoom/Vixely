@@ -3,6 +3,7 @@ import { isShortened, keptRanges } from '@/document/kept';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { Section } from '@/editor/panel-parts';
 import { codecName } from '@/lib/format';
+import { detectGpu, type Gpu } from '@/media/gpu';
 import type { OpenedFile } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { BrandLogo } from '@/ui/BrandLogo';
@@ -17,7 +18,7 @@ import {
 	bitrateForSize,
 	CODEC_LABELS,
 	CONTAINERS,
-	encodableCodecs,
+	chooseEncoding,
 	FRAME_RATES,
 	HEIGHTS,
 	outputSize,
@@ -31,8 +32,9 @@ import {
 	shortSide,
 	SIZE_LIMITS,
 	type VideoContainer,
-	type VideoCodecId,
+	type VideoEncoderKind,
 	type VideoExportSettings,
+	videoEncoders,
 } from './export';
 import { MetadataSection, TrackSummary } from './panels';
 import { useVideoDoc, useVideoEditor } from './store';
@@ -47,13 +49,15 @@ export function useExportSource(opened: OpenedFile | null, upright: Size | null)
 		if (!opened || width === 0 || owner !== opened.file) return;
 		if (useVideoEditor.getState().exportSource?.owner === opened.file) return;
 		let alive = true;
-		void Promise.all([readVideoSource(opened.file, opened.format), encodableCodecs({ width, height })]).then(
-			([source, encodable]) => {
-				if (alive && source) {
-					adoptSource({ owner: opened.file, source, encodable, shortSide: Math.min(width, height) });
-				}
-			},
-		);
+		void Promise.all([
+			readVideoSource(opened.file, opened.format),
+			videoEncoders({ width, height }),
+			detectGpu(),
+		]).then(([source, encoders, gpu]) => {
+			if (alive && source) {
+				adoptSource({ owner: opened.file, source, encoders, gpu, shortSide: Math.min(width, height) });
+			}
+		});
 		return () => {
 			alive = false;
 		};
@@ -139,6 +143,12 @@ const QUALITY_LABELS: Record<(typeof QUALITY_LEVELS)[number], () => string> = {
 	0: () => m.quality_very_low(),
 };
 
+/** The encoder in short: its system name on the graphics card (`NVENC`), else "Software". */
+function encoderLabel(encoder: VideoEncoderKind, gpu: Gpu | null): string {
+	if (encoder === 'software') return m.encoder_software_short();
+	return gpu?.encoder ?? m.encoder_gpu_unknown();
+}
+
 /** A setting changed by hand: the settings are no longer a platform's. */
 function useChangeExport() {
 	const set = useVideoEditor((state) => state.setExport);
@@ -175,7 +185,8 @@ export function useChoosePreset(upright: Size) {
 			setAspect(aspect);
 		}
 		const height = shortSide(outputSize(picture, upright, null));
-		set(presetSettings(id, exportSource.source, exportSource.encodable, height));
+		const encoder = useVideoEditor.getState().exportSettings?.encoder ?? null;
+		set(presetSettings(id, exportSource.source, exportSource.encoders, height, encoder));
 	};
 }
 
@@ -232,6 +243,7 @@ function VideoSettings({ upright }: { upright: Size }) {
 	const ids = {
 		container: useId(),
 		codec: useId(),
+		encoder: useId(),
 		height: useId(),
 		rate: useId(),
 		limit: useId(),
@@ -239,7 +251,18 @@ function VideoSettings({ upright }: { upright: Size }) {
 		bitrate: useId(),
 	};
 	if (!settings || !exportSource) return null;
-	const { source, encodable } = exportSource;
+	const { source, encoders, gpu } = exportSource;
+	const containerCodecs = CONTAINERS[settings.container].codecs;
+	// Codecs the chosen encoder can't write are not offered: AV1 only shows on the cards that
+	// encode it.
+	const codecs = containerCodecs.filter((codec) => encoders[settings.encoder].includes(codec));
+	const gpuCodecs = containerCodecs.filter((codec) => encoders.gpu.includes(codec));
+	const gpuBlocker =
+		encoders.gpu.length === 0
+			? m.encoder_gpu_none()
+			: gpuCodecs.length === 0
+				? m.encoder_gpu_container({ container: CONTAINERS[settings.container].label })
+				: null;
 	const full = outputSize(picture, upright, null);
 	const size = outputSize(picture, upright, settings.height);
 	// What a size limit leaves the pictures, the main sound track taking its share.
@@ -250,13 +273,16 @@ function VideoSettings({ upright }: { upright: Size }) {
 			: bitrateForSize(settings.sizeLimit, videoLength(doc), source.audioCodec ? sound : 0);
 
 	const chooseContainer = (container: VideoContainer) => {
-		const codecs = CONTAINERS[container].codecs;
-		const codec: VideoCodecId = codecs.includes(settings.codec)
-			? settings.codec
-			: (codecs.find((candidate) => encodable.includes(candidate)) ?? codecs[0] ?? 'avc');
+		const encoding = chooseEncoding(encoders, CONTAINERS[container].codecs, settings.codec, settings.encoder);
 		// AAC doesn't go in WebM; whether the sound can be copied follows from the container.
 		const audio: AudioChoice = settings.audio === 'aac' && container === 'webm' ? 'opus' : settings.audio;
-		set({ container, codec, audio });
+		set({ container, ...encoding, audio });
+	};
+
+	const chooseEncoder = (encoder: VideoEncoderKind) => {
+		const offered = containerCodecs.filter((codec) => encoders[encoder].includes(codec));
+		const codec = offered.includes(settings.codec) ? settings.codec : (offered[0] ?? settings.codec);
+		set({ encoder, codec });
 	};
 
 	return (
@@ -267,7 +293,9 @@ function VideoSettings({ upright }: { upright: Size }) {
 						id={ids.container}
 						value={settings.container}
 						options={CONTAINER_ORDER.map((container) => {
-							const usable = CONTAINERS[container].codecs.some((codec) => encodable.includes(codec));
+							const usable = CONTAINERS[container].codecs.some(
+								(codec) => encoders.gpu.includes(codec) || encoders.software.includes(codec),
+							);
 							return {
 								value: container,
 								label: CONTAINERS[container].label,
@@ -279,17 +307,37 @@ function VideoSettings({ upright }: { upright: Size }) {
 						onChange={chooseContainer}
 					/>
 				</FieldRow>
+				<FieldRow label={m.export_encoder()} htmlFor={ids.encoder}>
+					<Select<VideoEncoderKind>
+						id={ids.encoder}
+						value={settings.encoder}
+						options={[
+							{
+								value: 'gpu',
+								label: gpu ? m.encoder_gpu({ encoder: gpu.encoder }) : m.encoder_gpu_unknown(),
+								detail: gpu?.name ?? m.encoder_gpu_detail(),
+								disabled: gpuBlocker !== null,
+								reason: gpuBlocker ?? undefined,
+							},
+							{
+								value: 'software',
+								label: m.encoder_software(),
+								detail: m.encoder_software_detail(),
+								disabled: !containerCodecs.some((codec) => encoders.software.includes(codec)),
+								reason: m.encoder_software_none(),
+							},
+						]}
+						onChange={chooseEncoder}
+					/>
+				</FieldRow>
 				<FieldRow label={m.export_codec()} htmlFor={ids.codec}>
 					<Select
 						id={ids.codec}
 						value={settings.codec}
-						options={CONTAINERS[settings.container].codecs.map((codec) => ({
+						options={codecs.map((codec) => ({
 							value: codec,
 							label: CODEC_LABELS[codec],
-							disabled: !encodable.includes(codec),
-							reason: encodable.includes(codec)
-								? undefined
-								: m.codec_unavailable({ codec: CODEC_LABELS[codec] }),
+							detail: encoderLabel(settings.encoder, gpu),
 						}))}
 						onChange={(codec) => {
 							set({ codec });
@@ -474,6 +522,7 @@ export function VideoExportPanel({ opened, upright }: { opened: OpenedFile; upri
 	const blocker = useCopyBlocker();
 	const mode = useExportMode();
 	const settings = useVideoEditor((state) => state.exportSettings);
+	const exportSource = useVideoEditor((state) => state.exportSource);
 	const set = useVideoEditor((state) => state.setExport);
 	return (
 		<>
@@ -493,7 +542,7 @@ export function VideoExportPanel({ opened, upright }: { opened: OpenedFile; upri
 						value: 'encode',
 						label: m.encoding_convert(),
 						detail: settings
-							? `${CONTAINERS[settings.container].label} ${CODEC_LABELS[settings.codec]}`
+							? `${CONTAINERS[settings.container].label} ${CODEC_LABELS[settings.codec]} · ${encoderLabel(settings.encoder, exportSource?.gpu ?? null)}`
 							: undefined,
 						disabled: settings === null,
 					},

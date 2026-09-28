@@ -11,7 +11,7 @@ import {
 	Conversion,
 	type ConversionAudioOptions,
 	type ConversionVideoOptions,
-	getEncodableVideoCodecs,
+	canEncodeVideo,
 	Input,
 	type InputAudioTrack,
 	type InputVideoTrack,
@@ -78,7 +78,19 @@ export interface VideoExportSettings {
 	sizeLimit: number | null;
 	/** The platform the settings were chosen for, until one of them changes. */
 	preset: PresetId | null;
+	/** Encoded on the graphics card (fast) or on the processor (slower, a little better). */
+	encoder: VideoEncoderKind;
 }
+
+export type VideoEncoderKind = 'gpu' | 'software';
+
+/** Codecs this browser encodes at a size, on the graphics card and on the processor. */
+export interface VideoEncoders {
+	gpu: VideoCodecId[];
+	software: VideoCodecId[];
+}
+
+const ENCODER_ORDER: VideoEncoderKind[] = ['gpu', 'software'];
 
 export const CONTAINERS: Record<
 	VideoContainer,
@@ -256,10 +268,42 @@ function isCodecId(codec: VideoCodec | null): codec is VideoCodecId {
 	return codec === 'avc' || codec === 'hevc' || codec === 'vp9' || codec === 'av1';
 }
 
-/** Codecs this browser encodes, for pictures of this size. */
-export async function encodableCodecs(size: Size): Promise<VideoCodecId[]> {
-	const found: VideoCodec[] = await getEncodableVideoCodecs(['avc', 'hevc', 'vp9', 'av1'], size).catch(() => []);
-	return found.filter((codec) => isCodecId(codec));
+/**
+ * Codecs this browser encodes, for pictures of this size, on the graphics card and on the
+ * processor. The browser answers for its hardware: AV1 is only on the cards that encode it (an
+ * NVIDIA RTX 40, an Intel Arc, a Radeon RX 7000), HEVC often only on the card.
+ */
+export async function videoEncoders(size: Size): Promise<VideoEncoders> {
+	const codecs: VideoCodecId[] = ['avc', 'hevc', 'vp9', 'av1'];
+	const on = async (hardwareAcceleration: 'prefer-hardware' | 'prefer-software') => {
+		const found = await Promise.all(
+			codecs.map(async (codec) => canEncodeVideo(codec, { ...size, hardwareAcceleration }).catch(() => false)),
+		);
+		return codecs.filter((_, k) => found[k]);
+	};
+	const [gpu, software] = await Promise.all([on('prefer-hardware'), on('prefer-software')]);
+	return { gpu, software };
+}
+
+/**
+ * The codec and encoder to write with, among the codecs a container takes: the wanted codec on
+ * the wanted encoder if it can, else the same codec on the other one, else another codec.
+ */
+export function chooseEncoding(
+	encoders: VideoEncoders,
+	codecs: readonly VideoCodecId[],
+	codec: VideoCodecId | null,
+	encoder: VideoEncoderKind | null,
+): { codec: VideoCodecId; encoder: VideoEncoderKind } {
+	const order = encoder === 'software' ? ENCODER_ORDER.toReversed() : ENCODER_ORDER;
+	for (const kind of order) {
+		if (codec && codecs.includes(codec) && encoders[kind].includes(codec)) return { codec, encoder: kind };
+	}
+	for (const kind of order) {
+		const found = codecs.find((candidate) => encoders[kind].includes(candidate));
+		if (found) return { codec: found, encoder: kind };
+	}
+	return { codec: codecs[0] ?? 'avc', encoder: 'software' };
 }
 
 /** Whether the sound can be copied into the container: its codec must fit. */
@@ -281,14 +325,17 @@ export function resolveAudio(settings: VideoExportSettings, source: VideoSource)
  * Settings that reproduce the source: same container, codec, frame rate and bitrate, the sound
  * copied. A codec this browser can't encode falls back to one it can.
  */
-export function settingsFromSource(source: VideoSource, encodable: VideoCodecId[]): VideoExportSettings {
+export function settingsFromSource(
+	source: VideoSource,
+	encoders: VideoEncoders,
+	encoder: VideoEncoderKind | null = null,
+): VideoExportSettings {
 	const container = source.container;
-	const fits = CONTAINERS[container].codecs.filter((codec) => encodable.includes(codec));
-	const codec = isCodecId(source.codec) && fits.includes(source.codec) ? source.codec : (fits[0] ?? 'avc');
+	const wanted = isCodecId(source.codec) ? source.codec : null;
 	return {
 		mode: 'copy',
 		container,
-		codec,
+		...chooseEncoding(encoders, CONTAINERS[container].codecs, wanted, encoder),
 		height: null,
 		frameRate: null,
 		rateControl: 'bitrate',
@@ -729,17 +776,17 @@ function uploadBitrate(height: number, frameRate: number): number {
 export function presetSettings(
 	id: PresetId,
 	source: VideoSource,
-	encodable: readonly VideoCodecId[],
+	encoders: VideoEncoders,
 	height: number,
+	encoder: VideoEncoderKind | null = null,
 ): Partial<VideoExportSettings> {
 	const preset = PRESETS[id];
-	const codecs = CONTAINERS[preset.container].codecs.filter((codec) => encodable.includes(codec));
 	const outHeight = Math.min(height, preset.maxHeight);
 	const rate = source.frameRate ?? 30;
 	return {
 		mode: 'encode',
 		container: preset.container,
-		codec: codecs.includes(preset.codec) ? preset.codec : (codecs[0] ?? preset.codec),
+		...chooseEncoding(encoders, CONTAINERS[preset.container].codecs, preset.codec, encoder),
 		height: height > preset.maxHeight ? (HEIGHTS.find((candidate) => candidate <= preset.maxHeight) ?? null) : null,
 		frameRate: rate > preset.maxFrameRate + 0.5 ? preset.maxFrameRate : null,
 		rateControl: 'bitrate',
@@ -963,6 +1010,7 @@ export async function convertVideo(
 		const options: ConversionVideoOptions = {
 			codec: settings.codec,
 			quality: videoQuality(settings),
+			hardwareAcceleration: settings.encoder === 'gpu' ? 'prefer-hardware' : 'prefer-software',
 			frameRate: settings.frameRate ?? sourceRate,
 			forceTranscode: true,
 		};

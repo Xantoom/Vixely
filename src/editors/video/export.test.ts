@@ -4,11 +4,15 @@ import type { SubtitleDoc } from '../subtitles/document';
 import { mergeParts } from './copy-tracks';
 import {
 	bitrateForSize,
+	CONTAINERS,
+	chooseEncoding,
 	outputSize,
 	presetSettings,
 	resolveAudio,
 	readMeta,
 	settingsFromSource,
+	type VideoCodecId,
+	type VideoEncoders,
 	type VideoSource,
 	writeMeta,
 } from './export';
@@ -25,15 +29,34 @@ const source: VideoSource = {
 	meta: { title: '', artist: '', comment: '', date: '', cover: null },
 };
 
+/** Encoders of a machine without a graphics card. */
+const soft = (codecs: VideoCodecId[]): VideoEncoders => ({ gpu: [], software: codecs });
+
 describe('video export settings', () => {
 	it('start from the source, with a codec this browser encodes', () => {
-		const settings = settingsFromSource(source, ['avc', 'vp9']);
+		const settings = settingsFromSource(source, soft(['avc', 'vp9']));
 		expect(settings).toMatchObject({ mode: 'copy', container: 'mkv', codec: 'avc', bitrate: 4200, audio: 'copy' });
-		expect(settingsFromSource(source, ['avc', 'hevc']).codec).toBe('hevc');
+		expect(settingsFromSource(source, soft(['avc', 'hevc'])).codec).toBe('hevc');
+	});
+
+	it('encode on the graphics card when it can, else on the processor', () => {
+		const encoders: VideoEncoders = { gpu: ['avc', 'hevc'], software: ['avc', 'vp9', 'av1'] };
+		const mp4 = CONTAINERS.mp4.codecs;
+		expect(chooseEncoding(encoders, mp4, 'avc', null)).toEqual({ codec: 'avc', encoder: 'gpu' });
+		expect(chooseEncoding(encoders, mp4, 'avc', 'software')).toEqual({ codec: 'avc', encoder: 'software' });
+		// No AV1 on this card: the processor encodes it.
+		expect(chooseEncoding(encoders, mp4, 'av1', 'gpu')).toEqual({ codec: 'av1', encoder: 'software' });
+		// No HEVC on the processor: the card does.
+		expect(chooseEncoding(encoders, mp4, 'hevc', 'software')).toEqual({ codec: 'hevc', encoder: 'gpu' });
+		expect(chooseEncoding(encoders, CONTAINERS.webm.codecs, null, 'gpu')).toEqual({
+			codec: 'vp9',
+			encoder: 'software',
+		});
+		expect(settingsFromSource(source, encoders, 'software')).toMatchObject({ codec: 'hevc', encoder: 'gpu' });
 	});
 
 	it('copy the sound only where it fits and nothing was cut', () => {
-		const settings = settingsFromSource(source, ['avc']);
+		const settings = settingsFromSource(source, soft(['avc']));
 		expect(resolveAudio(settings, source)).toBe('copy');
 		expect(resolveAudio({ ...settings, container: 'webm' }, source)).toBe('opus');
 		expect(resolveAudio({ ...settings, audio: 'aac', container: 'webm' }, source)).toBe('opus');
@@ -101,12 +124,12 @@ describe('size limit', () => {
 
 describe('presets', () => {
 	it('never enlarge the pictures nor speed them up', () => {
-		const discord = presetSettings('discord', { ...source, frameRate: 59.94 }, ['avc'], 1080);
+		const discord = presetSettings('discord', { ...source, frameRate: 59.94 }, soft(['avc']), 1080);
 		expect(discord).toMatchObject({ container: 'mp4', codec: 'avc', height: 720, frameRate: 30, sizeLimit: 20 });
-		const small = presetSettings('discord', source, ['avc'], 480);
+		const small = presetSettings('discord', source, soft(['avc']), 480);
 		expect(small).toMatchObject({ height: null, frameRate: null });
-		expect(presetSettings('youtube', source, ['avc'], 1080).bitrate).toBe(8000);
-		expect(presetSettings('web', source, ['avc', 'av1'], 1080).codec).toBe('av1');
+		expect(presetSettings('youtube', source, soft(['avc']), 1080).bitrate).toBe(8000);
+		expect(presetSettings('web', source, soft(['avc', 'av1']), 1080).codec).toBe('av1');
 	});
 });
 
