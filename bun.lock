@@ -51,6 +51,7 @@
     },
   },
   "patchedDependencies": {
+    "mediabunny@1.60.0": "patches/mediabunny@1.60.0.patch",
     "jassub@2.5.16": "patches/jassub@2.5.16.patch",
   },
   "packages": {

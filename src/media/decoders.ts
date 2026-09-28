@@ -1,9 +1,9 @@
 import type { InputAudioTrack } from 'mediabunny';
 
 /**
- * Sound codecs browsers don't decode, read by FFmpeg's decoders built for WebAssembly: Dolby
- * Digital (AC-3, E-AC-3) and DTS, common in films. Each is loaded the first time a track needs it,
- * in the page or worker that reads the track.
+ * Sound codecs browsers don't decode, common in films: Dolby Digital (AC-3, E-AC-3) and DTS, read
+ * by FFmpeg's decoders built for WebAssembly, and Dolby TrueHD, by vixely-truehd. Each is loaded
+ * the first time a track needs it, in the page or worker that reads the track.
  */
 const EXTENSIONS: Record<string, () => Promise<void>> = {
 	ac3: async () => {
@@ -15,7 +15,13 @@ const EXTENSIONS: Record<string, () => Promise<void>> = {
 	dts: async () => {
 		(await import('@mediabunny/dts')).registerDtsDecoder();
 	},
+	truehd: async () => {
+		(await import('./truehd')).registerTrueHdDecoder();
+	},
 };
+
+/** The codecs' names in WebCodecs, to ask the browser whether it has a decoder of its own. */
+const WEB_CODECS: Record<string, string> = { ac3: 'ac-3', eac3: 'ec-3', dts: 'dtsc', truehd: 'mlpa' };
 
 const loaded = new Map<string, Promise<void>>();
 
@@ -30,7 +36,7 @@ async function ensureDecoder(codec: string | null): Promise<void> {
 		pending = (async () => {
 			// Safari decodes Dolby Digital itself.
 			const native = await AudioDecoder.isConfigSupported({
-				codec: codec === 'dts' ? 'dtsc' : codec === 'eac3' ? 'ec-3' : 'ac-3',
+				codec: WEB_CODECS[codec] ?? codec,
 				numberOfChannels: 2,
 				sampleRate: 48_000,
 			}).catch(() => ({ supported: false }));

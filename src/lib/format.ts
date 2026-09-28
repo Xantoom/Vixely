@@ -100,6 +100,7 @@ const CODEC_NAMES: Record<string, string> = {
 	ac3: 'AC-3',
 	eac3: 'E-AC-3',
 	dts: 'DTS',
+	truehd: 'TrueHD',
 };
 
 export function codecName(codec: string): string {

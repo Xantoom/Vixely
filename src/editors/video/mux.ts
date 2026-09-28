@@ -102,6 +102,8 @@ export function audioCodecName(codec: AudioCodec): string {
 		flac: 'FLAC',
 		ac3: 'AC-3',
 		eac3: 'E-AC-3',
+		dts: 'DTS',
+		truehd: 'TrueHD',
 	};
 	return names[codec] ?? (codec.startsWith('pcm') ? 'PCM' : codec);
 }

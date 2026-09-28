@@ -21,6 +21,7 @@ src/wasm/vixely-image/
 src/wasm/vixely-audio/
 src/wasm/vixely-gif/
 src/wasm/vixely-subs/
+src/wasm/vixely-truehd/
 project.inlang/cache/
 project.inlang/.gitignore
 target/

@@ -31,6 +31,7 @@ const CRATES: Crate[] = [
 	{ dir: 'vixely-audio', out: 'src/wasm/vixely-audio', name: 'vixely_audio' },
 	{ dir: 'vixely-gif', out: 'src/wasm/vixely-gif', name: 'vixely_gif', watch: ['vendor/gifski'] },
 	{ dir: 'vixely-subs', out: 'src/wasm/vixely-subs', name: 'vixely_subs' },
+	{ dir: 'vixely-truehd', out: 'src/wasm/vixely-truehd', name: 'vixely_truehd' },
 ];
 const force = process.argv.includes('--force') || process.env.CI === 'true';
 

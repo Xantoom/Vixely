@@ -63,6 +63,7 @@
 		"vitest": "^5.0.2"
 	},
 	"patchedDependencies": {
-		"jassub@2.5.16": "patches/jassub@2.5.16.patch"
+		"jassub@2.5.16": "patches/jassub@2.5.16.patch",
+		"mediabunny@1.60.0": "patches/mediabunny@1.60.0.patch"
 	}
 }

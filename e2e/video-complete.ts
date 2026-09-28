@@ -1,8 +1,8 @@
 /**
  * The complete video editor: a turned video copied without encoding, metadata and a cover, timed
- * text encoded at constant quality, the TikTok format, Dolby Digital and DTS sound decoded, a
- * subtitle file added as a track, and a variable frame rate read. With FFPROBE set, each file is
- * checked by FFmpeg's probe.
+ * text encoded at constant quality, the TikTok format, Dolby Digital, DTS and TrueHD sound
+ * decoded, a subtitle file added as a track, and a variable frame rate read. With FFPROBE set,
+ * each file is checked by FFmpeg's probe.
  */
 import { engine, sample, BASE } from './engine';
 import { spawnSync } from 'node:child_process';
@@ -125,11 +125,12 @@ await page.screenshot({ path: 'shots/tiktok-editor.png' });
 const tiktok = await exportAs('tiktok.mp4', /Convert/);
 streams(tiktok);
 
-// 5. Dolby Digital 5.1 and DTS: decoded here, converted to AAC.
-for (const name of ['ac3', 'dts']) {
-	await open(sample(`${name}.mkv`));
+// 5. Dolby Digital 5.1, DTS and TrueHD (in Matroska, and as on Blu-ray): decoded, converted to AAC.
+for (const file of ['ac3.mkv', 'dts.mkv', 'truehd.mkv', 'truehd.m2ts']) {
+	const name = file.replace('.mkv', '').replace('.', '-');
+	await open(sample(file));
 	const decoding = await aside.locator('dl').last().textContent();
-	console.log(`${name}.mkv audio:`, decoding?.replace(/\s+/g, ' '));
+	console.log(`${file} audio:`, decoding?.replace(/\s+/g, ' '));
 	await page.locator('[role=group][aria-label="Tracks"]').screenshot({ path: `shots/${name}-timeline.png` });
 	const converted = await exportAs(`${name}.mp4`, /Convert/, async () => {
 		await aside.getByLabel('Container').click();
@@ -138,6 +139,8 @@ for (const name of ['ac3', 'dts']) {
 		await page.getByRole('option', { name: 'AAC', exact: true }).click();
 	});
 	streams(converted);
+	const audio = run(['-select_streams', 'a', '-show_entries', 'stream=codec_name', '-of', 'csv=p=0'], converted).trim();
+	if (ffprobe && audio !== 'aac') throw new Error(`${name}.mp4: sound ${JSON.stringify(audio)}, not AAC`);
 }
 
 // 5b. Converted with a passage removed, the sound copied as it is part by part: its packets are

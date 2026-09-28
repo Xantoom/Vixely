@@ -125,7 +125,8 @@ export const CONTAINERS: Record<
 		extension: 'mkv',
 		mime: 'video/x-matroska',
 		codecs: ['avc', 'hevc', 'vp9', 'av1'],
-		audio: ['aac', 'opus', 'mp3', 'flac', 'vorbis', 'ac3', 'eac3'],
+		// TrueHD, lossless, is kept as it is: only Matroska takes it.
+		audio: ['aac', 'opus', 'mp3', 'flac', 'vorbis', 'ac3', 'eac3', 'truehd'],
 		create: () => new MkvOutputFormat(),
 	},
 	webm: {
