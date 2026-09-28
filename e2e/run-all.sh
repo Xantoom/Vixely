@@ -6,6 +6,10 @@
 cd "$(dirname "$0")"
 root=$PWD
 browser=${BROWSER:-chromium}
+# The scenarios that check exported files with FFmpeg find it here unless FFPROBE says otherwise.
+if [[ -z $FFPROBE && -x $HOME/.local/share/vixely-tools/ffprobe ]]; then
+	export FFPROBE=$HOME/.local/share/vixely-tools/ffprobe
+fi
 mkdir -p runs "work/$browser/shots"
 ln -sfn "$root/../public" work/public
 ln -sfn "$root/samples" "work/$browser/samples"

@@ -1,7 +1,7 @@
 {
 	"$schema": "./node_modules/oxlint/configuration_schema.json",
 	"plugins": ["unicorn", "typescript", "oxc"],
-	"jsPlugins": null,
+	"jsPlugins": ["@shadcn/lint"],
 	"categories": {},
 	"rules": {
 		"for-direction": "error",
@@ -119,7 +119,6 @@
 		"unicorn/prefer-string-starts-ends-with": "error",
 		"use-isnan": "error",
 		"valid-typeof": "error",
-
 		"no-await-in-loop": "error",
 		"no-empty-pattern": "error",
 		"no-extra-boolean-cast": "error",
@@ -144,16 +143,14 @@
 		"typescript/restrict-template-expressions": "error",
 		"typescript/switch-exhaustiveness-check": "error",
 		"unicorn/no-thenable": "error",
-
 		"no-undef": "error",
-		"no-unused-vars": "error"
+		"no-unused-vars": "error",
+		"shadcn/no-unknown-classes": "error",
+		"shadcn/no-raw-colors": "error",
+		"shadcn/require-static-classes": "error"
 	},
 	"settings": {
-		"jsx-a11y": {
-			"polymorphicPropName": null,
-			"components": {},
-			"attributes": {}
-		},
+		"jsx-a11y": { "polymorphicPropName": null, "components": {}, "attributes": {} },
 		"next": { "rootDir": [] },
 		"react": { "formComponents": [], "linkComponents": [] },
 		"jsdoc": {
@@ -165,8 +162,10 @@
 			"implementsReplacesDocs": false,
 			"exemptDestructuredRootsFromChecks": false,
 			"tagNamePreference": {}
-		}
+		},
+		"shadcn": { "ui": "@/ui" }
 	},
 	"env": { "browser": true, "es2024": true },
-	"globals": { "FileReaderSync": "readonly" }
+	"globals": { "FileReaderSync": "readonly" },
+	"overrides": [{ "files": ["src/ui/Flag.tsx"], "rules": { "shadcn/no-raw-colors": "off" } }]
 }
