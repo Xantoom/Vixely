@@ -1,11 +1,9 @@
-import { Languages, ScanText, Speech } from 'lucide-react';
+import { Languages, ScanText } from 'lucide-react';
 import { useId, useRef, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { Section } from '@/editor/panel-parts';
 import { languageName, trackName } from '@/lib/language';
 import { OCR_LANGUAGES, TextReader } from '@/media/ocr';
-import { usePlayback } from '@/media/playback';
-import type { SpokenLine, TranscribeMessage, TranscribeRequest, WhisperModel } from '@/media/transcribe-protocol';
 import { m } from '@/paraglide/messages.js';
 import { getLocale } from '@/paraglide/runtime.js';
 import { Button } from '@/ui/Button';
@@ -265,147 +263,6 @@ export function OcrPanel({ fileName }: { fileName: string }) {
 					state={state}
 					onStop={() => {
 						stopped.current = true;
-					}}
-				/>
-			</div>
-		</>
-	);
-}
-
-/** Whisper's names of the languages it hears, by ISO 639-2 code. */
-const SPOKEN: Record<string, string> = {
-	eng: 'english',
-	fre: 'french',
-	ger: 'german',
-	spa: 'spanish',
-	ita: 'italian',
-	por: 'portuguese',
-	dut: 'dutch',
-	jpn: 'japanese',
-	chi: 'chinese',
-	kor: 'korean',
-	rus: 'russian',
-	ara: 'arabic',
-	pol: 'polish',
-	swe: 'swedish',
-};
-
-const AUTO = 'auto';
-
-/** Models offered, with what they download the first time. */
-const MODELS: { id: WhisperModel; label: () => string; size: string }[] = [
-	{ id: 'tiny', label: () => m.whisper_fast(), size: '40 MB' },
-	{ id: 'base', label: () => m.whisper_balanced(), size: '80 MB' },
-	{ id: 'small', label: () => m.whisper_accurate(), size: '250 MB' },
-];
-
-/**
- * The Transcribe tool: what is said in the video or sound turned into a new subtitle track, timed
- * line by line, to correct in the editor. Whisper runs on this device; its model is downloaded the
- * first time.
- */
-export function TranscribePanel() {
-	const file = usePlayback((state) => state.file);
-	const audioTrack = usePlayback((state) => state.audioTrack);
-	const addTrack = useSubtitleProject((state) => state.addTrack);
-	const ids = { model: useId(), language: useId() };
-	const [model, setModel] = useState<WhisperModel>('base');
-	const [language, setLanguage] = useState(AUTO);
-	const [state, setState] = useState<WorkState>({ step: 'idle' });
-	const worker = useRef<Worker | null>(null);
-	const busy = state.step === 'loading' || state.step === 'working';
-
-	const finish = (lines: SpokenLine[]) => {
-		worker.current?.terminate();
-		worker.current = null;
-		setState({ step: 'idle' });
-		if (lines.length === 0) return;
-		addTrack({
-			doc: {
-				format: 'srt',
-				cues: lines.map((line) => ({
-					id: newCueId(),
-					start: Math.round(line.start * 1000),
-					end: Math.round(line.end * 1000),
-					text: line.text,
-				})),
-				ass: null,
-				vttHeader: null,
-			},
-			language: language === AUTO ? 'und' : language,
-		});
-	};
-
-	const run = () => {
-		if (!file) return;
-		const lines: SpokenLine[] = [];
-		const next = new Worker(new URL('../../workers/transcribe.worker.ts', import.meta.url), { type: 'module' });
-		worker.current = next;
-		setState({ step: 'loading', share: 0 });
-		next.onmessage = (event: MessageEvent<TranscribeMessage>) => {
-			const message = event.data;
-			if (message.type === 'loading') setState({ step: 'loading', share: message.share });
-			else if (message.type === 'progress') {
-				lines.push(...message.lines);
-				setState({ step: 'working', done: message.done, total: message.total });
-			} else if (message.type === 'done') finish(lines);
-			else {
-				console.error('[transcribe]', message.message);
-				next.terminate();
-				worker.current = null;
-				setState({ step: 'failed' });
-			}
-		};
-		const request: TranscribeRequest = {
-			file,
-			track: audioTrack,
-			model,
-			language: language === AUTO ? null : (SPOKEN[language] ?? null),
-		};
-		next.postMessage(request);
-		// Stopping keeps the lines heard so far.
-		stop.current = () => {
-			finish(lines);
-		};
-	};
-	const stop = useRef<() => void>(() => undefined);
-
-	return (
-		<>
-			<PanelTitle>{m.tool_transcribe()}</PanelTitle>
-			<div className="grid gap-2.5">
-				<FieldRow label={m.whisper_model()} htmlFor={ids.model}>
-					<Select
-						id={ids.model}
-						value={model}
-						options={MODELS.map((option) => ({
-							value: option.id,
-							label: option.label(),
-							detail: option.size,
-						}))}
-						onChange={setModel}
-					/>
-				</FieldRow>
-				<FieldRow label={m.whisper_language()} htmlFor={ids.language}>
-					<Select
-						id={ids.language}
-						value={language}
-						options={[
-							{ value: AUTO, label: m.whisper_auto() },
-							...Object.keys(SPOKEN).map((code) => ({ value: code, label: languageName(code) })),
-						]}
-						onChange={setLanguage}
-					/>
-				</FieldRow>
-				<Button variant="primary" disabled={!file || busy} onClick={run}>
-					<Speech size={16} aria-hidden="true" />
-					{m.whisper_start()}
-				</Button>
-				<WorkProgress
-					state={state}
-					parts
-					onStop={() => {
-						stop.current();
 					}}
 				/>
 			</div>

@@ -20,8 +20,8 @@ const files = walk(DIST)
 	.filter((path) => !['/sw.js', '/robots.txt', '/sitemap.xml', '/og-image.png'].includes(path) && !path.startsWith('/.vite/'))
 	.toSorted();
 
-// Speech and text recognition: tens of megabytes most visitors never use.
-const lazy = files.filter((path) => /ort-wasm|tesseract-core|transcribe\.worker|ocr\.worker/.test(path));
+// Text recognition: tens of megabytes most visitors never use.
+const lazy = files.filter((path) => /tesseract-core|ocr\.worker/.test(path));
 // The pages, what the first page loads, and the app's icons.
 const index = readFileSync(join(DIST, 'index.html'), 'utf8');
 const linked = new Set([...index.matchAll(/(?:src|href)="(\/[^"]+)"/g)].map((match) => match[1]));

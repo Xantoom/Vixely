@@ -17,7 +17,7 @@ import { TimingPanel } from '../subtitles/panels';
 import { isAdded, type TrackKey, useProjectReady, useSubtitleProject } from '../subtitles/project';
 import { useSubtitleEditor } from '../subtitles/store';
 import { SubtitleViewer } from '../subtitles/SubtitleViewer';
-import { OcrPanel, TranscribePanel, TranslatePanel } from '../subtitles/tools';
+import { OcrPanel, TranslatePanel } from '../subtitles/tools';
 import { useSubtitleShortcuts, Workspace } from '../subtitles/Workspace';
 import type { VideoContainer } from './export';
 import { type MuxTrack, useMuxSettings, useMuxTracks } from './mux';
@@ -26,11 +26,10 @@ import { LANGUAGES, trackLabel } from './MuxPanel';
 /** The key of the new subtitles' tab, before they have a line and so a track of their own. */
 export const NEW_KEY = 'subtitle-new';
 
-export type SubtitleTool = 'timing' | 'transcribe' | 'translate' | 'ocr';
+export type SubtitleTool = 'timing' | 'translate' | 'ocr';
 
 const TOOL_LABELS: Record<SubtitleTool, () => string> = {
 	timing: () => m.tool_timing(),
-	transcribe: () => m.tool_transcribe(),
 	translate: () => m.tool_translate(),
 	ocr: () => m.tool_ocr(),
 };
@@ -182,7 +181,7 @@ function SubtitleKeys() {
 /**
  * The sound and subtitle tracks of the video, edited without leaving it: each track's details,
  * the level of the sound, and the lines of the subtitles in the subtitle editor's layout, with its
- * timing, transcription, translation and text recognition.
+ * timing, translation and text recognition.
  */
 export function TracksDialog({
 	opened,
@@ -197,7 +196,7 @@ export function TracksDialog({
 	burned: string | null;
 	/** The track shown first, by its key. */
 	initial: string | null;
-	/** The subtitle tool open first, such as transcription for new subtitles. */
+	/** The subtitle tool open first. */
 	initialTool?: SubtitleTool | null;
 	onClose: () => void;
 }) {
@@ -225,7 +224,7 @@ export function TracksDialog({
 		if (subtitleKey !== null) choose(subtitleKey);
 		else if (audioNumber !== null) setAudioTrack(audioNumber);
 	}, [subtitleKey, audioNumber, choose, setAudioTrack]);
-	// Subtitles made by a tool, such as a transcription, open in their own tab.
+	// Subtitles made by a tool, such as a translation, open in their own tab.
 	const followed = useRef(new Set<TrackKey | null>([current]));
 	const made = tracks?.find((track) => track.subtitle === current);
 	useEffect(() => {
@@ -234,12 +233,7 @@ export function TracksDialog({
 		if (current !== null && isAdded(current)) setSelected(made.key);
 	}, [made, current]);
 
-	const subtitleTools: SubtitleTool[] = [
-		'timing',
-		'transcribe',
-		'translate',
-		...(pictures ? (['ocr'] as const) : []),
-	];
+	const subtitleTools: SubtitleTool[] = ['timing', 'translate', ...(pictures ? (['ocr'] as const) : [])];
 	const showsSubtitles = subtitleKey !== null && ready && current === subtitleKey;
 	const title = opened.file.name.replace(/\.[^.]+$/, '');
 
@@ -332,7 +326,6 @@ export function TracksDialog({
 							</div>
 							<PanelTitles value={false}>
 								{tool === 'timing' && <TimingPanel />}
-								{tool === 'transcribe' && <TranscribePanel />}
 								{tool === 'translate' && <TranslatePanel fileName={opened.file.name} />}
 								{tool === 'ocr' && <OcrPanel fileName={opened.file.name} />}
 							</PanelTitles>

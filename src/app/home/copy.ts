@@ -180,7 +180,6 @@ const EN: HomeCopy = {
 			lede: 'Resync, correct, style, translate and convert.',
 			points: [
 				['From MKV and MP4', 'Every track at once, fonts included, and back into the video.'],
-				['Transcription here', 'Subtitles made from speech by Whisper, on your device.'],
 				['Translation by hand', 'The original line beside the one you write.'],
 			],
 			open: 'Open the subtitle editor',
@@ -395,7 +394,6 @@ const FR: HomeCopy = {
 			lede: 'Resynchroniser, corriger, styliser, traduire et convertir.',
 			points: [
 				['Depuis un MKV ou un MP4', 'Toutes les pistes d’un coup, polices comprises, et retour dans la vidéo.'],
-				['Transcription sur place', 'Des sous-titres tirés de la parole par Whisper, sur votre appareil.'],
 				['Traduction à la main', 'La réplique d’origine à côté de celle que vous écrivez.'],
 			],
 			open: 'Ouvrir l’éditeur de sous-titres',

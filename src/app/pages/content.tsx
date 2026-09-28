@@ -20,7 +20,6 @@ const CREDITS = [
 	['Mediabunny', 'https://mediabunny.dev'],
 	['FFmpeg (AC-3, E-AC-3, DTS and AAC coders)', 'https://ffmpeg.org'],
 	['RNNoise / nnnoiseless', 'https://github.com/jneem/nnnoiseless'],
-	['Whisper / transformers.js / ONNX Runtime', 'https://huggingface.co/docs/transformers.js'],
 	['Tesseract / tesseract.js-core', 'https://github.com/naptha/tesseract.js-core'],
 	['LAME', 'https://lame.sourceforge.io'],
 	['libFLAC', 'https://xiph.org/flac/'],
@@ -192,12 +191,10 @@ function privacy(lang: Locale): PageContent {
 					title: 'Downloaded when needed',
 					body: (
 						<p>
-							Two tools need data too large to come with the site, downloaded the first time they are used
-							and then kept by your browser: speech recognition models (Whisper, from{' '}
-							<TextLink href="https://huggingface.co">Hugging Face</TextLink>) and text recognition
-							languages (Tesseract, from <TextLink href="https://www.jsdelivr.com">jsDelivr</TextLink>).
-							These servers see a download, like any web request; your files and what is said or written
-							in them stay on your device.
+							Text recognition needs data too large to come with the site, downloaded the first time it is
+							used and then kept by your browser: its languages (Tesseract, from{' '}
+							<TextLink href="https://www.jsdelivr.com">jsDelivr</TextLink>). This server sees a download,
+							like any web request; your files and what is written in them stay on your device.
 						</p>
 					),
 				},
@@ -256,13 +253,11 @@ function privacy(lang: Locale): PageContent {
 					title: 'Téléchargé au besoin',
 					body: (
 						<p>
-							Deux outils ont besoin de données trop lourdes pour venir avec le site, téléchargées à leur
-							première utilisation puis gardées par votre navigateur : les modèles de reconnaissance de la
-							parole (Whisper, depuis <TextLink href="https://huggingface.co">Hugging Face</TextLink>) et
-							les langues de reconnaissance de texte (Tesseract, depuis{' '}
-							<TextLink href="https://www.jsdelivr.com">jsDelivr</TextLink>). Ces serveurs voient un
-							téléchargement, comme toute requête web ; vos fichiers et ce qui s’y dit ou s’y lit restent
-							sur votre appareil.
+							La reconnaissance de texte a besoin de données trop lourdes pour venir avec le site,
+							téléchargées à sa première utilisation puis gardées par votre navigateur : ses langues
+							(Tesseract, depuis <TextLink href="https://www.jsdelivr.com">jsDelivr</TextLink>). Ce
+							serveur voit un téléchargement, comme toute requête web ; vos fichiers et ce qui s’y lit
+							restent sur votre appareil.
 						</p>
 					),
 				},

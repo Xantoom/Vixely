@@ -425,7 +425,6 @@
 	"stop": "Arrêter",
 	"tool_volume": "Volume",
 	"tool_sound": "Son",
-	"tool_transcribe": "Transcrire",
 	"tool_translate": "Traduire",
 	"tool_ocr": "Lire le texte",
 	"denoise_title": "Réduction de bruit",
@@ -734,13 +733,6 @@
 	"translate_start": "Commencer la traduction",
 	"ocr_language": "Langue",
 	"ocr_start": "Lire le texte",
-	"whisper_model": "Modèle",
-	"whisper_fast": "Rapide",
-	"whisper_balanced": "Équilibré",
-	"whisper_accurate": "Précis",
-	"whisper_language": "Langue parlée",
-	"whisper_auto": "Détecter",
-	"whisper_start": "Transcrire",
 	"work_parts": [
 		{
 			"declarations": [
@@ -887,7 +879,6 @@
 	"mux_subtitle_tracks": "Pistes de sous-titres",
 	"mux_audio_tracks": "Pistes audio",
 	"mux_add_subtitles": "Ajouter un fichier de sous-titres",
-	"subs_generate": "Transcrire la parole",
 	"mux_unreadable_subtitles": "{name} n’a pas pu être lu comme des sous-titres.",
 	"audio_no_tracks": "Cette vidéo n’a pas de son.",
 	"subs_no_tracks": "Cette vidéo n’a pas de sous-titres.",

@@ -17,8 +17,6 @@ import { spawnSync } from 'node:child_process';
  * - ac3.mkv, dts.mkv: 8 s of test pattern with Dolby Digital 5.1 and DTS sound, which browsers
  *   don't decode; vfr.mp4: 6 s whose pictures come at irregular times, as phones record them;
  *   extra.fr.srt: a subtitle file to add to a video; noisy.wav: a voice-like buzz in white noise.
- * - jfk.wav, speech.mp4: eleven seconds of John F. Kennedy's inaugural address (public domain), as
- *   Whisper's own examples use it, alone and under a test pattern.
  * - samples/open/: every video above with its H.264 pictures as VP9 and its AAC sound as Opus, the
  *   rest copied as it is, for browsers built without patented codecs (Playwright's Firefox).
  */
@@ -330,25 +328,11 @@ if (!existsSync('samples/extra.fr.srt')) {
 	console.log('samples/extra.fr.srt');
 }
 
-if (!existsSync('samples/jfk.wav')) {
-	const response = await fetch('https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/jfk.wav');
-	writeFileSync('samples/jfk.wav', Buffer.from(await response.arrayBuffer()));
-	console.log('samples/jfk.wav');
-}
-if (ffmpeg && !existsSync('samples/speech.mp4')) {
-	spawnSync(
-		ffmpeg,
-		['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=s=640x360:r=25', '-i', 'samples/jfk.wav', '-shortest', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', 'samples/speech.mp4'],
-		{ stdio: 'inherit' },
-	);
-	console.log('samples/speech.mp4');
-}
-
 // The same videos in codecs every browser decodes: VP9 pictures, Opus sound, the rest copied.
 if (ffmpeg) {
 	mkdirSync('samples/open', { recursive: true });
 	const probe = ffmpeg.replace(/ffmpeg$/, 'ffprobe');
-	for (const name of ['film.mp4', 'film.mkv', 'clip.mp4', 'clip.mkv', 'live.mkv', 'h264.mp4', 'rotated.mp4', 'silent.mp4', 'speech.mp4', 'vfr.mp4', 'ac3.mkv', 'dts.mkv', 'sample.mkv']) {
+	for (const name of ['film.mp4', 'film.mkv', 'clip.mp4', 'clip.mkv', 'live.mkv', 'h264.mp4', 'rotated.mp4', 'silent.mp4', 'vfr.mp4', 'ac3.mkv', 'dts.mkv', 'sample.mkv']) {
 		const target = `samples/open/${name}`;
 		if (existsSync(target) || !existsSync(`samples/${name}`)) continue;
 		const audio = spawnSync(probe, ['-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=codec_name', '-of', 'csv=p=0', `samples/${name}`], { encoding: 'utf8' }).stdout;

@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router';
-import { AudioLines, Camera, Captions, Film, ImagePlus, Speech, Trash2 } from 'lucide-react';
+import { AudioLines, Camera, Captions, Film, ImagePlus, Trash2 } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { Section } from '@/editor/panel-parts';
@@ -160,16 +160,6 @@ export function VideoSubtitlesPanel({ opened }: { opened: OpenedFile }) {
 					<Captions size={16} aria-hidden="true" />
 					{m.subs_write_new()}
 				</Button>
-				{opened.info?.audio && (
-					<Button
-						onClick={() => {
-							setEditing({ key: NEW_KEY, tool: 'transcribe' });
-						}}
-					>
-						<Speech size={16} aria-hidden="true" />
-						{m.subs_generate()}
-					</Button>
-				)}
 			</div>
 			<BurnSection opened={opened} />
 			<TracksEditor

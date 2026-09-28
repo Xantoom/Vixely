@@ -17,7 +17,7 @@ import { useProjectReady, useSubtitleProject } from './project';
 import { useSubtitleDoc, useSubtitleEditor, useSubtitleUndoState } from './store';
 import { StylesPanel } from './StylesPanel';
 import { SubtitleBatchScreen } from './SubtitleBatchScreen';
-import { OcrPanel, TranscribePanel, TranslatePanel } from './tools';
+import { OcrPanel, TranslatePanel } from './tools';
 import { useSubtitleShortcuts, Workspace } from './Workspace';
 
 /** Room after the last line when there is no video, so lines can be placed after it. */
@@ -47,8 +47,7 @@ function SingleSubtitleScreen({ initialTool }: { initialTool?: ToolId }) {
 	const [tool, setTool] = useState<ToolId>(initialTool && initialTool !== 'lines' ? initialTool : 'info');
 	const projectReady = useProjectReady();
 	const ready = opened !== null && projectFile === opened.file && projectReady;
-	// Transcription needs sound to listen to; text recognition, subtitles made of pictures.
-	const media = usePlayback((state) => state.file !== null);
+	// Text recognition needs subtitles made of pictures.
 	const pictures = useSubtitleProject((state) => state.tracks.some((track) => track.original?.format === 'pgs'));
 	const tools: ToolId[] = [
 		'info',
@@ -56,7 +55,6 @@ function SingleSubtitleScreen({ initialTool }: { initialTool?: ToolId }) {
 		'find',
 		// Styles belong to text: not to subtitles made of pictures.
 		...(doc.format === 'pgs' ? [] : (['styles'] as const)),
-		...(media ? (['transcribe'] as const) : []),
 		...(pictures ? (['ocr'] as const) : []),
 		'translate',
 	];
@@ -113,7 +111,6 @@ function SingleSubtitleScreen({ initialTool }: { initialTool?: ToolId }) {
 		if (tool === 'find') return <FindPanel />;
 		if (tool === 'styles') return <StylesPanel title={opened.file.name.replace(/\.[^.]+$/, '')} />;
 		if (tool === 'translate') return <TranslatePanel fileName={opened.file.name} />;
-		if (tool === 'transcribe') return <TranscribePanel />;
 		if (tool === 'ocr') return <OcrPanel fileName={opened.file.name} />;
 		if (tool === 'export') return <SubtitleExportPanel opened={opened} />;
 		return <SubtitleInfoPanel opened={opened} />;

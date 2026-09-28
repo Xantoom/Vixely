@@ -1,15 +1,10 @@
 /**
- * The subtitle editor's own tools: a video without subtitles transcribed by Whisper, a line
- * corrected, and the result written into the video; an SRT translated by hand into English with
- * the original beside each line; a Blu-ray .sup read into text. With FFPROBE set, FFmpeg reads the
- * subtitles back. Whisper's model and Tesseract's English data are downloaded the first time.
+ * The subtitle editor's own tools: an SRT translated by hand into English with the original beside
+ * each line; a Blu-ray .sup read into text. Tesseract's English data is downloaded the first time.
  */
-import { engine, sample, BASE } from './engine';
-import { spawnSync } from 'node:child_process';
+import { engine, BASE } from './engine';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
-const ffprobe = process.env.FFPROBE;
-const ffmpeg = ffprobe?.replace(/ffprobe$/, 'ffmpeg');
 const browser = await engine.launch();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'en-US', acceptDownloads: true });
 await ctx.addInitScript(() => Object.defineProperty(window, 'showSaveFilePicker', { value: undefined }));
@@ -34,37 +29,7 @@ const save = async (name: string) => {
 	return { path: `shots/${name}`, name: download.suggestedFilename(), data };
 };
 
-// 1. A video without subtitles: speech to text, one line corrected, written into the video.
-await page.goto(`${BASE}/video`);
-await page.setInputFiles('input[type=file]', sample('speech.mp4'));
-await page.waitForSelector('[role=group][aria-label="Tracks"]', { timeout: 30000 });
-await tools.getByRole('button', { name: 'Subtitles', exact: true }).click();
-await aside.getByRole('button', { name: 'Transcribe the speech' }).click();
-// The tracks dialog opens on new subtitles, its transcription ready: the video editor stays.
-const dialog = page.getByRole('dialog', { name: 'Tracks' });
-await dialog.getByLabel('Model').click();
-await page.getByRole('option', { name: /Fast/ }).click();
-await dialog.getByLabel('Spoken language').click();
-await page.getByRole('option', { name: 'English' }).click();
-const t0 = Date.now();
-await dialog.getByRole('button', { name: 'Transcribe', exact: true }).click();
-await page.waitForFunction(() => document.querySelectorAll('dialog [role=grid] [role=row]').length > 1, null, { timeout: 600000 });
-console.log(`transcribed in ${Date.now() - t0} ms:`, await grid());
-await page.screenshot({ path: 'shots/transcribed.png' });
-await dialog.getByRole('grid').getByRole('row').nth(1).click();
-const line = dialog.getByLabel('Text', { exact: true });
-await line.fill('And so, my fellow Americans:');
-await line.press('Enter');
-await dialog.getByRole('button', { name: 'Close the panel' }).click();
-console.log('still in the video editor:', page.url().includes('/video'));
-await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
-const muxed = await save('transcribed.mp4');
-if (ffmpeg) {
-	const srt = spawnSync(ffmpeg, ['-v', 'error', '-i', muxed.path, '-map', '0:s:0', '-f', 'srt', '-'], { encoding: 'utf8' }).stdout;
-	console.log('  in the video:', srt.replace(/\n+/g, ' ').slice(0, 300));
-}
-
-// 2. An SRT translated by hand into English.
+// 1. An SRT translated by hand into English.
 await page.goto(`${BASE}/subtitles`);
 await page.setInputFiles('input[type=file]', 'samples/extra.fr.srt');
 await page.waitForSelector('[role=grid]', { timeout: 10000 });
@@ -84,7 +49,7 @@ await page.locator('header').getByRole('button', { name: 'Export', exact: true }
 const translated = await save('translated.srt');
 console.log('  file:', translated.data.toString('utf8').replace(/\s+/g, ' '));
 
-// 3. Blu-ray pictures read into text.
+// 2. Blu-ray pictures read into text.
 await page.goto(`${BASE}/subtitles`);
 await page.setInputFiles('input[type=file]', 'samples/sup2.sup');
 await page.waitForSelector('[role=grid]', { timeout: 30000 });

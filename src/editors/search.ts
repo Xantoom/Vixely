@@ -11,7 +11,6 @@ const TOOLS = new Set<string>([
 	'frames',
 	'volume',
 	'sound',
-	'transcribe',
 	'translate',
 	'ocr',
 	'audio',
