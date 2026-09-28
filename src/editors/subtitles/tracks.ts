@@ -5,7 +5,7 @@
  */
 import type { ExtractedTrack, SubtitleTrackInfo } from '@/media/subtitle-source';
 import { loadSubs } from '@/wasm/subs';
-import type { Pictures } from '@/wasm/vixely-subs/vixely_subs.js';
+import type { Pictures, PgsStream } from '@/wasm/vixely-subs/vixely_subs.js';
 import { type Cue, newCueId, type Picture, type SubtitleDoc } from './document';
 import { parseAss } from './formats/ass';
 
@@ -75,22 +75,25 @@ function packet(track: ExtractedTrack, k: number): Uint8Array {
 	return track.data.subarray(track.offsets[k] ?? 0, track.offsets[k + 1] ?? 0);
 }
 
-/** End of line `k`: its duration, else the start of the next line, else two seconds later. */
-function endOf(track: ExtractedTrack, k: number): number {
+/**
+ * End of line `k`: its duration, else the start of the next line (`after` when it is in the next
+ * batch), else two seconds later.
+ */
+function endOf(track: ExtractedTrack, k: number, after = Number.NaN): number {
 	const start = track.starts[k] ?? 0;
 	const duration = track.durations[k] ?? Number.NaN;
 	if (Number.isFinite(duration) && duration > 0) return Math.round(start + duration);
-	const next = track.starts[k + 1];
+	const next = track.starts[k + 1] ?? (Number.isFinite(after) ? after : undefined);
 	return Math.round(next !== undefined && next > start ? next : start + 2000);
 }
 
-function lines(track: ExtractedTrack, text: (data: Uint8Array) => string | null): Cue[] {
+function lines(track: ExtractedTrack, after: number, text: (data: Uint8Array) => string | null): Cue[] {
 	const cues: Cue[] = [];
 	for (let k = 0; k < track.starts.length; k++) {
 		const content = text(packet(track, k));
 		if (content === null) continue;
 		const start = Math.round(track.starts[k] ?? 0);
-		cues.push({ id: newCueId(), start, end: Math.max(start + 1, endOf(track, k)), text: content });
+		cues.push({ id: newCueId(), start, end: Math.max(start + 1, endOf(track, k, after)), text: content });
 	}
 	return cues;
 }
@@ -141,10 +144,7 @@ export function webvttCues(data: Uint8Array): { text: string; settings: string; 
  * the fields of the header's Format line without the times. ReadOrder restores the file order,
  * which decides which line draws on top.
  */
-function assDoc(header: string, track: ExtractedTrack): SubtitleDoc | null {
-	const doc = parseAss(header.includes('[Events]') ? header : `${header}\n[Events]\n`);
-	if (!doc?.ass) return null;
-	const names = doc.ass.format.map((name) => name.toLowerCase()).filter((name) => name !== 'start' && name !== 'end');
+function assLines(names: readonly string[], track: ExtractedTrack, after: number): { order: number; cue: Cue }[] {
 	const ordered: { order: number; cue: Cue }[] = [];
 	for (let k = 0; k < track.starts.length; k++) {
 		const line = cleanText(packet(track, k));
@@ -169,17 +169,14 @@ function assDoc(header: string, track: ExtractedTrack): SubtitleDoc | null {
 		const start = Math.round(track.starts[k] ?? 0);
 		ordered.push({
 			order: Number(order),
-			cue: { id: newCueId(), start, end: Math.max(start + 1, endOf(track, k)), text, fields },
+			cue: { id: newCueId(), start, end: Math.max(start + 1, endOf(track, k, after)), text, fields },
 		});
 	}
-	ordered.sort((a, b) => a.order - b.order);
-	return { ...doc, cues: ordered.map((entry) => entry.cue) };
+	return ordered.sort((a, b) => a.order - b.order);
 }
 
-/** A PGS document from pictures read by vixely-subs. */
-async function pgsDoc(read: (subs: Awaited<ReturnType<typeof loadSubs>>) => Pictures): Promise<SubtitleDoc> {
-	const subs = await loadSubs();
-	const pictures = read(subs);
+/** PGS lines from pictures read by vixely-subs, and the video size their positions refer to. */
+function pictureCues(pictures: Pictures): { cues: Cue[]; size: { width: number; height: number } | null } {
 	const starts = pictures.starts();
 	const durations = pictures.durations();
 	const offsets = pictures.offsets();
@@ -205,47 +202,115 @@ async function pgsDoc(read: (subs: Awaited<ReturnType<typeof loadSubs>>) => Pict
 		};
 		cues.push({ id: newCueId(), start, end: Math.max(start + 1, end), text: '', picture });
 	}
-	return { format: 'pgs', cues, ass: null, vttHeader: null, pgsSize: size };
+	return { cues, size };
 }
 
 /** A `.sup` file as a document. */
 export async function supDoc(bytes: Uint8Array): Promise<SubtitleDoc> {
-	return pgsDoc((subs) => subs.pgs_from_sup(bytes));
+	const subs = await loadSubs();
+	const { cues, size } = pictureCues(subs.pgs_from_sup(bytes));
+	return { format: 'pgs', cues, ass: null, vttHeader: null, pgsSize: size };
+}
+
+/** Lines of a batch, and for PGS the video size their pictures are placed in. */
+export interface BatchLines {
+	cues: Cue[];
+	pgsSize?: { width: number; height: number } | null;
+}
+
+/**
+ * A track of a video file turned into a document a batch of lines at a time, in file order. The
+ * first batch gives the document, without lines; each batch then gives its lines.
+ */
+export class TrackReader {
+	readonly kind: TrackKind | null;
+	/** ASS: field names of the events, and the ReadOrder of each line read, by id. */
+	private names: string[] = [];
+	private readonly orders = new Map<number, number>();
+	private pgs: Promise<PgsStream> | null = null;
+
+	constructor(info: SubtitleTrackInfo) {
+		this.kind = trackKind(info);
+		if (this.kind === 'pgs') this.pgs = loadSubs().then((subs) => new subs.PgsStream());
+	}
+
+	/** The document before its lines, from the setup data of the track. Null for unknown kinds. */
+	empty(codecPrivate: Uint8Array): SubtitleDoc | null {
+		const doc = { cues: [], ass: null, vttHeader: null };
+		if (this.kind === 'pgs') return { ...doc, format: 'pgs', pgsSize: null };
+		if (this.kind === 'ass') {
+			const header = utf8.decode(codecPrivate);
+			const parsed = parseAss(header.includes('[Events]') ? header : `${header}\n[Events]\n`);
+			if (!parsed?.ass) return null;
+			this.names = parsed.ass.format
+				.map((name) => name.toLowerCase())
+				.filter((name) => name !== 'start' && name !== 'end');
+			return { ...parsed, cues: [] };
+		}
+		if (this.kind === 'srt' || this.kind === 'tx3g') return { ...doc, format: 'srt' };
+		if (this.kind === 'vtt') {
+			const header = utf8.decode(codecPrivate).trim();
+			return { ...doc, format: 'vtt', vttHeader: header.startsWith('WEBVTT') ? header : 'WEBVTT' };
+		}
+		if (this.kind === 'wvtt') return { ...doc, format: 'vtt', vttHeader: 'WEBVTT' };
+		return null;
+	}
+
+	/**
+	 * The lines of a batch. `after` is the start of the line after it, in milliseconds (NaN when
+	 * unknown); `last` says the track ends with it. PGS pictures are given once their end is known,
+	 * so the last one of a batch comes with the next.
+	 */
+	async lines(track: ExtractedTrack, after: number, last: boolean): Promise<BatchLines> {
+		if (this.pgs) {
+			const stream = await this.pgs;
+			const { cues, size } = pictureCues(
+				stream.push(track.starts, track.durations, track.offsets, track.data, last),
+			);
+			if (last) stream.free();
+			return { cues, pgsSize: size };
+		}
+		if (this.kind === 'ass') {
+			const ordered = assLines(this.names, track, after);
+			for (const { order, cue } of ordered) this.orders.set(cue.id, order);
+			return { cues: ordered.map((entry) => entry.cue) };
+		}
+		if (this.kind === 'srt' || this.kind === 'vtt') return { cues: lines(track, after, cleanText) };
+		if (this.kind === 'tx3g') return { cues: lines(track, after, timedText) };
+		if (this.kind === 'wvtt') {
+			const cues: Cue[] = [];
+			for (let k = 0; k < track.starts.length; k++) {
+				const start = Math.round(track.starts[k] ?? 0);
+				for (const cue of webvttCues(packet(track, k))) {
+					cues.push({
+						id: newCueId(),
+						start,
+						end: Math.max(start + 1, endOf(track, k, after)),
+						text: cue.text,
+						vtt: { id: cue.id, settings: cue.settings },
+					});
+				}
+			}
+			return { cues };
+		}
+		return { cues: [] };
+	}
+
+	/**
+	 * ASS lines in the order of the file, once every batch is read: each batch is in order, but
+	 * the file may put lines of different times in any order.
+	 */
+	inFileOrder(cues: readonly Cue[]): readonly Cue[] {
+		if (this.kind !== 'ass') return cues;
+		return cues.toSorted((a, b) => (this.orders.get(a.id) ?? 0) - (this.orders.get(b.id) ?? 0));
+	}
 }
 
 /** A track read from a video file, as a document. Null when nothing could be made of it. */
 export async function trackDoc(info: SubtitleTrackInfo, track: ExtractedTrack): Promise<SubtitleDoc | null> {
-	const kind = trackKind(info);
-	if (kind === 'pgs') {
-		return pgsDoc((subs) => subs.pgs_from_packets(track.starts, track.durations, track.offsets, track.data));
-	}
-	if (kind === 'ass') return assDoc(utf8.decode(track.codecPrivate), track);
-	if (kind === 'srt') return { format: 'srt', cues: lines(track, cleanText), ass: null, vttHeader: null };
-	if (kind === 'tx3g') return { format: 'srt', cues: lines(track, timedText), ass: null, vttHeader: null };
-	if (kind === 'vtt') {
-		const header = utf8.decode(track.codecPrivate).trim();
-		return {
-			format: 'vtt',
-			cues: lines(track, cleanText),
-			ass: null,
-			vttHeader: header.startsWith('WEBVTT') ? header : 'WEBVTT',
-		};
-	}
-	if (kind === 'wvtt') {
-		const cues: Cue[] = [];
-		for (let k = 0; k < track.starts.length; k++) {
-			const start = Math.round(track.starts[k] ?? 0);
-			for (const cue of webvttCues(packet(track, k))) {
-				cues.push({
-					id: newCueId(),
-					start,
-					end: Math.max(start + 1, endOf(track, k)),
-					text: cue.text,
-					vtt: { id: cue.id, settings: cue.settings },
-				});
-			}
-		}
-		return { format: 'vtt', cues, ass: null, vttHeader: 'WEBVTT' };
-	}
-	return null;
+	const reader = new TrackReader(info);
+	const doc = reader.empty(track.codecPrivate);
+	if (!doc) return null;
+	const { cues, pgsSize } = await reader.lines(track, Number.NaN, true);
+	return { ...doc, cues: reader.inFileOrder(cues), ...(pgsSize === undefined ? {} : { pgsSize }) };
 }

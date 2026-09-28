@@ -304,7 +304,6 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 					<VideoTimeline
 						file={opened.file}
 						aspect={upright.width / upright.height}
-						audio={Boolean(opened.info?.audio)}
 						layers={overlays}
 						onLayer={() => {
 							setTool('layers');

@@ -33,7 +33,9 @@ function SubtitleMenu({ shown, onShown }: { shown: boolean; onShown: (shown: boo
 	const tracks = useProjectTracks();
 	const current = useSubtitleProject((state) => state.current);
 	const choose = useSubtitleProject((state) => state.choose);
-	const options = tracks.filter((track) => track.original && (track.key !== 'new' || track.edited));
+	const options = tracks.filter(
+		(track) => (track.original || track.reading) && (track.key !== 'new' || track.edited),
+	);
 	if (options.length === 0) return null;
 	return (
 		<PlayerMenu

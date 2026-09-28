@@ -13,7 +13,7 @@ import { m } from '@/paraglide/messages.js';
 import { lastEnd } from './document';
 import { FindPanel } from './FindPanel';
 import { SubtitleExportFooter, SubtitleExportPanel, SubtitleInfoPanel, TimingPanel } from './panels';
-import { useProjectReady, useSubtitleProject } from './project';
+import { isPictures, useProjectReady, useSubtitleProject } from './project';
 import { useSubtitleDoc, useSubtitleEditor, useSubtitleUndoState } from './store';
 import { StylesPanel } from './StylesPanel';
 import { SubtitleBatchScreen } from './SubtitleBatchScreen';
@@ -48,7 +48,7 @@ function SingleSubtitleScreen({ initialTool }: { initialTool?: ToolId }) {
 	const projectReady = useProjectReady();
 	const ready = opened !== null && projectFile === opened.file && projectReady;
 	// Text recognition needs subtitles made of pictures.
-	const pictures = useSubtitleProject((state) => state.tracks.some((track) => track.original?.format === 'pgs'));
+	const pictures = useSubtitleProject((state) => state.tracks.some(isPictures));
 	const tools: ToolId[] = [
 		'info',
 		'timing',

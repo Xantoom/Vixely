@@ -26,6 +26,11 @@ interface SubtitleEditorState {
 	/** The same file read again with another character set: a fresh history. */
 	reload: (doc: SubtitleDoc, encoding: EncodingId) => void;
 	apply: (change: (doc: SubtitleDoc) => SubtitleDoc) => void;
+	/**
+	 * Lines read after the document was shown: added to every state of its history, without an
+	 * undo step. Only for the document shown under `key`.
+	 */
+	extend: (key: string, change: (doc: SubtitleDoc) => SubtitleDoc) => void;
 	preview: (change: (doc: SubtitleDoc) => SubtitleDoc) => void;
 	settle: () => void;
 	undo: () => void;
@@ -68,6 +73,19 @@ export const useSubtitleEditor = create<SubtitleEditorState>((set, get) => ({
 	apply(change) {
 		const { history } = get();
 		set({ history: commit(history, change(history.present)), gestureStart: null });
+	},
+
+	extend(key, change) {
+		const { history, gestureStart } = get();
+		if (get().key !== key) return;
+		set({
+			history: {
+				past: history.past.map(change),
+				present: change(history.present),
+				future: history.future.map(change),
+			},
+			gestureStart: gestureStart && change(gestureStart),
+		});
 	},
 
 	preview(change) {

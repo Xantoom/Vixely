@@ -5,7 +5,6 @@ import type { Range } from '@/document/timemap';
 import { beyond, MIN_VIEW, totalLength } from '@/document/timemap';
 import type { OverlayEditing } from '@/editor/overlays/editing';
 import { LayerLanes } from '@/editor/overlays/LayerLanes';
-import { usePlaybackPeaks, Waveform } from '@/editor/PlaybackWaveform';
 import { SelectionBar } from '@/editor/SelectionBar';
 import { isVisible, percent, rangeBox, timeAt, zoomView } from '@/editor/timeline-view';
 import { TimeRuler } from '@/editor/TimeRuler';
@@ -18,9 +17,6 @@ import { Thumbnails } from '@/media/thumbnails';
 import { m } from '@/paraglide/messages.js';
 import { IconButton } from '@/ui/Button';
 import { useBoxSize } from '@/ui/use-box-size';
-import { shownCues } from '../subtitles/document';
-import { useSubtitleProject } from '../subtitles/project';
-import { useSubtitleDoc } from '../subtitles/store';
 import { type VideoDoc, videoLength } from './document';
 import { useVideoDoc, useVideoEditor } from './store';
 
@@ -76,28 +72,6 @@ function Filmstrip({ file, view, aspect }: { file: File; view: Range; aspect: nu
 	return <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 size-full" aria-hidden="true" />;
 }
 
-/** The lines of the subtitle track shown with the video, as marks along time. */
-function CueMarks({ view }: { view: Range }) {
-	const doc = useSubtitleDoc();
-	const ready = useSubtitleProject((state) => state.status === 'ready' && state.current !== null);
-	if (!ready) return null;
-	return (
-		<>
-			{shownCues(doc).map((cue) => {
-				const range = { start: cue.start / 1000, end: cue.end / 1000 };
-				if (!isVisible(range, view)) return null;
-				return (
-					<span
-						key={cue.id}
-						className="bg-subtitles absolute inset-y-0 min-w-0.5 rounded-[2px] opacity-85"
-						style={rangeBox(range, view)}
-					/>
-				);
-			})}
-		</>
-	);
-}
-
 function Playhead({ view }: { view: Range }) {
 	const time = usePlayback((state) => state.time);
 	if (time < view.start || time > view.end) return null;
@@ -134,14 +108,13 @@ function VideoTrimHandle({ side, doc, view }: { side: 'start' | 'end'; doc: Vide
  * The tracks of the video along time, with what is kept, removed and selected. Pressing moves
  * playback there, dragging selects a passage, the handles move the start and the end.
  */
-function Lanes({ file, aspect, audio }: { file: File; aspect: number; audio: boolean }) {
+function Lanes({ file, aspect }: { file: File; aspect: number }) {
 	const doc = useVideoDoc();
 	const view = useVideoEditor((state) => state.view);
 	const selection = useVideoEditor((state) => state.selection);
 	const setSelection = useVideoEditor((state) => state.setSelection);
 	const apply = useVideoEditor((state) => state.apply);
 	const seek = usePlayback((state) => state.seek);
-	const { peaks, version } = usePlaybackPeaks();
 	const areaRef = useRef<HTMLDivElement>(null);
 	const drag = useRef<{ x: number; time: number; moved: boolean } | null>(null);
 
@@ -221,14 +194,6 @@ function Lanes({ file, aspect, audio }: { file: File; aspect: number; audio: boo
 				style={{ height: STRIP_HEIGHT }}
 			>
 				<Filmstrip file={file} view={view} aspect={aspect} />
-			</div>
-			{audio && (
-				<div className="relative h-9 overflow-hidden rounded-xs bg-[color-mix(in_srgb,var(--audio-1)_12%,var(--bg))] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--audio-1)_30%,transparent)]">
-					{peaks && <Waveform peaks={peaks} version={version} view={view} />}
-				</div>
-			)}
-			<div className="relative h-3 overflow-hidden">
-				<CueMarks view={view} />
 			</div>
 
 			{outside.map((range) => (
@@ -352,13 +317,11 @@ function Toolbar() {
 export function VideoTimeline({
 	file,
 	aspect,
-	audio,
 	layers,
 	onLayer,
 }: {
 	file: File;
 	aspect: number;
-	audio: boolean;
 	/** Text, stickers and shapes, each on its own row. */
 	layers: OverlayEditing;
 	/** A layer was pressed on its row. */
@@ -387,7 +350,7 @@ export function VideoTimeline({
 			<Toolbar />
 			<div id="video-timeline" className="grid gap-1">
 				<TimeRuler view={view} onSeek={seek} />
-				<Lanes file={file} aspect={aspect} audio={audio} />
+				<Lanes file={file} aspect={aspect} />
 				<LayerLanes editing={layers} view={view} onSelect={onLayer} />
 				<ViewScroll view={view} duration={duration} onView={setView} controls="video-timeline" />
 			</div>

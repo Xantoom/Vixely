@@ -11,7 +11,7 @@ import { FieldRow, Select } from '@/ui/fields';
 import { LANGUAGES } from '../video/MuxPanel';
 import { type Cue, newCueId } from './document';
 import { pictureBitmap } from './pgs';
-import { currentTrackDoc, type TrackKey, useOrigin, useProjectTracks, useSubtitleProject } from './project';
+import { whenRead, currentTrackDoc, type TrackKey, useOrigin, useProjectTracks, useSubtitleProject } from './project';
 import { useSubtitleDoc, useSubtitleEditor } from './store';
 import { translationTrack, untranslated } from './translate';
 
@@ -109,9 +109,10 @@ export function TranslatePanel({ fileName }: { fileName: string }) {
 							disabled={!chosen}
 							onClick={() => {
 								if (!chosen) return;
-								const from = currentTrackDoc(chosen.key);
-								if (!from) return;
-								addTrack(translationTrack(from, chosen.key, language));
+								void whenRead(chosen.key).then(() => {
+									const from = currentTrackDoc(chosen.key);
+									if (from) addTrack(translationTrack(from, chosen.key, language));
+								});
 							}}
 						>
 							<Languages size={16} aria-hidden="true" />
@@ -192,6 +193,7 @@ export function OcrPanel({ fileName }: { fileName: string }) {
 	const busy = state.step === 'loading' || state.step === 'working';
 
 	const run = async () => {
+		if (chosen) await whenRead(chosen.key);
 		const doc = chosen ? currentTrackDoc(chosen.key) : null;
 		if (!chosen || !doc) return;
 		stopped.current = false;

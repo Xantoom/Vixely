@@ -3,7 +3,6 @@ import { formatPreciseTime, formatTimecode } from '@/lib/format';
 import { usePlayback } from '@/media/playback';
 import type { MediaInfo } from '@/media/probe';
 import { m } from '@/paraglide/messages.js';
-import { usePlaybackPeaks, Waveform } from './PlaybackWaveform';
 import { TimeRuler } from './TimeRuler';
 
 /** Head frame of a clip, drawn at the track height. Real per-second thumbnails come with playback. */
@@ -35,12 +34,8 @@ function Playhead({ duration }: { duration: number }) {
 const KEY_STEP = 5;
 
 /**
- * The file as tracks along time: the ruler, the picture, the sound (its waveform, for the audio
- * track heard) and the subtitle lines. Pressing anywhere moves playback there, dragging scrubs,
- * and the arrow keys step through it.
- *
- * Tracks are coloured by media type everywhere in the app: an audio track is always pink and
- * subtitles are always violet, whichever editor shows them.
+ * The file along time: the ruler and the picture. Pressing anywhere moves playback there,
+ * dragging scrubs, and the arrow keys step through it.
  */
 export function Timeline({ file, info, poster }: { file: File; info: MediaInfo | null; poster: ImageBitmap | null }) {
 	const cues = info?.cues ?? null;
@@ -51,7 +46,6 @@ export function Timeline({ file, info, poster }: { file: File; info: MediaInfo |
 	const live = usePlayback((state) => state.file === file && state.details !== null);
 	const time = usePlayback((state) => state.time);
 	const seek = usePlayback((state) => state.seek);
-	const { peaks, version } = usePlaybackPeaks();
 
 	const seekAt = (event: ReactPointerEvent<HTMLDivElement>) => {
 		if (!duration) return;
@@ -107,26 +101,6 @@ export function Timeline({ file, info, poster }: { file: File; info: MediaInfo |
 					{info?.video && (
 						<div className="flex h-12 overflow-hidden rounded-xs bg-[color-mix(in_srgb,var(--video-1)_16%,var(--bg))] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--video-1)_35%,transparent)]">
 							{poster && <ClipHead poster={poster} />}
-						</div>
-					)}
-					{info?.audio && (
-						<div className="relative h-9 overflow-hidden rounded-xs bg-[color-mix(in_srgb,var(--audio-1)_12%,var(--bg))] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--audio-1)_30%,transparent)]">
-							{live && peaks ? (
-								<Waveform peaks={peaks} version={version} view={{ start: 0, end: duration }} />
-							) : (
-								<div className="bg-audio absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 opacity-60" />
-							)}
-						</div>
-					)}
-					{cues && (
-						<div className="relative h-5">
-							{cues.map((cue) => (
-								<span
-									key={`${cue.start}-${cue.text}`}
-									className="bg-subtitles absolute inset-y-0 w-1.5 rounded-[3px] opacity-90"
-									style={{ left: `${(cue.start / duration) * 100}%` }}
-								/>
-							))}
 						</div>
 					)}
 					{live && <Playhead duration={duration} />}

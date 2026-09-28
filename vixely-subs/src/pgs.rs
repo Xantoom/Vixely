@@ -275,24 +275,45 @@ fn object_segments(id: u16, version: u8, width: u16, height: u16, rle: &[u8]) ->
 /// Muxers put a whole display set in each block, or each segment in its own block; segments are
 /// gathered until the end segment either way, and the set shows at the time of its composition.
 pub fn read_blocks<'a>(blocks: impl IntoIterator<Item = (f64, Option<f64>, &'a [u8])>) -> Vec<Picture> {
-	let mut normalizer = Normalizer::default();
-	let mut set = Vec::new();
-	let mut shown: Option<(f64, Option<f64>)> = None;
+	let mut stream = BlockStream::default();
 	for (time, duration, data) in blocks {
+		stream.push(time, duration, data);
+	}
+	stream.take(true)
+}
+
+/// The blocks of a PGS track given a few at a time, in file order. Display sets may reuse the
+/// palettes and objects of earlier ones, so what came before is remembered.
+#[derive(Default)]
+pub struct BlockStream {
+	normalizer: Normalizer,
+	set: Vec<u8>,
+	shown: Option<(f64, Option<f64>)>,
+}
+
+impl BlockStream {
+	pub fn push(&mut self, time: f64, duration: Option<f64>, data: &[u8]) {
 		for piece in bare_segments(data) {
 			if piece.kind == PCS {
-				shown = Some((time, duration));
+				self.shown = Some((time, duration));
 			}
-			set.extend(segment(piece.kind, piece.data));
+			self.set.extend(segment(piece.kind, piece.data));
 			if piece.kind == END {
-				if let Some((time, duration)) = shown.take() {
-					normalizer.push(time, &set, duration);
+				if let Some((time, duration)) = self.shown.take() {
+					self.normalizer.push(time, &self.set, duration);
 				}
-				set.clear();
+				self.set.clear();
 			}
 		}
 	}
-	normalizer.pictures
+
+	/// The pictures read so far: all of them at the end of the track, else all but the last,
+	/// which the next display set may end.
+	pub fn take(&mut self, last: bool) -> Vec<Picture> {
+		let pictures = &mut self.normalizer.pictures;
+		let keep = usize::from(!last).min(pictures.len());
+		pictures.drain(..pictures.len() - keep).collect()
+	}
 }
 
 /// Pictures of a `.sup` file.
@@ -611,6 +632,23 @@ mod tests {
 			(1500.0, 2500.0, Some(3500.0))
 		);
 		assert_eq!(decode(&again[1].set).unwrap().1, second);
+	}
+
+	#[test]
+	fn reads_blocks_a_batch_at_a_time() {
+		let sets = sup_display_sets(&stream());
+		let whole = read_blocks(sets.iter().map(|(time, set)| (*time, None, set.as_slice())));
+		let mut stream = BlockStream::default();
+		let mut pictures = Vec::new();
+		for (time, set) in &sets {
+			stream.push(*time, None, set);
+			pictures.extend(stream.take(false));
+		}
+		pictures.extend(stream.take(true));
+		assert_eq!(pictures.len(), whole.len());
+		for (a, b) in pictures.iter().zip(&whole) {
+			assert_eq!((a.start_ms, a.end_ms, &a.set), (b.start_ms, b.end_ms, &b.set));
+		}
 	}
 
 	#[test]

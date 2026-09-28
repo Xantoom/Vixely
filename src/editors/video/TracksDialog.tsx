@@ -14,7 +14,7 @@ import { Dropdown } from '@/ui/Dropdown';
 import { FieldRow, Slider, Switch } from '@/ui/fields';
 import { Modal } from '@/ui/Modal';
 import { TimingPanel } from '../subtitles/panels';
-import { isAdded, type TrackKey, useProjectReady, useSubtitleProject } from '../subtitles/project';
+import { isAdded, isPictures, type TrackKey, useProjectReady, useSubtitleProject } from '../subtitles/project';
 import { useSubtitleEditor } from '../subtitles/store';
 import { SubtitleViewer } from '../subtitles/SubtitleViewer';
 import { OcrPanel, TranslatePanel } from '../subtitles/tools';
@@ -206,7 +206,7 @@ export function TracksDialog({
 	const choose = useSubtitleProject((state) => state.choose);
 	const current = useSubtitleProject((state) => state.current);
 	const hasNew = useSubtitleProject((state) => state.tracks.some((track) => track.key === 'new'));
-	const pictures = useSubtitleProject((state) => state.tracks.some((track) => track.original?.format === 'pgs'));
+	const pictures = useSubtitleProject((state) => state.tracks.some(isPictures));
 	const ready = useProjectReady();
 	const setAudioTrack = usePlayback((state) => state.setAudioTrack);
 	const [selected, setSelected] = useState(initial);

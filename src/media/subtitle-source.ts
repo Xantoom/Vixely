@@ -1,7 +1,8 @@
 /**
  * The subtitle tracks of a video file (Matroska, WebM, MP4, QuickTime), read in a worker. The
  * worker reads only the parts of the file it needs, so a film of several gigabytes lists its
- * tracks at once, and all of them are read together in one pass, in a few seconds at most.
+ * tracks at once. A track is read a batch of lines at a time: the file's index says where each
+ * line is, and the lines of a batch are read all at once.
  */
 
 export interface SubtitleTrackInfo {
@@ -46,15 +47,26 @@ export interface ExtractedTrack {
 	codecPrivate: Uint8Array;
 }
 
+/** Lines `from..from + count` of a track, and how many it has. */
+export interface TrackBatch {
+	packets: ExtractedTrack;
+	/** Lines of the whole track. */
+	total: number;
+	/** Start of the line after the batch, in milliseconds; NaN when unknown or none. */
+	next: number;
+}
+
 export type SubtitleSourceRequest =
 	| { type: 'open'; file: File }
 	| { type: 'extract'; tracks: number[] }
+	| { type: 'batch'; track: number; from: number; count: number }
 	| { type: 'attachments'; indices: number[] };
 
 export type SubtitleSourceResponse =
 	| { type: 'opened'; tracks: SubtitleTrackInfo[]; media: MediaTrackInfo[]; attachments: AttachmentInfo[] }
 	| { type: 'progress'; share: number }
 	| { type: 'extracted'; tracks: ExtractedTrack[] }
+	| ({ type: 'batch' } & TrackBatch)
 	| { type: 'attachments'; files: Uint8Array[] }
 	| { type: 'error'; message: string };
 
@@ -101,6 +113,18 @@ export class SubtitleSource {
 		const answer = await this.enqueue(async () => request(this.worker, { type: 'extract', tracks }, onProgress));
 		if (answer.type !== 'extracted') throw new Error('Unexpected answer.');
 		return answer.tracks;
+	}
+
+	/**
+	 * Lines `from..from + count` of a track. A track the file's index doesn't cover is read whole
+	 * the first time, then handed out a batch at a time: `onProgress` follows that reading.
+	 */
+	async batch(track: number, from: number, count: number, onProgress?: (share: number) => void): Promise<TrackBatch> {
+		const answer = await this.enqueue(async () =>
+			request(this.worker, { type: 'batch', track, from, count }, onProgress),
+		);
+		if (answer.type !== 'batch') throw new Error('Unexpected answer.');
+		return answer;
 	}
 
 	/** The attached fonts, for the subtitle renderer. */

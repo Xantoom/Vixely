@@ -8,6 +8,7 @@ import { m } from '@/paraglide/messages.js';
 import { Button, IconButton } from '@/ui/Button';
 import { ColorPopover } from '@/ui/ColorPopover';
 import { NumberField, Select, Slider } from '@/ui/fields';
+import { applyWhole } from './project';
 import { useSubtitleDoc, useSubtitleEditor } from './store';
 import {
 	assColor,
@@ -102,7 +103,7 @@ export function StylesPanel({ title }: { title: string }) {
 				<PanelTitle>{m.tool_styles()}</PanelTitle>
 				<Button
 					onClick={() => {
-						apply((before) =>
+						applyWhole((before) =>
 							toAssDoc(before, title, video ? { width: video.width, height: video.height } : undefined),
 						);
 						setExport({ format: 'ass' });
@@ -119,7 +120,7 @@ export function StylesPanel({ title }: { title: string }) {
 	const style: AssStyle | undefined = styles[index];
 	const use = styleUse(doc);
 	const set = (change: Record<string, string>) => {
-		apply((before) => updateStyle(before, index, change));
+		applyWhole((before) => updateStyle(before, index, change));
 	};
 	const fonts = [...new Set([...COMMON_FONTS, ...styles.map((item) => item.fontname ?? '')])].filter(Boolean);
 	const flag = (field: string) => assFlag(style?.[field]);
@@ -165,7 +166,7 @@ export function StylesPanel({ title }: { title: string }) {
 					label={m.style_delete()}
 					disabled={styles.length <= 1}
 					onClick={() => {
-						apply((before) => deleteStyle(before, index));
+						applyWhole((before) => deleteStyle(before, index));
 						setChosen(Math.max(0, index - 1));
 					}}
 				>

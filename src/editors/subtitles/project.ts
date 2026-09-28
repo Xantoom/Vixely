@@ -10,7 +10,7 @@ import type { SubtitleDoc } from './document';
 import { parseSubtitles } from './formats';
 import { decodeText, detectEncoding, type EncodingId } from './formats/encoding';
 import { type SubtitleExportSettings, useSubtitleEditor } from './store';
-import { preferredTrack, supDoc, trackDoc, trackKind } from './tracks';
+import { type BatchLines, preferredTrack, supDoc, TrackReader, trackKind } from './tracks';
 
 /**
  * A track of the video by its number, the subtitles of a subtitle file, new subtitles, or a
@@ -70,6 +70,11 @@ export interface ProjectTrack {
 	original: SubtitleDoc | null;
 	/** Its edits, kept while another track is shown. */
 	history: History<SubtitleDoc> | null;
+	/**
+	 * Lines are still being read from the video, a batch at a time: they are added to the document
+	 * and to every state of its history as they come. `original` stays null until the first batch.
+	 */
+	reading?: boolean;
 	/** A translation: the track it translates, and the original text of each of its lines by id. */
 	origin?: { key: TrackKey; texts: ReadonlyMap<number, string> } | null;
 }
@@ -130,10 +135,13 @@ interface ProjectState {
 	media: MediaTrackInfo[];
 	/** Bytes of a subtitle file, to read it again with another character set. */
 	bytes: Uint8Array | null;
+	/** A track chosen before its first lines were read: shown when they are. */
+	wanted: TrackKey | null;
 
 	/**
-	 * Reads a file: all the subtitle tracks of a video at once, so switching between them is
-	 * instant. The file already open is kept as it is, with its edits.
+	 * Reads a file. The tracks of a video are read a batch of lines at a time: the first batch of
+	 * the track shown, then the rest of it, then the other tracks, without holding anything up.
+	 * The file already open is kept as it is, with its edits.
 	 */
 	open: (opened: OpenedFile) => void;
 	/** Shows another track; the edits of the one left are kept. */
@@ -174,6 +182,9 @@ function emptyDoc(): SubtitleDoc {
 
 const TEXT_FORMATS = new Set(['srt', 'vtt', 'ass']);
 
+/** Lines of a track read at once. */
+const BATCH = 200;
+
 /** A file left for another one, as it was: going back to it finds its tracks and edits. */
 interface Left {
 	state: Pick<ProjectState, 'source' | 'listFailed' | 'tracks' | 'current' | 'fonts' | 'media' | 'bytes'>;
@@ -199,13 +210,56 @@ export const useSubtitleProject = create<ProjectState>((set, get) => {
 		set({ tracks: at === -1 ? [...tracks, ...added] : tracks.toSpliced(at, 0, ...added) });
 	};
 
-	const ready = (read: ProjectTrack[], first: TrackKey, patch: Partial<ProjectState> = {}) => {
-		const kept = takeRestore<SubtitlesKept>('subtitles');
+	const ready = (
+		read: ProjectTrack[],
+		first: TrackKey,
+		patch: Partial<ProjectState> = {},
+		kept = takeRestore<SubtitlesKept>('subtitles'),
+	) => {
 		const tracks = kept ? restored(read, kept) : read;
 		const shown = kept?.current ?? first;
 		set({ tracks, current: null, status: 'ready', progress: 1, ...patch });
 		get().choose(tracks.some((track) => track.key === shown && track.original) ? shown : first);
 		if (kept) useSubtitleEditor.getState().setExport(kept.exportSettings);
+	};
+
+	/** Adds the lines of a batch to a track, and to every state of its history. */
+	const grow = (key: TrackKey, reader: TrackReader, lines: BatchLines, empty: SubtitleDoc | null, last: boolean) => {
+		const track = get().tracks.find((candidate) => candidate.key === key);
+		const before = track?.original ?? empty;
+		if (!track || !before) return;
+		const add = (doc: SubtitleDoc): SubtitleDoc => ({
+			...doc,
+			cues: lines.cues.length > 0 ? [...doc.cues, ...lines.cues] : doc.cues,
+			...(lines.pgsSize && !doc.pgsSize ? { pgsSize: lines.pgsSize } : {}),
+		});
+		let after = add(before);
+		if (last) after = { ...after, cues: reader.inFileOrder(after.cues) };
+		// The document as read becomes the new one; edited ones get the lines at the end.
+		const extend = (doc: SubtitleDoc) => (doc === track.original ? after : add(doc));
+		const history = track.history && {
+			past: track.history.past.map(extend),
+			present: extend(track.history.present),
+			future: track.history.future.map(extend),
+		};
+		set({
+			tracks: get().tracks.map((candidate) =>
+				candidate.key === key ? { ...candidate, original: after, history, reading: !last } : candidate,
+			),
+		});
+		if (key === get().current) useSubtitleEditor.getState().extend(showKey(key), extend);
+		else if (key === get().wanted && (after.cues.length > 0 || last)) {
+			set({ wanted: null });
+			get().choose(key);
+		}
+	};
+
+	/** A track that can't be read after all. */
+	const unreadable = (key: TrackKey) => {
+		set({
+			tracks: get().tracks.map((track) => (track.key === key ? { ...track, reading: false } : track)),
+			...(get().wanted === key ? { wanted: null } : {}),
+		});
 	};
 
 	const openVideo = async (file: File, mine: number) => {
@@ -214,29 +268,86 @@ export const useSubtitleProject = create<ProjectState>((set, get) => {
 		try {
 			source = await SubtitleSource.open(file);
 			if (mine !== run) return;
-			const infos = source.tracks;
-			const readable = infos.filter((info) => trackKind(info) !== null);
-			const extracted = await source.extract(
-				readable.map((info) => info.id),
-				(progress) => {
-					if (mine === run) set({ progress });
-				},
+			const opened = source;
+			const infos = opened.tracks;
+			const readers = new Map(
+				infos.filter((info) => trackKind(info) !== null).map((info) => [info.id, new TrackReader(info)]),
 			);
-			const docs = await Promise.all(
-				readable.map(async (info, index) => {
-					const track = extracted[index];
-					return track ? trackDoc(info, track).catch(() => null) : null;
-				}),
-			);
-			// ASS styles name fonts the video usually carries.
-			const fonts = readable.some((info) => trackKind(info) === 'ass') ? await source.fonts() : [];
-			if (mine !== run) return;
-			const tracks: ProjectTrack[] = infos.map((info) => {
-				const index = readable.indexOf(info);
-				return { key: info.id, info, original: index === -1 ? null : (docs[index] ?? null), history: null };
+			/** Lines of each track read so far, and how many it has once known. */
+			const read = new Map<number, { next: number; total: number }>();
+			set({
+				tracks: [
+					...infos.map((info) => ({
+						key: info.id,
+						info,
+						original: null,
+						history: null,
+						reading: readers.has(info.id),
+					})),
+					newTrack,
+				],
+				media: opened.media,
 			});
-			const preferred = preferredTrack(infos.filter((_, index) => tracks[index]?.original));
-			ready([...tracks, newTrack], preferred?.id ?? 'new', { fonts, media: source.media });
+
+			/** Reads the next batch of a track. */
+			const readBatch = async (id: number, onProgress?: (share: number) => void) => {
+				const reader = readers.get(id);
+				const at = read.get(id) ?? { next: 0, total: Number.POSITIVE_INFINITY };
+				if (!reader) return;
+				try {
+					const batch = await opened.batch(id, at.next, BATCH, onProgress);
+					if (mine !== run) return;
+					const next = at.next + BATCH;
+					read.set(id, { next, total: batch.total });
+					const last = next >= batch.total;
+					const empty = at.next === 0 ? reader.empty(batch.packets.codecPrivate) : null;
+					if (at.next === 0 && !empty) {
+						unreadable(id);
+						return;
+					}
+					grow(id, reader, await reader.lines(batch.packets, batch.next, last), empty, last);
+				} catch {
+					if (mine === run) unreadable(id);
+				}
+			};
+			/** The track to read next: the one asked for, the one shown, then the others in order. */
+			const nextTrack = (): number | null => {
+				const { tracks, wanted, current } = get();
+				const reading = tracks.filter((track) => track.reading && typeof track.key === 'number');
+				const pick =
+					reading.find((track) => track.key === wanted) ??
+					reading.find((track) => track.key === current) ??
+					reading[0];
+				return typeof pick?.key === 'number' ? pick.key : null;
+			};
+
+			// A closed tab's edits are put back on tracks read whole.
+			const kept = takeRestore<SubtitlesKept>('subtitles');
+			const whole = new Set(
+				kept?.tracks.flatMap(({ key }) => (typeof key === 'number' && readers.has(key) ? [key] : [])),
+			);
+			const isReading = (id: number) => get().tracks.some((track) => track.key === id && track.reading);
+			for (const id of whole) {
+				// oxlint-disable-next-line no-await-in-loop -- tracks are read in turn
+				while (mine === run && isReading(id)) await readBatch(id);
+			}
+			// The track shown: its first lines, then everything else in the background.
+			const preferred = preferredTrack(infos);
+			if (preferred && isReading(preferred.id)) {
+				await readBatch(preferred.id, (progress) => {
+					if (mine === run) set({ progress });
+				});
+			}
+			// ASS styles name fonts the video usually carries.
+			const fonts = infos.some((info) => trackKind(info) === 'ass') ? await opened.fonts() : [];
+			if (mine !== run) return;
+			const shown = get().tracks.find((track) => track.key === preferred?.id && track.original);
+			ready(get().tracks, shown?.key ?? 'new', { fonts }, kept);
+
+			for (let id = nextTrack(); id !== null && mine === run; id = nextTrack()) {
+				// oxlint-disable-next-line no-await-in-loop -- one batch at a time, the most wanted first
+				await readBatch(id);
+			}
 		} catch {
 			if (mine !== run) return;
 			ready([newTrack], 'new', { listFailed: true });
@@ -256,11 +367,13 @@ export const useSubtitleProject = create<ProjectState>((set, get) => {
 		fonts: [],
 		media: [],
 		bytes: null,
+		wanted: null,
 
 		open(opened) {
 			if (opened.file === get().file) return;
 			const leaving = get();
-			if (leaving.file && leaving.status === 'ready') {
+			// A file left while its tracks are still read is read again when it comes back.
+			if (leaving.file && leaving.status === 'ready' && !leaving.tracks.some((track) => track.reading)) {
 				const editor = useSubtitleEditor.getState();
 				editor.settle();
 				const { history, exportSettings, encoding } = useSubtitleEditor.getState();
@@ -308,6 +421,7 @@ export const useSubtitleProject = create<ProjectState>((set, get) => {
 				fonts: [],
 				media: [],
 				bytes: null,
+				wanted: null,
 			});
 			// A video plays under its own subtitles; a subtitle file starts without one.
 			usePlayback.getState().load(kind === 'video' ? file : null);
@@ -341,7 +455,11 @@ export const useSubtitleProject = create<ProjectState>((set, get) => {
 		choose(key) {
 			const { tracks, current } = get();
 			const target = tracks.find((track) => track.key === key);
-			if (!target?.original || key === current) return;
+			if (key === current) return;
+			if (!target?.original) {
+				if (target?.reading) set({ wanted: key });
+				return;
+			}
 			const editor = useSubtitleEditor.getState();
 			editor.settle();
 			const kept = tracks.map((track) =>
@@ -402,6 +520,7 @@ registerRestorable('subtitles', {
 		if (status !== 'ready' || !file || file !== useSession.getState().current?.file) return null;
 		const editor = useSubtitleEditor.getState();
 		const kept = tracks.flatMap((track): KeptTrack[] => {
+			if (track.reading) return [];
 			const history = track.key === current ? editor.history : track.history;
 			if (isAdded(track.key)) {
 				return [
@@ -493,4 +612,38 @@ export function useOrigin(): ReadonlyMap<number, string> | null {
 	return useSubtitleProject(
 		(state) => state.tracks.find((track) => track.key === state.current)?.origin?.texts ?? null,
 	);
+}
+
+/**
+ * Resolves once every line of a track is read, or of every track when none is given: for work on
+ * a whole track (an export, a shift, a search), which must not miss lines still being read.
+ */
+export async function whenRead(key?: TrackKey | null): Promise<void> {
+	const done = () =>
+		!useSubtitleProject
+			.getState()
+			.tracks.some((track) => track.reading && (key === undefined || key === null || track.key === key));
+	if (done()) return;
+	await new Promise<void>((resolve) => {
+		const stop = useSubtitleProject.subscribe(() => {
+			if (!done()) return;
+			stop();
+			resolve();
+		});
+	});
+}
+
+/** Applies a change to the whole track shown, once all its lines are read. */
+export function applyWhole(change: (doc: SubtitleDoc) => SubtitleDoc) {
+	const shown = useSubtitleEditor.getState().key;
+	void whenRead(useSubtitleProject.getState().current).then(() => {
+		const editor = useSubtitleEditor.getState();
+		if (editor.key === shown) editor.apply(change);
+	});
+}
+
+/** Whether a track holds pictures (PGS), read already or not yet. */
+export function isPictures(track: ProjectTrack): boolean {
+	if (track.original) return track.original.format === 'pgs';
+	return track.reading === true && track.info !== null && trackKind(track.info) === 'pgs';
 }

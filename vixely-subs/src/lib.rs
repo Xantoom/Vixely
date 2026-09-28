@@ -11,6 +11,7 @@ pub mod mp4_mux;
 pub mod mux;
 pub mod pgs;
 
+use std::collections::HashMap;
 use std::io::{self, Read, Seek, SeekFrom};
 
 use js_sys::{Function, Uint8Array};
@@ -30,6 +31,8 @@ struct JsSource {
 	buffer: Vec<u8>,
 	buffer_start: u64,
 	chunk: usize,
+	/// Ranges read ahead by JavaScript, all at once, by start: used before reading again.
+	prefetched: Vec<(u64, Vec<u8>)>,
 }
 
 impl JsSource {
@@ -41,10 +44,19 @@ impl JsSource {
 			buffer: Vec::new(),
 			buffer_start: 0,
 			chunk: SMALL_READ,
+			prefetched: Vec::new(),
 		}
 	}
 
 	fn fill(&mut self, wanted: usize) -> io::Result<()> {
+		let at = self.prefetched.partition_point(|(start, _)| *start <= self.position);
+		if let Some((start, data)) = at.checked_sub(1).and_then(|at| self.prefetched.get(at))
+			&& self.position < start + data.len() as u64
+		{
+			self.buffer = data.clone();
+			self.buffer_start = *start;
+			return Ok(());
+		}
 		let buffer_end = self.buffer_start + self.buffer.len() as u64;
 		// Reading on, or skipping a little ahead (from block header to block header), counts as
 		// reading through: the next read is larger.
@@ -128,6 +140,10 @@ enum Container {
 pub struct SubtitleSource {
 	source: JsSource,
 	container: Container,
+	/// Where the blocks of each subtitle track are, from the cues: read once, when first needed.
+	index: Option<HashMap<u64, Vec<mkv::IndexedBlock>>>,
+	/// Length of a cluster header, as the last cluster read had it.
+	cluster_header: u64,
 }
 
 #[wasm_bindgen]
@@ -146,7 +162,12 @@ impl SubtitleSource {
 		} else {
 			return Err(JsError::new("not a Matroska or MP4 file"));
 		};
-		Ok(SubtitleSource { source, container })
+		Ok(SubtitleSource {
+			source,
+			container,
+			index: None,
+			cluster_header: mkv::CLUSTER_HEADER_MAX,
+		})
 	}
 
 	/// The subtitle tracks, as JSON: `[{ id, codec, language, name, default, forced }]`.
@@ -301,6 +322,147 @@ impl SubtitleSource {
 		}
 		.map_err(error)?;
 		Ok(packets.into_iter().map(Packets::from).collect())
+	}
+}
+
+/// Bytes read ahead of each block: enough for a line of text, or for most PGS pictures.
+const TEXT_WINDOW: u64 = 4 << 10;
+const PICTURE_WINDOW: u64 = 96 << 10;
+/// Blocks this close together are read in one go: reading on costs less than another read.
+const MERGE_GAP: u64 = 256 << 10;
+
+/// Reading a track a batch of blocks at a time, from the cues. JavaScript reads the ranges of a
+/// batch all at once (`batch_ranges`, `prefetch`), then `read_batch` finds the blocks in them.
+#[wasm_bindgen]
+impl SubtitleSource {
+	/// Number of blocks of a track, when the cues say where each one is; -1 when the track can
+	/// only be read whole (`extract_all`).
+	pub fn indexed_count(&mut self, track: u32) -> Result<i32, JsError> {
+		Ok(self.indexed(track)?.map_or(-1, |blocks| blocks.len() as i32))
+	}
+
+	/// Time of block `index` of a track, in milliseconds; NaN past the last one.
+	pub fn block_time(&mut self, track: u32, index: usize) -> Result<f64, JsError> {
+		let scale = match &self.container {
+			Container::Matroska(file) => file.timestamp_scale as f64,
+			Container::Mp4(_) => return Ok(f64::NAN),
+		};
+		let time = self.indexed(track)?.and_then(|blocks| blocks.get(index)).map(|block| block.time);
+		Ok(time.map_or(f64::NAN, |time| scale * time as f64 / 1e6))
+	}
+
+	/// Where to read blocks `from..from + count` of a track: `[start, length, start, length, ...]`.
+	pub fn batch_ranges(&mut self, track: u32, from: usize, count: usize) -> Result<Vec<f64>, JsError> {
+		let window = if self.is_pictures(track) {
+			PICTURE_WINDOW
+		} else {
+			TEXT_WINDOW
+		};
+		let blocks = self.indexed(track)?.ok_or_else(|| JsError::new("track not indexed"))?;
+		let batch = &blocks[from.min(blocks.len())..(from + count).min(blocks.len())];
+		Ok(mkv::block_ranges(batch, window, MERGE_GAP)
+			.into_iter()
+			.flat_map(|(start, length)| [start as f64, length as f64])
+			.collect())
+	}
+
+	/// Ranges read ahead, side by side in `data`, for the next `read_batch`.
+	pub fn prefetch(&mut self, starts: &[f64], lengths: &[u32], data: Vec<u8>) {
+		let mut at = 0;
+		self.source.prefetched = starts
+			.iter()
+			.zip(lengths)
+			.map(|(&start, &length)| {
+				let end = (at + length as usize).min(data.len());
+				let range = (start as u64, data[at..end].to_vec());
+				at = end;
+				range
+			})
+			.collect();
+		self.source.prefetched.sort_unstable_by_key(|(start, _)| *start);
+	}
+
+	/// Blocks `from..from + count` of a track, from the ranges read ahead; any block they don't
+	/// hold whole is read on its own.
+	pub fn read_batch(&mut self, track: u32, from: usize, count: usize) -> Result<Packets, JsError> {
+		let Container::Matroska(file) = &self.container else {
+			return Err(JsError::new("track not indexed"));
+		};
+		let blocks = self
+			.index
+			.as_ref()
+			.and_then(|index| index.get(&(track as u64)))
+			.ok_or_else(|| JsError::new("track not indexed"))?;
+		let batch = &blocks[from.min(blocks.len())..(from + count).min(blocks.len())];
+		let packets = mkv::read_indexed(&mut self.source, file, track as u64, batch, &mut self.cluster_header);
+		self.source.prefetched.clear();
+		Ok(Packets::from(packets.map_err(error)?))
+	}
+}
+
+impl SubtitleSource {
+	fn is_pictures(&self, track: u32) -> bool {
+		match &self.container {
+			Container::Matroska(file) => file
+				.tracks
+				.iter()
+				.any(|t| t.number == track as u64 && t.codec == "S_HDMV/PGS"),
+			Container::Mp4(_) => false,
+		}
+	}
+
+	/// The blocks of a track the cues list, reading the cues for every subtitle track the first time.
+	fn indexed(&mut self, track: u32) -> Result<Option<&Vec<mkv::IndexedBlock>>, JsError> {
+		let Container::Matroska(file) = &self.container else {
+			return Ok(None);
+		};
+		if self.index.is_none() {
+			let numbers: Vec<u64> = file
+				.tracks
+				.iter()
+				.filter(|t| t.kind == mkv::SUBTITLE_TRACK)
+				.map(|t| t.number)
+				.collect();
+			self.index = Some(mkv::block_index(&mut self.source, file, &numbers).map_err(error)?);
+		}
+		Ok(self
+			.index
+			.as_ref()
+			.and_then(|index| index.get(&(track as u64)))
+			.filter(|blocks| !blocks.is_empty()))
+	}
+}
+
+/// The blocks of a PGS track given a batch at a time, turned into pictures as they come.
+#[wasm_bindgen]
+pub struct PgsStream {
+	stream: pgs::BlockStream,
+}
+
+#[wasm_bindgen]
+impl PgsStream {
+	#[wasm_bindgen(constructor)]
+	pub fn new() -> PgsStream {
+		PgsStream {
+			stream: pgs::BlockStream::default(),
+		}
+	}
+
+	/// Adds packets in file order; returns the pictures whose end is known, all of them when
+	/// `last` says the track ends here.
+	pub fn push(&mut self, starts: &[f64], durations: &[f64], offsets: &[u32], data: &[u8], last: bool) -> Pictures {
+		for (k, &start) in starts.iter().enumerate() {
+			let (from, to) = (offsets[k] as usize, offsets[k + 1] as usize);
+			let duration = durations.get(k).copied().filter(|d| d.is_finite());
+			self.stream.push(start, duration, &data[from..to]);
+		}
+		Pictures::from(self.stream.take(last))
+	}
+}
+
+impl Default for PgsStream {
+	fn default() -> Self {
+		Self::new()
 	}
 }
 

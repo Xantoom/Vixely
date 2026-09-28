@@ -7,6 +7,7 @@ import { Button, IconButton } from '@/ui/Button';
 import { Switch } from '@/ui/fields';
 import { findCue } from './document';
 import { type FindQuery, findMatches, queryPattern, replaceAll, replaceMatch } from './find';
+import { applyWhole } from './project';
 import { useSubtitleDoc, useSubtitleEditor } from './store';
 
 /** Kept while the panel closes and opens again, as Aegisub's dialog keeps its last search. */
@@ -200,7 +201,7 @@ export function FindPanel() {
 					<Button
 						disabled={matches.length === 0}
 						onClick={() => {
-							apply((before) => replaceAll(before, query, by).doc);
+							applyWhole((before) => replaceAll(before, query, by).doc);
 							setCurrent(null);
 						}}
 					>

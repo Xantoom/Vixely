@@ -28,7 +28,7 @@ import { droppedCues, exportFormats, FORMAT_FILES, writeSubtitles } from './form
 import { ENCODINGS, type EncodingId } from './formats/encoding';
 import { cueLabel } from './labels';
 import { writeSup } from './pgs';
-import { exportName, useProjectTracks, useSubtitleProject } from './project';
+import { whenRead, applyWhole, exportName, useProjectTracks, useSubtitleProject } from './project';
 import { useSubtitleDoc, useSubtitleEditor } from './store';
 import { projectTrackName } from './tools';
 import { codecLabel, unsupportedReason, type Unsupported } from './tracks';
@@ -58,8 +58,8 @@ const UNSUPPORTED: Record<Unsupported, () => string> = {
 };
 
 /**
- * The subtitle tracks of the video, all read already: picking one shows it at once, and edits of
- * the others are kept. A dot marks tracks that were edited.
+ * The subtitle tracks of the video, read in the background: picking one shows it at once, and
+ * edits of the others are kept. A dot marks tracks that were edited.
  */
 function TracksSection({ fileName }: { fileName: string }) {
 	const tracks = useProjectTracks();
@@ -71,7 +71,7 @@ function TracksSection({ fileName }: { fileName: string }) {
 			<div role="radiogroup" aria-label={m.subs_tracks()} className="-mx-2.5 grid gap-0.5">
 				{tracks.map((track) => {
 					const { info } = track;
-					const usable = track.original !== null;
+					const usable = track.original !== null || track.reading === true;
 					const reason = info && !usable ? UNSUPPORTED[unsupportedReason(info)]() : undefined;
 					return (
 						<button
@@ -246,7 +246,6 @@ export function TimingPanel() {
 	const selection = useSubtitleEditor((state) => state.selection);
 	const playhead = usePlayback((state) => state.time);
 	const seek = usePlayback((state) => state.seek);
-	const apply = useSubtitleEditor((state) => state.apply);
 	const [offset, setOffset] = useState(0);
 	const [scope, setScope] = useState<Scope>('all');
 	const [fromRate, setFromRate] = useState('25');
@@ -304,7 +303,7 @@ export function TimingPanel() {
 				<Button
 					disabled={offset === 0}
 					onClick={() => {
-						apply((current) => retime(current, 1, offset, ids));
+						applyWhole((current) => retime(current, 1, offset, ids));
 					}}
 				>
 					{m.subs_shift_apply({ offset: signedSeconds(offset) })}
@@ -365,7 +364,7 @@ export function TimingPanel() {
 						disabled={!syncChanges}
 						onClick={() => {
 							if (!sync) return;
-							apply((current) => retime(current, sync.scale, sync.offset));
+							applyWhole((current) => retime(current, sync.scale, sync.offset));
 							setTargets(null);
 						}}
 					>
@@ -393,7 +392,7 @@ export function TimingPanel() {
 				<Button
 					disabled={fromRate === toRate}
 					onClick={() => {
-						apply((current) => retime(current, rate(fromRate) / rate(toRate), 0));
+						applyWhole((current) => retime(current, rate(fromRate) / rate(toRate), 0));
 					}}
 				>
 					{m.subs_frame_rate_apply({ scale: decimal(rate(fromRate) / rate(toRate), 5) })}
@@ -403,7 +402,7 @@ export function TimingPanel() {
 			<Button
 				disabled={inTimeOrder(doc)}
 				onClick={() => {
-					apply(sortByTime);
+					applyWhole(sortByTime);
 				}}
 			>
 				<ArrowDownWideNarrow size={16} aria-hidden="true" />
@@ -494,7 +493,6 @@ export function SubtitleExportFooter({ opened }: { opened: OpenedFile }) {
 }
 
 function SubtitleFileFooter() {
-	const doc = useSubtitleDoc();
 	const settings = useSubtitleEditor((state) => state.exportSettings);
 	const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
 
@@ -511,16 +509,18 @@ function SubtitleFileFooter() {
 	const run = async () => {
 		setStatus('saving');
 		try {
+			await whenRead(useSubtitleProject.getState().current);
+			const whole = useSubtitleEditor.getState().history.present;
 			const format = settings.format;
 			const { extension, mime } = FORMAT_FILES[format];
 			const name = exportName(extension);
 			let blob: Blob;
 			if (format === 'pgs') {
-				const bytes = await writeSup(doc);
+				const bytes = await writeSup(whole);
 				blob = new Blob([bytes.slice()], { type: mime });
 			} else {
 				const title = name.replace(/\.[^.]+$/, '');
-				const text = writeSubtitles(doc, format, title, usePlayback.getState().details?.video ?? undefined);
+				const text = writeSubtitles(whole, format, title, usePlayback.getState().details?.video ?? undefined);
 				// A byte order mark tells older players and Windows programs the file is UTF-8.
 				const bom = format === 'vtt' ? '' : '\ufeff';
 				blob = new Blob([bom + text], { type: mime });

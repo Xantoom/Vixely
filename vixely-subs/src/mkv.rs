@@ -49,6 +49,7 @@ pub(crate) const BLOCK: u32 = 0xA1;
 pub(crate) const BLOCK_DURATION: u32 = 0x9B;
 pub(crate) const CUES: u32 = 0x1C53_BB6B;
 pub(crate) const CUE_POINT: u32 = 0xBB;
+pub(crate) const CUE_TIME: u32 = 0xB3;
 pub(crate) const CUE_TRACK_POSITIONS: u32 = 0xB7;
 pub(crate) const CUE_TRACK: u32 = 0xF7;
 pub(crate) const CUE_CLUSTER_POSITION: u32 = 0xF1;
@@ -584,6 +585,145 @@ impl Reader<'_> {
 	}
 }
 
+/// Where a block of a track is, as the cues say: its cluster (from the start of the file), its
+/// place in the cluster's content, and its time in timestamp units.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct IndexedBlock {
+	pub cluster: u64,
+	pub relative: u64,
+	pub time: u64,
+}
+
+/// Every block of each wanted track, from one pass over the cues, in file order. A track is
+/// missing when the cues don't list it or don't say where its blocks are in their cluster: its
+/// blocks can then only be found by walking the clusters.
+pub fn block_index<R: Read + Seek>(
+	r: &mut R,
+	file: &Matroska,
+	tracks: &[u64],
+) -> io::Result<HashMap<u64, Vec<IndexedBlock>>> {
+	let mut found: HashMap<u64, Vec<IndexedBlock>> = HashMap::new();
+	let mut incomplete = HashSet::new();
+	let Some((start, end)) = file.cues else {
+		return Ok(found);
+	};
+	children(r, start, end, |r, point| {
+		if point.id != CUE_POINT {
+			return Ok(());
+		}
+		let mut time = None;
+		children(r, point.start, point.end(), |r, entry| {
+			if entry.id == CUE_TIME {
+				time = Some(read_uint(r, entry.size)?);
+				return Ok(());
+			}
+			if entry.id != CUE_TRACK_POSITIONS {
+				return Ok(());
+			}
+			let mut number = 0;
+			let mut cluster = None;
+			let mut relative = None;
+			children(r, entry.start, entry.end(), |r, field| {
+				match field.id {
+					CUE_TRACK => number = read_uint(r, field.size)?,
+					CUE_CLUSTER_POSITION => cluster = Some(read_uint(r, field.size)?),
+					CUE_RELATIVE_POSITION => relative = Some(read_uint(r, field.size)?),
+					_ => {}
+				}
+				Ok(())
+			})?;
+			if !tracks.contains(&number) {
+				return Ok(());
+			}
+			match (cluster, relative, time) {
+				(Some(cluster), Some(relative), Some(time)) => found.entry(number).or_default().push(IndexedBlock {
+					cluster: file.segment_start + cluster,
+					relative,
+					time,
+				}),
+				_ => {
+					incomplete.insert(number);
+				}
+			}
+			Ok(())
+		})
+	})?;
+	for number in incomplete {
+		found.remove(&number);
+	}
+	for blocks in found.values_mut() {
+		blocks.sort_unstable();
+		blocks.dedup();
+	}
+	Ok(found)
+}
+
+/// Longest cluster header: a 4-byte ID and an 8-byte size.
+pub const CLUSTER_HEADER_MAX: u64 = 12;
+
+/// Where to read each block from, as `(start, length)` ranges merged when close: `window` bytes
+/// of each block, from where it starts whatever the length of its cluster's header.
+pub fn block_ranges(blocks: &[IndexedBlock], window: u64, merge_gap: u64) -> Vec<(u64, u64)> {
+	let mut ranges: Vec<(u64, u64)> = Vec::new();
+	for block in blocks {
+		let start = block.cluster + block.relative + 5;
+		let end = block.cluster + block.relative + CLUSTER_HEADER_MAX + window;
+		match ranges.last_mut() {
+			Some(last) if start <= last.0 + last.1 + merge_gap => last.1 = last.1.max(end - last.0),
+			_ => ranges.push((start, end - start)),
+		}
+	}
+	ranges
+}
+
+/// Reads the given blocks of one track. `header` is the length of a cluster header, as the last
+/// cluster read had it: blocks are looked for there first, and the cluster header is read only
+/// when they aren't found.
+pub fn read_indexed<R: Read + Seek>(
+	r: &mut R,
+	file: &Matroska,
+	track_number: u64,
+	blocks: &[IndexedBlock],
+	header: &mut u64,
+) -> io::Result<Vec<Packet>> {
+	let track = file
+		.tracks
+		.iter()
+		.find(|t| t.number == track_number)
+		.ok_or_else(|| invalid("no such track"))?;
+	let mut reader = Reader {
+		file,
+		packets: vec![Vec::new()],
+		tracks: vec![track],
+		seen: HashSet::new(),
+	};
+	for block in blocks {
+		let attempt = |r: &mut R, reader: &mut Reader, length: u64| -> bool {
+			let before = reader.packets[0].len();
+			let found = skip_to(r, block.cluster + length + block.relative)
+				.and_then(|()| read_header(r))
+				.and_then(|element| reader.element(r, &element, 0));
+			found.is_ok() && reader.packets[0].len() > before
+		};
+		if !attempt(r, &mut reader, *header) {
+			skip_to(r, block.cluster)?;
+			let cluster = read_header(r)?;
+			if cluster.id != CLUSTER {
+				return Err(invalid("the cues don't point at a cluster"));
+			}
+			*header = cluster.start - block.cluster;
+			if !attempt(r, &mut reader, *header) {
+				continue;
+			}
+		}
+		// The block's time, from the cues: the cluster's own timestamp isn't needed.
+		if let Some(packet) = reader.packets[0].last_mut() {
+			packet.start_ms = reader.file.timestamp_scale as f64 * block.time as f64 / 1e6;
+		}
+	}
+	Ok(reader.packets.swap_remove(0))
+}
+
 /// Every block of several subtitle tracks, read in one pass, each track's in file order (PGS
 /// segments of one display set carry different times). `progress` receives the share done, 0 to 1.
 pub fn extract_many<R: Read + Seek>(
@@ -818,6 +958,61 @@ mod tests {
 				.collect();
 			assert_eq!(texts, vec![vec![&b"One"[..]], vec![&b"Un"[..]]], "cued {cued:?}");
 		}
+	}
+
+	/// Probes a test file, finding its cues by walking the segment: test files have no seek head.
+	fn probe_with_cues(bytes: &[u8]) -> (Cursor<Vec<u8>>, Matroska) {
+		let mut cursor = Cursor::new(bytes.to_vec());
+		let mut file = probe(&mut cursor, bytes.len() as u64).unwrap();
+		let (start, end) = (file.segment_start, file.segment_end);
+		children(&mut cursor, start, end, |_, element| {
+			if element.id == CUES {
+				file.cues = Some((element.start, element.end()));
+			}
+			Ok(())
+		})
+		.unwrap();
+		(cursor, file)
+	}
+
+	#[test]
+	fn reads_indexed_blocks_whatever_the_cluster_header() {
+		for compressed in [false, true] {
+			let (mut cursor, file) = probe_with_cues(&sample(compressed, true));
+			let index = block_index(&mut cursor, &file, &[2]).unwrap();
+			let blocks = &index[&2];
+			assert_eq!(blocks.len(), 2);
+			// A wrong guess is corrected from the cluster header, then kept.
+			for guess in [CLUSTER_HEADER_MAX, 5, 6] {
+				let mut header = guess;
+				let packets = read_indexed(&mut cursor, &file, 2, blocks, &mut header).unwrap();
+				let texts: Vec<&[u8]> = packets.iter().map(|p| p.data.as_slice()).collect();
+				assert_eq!(texts, vec![&b"Bonjour"[..], &b"<i>Au revoir</i>"[..]]);
+				assert_eq!((packets[0].start_ms, packets[1].start_ms), (1000.0, 5250.0));
+				assert_eq!(packets[0].duration_ms, Some(1500.0));
+				let packets = read_indexed(&mut cursor, &file, 2, &blocks[1..], &mut header).unwrap();
+				assert_eq!(packets.len(), 1);
+			}
+		}
+	}
+
+	#[test]
+	fn leaves_out_tracks_the_cues_dont_place() {
+		let (mut cursor, file) = probe_with_cues(&two_tracks(&[2]));
+		let index = block_index(&mut cursor, &file, &[2, 3]).unwrap();
+		assert!(index.contains_key(&2) && !index.contains_key(&3));
+		let (mut cursor, file) = probe_with_cues(&sample(false, false));
+		assert!(block_index(&mut cursor, &file, &[2]).unwrap().is_empty());
+	}
+
+	#[test]
+	fn merges_close_ranges() {
+		let block = |cluster: u64, relative: u64| IndexedBlock { cluster, relative, time: 0 };
+		let blocks = [block(1000, 10), block(1000, 200), block(900_000, 0)];
+		assert_eq!(
+			block_ranges(&blocks, 100, 1000),
+			vec![(1015, 200 + 12 + 100 - 15), (900_005, 12 + 100 - 5)]
+		);
 	}
 
 	#[test]

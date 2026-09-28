@@ -15,7 +15,7 @@ import { Button, IconButton } from '@/ui/Button';
 import { Checkbox } from '@/ui/Checkbox';
 import { Dropdown } from '@/ui/Dropdown';
 import { Slider } from '@/ui/fields';
-import { isAdded, useSubtitleProject } from '../subtitles/project';
+import { whenRead, isAdded, useSubtitleProject } from '../subtitles/project';
 import { useSubtitleEditor } from '../subtitles/store';
 import { pictureChange, type VideoDoc } from './document';
 import { CONTAINERS, EncoderMissing, type VideoContainer, type VideoExportSettings } from './export';
@@ -501,6 +501,8 @@ export function MuxFooter({
 		setProgress(0);
 		setStatus('saving');
 		try {
+			// Subtitle tracks still being read are written whole.
+			await whenRead();
 			const job = {
 				file: opened.file,
 				format: opened.format,
