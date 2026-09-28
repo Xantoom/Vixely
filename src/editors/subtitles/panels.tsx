@@ -202,7 +202,7 @@ export function SubtitleInfoPanel({ opened }: { opened: OpenedFile }) {
 }
 
 /** `+1.500 s`, `−0.250 s`: a shift, with a true minus sign. */
-export function signedSeconds(milliseconds: number): string {
+function signedSeconds(milliseconds: number): string {
 	const sign = milliseconds > 0 ? '+' : milliseconds < 0 ? '\u2212' : '';
 	return `${sign}${decimal(Math.abs(milliseconds) / 1000, 3)} s`;
 }

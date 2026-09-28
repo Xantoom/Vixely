@@ -13,13 +13,13 @@ import { useSession } from '@/media/session';
  */
 
 /** A file of the saved session, whether or not its bytes could be kept. */
-export interface SavedFile {
+interface SavedFile {
 	name: string;
 	size: number;
 	lastModified: number;
 }
 
-export interface SavedSession {
+interface SavedSession {
 	/** The editor it was in. */
 	kind: MediaKind;
 	files: SavedFile[];

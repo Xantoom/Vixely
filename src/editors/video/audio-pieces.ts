@@ -22,11 +22,6 @@ export function placeRanges(ranges: readonly Range[]): Placed[] {
 	return placed;
 }
 
-/** The whole source, where it is. */
-export const WHOLE: readonly Placed[] = [
-	{ range: { start: Number.NEGATIVE_INFINITY, end: Number.POSITIVE_INFINITY }, shift: 0 },
-];
-
 /** Linear factor of a change in decibels. */
 export function gainOf(decibels: number): number {
 	return 10 ** (decibels / 20);

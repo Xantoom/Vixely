@@ -11,7 +11,7 @@ import type { SubtitleFormat } from '../document';
 
 type Style = 'b' | 'i' | 'u' | 's';
 
-export type Token =
+type Token =
 	| { kind: 'text'; text: string }
 	| { kind: 'open'; style: Style }
 	| { kind: 'close'; style: Style }
@@ -79,7 +79,7 @@ function decodeEntities(text: string): string {
 const HTML_TOKEN = /<(\/?)([a-z]+)((?:[.\s][^>]*)?)>|<\d[\d:.]*>|\{\\[^}]*\}/gi;
 
 /** Reads SRT or WebVTT cue text. Unknown tags are dropped; WebVTT entities are decoded. */
-export function readHtmlMarkup(text: string, format: 'srt' | 'vtt'): Token[] {
+function readHtmlMarkup(text: string, format: 'srt' | 'vtt'): Token[] {
 	const tokens: Token[] = [];
 	// Ruby annotations (<rt>) have no equivalent in other formats and would read as extra words.
 	let inRubyText = false;
@@ -128,7 +128,7 @@ function assColor(value: string): string | null {
  * Reads ASS cue text. `\N` is a line break, `\n` a space (a soft break, which only one wrapping
  * mode honours), `\h` a non-breaking space. Drawings (`\p1` … `\p0`) are shapes, not text: dropped.
  */
-export function readAssMarkup(text: string): Token[] {
+function readAssMarkup(text: string): Token[] {
 	const tokens: Token[] = [];
 	let drawing = false;
 	let buffer = '';
@@ -187,7 +187,7 @@ function readOverrides(block: string, tokens: Token[], setDrawing: (on: boolean)
 	}
 }
 
-export function readMarkup(text: string, format: SubtitleFormat): Token[] {
+function readMarkup(text: string, format: SubtitleFormat): Token[] {
 	// PGS lines are pictures: no words.
 	if (format === 'pgs') return [];
 	return format === 'ass' ? readAssMarkup(text) : readHtmlMarkup(text, format);
@@ -201,7 +201,7 @@ function escapeHtml(text: string): string {
  * Writes tokens as SRT or WebVTT text. Tags are kept properly nested: closing one closes those
  * opened after it and opens them again. WebVTT has no strike or colour tags: those are dropped.
  */
-export function writeHtmlMarkup(tokens: readonly Token[], format: 'srt' | 'vtt'): string {
+function writeHtmlMarkup(tokens: readonly Token[], format: 'srt' | 'vtt'): string {
 	let out = '';
 	/** Open tags, innermost last. A tag is written only once text follows it, so none is empty. */
 	const open: { name: string; tag: string; written: boolean }[] = [];
@@ -245,7 +245,7 @@ function toAssColor(color: string): string {
 }
 
 /** Writes tokens as ASS text: line breaks as `\N`, styles as override blocks. */
-export function writeAssMarkup(tokens: readonly Token[]): string {
+function writeAssMarkup(tokens: readonly Token[]): string {
 	let out = '';
 	for (const token of tokens) {
 		if (token.kind === 'text') out += token.text.replace(/\r?\n/g, '\\N');

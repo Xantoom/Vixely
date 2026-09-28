@@ -12,7 +12,7 @@ import {
 } from './document';
 
 /** Most zones blurred at once in one picture. */
-export const MAX_ZONES = 16;
+const MAX_ZONES = 16;
 
 /** `a` after `b`, for column-major 3×3 matrices: a point goes through `b`, then `a`. */
 function multiply(a: Float32Array, b: Float32Array): Float32Array {

@@ -191,7 +191,7 @@ export function useChoosePreset(upright: Size) {
 }
 
 /** What a preset gives, in short: the size limit, else the picture size. */
-export function presetDetail(id: PresetId, height: number): string {
+function presetDetail(id: PresetId, height: number): string {
 	const { sizeLimit, maxHeight } = PRESETS[id];
 	return sizeLimit ? m.size_mb({ size: sizeLimit }) : `${Math.min(height, maxHeight)} p`;
 }

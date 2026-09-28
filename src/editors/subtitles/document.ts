@@ -138,7 +138,7 @@ export function addCue(doc: SubtitleDoc, at: number, text = ''): { doc: Subtitle
 }
 
 /** Line break in a cue's markup: `\N` in ASS, a real one elsewhere. */
-export function lineBreak(format: SubtitleFormat): string {
+function lineBreak(format: SubtitleFormat): string {
 	return format === 'ass' ? '\\N' : '\n';
 }
 

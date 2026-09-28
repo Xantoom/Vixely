@@ -32,7 +32,7 @@ import { isKept, toOutput, totalLength } from '@/document/timemap';
 import { drawOverlays, loadOverlayAssets } from '@/editor/overlays/draw';
 import type { LogoId } from '@/ui/BrandLogo';
 import { ensureEncoder } from '../audio/export';
-import { effectiveCrop, type ImageDoc, orientedSize, type Size } from '../image/document';
+import { effectiveCrop, type ImageDoc, type Size } from '../image/document';
 import { ImageRenderer } from '../image/renderer';
 import { gainOf, placeAudio, placeRanges } from './audio-pieces';
 import { AudioShaper } from './audio-shaping';
@@ -356,7 +356,7 @@ export const SIZE_LIMITS = [8, 10, 16, 25, 50, 100, 250, 500, 1000];
 const SIZE_MARGIN = 0.94;
 
 /** Lowest video bitrate a size limit leads to, in kb/s. */
-export const MIN_BITRATE = 50;
+const MIN_BITRATE = 50;
 
 /**
  * The video bitrate (kb/s) that keeps a file of `seconds` under `megabytes`, the sound taking
@@ -842,7 +842,7 @@ export const FRAME_RATES = [60, 50, 30, 25, 24];
  * Where the whole picture lies on the exported one, for burned subtitles: offset and scaled by
  * the crop, as the preview lays them. Once turned or mirrored, they simply cover the picture.
  */
-export function burnBox(picture: ImageDoc, upright: Size, size: Size): Box {
+function burnBox(picture: ImageDoc, upright: Size, size: Size): Box {
 	if (picture.rotation !== 0 || picture.flipX || picture.flipY || picture.angle) return { x: 0, y: 0, ...size };
 	const crop = effectiveCrop(picture, upright);
 	const scale = size.width / crop.width;
@@ -1119,9 +1119,4 @@ export async function convertVideo(
 		burner?.dispose();
 		input.dispose();
 	}
-}
-
-/** The upright size of the output's pictures once turned, for labels. */
-export function turnedSize(picture: ImageDoc, upright: Size): Size {
-	return orientedSize(upright, picture.rotation);
 }

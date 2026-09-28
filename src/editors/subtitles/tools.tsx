@@ -2,10 +2,9 @@ import { Languages, ScanText } from 'lucide-react';
 import { useId, useRef, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { Section } from '@/editor/panel-parts';
-import { languageName, trackName } from '@/lib/language';
+import { interfaceLanguage, languageName, trackName } from '@/lib/language';
 import { OCR_LANGUAGES, TextReader } from '@/media/ocr';
 import { m } from '@/paraglide/messages.js';
-import { getLocale } from '@/paraglide/runtime.js';
 import { Button } from '@/ui/Button';
 import { FieldRow, Select } from '@/ui/fields';
 import { LANGUAGES } from '../video/MuxPanel';
@@ -42,7 +41,7 @@ export function TranslatePanel({ fileName }: { fileName: string }) {
 	const chosen = texts.find((track) => String(track.key) === source) ?? texts[0];
 	const [picked, setLanguage] = useState<string | null>(null);
 	// Into the interface's language, or English when the lines are already in it.
-	const own = getLocale() === 'fr' ? 'fre' : 'eng';
+	const own = interfaceLanguage();
 	const language = picked ?? (chosen?.info?.language === own ? (own === 'eng' ? 'fre' : 'eng') : own);
 
 	const left = origin ? untranslated(doc, origin) : 0;
@@ -130,11 +129,6 @@ type WorkState =
 	| { step: 'loading'; share: number }
 	| { step: 'working'; done: number; total: number }
 	| { step: 'failed' };
-
-/** The interface language as an ISO 639-2 code, for what is made here. */
-export function interfaceLanguage(): string {
-	return getLocale() === 'fr' ? 'fre' : 'eng';
-}
 
 /** Where a long job is: downloading what it needs, then working through the lines. */
 function WorkProgress({

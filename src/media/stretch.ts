@@ -14,8 +14,6 @@ const TOLERANCE = 0.012;
 /** Every how many samples the similarity is measured: much faster, as good by ear. */
 const STRIDE = 4;
 
-export const SPEED_RANGE = { min: 0.25, max: 4 } as const;
-
 export class TimeStretcher {
 	private readonly size: number;
 	private readonly hop: number;

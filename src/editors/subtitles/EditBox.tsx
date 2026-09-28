@@ -105,7 +105,7 @@ function useActiveCue(doc: SubtitleDoc): Cue | undefined {
 }
 
 /** Goes to the next line; at the last one, adds a line after it, as Aegisub does on Enter. */
-export function nextLine() {
+function nextLine() {
 	const state = useSubtitleEditor.getState();
 	const doc = state.history.present;
 	const lines = gridLines(doc);

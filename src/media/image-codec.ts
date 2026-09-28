@@ -4,8 +4,6 @@
  * load on first use only.
  */
 
-export type RustImageFormat = 'jpeg' | 'png' | 'avif' | 'jxl';
-
 interface EncodeBase {
 	id: number;
 	op: 'encode';

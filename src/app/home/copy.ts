@@ -5,14 +5,14 @@
 import type { MediaKind } from '@/editors/registry';
 import { getLocale } from '@/paraglide/runtime.js';
 
-export interface ShotCopy {
+interface ShotCopy {
 	/** The picture, in public/shots (e2e/screenshots.ts). */
 	name: string;
 	caption: string;
 	alt: string;
 }
 
-export interface EditorCopy {
+interface EditorCopy {
 	title: string;
 	lede: string;
 	points: [string, string][];

@@ -20,7 +20,7 @@ import {
 } from './export';
 
 /** What the export starts from, read once per file. */
-export interface ExportSource {
+interface ExportSource {
 	owner: object;
 	source: VideoSource;
 	/** Codecs this browser encodes at the video's size, on the graphics card and the processor. */
@@ -34,7 +34,7 @@ export interface ExportSource {
 const ENCODER_KEY = 'vixely:video-encoder';
 
 /** The encoder chosen last, kept from one video and one visit to the next. */
-export function preferredEncoder(): VideoEncoderKind | null {
+function preferredEncoder(): VideoEncoderKind | null {
 	try {
 		const kept = localStorage.getItem(ENCODER_KEY);
 		return kept === 'gpu' || kept === 'software' ? kept : null;

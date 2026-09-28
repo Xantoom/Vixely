@@ -6,8 +6,8 @@ import { IconButton } from '@/ui/Button';
 import { useBoxSize } from '@/ui/use-box-size';
 import { wheelIntent } from './wheel';
 
-export const MIN_ZOOM = 0.05;
-export const MAX_ZOOM = 8;
+const MIN_ZOOM = 0.05;
+const MAX_ZOOM = 8;
 
 interface StageZoom {
 	/** Scale of the picture on screen; null fits it in the preview. */
@@ -270,7 +270,7 @@ export function ZoomStatus({
  * Zoom and compare from the keyboard: + and − zoom, 0 fits, C held shows the original. Not while
  * typing in a field.
  */
-export function useZoomShortcuts() {
+function useZoomShortcuts() {
 	useEffect(() => {
 		const typing = (target: EventTarget | null) =>
 			target instanceof HTMLElement &&

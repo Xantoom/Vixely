@@ -77,7 +77,7 @@ export function readStyles(head: string): StyleSection {
 }
 
 /** The header with its styles replaced; the section is made when there is none. */
-export function writeStyles(head: string, styles: readonly AssStyle[]): string {
+function writeStyles(head: string, styles: readonly AssStyle[]): string {
 	const { format } = readStyles(head);
 	const lines = [
 		`Format: ${format.join(', ')}`,

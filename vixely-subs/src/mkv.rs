@@ -1007,7 +1007,11 @@ mod tests {
 
 	#[test]
 	fn merges_close_ranges() {
-		let block = |cluster: u64, relative: u64| IndexedBlock { cluster, relative, time: 0 };
+		let block = |cluster: u64, relative: u64| IndexedBlock {
+			cluster,
+			relative,
+			time: 0,
+		};
 		let blocks = [block(1000, 10), block(1000, 200), block(900_000, 0)];
 		assert_eq!(
 			block_ranges(&blocks, 100, 1000),

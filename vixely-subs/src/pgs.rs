@@ -274,7 +274,8 @@ fn object_segments(id: u16, version: u8, width: u16, height: u16, rle: &[u8]) ->
 /// Pictures of a Matroska PGS track, from its blocks in file order: `(time, duration, data)`.
 /// Muxers put a whole display set in each block, or each segment in its own block; segments are
 /// gathered until the end segment either way, and the set shows at the time of its composition.
-pub fn read_blocks<'a>(blocks: impl IntoIterator<Item = (f64, Option<f64>, &'a [u8])>) -> Vec<Picture> {
+#[cfg(test)]
+fn read_blocks<'a>(blocks: impl IntoIterator<Item = (f64, Option<f64>, &'a [u8])>) -> Vec<Picture> {
 	let mut stream = BlockStream::default();
 	for (time, duration, data) in blocks {
 		stream.push(time, duration, data);

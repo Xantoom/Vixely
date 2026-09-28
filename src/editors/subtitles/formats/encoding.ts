@@ -28,10 +28,6 @@ export const ENCODINGS = [
 
 export type EncodingId = (typeof ENCODINGS)[number]['id'];
 
-export function encodingLabel(id: EncodingId): string {
-	return ENCODINGS.find((encoding) => encoding.id === id)?.label ?? id;
-}
-
 /**
  * The character set of a file: its byte order mark when there is one, UTF-16 when every other
  * byte is zero, UTF-8 when the bytes are valid UTF-8, Windows-1252 otherwise.

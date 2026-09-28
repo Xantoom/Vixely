@@ -51,7 +51,7 @@ export interface Fade {
 	color: FadeColor;
 }
 
-export interface Bands {
+interface Bands {
 	/** Width over height of the whole frame. */
 	ratio: number;
 	/** Their colour; null leaves them transparent. */
@@ -69,7 +69,7 @@ export const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
 export const FRAME_RATES = [10, 12, 15, 20, 25, 30, 50];
 
 /** Shortest animation kept, in seconds. */
-export const MIN_LENGTH = 0.1;
+const MIN_LENGTH = 0.1;
 
 export function createGifDoc(duration: number, fps: number | null): GifDoc {
 	return {

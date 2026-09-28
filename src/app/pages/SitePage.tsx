@@ -3,7 +3,7 @@ import { usePageHead } from '../head';
 import { SiteFooter } from '../SiteFooter';
 import { SiteHeader } from '../SiteHeader';
 
-export interface PageSection {
+interface PageSection {
 	title: string;
 	body: ReactNode;
 }

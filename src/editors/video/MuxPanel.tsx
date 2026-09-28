@@ -99,7 +99,7 @@ function FlagToggle({
 }
 
 /** One track: whether it goes in, what it is, and its flags; subtitles unfold to rename them. */
-export function TrackRow({
+function TrackRow({
 	file,
 	track,
 	onEdit,

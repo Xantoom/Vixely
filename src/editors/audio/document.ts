@@ -7,7 +7,7 @@ import type { LoudnessReading } from '@/media/loudness';
 import { FLAT_EQ, type SoundChanges } from '@/media/sound';
 
 export { type GainPoint, gainAt };
-export { cut, keepOnly, keptRanges, MIN_OUTPUT, outputDuration, restoreCut, setTrim } from '@/document/kept';
+export { cut, keepOnly, keptRanges, outputDuration, restoreCut, setTrim } from '@/document/kept';
 
 /**
  * The edits of an audio file. The source is never modified: the document says which part of it
@@ -175,12 +175,8 @@ function fadeCurve(x: number): number {
 	return (1 - Math.cos(Math.PI * clamp(x, 0, 1))) / 2;
 }
 
-export function dbToGain(db: number): number {
+function dbToGain(db: number): number {
 	return 10 ** (db / 20);
-}
-
-export function gainToDb(gain: number): number {
-	return 20 * Math.log10(gain);
 }
 
 /**

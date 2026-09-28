@@ -295,7 +295,7 @@ async function exportFrames(options: ExportGifOptions, frames: readonly OutputFr
  * Makes the animation in the chosen format. Every output frame is drawn cropped and resized, in
  * order: the same list the preview plays, so what is seen is what is saved.
  */
-export async function exportGif(options: ExportGifOptions): Promise<Blob> {
+async function exportGif(options: ExportGifOptions): Promise<Blob> {
 	const { doc, settings, source, file, isGif } = options;
 	if (settings.mode === 'copy' && copyBlocker(doc, settings, source, isGif) === null) {
 		options.onProgress(null);

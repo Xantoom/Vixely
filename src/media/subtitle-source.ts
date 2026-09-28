@@ -71,7 +71,7 @@ export type SubtitleSourceResponse =
 	| { type: 'error'; message: string };
 
 /** Font files among attachments, by MIME type or extension (muxers write both kinds of types). */
-export function isFont(attachment: AttachmentInfo): boolean {
+function isFont(attachment: AttachmentInfo): boolean {
 	return /font|truetype|opentype|sfnt/i.test(attachment.mime) || /\.(ttf|otf|ttc|woff2?)$/i.test(attachment.name);
 }
 

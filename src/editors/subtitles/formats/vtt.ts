@@ -45,7 +45,7 @@ function pad(value: number, length = 2): string {
 }
 
 /** `01:02:03.456`. */
-export function vttTime(milliseconds: number): string {
+function vttTime(milliseconds: number): string {
 	const total = Math.max(0, Math.round(milliseconds));
 	const h = Math.floor(total / 3_600_000);
 	const m = Math.floor(total / 60_000) % 60;

@@ -5,7 +5,7 @@ import { type Peaks, readPeaks } from '@/media/peaks';
 import { type AudioDoc, envelope, keptRanges, pitchOf, resolveGain, soundChanges, speedOf } from './document';
 import { useAudioDoc, useAudioEditor } from './store';
 
-export interface WaveformState {
+interface WaveformState {
 	peaks: Peaks | null;
 	loudness: Loudness | null;
 	/** Changes every time peaks arrive, so views redraw. */

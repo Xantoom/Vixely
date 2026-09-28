@@ -8,7 +8,7 @@ import { loadAudio } from '@/wasm/audio';
 import type { NoiseReducer } from '@/wasm/vixely-audio/vixely_audio.js';
 import { Compressor, type CompressorSettings } from './dynamics';
 
-export type BandKind = 'lowshelf' | 'peaking' | 'highshelf';
+type BandKind = 'lowshelf' | 'peaking' | 'highshelf';
 
 export interface EqBand {
 	kind: BandKind;
@@ -47,12 +47,12 @@ export const EQ_PRESETS: Record<EqPresetId, readonly number[]> = {
 
 export const EQ_PRESET_IDS: EqPresetId[] = ['flat', 'voice', 'bass', 'bass-cut', 'treble', 'warm', 'bright'];
 
-export function isFlat(eq: readonly number[]): boolean {
+function isFlat(eq: readonly number[]): boolean {
 	return eq.every((gain) => gain === 0);
 }
 
 /** Normalized coefficients [b0, b1, b2, a1, a2] of one band, as a Web Audio BiquadFilterNode computes them. */
-export function coefficients(band: EqBand, gain: number, rate: number): [number, number, number, number, number] {
+function coefficients(band: EqBand, gain: number, rate: number): [number, number, number, number, number] {
 	const a = 10 ** (gain / 40);
 	const w0 = (2 * Math.PI * Math.min(band.frequency, rate / 2 - 1)) / rate;
 	const cos = Math.cos(w0);

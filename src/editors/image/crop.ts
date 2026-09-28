@@ -3,7 +3,7 @@ import type { Rect, Size } from './document';
 export type Handle = 'move' | 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 
 /** Smallest crop, in image pixels. */
-export const MIN_CROP = 16;
+const MIN_CROP = 16;
 
 function clamp(value: number, min: number, max: number): number {
 	return Math.min(Math.max(value, min), max);

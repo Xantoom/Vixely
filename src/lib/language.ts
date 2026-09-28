@@ -25,6 +25,11 @@ const LANGUAGE_CODES: Record<string, string> = {
 	wel: 'cy',
 };
 
+/** The interface language as an ISO 639-2 code, for what is made here. */
+export function interfaceLanguage(): string {
+	return getLocale() === 'fr' ? 'fre' : 'eng';
+}
+
 /** `fre` → `French`, in the interface language; the code itself when unknown. */
 export function languageName(code: string): string {
 	if (!code || code === 'und') return m.subs_language_unknown();

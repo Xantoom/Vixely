@@ -82,7 +82,7 @@ function CameraSection({ photo }: { photo: PhotoMetadata }) {
 	);
 }
 
-export function InfoPanel({ opened }: { opened: OpenedFile | null }) {
+function InfoPanel({ opened }: { opened: OpenedFile | null }) {
 	if (!opened) return null;
 	// An animation made from images: all of them, not only the first.
 	if (opened.images) {

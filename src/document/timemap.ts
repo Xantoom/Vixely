@@ -13,7 +13,7 @@ export interface Range {
 	end: number;
 }
 
-export function rangeLength(range: Range): number {
+function rangeLength(range: Range): number {
 	return range.end - range.start;
 }
 

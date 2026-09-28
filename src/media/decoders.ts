@@ -20,7 +20,7 @@ const EXTENSIONS: Record<string, () => Promise<void>> = {
 const loaded = new Map<string, Promise<void>>();
 
 /** Loads the decoder a codec needs when the browser has none; nothing for the others. */
-export async function ensureDecoder(codec: string | null): Promise<void> {
+async function ensureDecoder(codec: string | null): Promise<void> {
 	const load = codec ? EXTENSIONS[codec] : undefined;
 	if (!codec || !load) return;
 	// AC-3 and E-AC-3 share one package: registered once.

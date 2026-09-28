@@ -64,7 +64,7 @@ async function partEnd(sink: EncodedPacketSink, end: number): Promise<number> {
 }
 
 /** The kept ranges as they can be copied: each started on a key frame. */
-export async function copiedParts(track: InputVideoTrack, ranges: readonly Range[]): Promise<Part[]> {
+async function copiedParts(track: InputVideoTrack, ranges: readonly Range[]): Promise<Part[]> {
 	const sink = new EncodedPacketSink(track);
 	const first = await sink.getFirstKeyPacket({ verifyKeyPackets: true });
 	const parts = await Promise.all(

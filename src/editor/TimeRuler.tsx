@@ -8,7 +8,7 @@ const STEPS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800,
 const LABEL_SPACING = 76;
 
 /** The smallest round step that leaves room for every label. */
-export function rulerStep(span: number, width: number): number {
+function rulerStep(span: number, width: number): number {
 	return STEPS.find((step) => (step / span) * width >= LABEL_SPACING) ?? 7200;
 }
 

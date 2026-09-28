@@ -1,7 +1,7 @@
 import { isMediaKind, type MediaKind } from '@/editors/registry';
 import { loadCore } from '@/wasm/core';
 
-export interface Identified {
+interface Identified {
 	kind: MediaKind;
 	/** Short lowercase format name, such as `mp4`, `jpeg` or `srt`. */
 	format: string;

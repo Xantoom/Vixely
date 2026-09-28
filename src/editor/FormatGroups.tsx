@@ -2,7 +2,7 @@ import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 import { BrandLogo, type LogoId } from '@/ui/BrandLogo';
 
-export interface FormatChoice {
+interface FormatChoice {
 	id: string;
 	label: string;
 	/** Size and file type, under the label. */

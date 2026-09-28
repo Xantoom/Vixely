@@ -16,7 +16,7 @@ import { useSubtitleDoc } from './store';
 const DEFAULT_FRAME = { width: 1920, height: 1080 };
 
 /** Size of the picture subtitles are drawn on: the video, else what the subtitles were made for. */
-export function subtitleFrame(doc: SubtitleDoc, video: { width: number; height: number } | null) {
+function subtitleFrame(doc: SubtitleDoc, video: { width: number; height: number } | null) {
 	return video ?? (doc.format === 'pgs' ? doc.pgsSize : doc.ass?.playRes) ?? DEFAULT_FRAME;
 }
 
@@ -62,7 +62,7 @@ export function SubtitleLayer({
 }
 
 /** Picks the video (or audio) played under subtitles opened from a file, or removes it. */
-export function ChooseMedia() {
+function ChooseMedia() {
 	const inputRef = useRef<HTMLInputElement>(null);
 	const file = usePlayback((state) => state.file);
 	const load = usePlayback((state) => state.load);

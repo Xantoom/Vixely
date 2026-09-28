@@ -12,7 +12,7 @@ export interface Command {
 }
 
 /** A modal dialog drawn by the app: centred near the top, closed by Escape or a click outside. */
-export function Dialog({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }) {
+function Dialog({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }) {
 	const ref = useRef<HTMLDialogElement>(null);
 	useEffect(() => {
 		const dialog = ref.current;
@@ -111,7 +111,7 @@ export function CommandPalette({ commands, onClose }: { commands: Command[]; onC
 }
 
 /** A shortcut, each key in its own cap: "Ctrl Z". */
-export function Keys({ keys }: { keys: string }) {
+function Keys({ keys }: { keys: string }) {
 	return (
 		<span className="flex gap-1">
 			{keys.split(' ').map((key) => (

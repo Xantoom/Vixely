@@ -2,9 +2,9 @@ import type { AudioCodec } from 'mediabunny';
 import { create } from 'zustand';
 import { isShortened, keptRanges } from '@/document/kept';
 import { type Range, toOutput } from '@/document/timemap';
+import { interfaceLanguage } from '@/lib/language';
 import { type AddedTrack, remux, type StreamData, type TrackChoice } from '@/media/remux';
 import { openScratchFile, type SaveTarget, type ScratchFile } from '@/media/save-target';
-import { getLocale } from '@/paraglide/runtime.js';
 import type { SubtitleDoc } from '../subtitles/document';
 import { matroskaStream, timedTextStream, trackCodec } from '../subtitles/mux-streams';
 import { type TrackKey, type TrackState, useProjectTracks, useSubtitleProject } from '../subtitles/project';
@@ -22,11 +22,6 @@ import {
 } from './export';
 
 export type MuxKind = 'video' | 'audio' | 'subtitle';
-
-/** The interface language as an ISO 639-2 code. */
-function interfaceLanguage(): string {
-	return getLocale() === 'fr' ? 'fre' : 'eng';
-}
 
 /** A track of the exported video, as MKVToolNix lists them. */
 export interface MuxTrack {
@@ -55,7 +50,7 @@ export interface MuxTrack {
 type Override = Partial<Pick<MuxTrack, 'include' | 'language' | 'name' | 'default' | 'forced' | 'decibels'>>;
 
 /** A sound track added from another file. */
-export interface AddedAudio {
+interface AddedAudio {
 	key: string;
 	file: File;
 	codec: AudioCodec;

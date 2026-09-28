@@ -198,7 +198,7 @@ export async function openVideo(file: File, fps: number | null): Promise<FrameSo
 }
 
 /** How long each image of an animation made from images shows at first, in seconds. */
-export const IMAGE_DELAY = 0.5;
+const IMAGE_DELAY = 0.5;
 /** Longest side of an animation made from images: larger photos are scaled down to it. */
 const IMAGES_SIZE = 1920;
 

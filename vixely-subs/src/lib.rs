@@ -595,20 +595,6 @@ pub fn pgs_from_sup(data: &[u8]) -> Pictures {
 	Pictures::from(pgs::read_sup(data))
 }
 
-/// Pictures of a Matroska PGS track, from its packets in file order.
-#[wasm_bindgen]
-pub fn pgs_from_packets(starts: &[f64], durations: &[f64], offsets: &[u32], data: &[u8]) -> Pictures {
-	let blocks = starts.iter().enumerate().map(|(k, &start)| {
-		let (from, to) = (offsets[k] as usize, offsets[k + 1] as usize);
-		(
-			start,
-			durations.get(k).copied().filter(|d| d.is_finite()),
-			&data[from..to],
-		)
-	});
-	Pictures::from(pgs::read_blocks(blocks))
-}
-
 /// A decoded picture: where it goes and its RGBA pixels.
 #[wasm_bindgen]
 pub struct DecodedPicture {
