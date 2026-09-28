@@ -4,12 +4,14 @@
 //! Files are never copied into WebAssembly memory whole: JavaScript passes a function that reads
 //! a range of the file synchronously (FileReaderSync, in a worker), and only what is needed is read.
 
+pub mod dvb;
 pub mod ebml;
 pub mod mkv;
 pub mod mp4;
 pub mod mp4_mux;
 pub mod mux;
 pub mod pgs;
+pub mod vobsub;
 
 use std::collections::HashMap;
 use std::io::{self, Read, Seek, SeekFrom};
@@ -347,7 +349,10 @@ impl SubtitleSource {
 			Container::Matroska(file) => file.timestamp_scale as f64,
 			Container::Mp4(_) => return Ok(f64::NAN),
 		};
-		let time = self.indexed(track)?.and_then(|blocks| blocks.get(index)).map(|block| block.time);
+		let time = self
+			.indexed(track)?
+			.and_then(|blocks| blocks.get(index))
+			.map(|block| block.time);
 		Ok(time.map_or(f64::NAN, |time| scale * time as f64 / 1e6))
 	}
 
@@ -400,13 +405,16 @@ impl SubtitleSource {
 	}
 }
 
+/// Matroska codecs of image subtitles.
+const PICTURE_CODECS: [&str; 3] = ["S_HDMV/PGS", "S_VOBSUB", "S_DVBSUB"];
+
 impl SubtitleSource {
 	fn is_pictures(&self, track: u32) -> bool {
 		match &self.container {
 			Container::Matroska(file) => file
 				.tracks
 				.iter()
-				.any(|t| t.number == track as u64 && t.codec == "S_HDMV/PGS"),
+				.any(|t| t.number == track as u64 && PICTURE_CODECS.contains(&t.codec.as_str())),
 			Container::Mp4(_) => false,
 		}
 	}
@@ -435,17 +443,28 @@ impl SubtitleSource {
 
 /// The blocks of a PGS track given a batch at a time, turned into pictures as they come.
 #[wasm_bindgen]
-pub struct PgsStream {
-	stream: pgs::BlockStream,
+pub struct PictureStream {
+	decoder: PictureDecoder,
+}
+
+enum PictureDecoder {
+	Pgs(pgs::BlockStream),
+	VobSub(vobsub::Stream),
+	Dvb(dvb::Stream),
 }
 
 #[wasm_bindgen]
-impl PgsStream {
+impl PictureStream {
+	/// A decoder for a track of image subtitles: `S_HDMV/PGS`, `S_VOBSUB` (whose codec private
+	/// data is the `.idx` setup) or `S_DVBSUB`.
 	#[wasm_bindgen(constructor)]
-	pub fn new() -> PgsStream {
-		PgsStream {
-			stream: pgs::BlockStream::default(),
-		}
+	pub fn new(codec: &str, private: &[u8]) -> PictureStream {
+		let decoder = match codec {
+			"S_VOBSUB" => PictureDecoder::VobSub(vobsub::Stream::new(private)),
+			"S_DVBSUB" => PictureDecoder::Dvb(dvb::Stream::new()),
+			_ => PictureDecoder::Pgs(pgs::BlockStream::default()),
+		};
+		PictureStream { decoder }
 	}
 
 	/// Adds packets in file order; returns the pictures whose end is known, all of them when
@@ -454,15 +473,18 @@ impl PgsStream {
 		for (k, &start) in starts.iter().enumerate() {
 			let (from, to) = (offsets[k] as usize, offsets[k + 1] as usize);
 			let duration = durations.get(k).copied().filter(|d| d.is_finite());
-			self.stream.push(start, duration, &data[from..to]);
+			let data = &data[from..to];
+			match &mut self.decoder {
+				PictureDecoder::Pgs(stream) => stream.push(start, duration, data),
+				PictureDecoder::VobSub(stream) => stream.push(start, duration, data),
+				PictureDecoder::Dvb(stream) => stream.push(start, data),
+			}
 		}
-		Pictures::from(self.stream.take(last))
-	}
-}
-
-impl Default for PgsStream {
-	fn default() -> Self {
-		Self::new()
+		Pictures::from(match &mut self.decoder {
+			PictureDecoder::Pgs(stream) => stream.take(last),
+			PictureDecoder::VobSub(stream) => stream.take(last),
+			PictureDecoder::Dvb(stream) => stream.take(last),
+		})
 	}
 }
 

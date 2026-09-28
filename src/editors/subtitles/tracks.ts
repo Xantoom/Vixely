@@ -5,15 +5,22 @@
  */
 import type { ExtractedTrack, SubtitleTrackInfo } from '@/media/subtitle-source';
 import { loadSubs } from '@/wasm/subs';
-import type { Pictures, PgsStream } from '@/wasm/vixely-subs/vixely_subs.js';
+import type { Pictures, PictureStream } from '@/wasm/vixely-subs/vixely_subs.js';
 import { type Cue, newCueId, type Picture, type SubtitleDoc } from './document';
 import { parseAss } from './formats/ass';
 
 /** How the lines of a track are stored. */
-export type TrackKind = 'srt' | 'ass' | 'vtt' | 'wvtt' | 'tx3g' | 'pgs';
+export type TrackKind = 'srt' | 'ass' | 'vtt' | 'wvtt' | 'tx3g' | 'pgs' | 'vobsub' | 'dvb';
+
+/** Kinds stored as pictures: Blu-ray (PGS), DVD (VobSub) and TV (DVB) subtitles. */
+const PICTURE_KINDS: ReadonlySet<TrackKind> = new Set(['pgs', 'vobsub', 'dvb']);
+
+export function isPictureKind(kind: TrackKind | null): boolean {
+	return kind !== null && PICTURE_KINDS.has(kind);
+}
 
 /** Why a track can't be opened. */
-export type Unsupported = 'vobsub' | 'dvb' | 'ttml' | 'captions' | 'compressed' | 'other';
+export type Unsupported = 'ttml' | 'captions' | 'compressed' | 'other';
 
 const KINDS: Record<string, TrackKind> = {
 	'S_TEXT/UTF8': 'srt',
@@ -27,6 +34,8 @@ const KINDS: Record<string, TrackKind> = {
 	'D_WEBVTT/CAPTIONS': 'vtt',
 	'D_WEBVTT/DESCRIPTIONS': 'vtt',
 	'S_HDMV/PGS': 'pgs',
+	S_VOBSUB: 'vobsub',
+	S_DVBSUB: 'dvb',
 	tx3g: 'tx3g',
 	text: 'tx3g',
 	wvtt: 'wvtt',
@@ -38,8 +47,6 @@ export function trackKind(track: SubtitleTrackInfo): TrackKind | null {
 
 export function unsupportedReason(track: SubtitleTrackInfo): Unsupported {
 	if (!track.readable) return 'compressed';
-	if (track.codec === 'S_VOBSUB') return 'vobsub';
-	if (track.codec === 'S_DVBSUB') return 'dvb';
 	if (track.codec === 'stpp' || track.codec === 'S_TEXT/USF') return 'ttml';
 	if (track.codec === 'c608' || track.codec === 'c708') return 'captions';
 	return 'other';
@@ -50,8 +57,8 @@ export function codecLabel(track: SubtitleTrackInfo): string {
 	const kind = KINDS[track.codec];
 	if (kind === 'tx3g') return 'Timed Text';
 	if (kind === 'wvtt' || kind === 'vtt') return 'WebVTT';
+	if (kind === 'vobsub') return 'VobSub';
 	if (kind) return kind.toUpperCase();
-	if (track.codec === 'S_VOBSUB') return 'VobSub';
 	return track.codec.replace(/^S_/, '');
 }
 
@@ -212,7 +219,7 @@ export async function supDoc(bytes: Uint8Array): Promise<SubtitleDoc> {
 	return { format: 'pgs', cues, ass: null, vttHeader: null, pgsSize: size };
 }
 
-/** Lines of a batch, and for PGS the video size their pictures are placed in. */
+/** Lines of a batch, and for pictures the video size their pictures are placed in. */
 export interface BatchLines {
 	cues: Cue[];
 	pgsSize?: { width: number; height: number } | null;
@@ -227,17 +234,23 @@ export class TrackReader {
 	/** ASS: field names of the events, and the ReadOrder of each line read, by id. */
 	private names: string[] = [];
 	private readonly orders = new Map<number, number>();
-	private pgs: Promise<PgsStream> | null = null;
+	private readonly codec: string;
+	private pictures: Promise<PictureStream> | null = null;
 
 	constructor(info: SubtitleTrackInfo) {
 		this.kind = trackKind(info);
-		if (this.kind === 'pgs') this.pgs = loadSubs().then((subs) => new subs.PgsStream());
+		this.codec = info.codec;
 	}
 
 	/** The document before its lines, from the setup data of the track. Null for unknown kinds. */
 	empty(codecPrivate: Uint8Array): SubtitleDoc | null {
 		const doc = { cues: [], ass: null, vttHeader: null };
-		if (this.kind === 'pgs') return { ...doc, format: 'pgs', pgsSize: null };
+		// Pictures of every kind are kept as PGS display sets, so they are shown and written alike.
+		if (isPictureKind(this.kind)) {
+			const setup = codecPrivate.slice();
+			this.pictures = loadSubs().then((subs) => new subs.PictureStream(this.codec, setup));
+			return { ...doc, format: 'pgs', pgsSize: null };
+		}
 		if (this.kind === 'ass') {
 			const header = utf8.decode(codecPrivate);
 			const parsed = parseAss(header.includes('[Events]') ? header : `${header}\n[Events]\n`);
@@ -258,12 +271,12 @@ export class TrackReader {
 
 	/**
 	 * The lines of a batch. `after` is the start of the line after it, in milliseconds (NaN when
-	 * unknown); `last` says the track ends with it. PGS pictures are given once their end is known,
+	 * unknown); `last` says the track ends with it. Pictures are given once their end is known,
 	 * so the last one of a batch comes with the next.
 	 */
 	async lines(track: ExtractedTrack, after: number, last: boolean): Promise<BatchLines> {
-		if (this.pgs) {
-			const stream = await this.pgs;
+		if (this.pictures) {
+			const stream = await this.pictures;
 			const { cues, size } = pictureCues(
 				stream.push(track.starts, track.durations, track.offsets, track.data, last),
 			);

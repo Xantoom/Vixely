@@ -49,8 +49,6 @@ function formatLabel(format: SubtitleFormat, scriptType: string | null | undefin
 }
 
 const UNSUPPORTED: Record<Unsupported, () => string> = {
-	vobsub: () => m.subs_unsupported_vobsub(),
-	dvb: () => m.subs_unsupported_dvb(),
 	ttml: () => m.subs_unsupported_ttml(),
 	captions: () => m.subs_unsupported_captions(),
 	compressed: () => m.subs_unsupported_compressed(),

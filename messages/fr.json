@@ -827,8 +827,6 @@
 	"subs_track_default": "Par défaut",
 	"subs_track_forced": "Forcés",
 	"subs_language_unknown": "Langue inconnue",
-	"subs_unsupported_vobsub": "Les sous-titres de DVD (VobSub) ne s’ouvrent pas encore.",
-	"subs_unsupported_dvb": "Les sous-titres de télévision (DVB) ne s’ouvrent pas.",
 	"subs_unsupported_ttml": "Les sous-titres TTML ne s’ouvrent pas encore.",
 	"subs_unsupported_captions": "Les sous-titres codés dans l’image (CEA-608/708) ne s’ouvrent pas.",
 	"subs_unsupported_compressed": "Certaines pistes utilisent une compression que ce lecteur ne connaît pas, ou le fichier est fragmenté.",

@@ -782,8 +782,6 @@
 	"subs_track_default": "Default",
 	"subs_track_forced": "Forced",
 	"subs_language_unknown": "Unknown language",
-	"subs_unsupported_vobsub": "DVD subtitles (VobSub) can't be opened yet.",
-	"subs_unsupported_dvb": "TV subtitles (DVB) can't be opened.",
 	"subs_unsupported_ttml": "TTML subtitles can't be opened yet.",
 	"subs_unsupported_captions": "Closed captions (CEA-608/708) can't be opened.",
 	"subs_unsupported_compressed": "Some tracks use a compression this reader doesn't know, or the file is fragmented.",

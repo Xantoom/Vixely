@@ -91,11 +91,11 @@ describe('tracks', () => {
 
 	it('picks the default complete track first', () => {
 		const tracks = [
-			info('S_VOBSUB', { id: 1, default: true }),
+			info('S_TEXT/USF', { id: 1, default: true }),
 			info('S_TEXT/ASS', { id: 2, forced: true }),
 			info('S_TEXT/UTF8', { id: 3 }),
 		];
 		expect(preferredTrack(tracks)?.id).toBe(3);
-		expect(preferredTrack([info('S_VOBSUB')])).toBeNull();
+		expect(preferredTrack([info('S_TEXT/USF')])).toBeNull();
 	});
 });

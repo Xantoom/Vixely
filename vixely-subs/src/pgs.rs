@@ -489,45 +489,170 @@ pub fn mkv_blocks(pictures: &[(f64, f64, &[u8])]) -> Vec<(f64, Vec<u8>)> {
 		.collect()
 }
 
+/// Run-length encodes palette indices the way Blu-ray authoring tools do.
+pub(crate) fn encode_rle(indices: &[u8], width: usize) -> Vec<u8> {
+	let mut out = Vec::new();
+	for row in indices.chunks(width) {
+		let mut x = 0;
+		while x < row.len() {
+			let color = row[x];
+			let mut run = 1;
+			while x + run < row.len() && row[x + run] == color && run < 16383 {
+				run += 1;
+			}
+			if color != 0 && run < 3 {
+				for _ in 0..run {
+					out.push(color);
+				}
+			} else {
+				out.push(0);
+				let long = if run > 63 { 0x40 } else { 0 };
+				let with_color = if color != 0 { 0x80 } else { 0 };
+				if long != 0 {
+					out.push(with_color | long | (run >> 8) as u8);
+					out.push((run & 0xFF) as u8);
+				} else {
+					out.push(with_color | run as u8);
+				}
+				if color != 0 {
+					out.push(color);
+				}
+			}
+			x += run;
+		}
+		out.extend([0, 0]);
+	}
+	out
+}
+
+/// Straight RGBA to a Blu-ray palette entry: BT.709 limited range, the inverse of `rgba`.
+fn ycrcb(color: [u8; 4]) -> [u8; 4] {
+	let [r, g, b, a] = color.map(f32::from);
+	let clamp = |v: f32| v.round().clamp(0.0, 255.0) as u8;
+	let y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+	[
+		clamp(16.0 + y * 219.0 / 255.0),
+		clamp(128.0 + (r - y) / 1.5748 * 224.0 / 255.0),
+		clamp(128.0 + (b - y) / 1.8556 * 224.0 / 255.0),
+		a as u8,
+	]
+}
+
+/// The colours of a picture as at most 256 palette entries, index 0 transparent: colours are
+/// made coarser until they fit.
+fn palette_of(rgba: &[u8]) -> (Vec<[u8; 4]>, Vec<u8>) {
+	for shift in 0..8 {
+		let key = |p: &[u8]| -> [u8; 4] {
+			if p[3] == 0 {
+				return [0; 4];
+			}
+			let round = |v: u8| {
+				if shift == 0 {
+					v
+				} else {
+					((v >> shift) << shift) | (1 << (shift - 1))
+				}
+			};
+			[round(p[0]), round(p[1]), round(p[2]), round(p[3])]
+		};
+		let mut colors: Vec<[u8; 4]> = vec![[0; 4]];
+		let mut index: HashMap<[u8; 4], u8> = HashMap::from([([0; 4], 0)]);
+		let mut indices = Vec::with_capacity(rgba.len() / 4);
+		let mut fits = true;
+		for pixel in rgba.chunks_exact(4) {
+			let color = key(pixel);
+			let at = match index.get(&color) {
+				Some(&at) => at,
+				None if colors.len() < 256 => {
+					colors.push(color);
+					index.insert(color, (colors.len() - 1) as u8);
+					(colors.len() - 1) as u8
+				}
+				None => {
+					fits = false;
+					break;
+				}
+			};
+			indices.push(at);
+		}
+		if fits {
+			return (colors, indices);
+		}
+	}
+	(vec![[0; 4]], vec![0; rgba.len() / 4])
+}
+
+/// A picture from straight RGBA pixels placed at `(x, y)` on a video of the given size, as a
+/// self-contained display set; cut to its visible part. None when nothing of it shows.
+#[allow(clippy::too_many_arguments)]
+pub fn picture_from_rgba(
+	start_ms: f64,
+	end_ms: Option<f64>,
+	video: (u16, u16),
+	x: u16,
+	y: u16,
+	width: usize,
+	rgba: &[u8],
+	forced: bool,
+) -> Option<Picture> {
+	let height = rgba.len() / 4 / width.max(1);
+	let visible = |px: usize, py: usize| rgba[(py * width + px) * 4 + 3] != 0;
+	let rows: Vec<usize> = (0..height).filter(|&py| (0..width).any(|px| visible(px, py))).collect();
+	let (&top, &bottom) = (rows.first()?, rows.last()?);
+	let left = (0..width).find(|&px| (top..=bottom).any(|py| visible(px, py)))?;
+	let right = (0..width).rev().find(|&px| (top..=bottom).any(|py| visible(px, py)))?;
+	let (w, h) = (right - left + 1, bottom - top + 1);
+	let mut cut = Vec::with_capacity(w * h * 4);
+	for py in top..=bottom {
+		cut.extend_from_slice(&rgba[(py * width + left) * 4..(py * width + right + 1) * 4]);
+	}
+	let (colors, indices) = palette_of(&cut);
+	let (px, py) = (x + left as u16, y + top as u16);
+	let (w16, h16) = (w as u16, h as u16);
+
+	let mut composition = [video.0.to_be_bytes(), video.1.to_be_bytes()].concat();
+	// Frame rate code, composition number, epoch start, no palette update, palette 0, one object.
+	composition.extend([0x10, 0, 0, 0x80, 0, 0, 1]);
+	composition.extend([0, 0, 0, if forced { 0x40 } else { 0 }]);
+	composition.extend(px.to_be_bytes());
+	composition.extend(py.to_be_bytes());
+	let mut set = segment(PCS, &composition);
+	let window = [
+		&[1u8, 0][..],
+		&px.to_be_bytes(),
+		&py.to_be_bytes(),
+		&w16.to_be_bytes(),
+		&h16.to_be_bytes(),
+	]
+	.concat();
+	set.extend(segment(WDS, &window));
+	let mut pds = vec![0u8, 0];
+	for (index, color) in colors.iter().enumerate() {
+		pds.push(index as u8);
+		pds.extend(ycrcb(*color));
+	}
+	set.extend(segment(PDS, &pds));
+	set.extend(object_segments(0, 0, w16, h16, &encode_rle(&indices, w)));
+	set.extend(segment(END, &[]));
+	Some(Picture {
+		start_ms,
+		end_ms,
+		set,
+		rect: Rect {
+			x: px,
+			y: py,
+			width: w16,
+			height: h16,
+		},
+		video_width: video.0,
+		video_height: video.1,
+		forced,
+	})
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
-
-	/// Run-length encodes palette indices the way Blu-ray authoring tools do.
-	fn encode_rle(indices: &[u8], width: usize) -> Vec<u8> {
-		let mut out = Vec::new();
-		for row in indices.chunks(width) {
-			let mut x = 0;
-			while x < row.len() {
-				let color = row[x];
-				let mut run = 1;
-				while x + run < row.len() && row[x + run] == color && run < 16383 {
-					run += 1;
-				}
-				if color != 0 && run < 3 {
-					for _ in 0..run {
-						out.push(color);
-					}
-				} else {
-					out.push(0);
-					let long = if run > 63 { 0x40 } else { 0 };
-					let with_color = if color != 0 { 0x80 } else { 0 };
-					if long != 0 {
-						out.push(with_color | long | (run >> 8) as u8);
-						out.push((run & 0xFF) as u8);
-					} else {
-						out.push(with_color | run as u8);
-					}
-					if color != 0 {
-						out.push(color);
-					}
-				}
-				x += run;
-			}
-			out.extend([0, 0]);
-		}
-		out
-	}
 
 	fn sup_segment(pts_ms: f64, kind: u8, data: &[u8]) -> Vec<u8> {
 		let mut out = b"PG".to_vec();
@@ -649,6 +774,37 @@ mod tests {
 		for (a, b) in pictures.iter().zip(&whole) {
 			assert_eq!((a.start_ms, a.end_ms, &a.set), (b.start_ms, b.end_ms, &b.set));
 		}
+	}
+
+	#[test]
+	fn makes_pictures_from_pixels() {
+		// A 6×4 image, transparent but for a 2×2 red and white block at (3, 1).
+		let mut rgba = vec![0u8; 6 * 4 * 4];
+		for (px, py, color) in [
+			(3, 1, [255, 0, 0, 255]),
+			(4, 1, [255, 255, 255, 255]),
+			(3, 2, [255, 0, 0, 255]),
+			(4, 2, [255, 255, 255, 128]),
+		] {
+			rgba[(py * 6 + px) * 4..(py * 6 + px) * 4 + 4].copy_from_slice(&color);
+		}
+		let picture = picture_from_rgba(1000.0, Some(2000.0), (720, 576), 100, 50, 6, &rgba, false).unwrap();
+		assert_eq!(
+			picture.rect,
+			Rect {
+				x: 103,
+				y: 51,
+				width: 2,
+				height: 2
+			}
+		);
+		let (rect, pixels) = decode(&picture.set).unwrap();
+		assert_eq!(rect, picture.rect);
+		let near = |a: &[u8], b: [u8; 4]| a.iter().zip(b).all(|(x, y)| (*x as i32 - y as i32).abs() <= 3);
+		assert!(near(&pixels[0..4], [255, 0, 0, 255]), "{:?}", &pixels[0..4]);
+		assert!(near(&pixels[4..8], [255, 255, 255, 255]), "{:?}", &pixels[4..8]);
+		assert_eq!(pixels[15], 128);
+		assert!(picture_from_rgba(0.0, None, (720, 576), 0, 0, 6, &vec![0; 6 * 4 * 4], false).is_none());
 	}
 
 	#[test]
