@@ -20,7 +20,7 @@ import { Slider } from '@/ui/fields';
 import { whenRead, isAdded, useSubtitleProject } from '../subtitles/project';
 import { useSubtitleEditor } from '../subtitles/store';
 import { pictureChange, type VideoDoc } from './document';
-import { CONTAINERS, EncoderMissing, type VideoContainer, type VideoExportSettings } from './export';
+import { chooseEncoding, CONTAINERS, EncoderMissing, type VideoContainer, type VideoExportSettings } from './export';
 import {
 	exportConverted,
 	exportVideo,
@@ -31,6 +31,7 @@ import {
 	useMuxSettings,
 	useMuxTracks,
 } from './mux';
+import { useVideoEditor } from './store';
 
 const KIND_ICONS: Record<MuxKind, typeof Film> = { video: Film, audio: AudioLines, subtitle: Captions };
 /** Each kind in the colour of its editor, as everywhere in the app. */
@@ -482,6 +483,8 @@ export function MuxFooter({
 			(listed ? soundChanged(listed.tracks) : false));
 	const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
 	const [failure, setFailure] = useState<string | null>(null);
+	// The graphics card failed to encode: software is offered instead.
+	const [gpuFailed, setGpuFailed] = useState(false);
 	const [progress, setProgress] = useState(0);
 	const abort = useRef<AbortController | null>(null);
 	const container = target ?? muxContainer(opened.format);
@@ -497,7 +500,8 @@ export function MuxFooter({
 		};
 	}, [status]);
 
-	const run = async () => {
+	/** Writes the video; `settings` stand in for the chosen ones, as when retried in software. */
+	const run = async (settings = convert?.settings) => {
 		if (!listed) return;
 		const save = await openSaveTarget(outputName(opened.file.name, kind.extension), {
 			mime: kind.mime,
@@ -509,6 +513,7 @@ export function MuxFooter({
 		abort.current = controller;
 		setProgress(0);
 		setStatus('saving');
+		setGpuFailed(false);
 		try {
 			// Subtitle tracks still being read are written whole.
 			await whenRead();
@@ -519,9 +524,9 @@ export function MuxFooter({
 				shown: () => useSubtitleEditor.getState().history.present,
 				title: opened.file.name.replace(/\.[^.]+$/, ''),
 			};
-			if (convert && rewrite) {
+			if (convert && settings && rewrite) {
 				await exportConverted(
-					{ ...job, ...convert, originals: listed.originals },
+					{ ...job, ...convert, settings, originals: listed.originals },
 					save,
 					setProgress,
 					controller.signal,
@@ -533,6 +538,8 @@ export function MuxFooter({
 			setStatus('saved');
 		} catch (error) {
 			await save.discard().catch(() => undefined);
+			const onGpu = settings?.mode === 'encode' && settings.encoder === 'gpu';
+			setGpuFailed(onGpu && !(error instanceof EncoderMissing && error.kind === 'audio'));
 			setFailure(
 				error instanceof EncoderMissing
 					? error.kind === 'video'
@@ -544,6 +551,16 @@ export function MuxFooter({
 		} finally {
 			abort.current = null;
 		}
+	};
+
+	/** The same export, on the processor: the codec too when software can't write the chosen one. */
+	const retryInSoftware = () => {
+		const chosen = convert?.settings;
+		const source = useVideoEditor.getState().exportSource;
+		if (!chosen || !source) return;
+		const encoding = chooseEncoding(source.encoders, CONTAINERS[chosen.container].codecs, chosen.codec, 'software');
+		useVideoEditor.getState().setExport(encoding);
+		void run({ ...chosen, ...encoding });
 	};
 
 	return (
@@ -582,11 +599,17 @@ export function MuxFooter({
 				)}
 			</div>
 			<ExportAnnounce status={status} />
-			{status === 'failed' && (
-				<p role="alert" className="text-small text-danger">
-					{failure ?? m.mux_failed()}
-				</p>
-			)}
+			{status === 'failed' &&
+				(gpuFailed ? (
+					<div role="alert" className="grid gap-2">
+						<p className="text-small text-danger">{m.encoder_gpu_failed()}</p>
+						<Button onClick={retryInSoftware}>{m.encoder_software_retry()}</Button>
+					</div>
+				) : (
+					<p role="alert" className="text-small text-danger">
+						{failure ?? m.mux_failed()}
+					</p>
+				))}
 		</>
 	);
 }

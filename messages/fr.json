@@ -1009,6 +1009,8 @@
 	"encoder_software_detail": "Plus lent",
 	"encoder_software_short": "Logiciel",
 	"encoder_software_none": "Ce navigateur n’encode pas ces codecs en logiciel",
+	"encoder_gpu_failed": "L’encodage sur la carte graphique a échoué.",
+	"encoder_software_retry": "Encoder avec le logiciel (CPU)",
 	"container_unavailable": "Ce navigateur n’encode aucun de ses codecs",
 	"audio_copy_container": "Ce son ne peut pas aller tel quel dans un fichier {container}",
 	"mux_blocked_webm": "Les fichiers WebM ne peuvent pas contenir ces sous-titres",

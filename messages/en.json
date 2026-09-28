@@ -964,6 +964,8 @@
 	"encoder_software_detail": "Slower",
 	"encoder_software_short": "Software",
 	"encoder_software_none": "This browser doesn't encode these codecs in software",
+	"encoder_gpu_failed": "Encoding on the graphics card failed.",
+	"encoder_software_retry": "Encode with software (CPU)",
 	"container_unavailable": "This browser encodes none of its codecs",
 	"audio_copy_container": "This sound can't go as it is in a {container} file",
 	"mux_blocked_webm": "WebM files don't hold these subtitles",
