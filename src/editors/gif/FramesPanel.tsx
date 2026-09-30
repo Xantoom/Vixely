@@ -264,66 +264,6 @@ export function FramesPanel({ engine, fileName }: { engine: GifEngine; fileName:
 	return (
 		<>
 			<PanelTitle>{m.tool_frames()}</PanelTitle>
-			<div className="flex flex-wrap gap-2">
-				{source?.addImages && (
-					<>
-						<Button
-							onClick={() => {
-								pickerRef.current?.click();
-							}}
-						>
-							<ImagePlus className="size-4.5" aria-hidden="true" />
-							{m.frames_add()}
-						</Button>
-						<input
-							ref={pickerRef}
-							type="file"
-							accept="image/*"
-							multiple
-							hidden
-							onChange={(event) => {
-								const files = [...(event.target.files ?? [])];
-								event.target.value = '';
-								// After the frames chosen, or at the end when none is.
-								const after = chosen.length > 0 ? (keys[last] ?? null) : null;
-								if (files.length > 0) void engine.addImages(files, after);
-							}}
-						/>
-					</>
-				)}
-				{frames.length > 1 && (
-					<Button
-						aria-pressed={picking}
-						onClick={() => {
-							setPicking(!picking);
-							if (picking) setSelected([]);
-						}}
-						className="aria-pressed:bg-ed-soft aria-pressed:text-ed-text aria-pressed:border-transparent"
-					>
-						<ListChecks className="size-4.5" aria-hidden="true" />
-						{m.frames_select()}
-					</Button>
-				)}
-				{picking && (
-					<Button
-						onClick={() => {
-							setSelected(keys);
-						}}
-					>
-						{m.frames_select_all()}
-					</Button>
-				)}
-				{doc.removed.length > 0 && (
-					<Button
-						onClick={() => {
-							apply((doc) => ({ ...doc, removed: [] }));
-						}}
-					>
-						<Undo2 className="size-4.5" aria-hidden="true" />
-						{m.frames_restore({ count: doc.removed.length })}
-					</Button>
-				)}
-			</div>
 			{current && (
 				<Section
 					title={
@@ -416,6 +356,70 @@ export function FramesPanel({ engine, fileName }: { engine: GifEngine; fileName:
 					)}
 				</Section>
 			)}
+			<div className="grid grid-cols-2 gap-1.5">
+				{frames.length > 1 && (
+					<Button
+						aria-pressed={picking}
+						onClick={() => {
+							setPicking(!picking);
+							if (picking) setSelected([]);
+						}}
+						className="aria-pressed:bg-ed-soft aria-pressed:text-ed-text h-8 px-3 aria-pressed:shadow-[inset_0_0_0_1.5px_var(--ed)]"
+					>
+						<ListChecks className="size-4" aria-hidden="true" />
+						{m.frames_select()}
+					</Button>
+				)}
+				{picking && (
+					<Button
+						onClick={() => {
+							setSelected(keys);
+						}}
+						className="col-span-2 h-8 px-3"
+					>
+						{m.frames_select_all()}
+					</Button>
+				)}
+				{doc.removed.length > 0 && (
+					<Button
+						onClick={() => {
+							apply((doc) => ({ ...doc, removed: [] }));
+						}}
+						className="col-span-2 h-8 px-3"
+					>
+						<Undo2 className="size-4" aria-hidden="true" />
+						{m.frames_restore({ count: doc.removed.length })}
+					</Button>
+				)}
+				{source?.addImages && (
+					<>
+						<Button
+							variant="primary"
+							onClick={() => {
+								pickerRef.current?.click();
+							}}
+							className="order-first h-8 px-3"
+						>
+							<ImagePlus className="size-4" aria-hidden="true" />
+							{m.frames_add()}
+						</Button>
+						<input
+							ref={pickerRef}
+							type="file"
+							accept="image/*"
+							multiple
+							hidden
+							onChange={(event) => {
+								const files = [...(event.target.files ?? [])];
+								event.target.value = '';
+								// After the frames chosen, or at the end when none is.
+								const after = chosen.length > 0 ? (keys[last] ?? null) : null;
+								if (files.length > 0) void engine.addImages(files, after);
+							}}
+						/>
+					</>
+				)}
+			</div>
 			<div
 				ref={listRef}
 				role="listbox"

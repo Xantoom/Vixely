@@ -1,13 +1,18 @@
+import { useNavigate } from '@tanstack/react-router';
+import { Film } from 'lucide-react';
 import { useEffect, useId } from 'react';
 import { isShortened, keptRanges } from '@/document/kept';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { Section } from '@/editor/panel-parts';
+import { EDITORS } from '@/editors/registry';
 import { codecName } from '@/lib/format';
 import { detectGpu, type Gpu } from '@/media/gpu';
-import type { OpenedFile } from '@/media/session';
+import { type OpenedFile, useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { BrandLogo } from '@/ui/BrandLogo';
+import { Button } from '@/ui/Button';
 import { FieldRow, NumberField, OptionList, Select } from '@/ui/fields';
+import { carryVideoEdits } from '../gif/from-video';
 import { fitRatio } from '../image/crop';
 import { type ImageDoc, orientedSize, type Size } from '../image/document';
 import { copiedRanges, copiesParts } from './copy-tracks';
@@ -514,6 +519,28 @@ function AudioSettings() {
 	);
 }
 
+/** Opens the video in the GIF editor with the edits made here: its passage, speed, crop, looks and text. */
+function ToGif({ opened }: { opened: OpenedFile }) {
+	const doc = useVideoDoc();
+	const navigate = useNavigate();
+	const openFrom = useSession((state) => state.openFrom);
+	return (
+		<Section title={m.export_to_gif_title()}>
+			<p className="text-small text-muted">{m.export_to_gif_hint()}</p>
+			<Button
+				onClick={() => {
+					carryVideoEdits(opened.file, doc);
+					openFrom('video', 'gif');
+					void navigate({ to: EDITORS.gif.path });
+				}}
+			>
+				<Film className="size-4.5" aria-hidden="true" />
+				{m.export_to_gif()}
+			</Button>
+		</Section>
+	);
+}
+
 /**
  * Export of the video: as it is (its tracks copied, nothing re-encoded, the subtitles as the
  * subtitle editor left them), or converted with the edits. Every setting starts from the source.
@@ -559,6 +586,7 @@ export function VideoExportPanel({ opened, upright }: { opened: OpenedFile; upri
 			)}
 			<TrackSummary opened={opened} />
 			<MetadataSection opened={opened} />
+			{opened.info?.video && <ToGif opened={opened} />}
 		</>
 	);
 }

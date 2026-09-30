@@ -317,12 +317,6 @@ export function AudioSpeedPanel() {
 					max={AUDIO_SPEEDS.length - 1}
 					defaultValue={AUDIO_SPEEDS.indexOf(1)}
 					format={(at) => formatSpeed(AUDIO_SPEEDS[at] ?? 1)}
-					parse={(text) => {
-						const typed = Number.parseFloat(text.replace(',', '.'));
-						if (!Number.isFinite(typed)) return null;
-						const distances = AUDIO_SPEEDS.map((listed) => Math.abs(listed - typed));
-						return distances.indexOf(Math.min(...distances));
-					}}
 					onChange={(at) => {
 						preview((current) => ({ ...current, speed: AUDIO_SPEEDS[at] ?? 1 }));
 					}}

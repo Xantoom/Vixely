@@ -178,7 +178,6 @@ export function Slider({
 	step = 1,
 	defaultValue = 0,
 	format = (v) => (v > 0 ? `+${v}` : String(v)),
-	parse,
 	track,
 	hint,
 	resettable = false,
@@ -193,19 +192,16 @@ export function Slider({
 	/** The neutral value: double-click returns to it, and the filled part of the track starts there. */
 	defaultValue?: number;
 	format?: (value: number) => string;
-	/** Reads a typed value, when the slider's value is not the number shown (a step in a list). */
-	parse?: (text: string) => number | null;
 	/** A gradient showing what the setting does, in place of the filled track. */
 	track?: string;
 	hint?: ReactNode;
-	/** Shows a button that returns to the neutral value once moved away from it. */
+	/** Keeps a button beside the value that returns to the neutral value, shown once moved away from it. */
 	resettable?: boolean;
 	onChange: (value: number) => void;
 	onEnd: () => void;
 }) {
 	const id = useId();
 	const inputRef = useRef<HTMLInputElement>(null);
-	const [draft, setDraft] = useState<string | null>(null);
 	const at = (v: number) => ((Math.min(max, Math.max(min, v)) - min) / (max - min)) * 100;
 	const low = Math.min(at(defaultValue), at(value));
 	const high = Math.max(at(defaultValue), at(value));
@@ -216,61 +212,33 @@ export function Slider({
 	useLayoutEffect(() => {
 		inputRef.current?.style.setProperty('--track', background);
 	}, [background]);
-	const commit = () => {
-		if (draft === null) return;
-		setDraft(null);
-		// Only passing through the field changes nothing: no undo step.
-		if (draft === format(value)) return;
-		const typed = parse ? parse(draft) : Number.parseFloat(draft.replace(',', '.').replace(/[^\d.+-]/g, ''));
-		if (typed === null || Number.isNaN(typed)) return;
-		const next = Math.min(max, Math.max(min, Math.round(typed / step) * step));
-		if (next === value) return;
-		onChange(next);
-		onEnd();
-	};
 	return (
 		<div className="grid gap-1.5">
 			<div className="flex items-center justify-between gap-3">
 				<label htmlFor={id} className="text-ui text-ink-2 min-w-0 flex-1 truncate">
 					{label}
 				</label>
-				{resettable && value !== defaultValue && (
+				<output
+					className="tabular text-small text-ink flex-none text-right"
+					aria-label={m.slider_value({ label })}
+				>
+					{format(value)}
+				</output>
+				{resettable && (
 					<button
 						type="button"
 						aria-label={m.slider_reset({ label })}
 						title={m.slider_reset({ label })}
+						disabled={value === defaultValue}
 						onClick={() => {
 							onChange(defaultValue);
 							onEnd();
 						}}
-						className="text-muted hover:bg-surface hover:text-ink -my-1 -mr-2 grid size-6 flex-none cursor-pointer place-items-center rounded-xs transition-colors"
+						className="text-muted enabled:hover:bg-surface enabled:hover:text-ink -my-1 -mr-2 grid size-6 flex-none cursor-pointer place-items-center rounded-xs transition-colors disabled:cursor-default disabled:opacity-0"
 					>
 						<RotateCcw className="size-3.5" aria-hidden="true" />
 					</button>
 				)}
-				<input
-					aria-label={m.slider_value({ label })}
-					value={draft ?? format(value)}
-					inputMode="decimal"
-					onFocus={(event) => {
-						setDraft(format(value));
-						event.target.select();
-					}}
-					onChange={(event) => {
-						setDraft(event.target.value);
-					}}
-					onBlur={commit}
-					onKeyDown={(event) => {
-						if (event.key === 'Enter') event.currentTarget.blur();
-						if (event.key === 'Escape') {
-							setDraft(null);
-							event.currentTarget.blur();
-						}
-					}}
-					// As wide as what it shows, digits being all the same width: nothing is cut off.
-					style={{ width: `calc(${Math.max(6, (draft ?? format(value)).length + 1)}ch + 0.75rem)` }}
-					className="tabular hover:bg-surface focus:bg-bg focus:shadow-[inset_0_0_0_1px_var(--line-2)] max-w-40 rounded-xs bg-transparent px-1.5 py-0.5 text-right text-small outline-none transition-colors"
-				/>
 			</div>
 			<input
 				ref={inputRef}

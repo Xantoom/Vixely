@@ -40,13 +40,6 @@ export function VideoSpeedPanel() {
 				max={VIDEO_SPEEDS.length - 1}
 				defaultValue={VIDEO_SPEEDS.indexOf(1)}
 				format={(at) => formatSpeed(VIDEO_SPEEDS[at] ?? 1)}
-				parse={(text) => {
-					// The listed speed nearest the one typed.
-					const typed = Number.parseFloat(text.replace(',', '.'));
-					if (!Number.isFinite(typed)) return null;
-					const distances = VIDEO_SPEEDS.map((listed) => Math.abs(listed - typed));
-					return distances.indexOf(Math.min(...distances));
-				}}
 				onChange={(at) => {
 					preview((current) => ({ ...current, speed: VIDEO_SPEEDS[at] ?? 1 }));
 				}}

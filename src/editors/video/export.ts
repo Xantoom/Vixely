@@ -464,7 +464,7 @@ export const PRESETS: Record<PresetId, Preset> = {
 		maxHeight: 1080,
 		maxFrameRate: 60,
 		bitrate: 8000,
-		sizeLimit: 500,
+		sizeLimit: 1000,
 		audioBitrate: 160,
 	}),
 	'whatsapp': mp4({

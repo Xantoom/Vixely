@@ -1,5 +1,5 @@
 /// <reference types="vitest/config" />
-import { readFileSync } from 'node:fs';
+import { readFileSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import tailwindcss from '@tailwindcss/vite';
@@ -20,6 +20,14 @@ export default defineConfig({
 	// The app's version, written into the files it makes (ASS scripts name it as their editor).
 	define: { __VIXELY_VERSION__: JSON.stringify(version) },
 	plugins: [
+		{
+			// The examples of the editors (public/samples) are for development: production doesn't ship them.
+			name: 'vixely:drop-samples',
+			apply: 'build',
+			closeBundle() {
+				rmSync(fileURLToPath(new URL('./dist/samples', import.meta.url)), { recursive: true, force: true });
+			},
+		},
 		tanstackRouter({ target: 'react', autoCodeSplitting: true }),
 		react(),
 		tailwindcss(),

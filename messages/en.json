@@ -1190,5 +1190,8 @@
 	"cancel": "Cancel",
 	"gif_long_title": "This video is over a minute long",
 	"gif_long_body": "A GIF this long will weigh a lot and may play with serious difficulty. Keep only the passage you need with the Trim tool.",
-	"gif_long_ok": "Got it"
+	"gif_long_ok": "Got it",
+	"export_to_gif_title": "Make a GIF",
+	"export_to_gif_hint": "Opens this video in the GIF editor with your edits: the passage kept, speed, crop, colours, text and stickers.",
+	"export_to_gif": "Convert to GIF"
 }

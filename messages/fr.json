@@ -1235,5 +1235,8 @@
 	"cancel": "Annuler",
 	"gif_long_title": "Cette vidéo dure plus d’une minute",
 	"gif_long_body": "Un GIF aussi long risque de peser lourd et d’avoir de sérieux problèmes de performances à la lecture. Ne gardez que le passage utile avec l’outil Couper.",
-	"gif_long_ok": "Compris"
+	"gif_long_ok": "Compris",
+	"export_to_gif_title": "Créer un GIF",
+	"export_to_gif_hint": "Ouvre cette vidéo dans l’éditeur de GIF avec vos modifications : passage conservé, vitesse, recadrage, couleurs, texte et stickers.",
+	"export_to_gif": "Convertir en GIF"
 }

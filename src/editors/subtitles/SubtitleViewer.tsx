@@ -1,5 +1,5 @@
 import { Film, Replace, Trash2, TriangleAlert } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AssOverlay } from '@/editor/AssOverlay';
 import { PlayerPicture } from '@/editor/PlayerControls';
 import { usePlayback } from '@/media/playback';
@@ -133,7 +133,14 @@ function VideoBar({ name, onReplace, onRemove }: { name: string; onReplace: () =
 }
 
 /** The video with the subtitles on it, and its controls: the top-left box, as in Aegisub. */
-export function SubtitleViewer({ title }: { title: string }) {
+export function SubtitleViewer({
+	title,
+	onFit,
+}: {
+	title: string;
+	/** Told the width at which the picture fills the height it has, so its column can match it. */
+	onFit?: (width: number) => void;
+}) {
 	const doc = useSubtitleDoc();
 	const time = usePlayback((state) => state.time);
 	const video = usePlayback((state) => state.details?.video ?? null);
@@ -149,6 +156,10 @@ export function SubtitleViewer({ title }: { title: string }) {
 	const scale = area.width && area.height ? Math.min(area.width / frame.width, area.height / frame.height) : 0;
 	const width = Math.floor(frame.width * scale);
 	const height = Math.floor(frame.height * scale);
+	const fit = area.height > 0 ? Math.round((area.height * frame.width) / frame.height) : 0;
+	useEffect(() => {
+		if (fit > 0) onFit?.(fit);
+	}, [fit, onFit]);
 
 	return (
 		<div className="flex h-full min-h-0 flex-col gap-2">

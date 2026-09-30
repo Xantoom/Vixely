@@ -143,7 +143,7 @@ export function DropZone({ compact = false, prefer }: { compact?: boolean; prefe
 						{downloading ? m.url_reading() : m.url_open()}
 					</Button>
 				</form>
-				{prefer && (
+				{import.meta.env.DEV && prefer && (
 					<Button
 						busy={downloading}
 						onClick={() => {

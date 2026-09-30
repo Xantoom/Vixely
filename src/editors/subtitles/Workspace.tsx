@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { isTyping } from '@/editor/shortcuts';
 import { usePlayback } from '@/media/playback';
 import { AROUND, AudioBox } from './AudioBox';
@@ -71,6 +71,11 @@ export function useSubtitleShortcuts(inDialog = false) {
  */
 export function Workspace({ title }: { title: string }) {
 	const vertical = useVertical();
+	const [fit, setFit] = useState(0);
+	// Changes of a few pixels are the layout settling: ignoring them keeps it from going back and forth.
+	const onFit = useCallback((width: number) => {
+		setFit((current) => (Math.abs(current - width) < 4 ? current : width));
+	}, []);
 	const list = (
 		<div className="flex min-w-0 flex-col gap-1 max-lg:order-4 max-lg:h-[60svh] max-lg:px-3 lg:min-h-0">
 			<QualityBar />
@@ -99,9 +104,17 @@ export function Workspace({ title }: { title: string }) {
 		);
 	}
 	return (
-		<div className="h-full min-h-0 gap-3 max-lg:flex max-lg:flex-col max-lg:overflow-auto max-lg:pb-3 lg:grid lg:grid-cols-[minmax(0,1.3fr)_minmax(22rem,1fr)] lg:grid-rows-[minmax(0,1fr)_auto_minmax(12rem,27%)] lg:p-3">
+		<div
+			className="h-full min-h-0 gap-3 max-lg:flex max-lg:flex-col max-lg:overflow-auto max-lg:pb-3 lg:grid lg:grid-rows-[minmax(0,1fr)_auto_clamp(10rem,24%,13rem)] lg:p-3"
+			// The picture column is as wide as the picture is at the height it has: no bands beside it.
+			style={{
+				gridTemplateColumns: fit
+					? `minmax(20rem, min(${fit}px, 62%)) minmax(22rem, 1fr)`
+					: 'minmax(0, 1.3fr) minmax(22rem, 1fr)',
+			}}
+		>
 			<div className="min-w-0 max-lg:order-1 lg:col-start-1 lg:row-start-1 lg:min-h-0">
-				<SubtitleViewer title={title} />
+				<SubtitleViewer title={title} onFit={onFit} />
 			</div>
 			<div className="min-w-0 max-lg:order-3 lg:col-start-1 lg:row-start-2">
 				<EditBox />

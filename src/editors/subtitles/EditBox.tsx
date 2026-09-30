@@ -214,7 +214,7 @@ export function EditBox() {
 	return (
 		<section
 			aria-label={m.subs_line_editor()}
-			className="bg-bg flex h-full min-h-0 flex-col gap-3 rounded-md p-3.5 shadow-[inset_0_0_0_1px_var(--line)] max-lg:rounded-none max-lg:shadow-none"
+			className="bg-bg flex h-full min-h-0 flex-col gap-2.5 rounded-md p-3 shadow-[inset_0_0_0_1px_var(--line)] max-lg:rounded-none max-lg:shadow-none"
 		>
 			<div className="flex flex-wrap items-end gap-x-2 gap-y-2">
 				<p
@@ -270,6 +270,26 @@ export function EditBox() {
 					>
 						<ArrowDownToLine size={16} />
 					</IconButton>
+					<Menu
+						label={m.subs_line_actions()}
+						value={null}
+						items={[
+							{ value: 'insert', label: m.subs_insert_after(), disabled: !cue || picture },
+							{ value: 'duplicate', label: m.subs_duplicate(), disabled: !cue },
+							{ value: 'split', label: m.subs_split(), disabled: !cue || picture },
+							{
+								value: 'join',
+								label: m.subs_join(),
+								disabled: !cue || picture || index >= lines.length - 1,
+							},
+							{ value: 'delete', label: m.subs_delete_line(), disabled: !cue },
+						]}
+						onChange={lineActions}
+						buttonClassName="text-muted hover:bg-surface hover:text-ink size-8! flex! items-center justify-center rounded-sm"
+					>
+						<MoreHorizontal className="size-4.5" aria-hidden="true" />
+						<span className="sr-only">{m.subs_line_actions()}</span>
+					</Menu>
 				</div>
 			</div>
 			{cue && origin?.has(cue.id) && (
@@ -283,7 +303,7 @@ export function EditBox() {
 			{picture && cue?.picture ? (
 				<PicturePreview picture={cue.picture} />
 			) : (
-				<div className="border-line-2 focus-within:border-ed hover:border-muted flex min-h-28 flex-1 flex-col rounded-sm border transition-colors">
+				<div className="border-line-2 focus-within:border-ed hover:border-muted flex min-h-20 flex-1 flex-col rounded-sm border transition-colors">
 					<div className="border-line flex items-center gap-0.5 border-b px-1 py-0.5">
 						{(['b', 'i', 'u', 's'] as const).map((style) => {
 							const Icon = STYLE_ICONS[style];
@@ -349,60 +369,45 @@ export function EditBox() {
 							}
 						}}
 						onBlur={settle}
-						className="text-ink placeholder:text-muted min-h-16 w-full flex-1 resize-none bg-transparent px-3 py-2.5 text-[1.0625rem] leading-snug outline-none disabled:opacity-45"
+						className="text-ink placeholder:text-muted min-h-12 w-full flex-1 resize-none bg-transparent px-3 py-2.5 text-[1.0625rem] leading-snug outline-none disabled:opacity-45"
 					/>
 				</div>
 			)}
-			<div className="flex flex-wrap items-center gap-2">
-				{cue && styles.length > 0 && (
-					<div className="w-44 min-w-0 max-sm:flex-1">
-						<Dropdown
-							label={m.subs_style()}
-							value={cue.fields?.style ?? 'Default'}
-							options={[...new Set([...styles, cue.fields?.style ?? 'Default'])].map((style) => ({
-								value: style,
-								label: style,
-							}))}
-							onChange={(style) => {
-								change((present, line) =>
-									updateCue(present, line.id, { fields: { ...line.fields, style } }),
-								);
+			{cue && (styles.length > 0 || doc.format === 'ass') && (
+				<div className="flex flex-wrap items-center gap-2">
+					{styles.length > 0 && cue && (
+						<div className="w-44 min-w-0 max-sm:flex-1">
+							<Dropdown
+								label={m.subs_style()}
+								value={cue.fields?.style ?? 'Default'}
+								options={[...new Set([...styles, cue.fields?.style ?? 'Default'])].map((style) => ({
+									value: style,
+									label: style,
+								}))}
+								onChange={(style) => {
+									change((present, line) =>
+										updateCue(present, line.id, { fields: { ...line.fields, style } }),
+									);
+								}}
+							/>
+						</div>
+					)}
+					{cue && doc.format === 'ass' && (
+						<input
+							aria-label={m.subs_actor()}
+							title={m.subs_actor()}
+							placeholder={m.subs_actor()}
+							value={cue.fields?.name ?? ''}
+							onChange={(event) => {
+								const name = event.target.value;
+								preview((present) => updateCue(present, cue.id, { fields: { ...cue.fields, name } }));
 							}}
+							onBlur={settle}
+							className="border-line-2 bg-bg text-ui hover:border-muted placeholder:text-muted h-10 w-36 min-w-0 rounded-xs border px-2.5 transition-colors max-sm:flex-1"
 						/>
-					</div>
-				)}
-				{cue && doc.format === 'ass' && (
-					<input
-						aria-label={m.subs_actor()}
-						title={m.subs_actor()}
-						placeholder={m.subs_actor()}
-						value={cue.fields?.name ?? ''}
-						onChange={(event) => {
-							const name = event.target.value;
-							preview((present) => updateCue(present, cue.id, { fields: { ...cue.fields, name } }));
-						}}
-						onBlur={settle}
-						className="border-line-2 bg-bg text-ui hover:border-muted placeholder:text-muted h-10 w-36 min-w-0 rounded-xs border px-2.5 transition-colors max-sm:flex-1"
-					/>
-				)}
-				<span className="flex-1" />
-				<Menu
-					label={m.subs_line_actions()}
-					value={null}
-					items={[
-						{ value: 'insert', label: m.subs_insert_after(), disabled: !cue || picture },
-						{ value: 'duplicate', label: m.subs_duplicate(), disabled: !cue },
-						{ value: 'split', label: m.subs_split(), disabled: !cue || picture },
-						{ value: 'join', label: m.subs_join(), disabled: !cue || picture || index >= lines.length - 1 },
-						{ value: 'delete', label: m.subs_delete_line(), disabled: !cue },
-					]}
-					onChange={lineActions}
-					buttonClassName="h-10! px-3 gap-2 text-ui font-medium shadow-[inset_0_0_0_1px_var(--line-2)] flex! items-center"
-				>
-					<MoreHorizontal className="size-4" aria-hidden="true" />
-					{m.subs_line_actions()}
-				</Menu>
-			</div>
+					)}
+				</div>
+			)}
 			{cue && <LineIssues issues={issues.get(cue.id) ?? []} label={label} />}
 		</section>
 	);

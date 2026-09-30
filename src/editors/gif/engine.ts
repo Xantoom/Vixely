@@ -11,6 +11,7 @@ import {
 	outputFrames,
 	outputLength,
 } from './document';
+import { takeVideoEdits } from './from-video';
 import { type FrameSource, openAnimation, openImages, openVideo, type StillImage } from './source';
 import { useGifDoc, useGifEditor } from './store';
 
@@ -126,7 +127,8 @@ export function useGifEngine(opened: OpenedFile | null, batchKey: object | null)
 				: next.timing
 					? null
 					: Math.min(next.width, VIDEO_WIDTH);
-			const doc = createGifDoc(next.duration, fps);
+			const carried = isVideo ? takeVideoEdits(file) : null;
+			const doc = { ...createGifDoc(next.duration, fps), ...carried };
 			// A batch keeps its export settings from file to file; a single file starts afresh.
 			if (batchKey && useGifEditor.getState().owner === batchKey) retarget(doc);
 			else load(batchKey ?? file, doc, width, !batchKey && !isVideo && format === 'gif');

@@ -1,15 +1,13 @@
-import { Link, useNavigate } from '@tanstack/react-router';
-import { ChevronDown, Plus, Upload } from 'lucide-react';
-import { type KeyboardEvent, useId, useRef, useState } from 'react';
+import { Link } from '@tanstack/react-router';
+import { ChevronDown, Plus } from 'lucide-react';
+import { type KeyboardEvent, useId, useState } from 'react';
 import { EDITOR_ORDER, EDITORS, type MediaKind } from '@/editors/registry';
-import { useSession } from '@/media/session';
 import { Tile } from '@/ui/Tile';
-import { errorMessage } from './DropZone';
+import { DropZone } from './DropZone';
 import { usePageHead } from './head';
 import { homeCopy } from './home/copy';
 import { Shot } from './home/Shot';
 import { useLocale } from './locale';
-import { ResumeCard } from './ResumeCard';
 import { SiteFooter } from './SiteFooter';
 import { SiteHeader } from './SiteHeader';
 import { TASKS } from './tasks';
@@ -29,110 +27,26 @@ function SectionHeader({ id, title, lede }: { id: string; title: string; lede?: 
 	);
 }
 
-/** The hidden file input of the page and what opening a file does: its editor opens. */
-function useFilePicker() {
-	const open = useSession((state) => state.open);
-	const busy = useSession((state) => state.reading !== null);
-	const navigate = useNavigate();
-	const inputRef = useRef<HTMLInputElement>(null);
-	const choose = () => {
-		if (!busy) inputRef.current?.click();
-	};
-	const input = (
-		<input
-			ref={inputRef}
-			type="file"
-			multiple
-			className="hidden"
-			tabIndex={-1}
-			onChange={(event) => {
-				const files = [...(event.target.files ?? [])];
-				event.target.value = '';
-				void open(files).then(async (kind) => {
-					if (kind) await navigate({ to: EDITORS[kind].path });
-				});
-			}}
-		/>
-	);
-	return { busy, choose, input };
-}
-
 /**
- * The top of the page is the way in: one large area that takes a dropped, pasted or chosen file
- * and opens the editor made for it, on a phone as on a computer, where a press chooses the file.
+ * The top of the page is the way in: the same drop zone as in the editors, which takes a dropped,
+ * pasted or chosen file and opens the editor made for it.
  */
 function Hero() {
 	const copy = homeCopy();
-	const error = useSession((state) => state.error);
-	const { busy, choose, input } = useFilePicker();
 	return (
-		<section className="grid gap-4 pt-[clamp(1.5rem,4vw,3rem)] max-md:pt-6" aria-labelledby="start">
-			<div
-				role="button"
-				tabIndex={0}
-				aria-labelledby="start"
-				aria-describedby="start-hint"
-				aria-disabled={busy || undefined}
-				onClick={choose}
-				onKeyDown={(event) => {
-					if (event.key === 'Enter' || event.key === ' ') {
-						event.preventDefault();
-						choose();
-					}
-				}}
-				className="group border-line-2 bg-surface hover:border-ink-2 focus-visible:outline-ink relative grid min-h-[clamp(20rem,52vh,30rem)] place-content-center justify-items-center gap-6 rounded-xl border-[1.5px] border-dashed px-6 py-12 text-center transition-colors duration-150 aria-disabled:cursor-progress max-md:min-h-[26rem] max-md:gap-5 max-md:px-5 max-md:py-10"
-			>
-				<div className="flex gap-2.5" aria-hidden="true">
-					{EDITOR_ORDER.map((kind, index) => (
-						<span
-							key={kind}
-							data-media={kind}
-							className="transition-transform duration-200 group-hover:-translate-y-1"
-							style={{ transitionDelay: `${index * 30}ms` }}
-						>
-							<Tile kind={kind} size="xl" className="max-sm:size-11! max-sm:rounded-[0.7rem]!" />
-						</span>
-					))}
-				</div>
-				<div className="grid justify-items-center gap-2">
-					<h1
-						id="start"
-						className="font-display max-w-[20ch] text-[clamp(2rem,4.6vw,3.5rem)] leading-[1.02] font-bold tracking-[-0.025em] text-balance"
-					>
-						{busy ? (
-							copy.reading
-						) : (
-							<>
-								<span className="pointer-coarse:hidden">{copy.title}</span>
-								<span className="pointer-fine:hidden">{copy.touchTitle}</span>
-							</>
-						)}
-					</h1>
-					<p
-						id="start-hint"
-						className="text-ink-2 max-w-[46ch] text-[clamp(1rem,1.4vw,1.1875rem)] leading-snug"
-					>
-						{copy.lede}
-					</p>
-				</div>
-				<div className="grid justify-items-center gap-2">
-					<span className="bg-ink text-bg inline-flex h-12 items-center gap-2.5 rounded-md px-6 text-[1.0625rem] font-semibold max-md:h-13 transition-[filter] duration-150 group-hover:brightness-125">
-						<Upload className="size-[1.15em]" aria-hidden="true" />
-						{copy.open}
-					</span>
-					<span className="text-ui text-muted pointer-coarse:hidden">{copy.dropHint}</span>
-				</div>
-			</div>
-			{input}
-			{error && (
-				<p role="alert" className="text-body text-danger max-w-[60ch]">
-					{errorMessage(error)}
-				</p>
-			)}
-			<div className="grid justify-items-center has-[>div:empty]:hidden">
-				<div className="w-full max-w-[40rem]">
-					<ResumeCard />
-				</div>
+		<section className="grid gap-6 pt-[clamp(1.5rem,4vw,3rem)] max-md:pt-6" aria-labelledby="start">
+			<header className="grid justify-items-center gap-2 text-center">
+				<h1
+					id="start"
+					className="font-display max-w-[20ch] text-[clamp(2rem,4.6vw,3.5rem)] leading-[1.02] font-bold tracking-[-0.025em] text-balance"
+				>
+					<span className="pointer-coarse:hidden">{copy.title}</span>
+					<span className="pointer-fine:hidden">{copy.touchTitle}</span>
+				</h1>
+				<p className="text-ink-2 max-w-[46ch] text-[clamp(1rem,1.4vw,1.1875rem)] leading-snug">{copy.lede}</p>
+			</header>
+			<div className="mx-auto w-full max-w-[44rem]">
+				<DropZone />
 			</div>
 		</section>
 	);

@@ -203,7 +203,7 @@ function Panel({
 					onScroll={(event) => {
 						scrolls.current.set(tool, event.currentTarget.scrollTop);
 					}}
-					className="panel-in grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] auto-rows-max content-start gap-5 overflow-auto overscroll-contain px-5 pb-6 md:w-(--panel-w) [&>section]:-mx-5 [&>section]:px-5 [&>[data-panel-title]+section]:border-t-0 [&>[data-panel-title]+section]:pt-0"
+					className="panel-in grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] auto-rows-max content-start gap-5 overflow-auto overscroll-contain [scrollbar-gutter:stable] px-5 pb-6 md:w-(--panel-w) [&>section]:-mx-5 [&>section]:px-5 [&>[data-panel-title]+section]:border-t-0 [&>[data-panel-title]+section]:pt-0"
 				>
 					{children}
 				</aside>
