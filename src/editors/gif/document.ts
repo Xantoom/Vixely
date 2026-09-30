@@ -40,6 +40,11 @@ export interface GifDoc {
 	delays?: Record<number, number>;
 	/** The frames' play order, by the source time they show; frames not listed follow, in order. */
 	order?: number[] | null;
+	/**
+	 * Frames shown again: each copy's own key, below 0 so it never meets a source time, and the
+	 * frame it copies. A copy is a frame of its own: moved, timed and left out on its own.
+	 */
+	copies?: Record<number, number>;
 }
 
 export type FadeColor = 'black' | 'white' | 'transparent';
@@ -108,6 +113,7 @@ export function framesUntouched(doc: GifDoc): boolean {
 		doc.fade.out === 0 &&
 		doc.bands === null &&
 		Object.keys(doc.delays ?? {}).length === 0 &&
+		Object.keys(doc.copies ?? {}).length === 0 &&
 		!doc.order
 	);
 }
@@ -181,6 +187,8 @@ export function setTrim(doc: GifDoc, trim: Range): GifDoc {
 
 /** A frame of the output: which source moment it shows, and when and how long it plays. */
 export interface OutputFrame {
+	/** Names the frame in the document: its source time in milliseconds, or a copy's own key. */
+	key: number;
 	/** Source time shown, in seconds. */
 	source: number;
 	/** Output time at which it starts, in seconds. */
@@ -194,28 +202,40 @@ export interface SourceTiming {
 	duration: number;
 }
 
+interface ForwardFrame {
+	key: number;
+	source: number;
+	duration: number;
+}
+
 /** `frames` in the order of `order`, by frame key; the frames it does not list follow, in order. */
-function ordered<T extends { source: number }>(frames: readonly T[], order: readonly number[]): T[] {
+function ordered<T extends { key: number }>(frames: readonly T[], order: readonly number[]): T[] {
 	const rank = new Map(order.map((key, index) => [key, index]));
 	return frames
-		.map((frame, index) => ({ frame, rank: rank.get(frameKey(frame.source)) ?? order.length + index }))
+		.map((frame, index) => ({ frame, rank: rank.get(frame.key) ?? order.length + index }))
 		.toSorted((a, b) => a.rank - b.rank)
 		.map(({ frame }) => frame);
 }
 
 /** The frames played forward over the trim, before direction is applied. */
-function forwardFrames(doc: GifDoc, timing: readonly SourceTiming[] | null): { source: number; duration: number }[] {
+function forwardFrames(doc: GifDoc, timing: readonly SourceTiming[] | null): ForwardFrame[] {
 	const { start, end } = doc.trim;
 	if (doc.fps === null && timing) {
 		// The source's own frames: each keeps its delay, or the one given, shortened at the trim
-		// edges, then sped up; in the order given, if any.
+		// edges, then sped up; each copy right after its frame; in the order given, if any.
+		const copies = Object.entries(doc.copies ?? {}).map(([copy, of]) => ({ copy: Number(copy), of }));
 		const frames = timing
 			.filter((frame) => frame.start + frame.duration > start && frame.start < end)
-			.map((frame) => {
+			.flatMap((frame) => {
 				const from = Math.max(frame.start, start);
 				const to = Math.min(frame.start + frame.duration, end);
-				const delay = doc.delays?.[frameKey(from)] ?? frame.duration;
-				return { source: from, duration: (delay * (to - from)) / frame.duration / doc.speed };
+				const key = frameKey(from);
+				const keys = [key, ...copies.filter((copy) => copy.of === key).map((copy) => copy.copy)];
+				return keys.map((own) => ({
+					key: own,
+					source: from,
+					duration: ((doc.delays?.[own] ?? frame.duration) * (to - from)) / frame.duration / doc.speed,
+				}));
 			})
 			.filter((frame) => frame.duration > 1e-6);
 		return doc.order ? ordered(frames, doc.order) : frames;
@@ -223,10 +243,10 @@ function forwardFrames(doc: GifDoc, timing: readonly SourceTiming[] | null): { s
 	const fps = doc.fps ?? 20;
 	const length = (end - start) / doc.speed;
 	const count = Math.max(1, Math.round(length * fps));
-	return Array.from({ length: count }, (_, k) => ({
-		source: start + (k / fps) * doc.speed,
-		duration: Math.min(1 / fps, length - k / fps),
-	})).filter((frame) => frame.duration > 1e-6);
+	return Array.from({ length: count }, (_, k) => {
+		const source = start + (k / fps) * doc.speed;
+		return { key: frameKey(source), source, duration: Math.min(1 / fps, length - k / fps) };
+	}).filter((frame) => frame.duration > 1e-6);
 }
 
 /**
@@ -236,13 +256,14 @@ function forwardFrames(doc: GifDoc, timing: readonly SourceTiming[] | null): { s
  */
 export function outputFrames(doc: GifDoc, timing: readonly SourceTiming[] | null): OutputFrame[] {
 	const removed = new Set(doc.removed);
-	const kept = forwardFrames(doc, timing).filter((frame) => !removed.has(frameKey(frame.source)));
+	const kept = forwardFrames(doc, timing).filter((frame) => !removed.has(frame.key));
 	// One frame in `skip`, lasting as long as the frames it stands for.
 	const forward =
 		doc.skip > 1
 			? kept
 					.filter((_, index) => index % doc.skip === 0)
 					.map((frame, index) => ({
+						key: frame.key,
 						source: frame.source,
 						duration: kept
 							.slice(index * doc.skip, (index + 1) * doc.skip)
@@ -254,7 +275,7 @@ export function outputFrames(doc: GifDoc, timing: readonly SourceTiming[] | null
 	else if (doc.direction === 'pingpong') ordered = [...forward, ...forward.slice(1, -1).toReversed()];
 	let clock = 0;
 	return ordered.map((frame) => {
-		const output = { source: frame.source, start: clock, duration: frame.duration };
+		const output = { key: frame.key, source: frame.source, start: clock, duration: frame.duration };
 		clock += frame.duration;
 		return output;
 	});
@@ -264,8 +285,52 @@ export function outputFrames(doc: GifDoc, timing: readonly SourceTiming[] | null
 export function keptKeys(doc: GifDoc, timing: readonly SourceTiming[] | null): number[] {
 	const removed = new Set(doc.removed);
 	return forwardFrames(doc, timing)
-		.map((frame) => frameKey(frame.source))
+		.map((frame) => frame.key)
 		.filter((key) => !removed.has(key));
+}
+
+/** The frames `keys` moved together to `index` among the frames kept, forward, in their order. */
+export function moveFrames(
+	doc: GifDoc,
+	timing: readonly SourceTiming[] | null,
+	keys: readonly number[],
+	index: number,
+): GifDoc {
+	const kept = keptKeys(doc, timing);
+	const moving = new Set(keys);
+	const moved = kept.filter((key) => moving.has(key));
+	if (moved.length === 0) return doc;
+	const rest = kept.filter((key) => !moving.has(key));
+	rest.splice(Math.min(rest.length, Math.max(0, index)), 0, ...moved);
+	return { ...doc, order: rest };
+}
+
+/**
+ * Each of the frames `keys` shown a second time, right after itself. Gives the document and the
+ * copies' keys, in the same order.
+ */
+export function duplicateFrames(
+	doc: GifDoc,
+	timing: readonly SourceTiming[] | null,
+	keys: readonly number[],
+): { doc: GifDoc; copies: number[] } {
+	const copies = { ...doc.copies };
+	let next = Math.min(0, ...Object.keys(copies).map(Number), ...doc.removed) - 1;
+	const order: number[] = [];
+	const made: number[] = [];
+	const wanted = new Set(keys);
+	for (const key of keptKeys(doc, timing)) {
+		order.push(key);
+		if (!wanted.has(key)) continue;
+		// A copy of a copy copies the frame it shows.
+		const copy = next--;
+		copies[copy] = copies[key] ?? key;
+		const delay = doc.delays?.[key];
+		if (delay !== undefined) doc = { ...doc, delays: { ...doc.delays, [copy]: delay } };
+		order.push(copy);
+		made.push(copy);
+	}
+	return { doc: { ...doc, copies, order }, copies: made };
 }
 
 /** The frame `key` moved to `index` among the frames kept, forward. */

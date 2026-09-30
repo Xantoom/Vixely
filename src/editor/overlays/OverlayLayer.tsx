@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { Rect } from '@/editors/image/document';
 import { m } from '@/paraglide/messages.js';
 import { backingSize } from '../ZoomStage';
 import { drawOverlays, overlaySize, traceStroke, useOverlayAssets } from './draw';
@@ -20,6 +21,27 @@ function describe(overlay: Overlay): string {
 	if (overlay.kind === 'zone') return overlay.effect === 'blur' ? m.layers_zone_blur() : m.layers_zone_pixelate();
 	if (overlay.kind === 'drawing') return m.layers_drawing();
 	return m.overlay_shape();
+}
+
+/**
+ * The text and stickers while the picture is cropped: they belong to the cropped output, so they
+ * lie in the crop frame, `crop` in picture pixels shown `scale` times, and move with it.
+ */
+export function CroppedLayers({ overlays, crop, scale }: { overlays: readonly Overlay[]; crop: Rect; scale: number }) {
+	if (overlays.length === 0) return null;
+	return (
+		<div
+			className="pointer-events-none absolute overflow-hidden"
+			style={{
+				left: crop.x * scale,
+				top: crop.y * scale,
+				width: crop.width * scale,
+				height: crop.height * scale,
+			}}
+		>
+			<OverlayLayer overlays={overlays} width={crop.width * scale} height={crop.height * scale} />
+		</div>
+	);
 }
 
 /**
@@ -294,7 +316,7 @@ export function OverlayLayer({
 												}}
 												onPointerMove={onMove}
 												onPointerUp={onUp}
-												className="border-ed absolute -top-8 left-1/2 size-3.5 -translate-x-1/2 cursor-grab rounded-full border-2 bg-white shadow-sm"
+												className="border-ed cursor-rotate absolute -top-8 left-1/2 size-3.5 -translate-x-1/2 rounded-full border-2 bg-white shadow-sm"
 											/>
 										</>
 									)}

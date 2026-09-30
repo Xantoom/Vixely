@@ -4,10 +4,13 @@ import { BatchList } from '@/editor/BatchList';
 import { EditorLayout } from '@/editor/EditorLayout';
 import { FilePanel, ToolLater } from '@/editor/Inspector';
 import { isTyping, useEditorShortcuts } from '@/editor/shortcuts';
+import { zoomView } from '@/editor/timeline-view';
 import { Viewer } from '@/editor/Viewer';
 import type { ToolId } from '@/editors/registry';
+import { formatClock } from '@/lib/format';
 import { useOpened, useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
+import { AudioStage } from './AudioHeading';
 import { AudioTimeline } from './AudioTimeline';
 import type { ItemStatus } from './batch-export';
 import { cut, setTrim } from './document';
@@ -83,6 +86,18 @@ function useAudioShortcuts(engine: AudioEngine, trimmable: boolean) {
 				case 'End':
 					handled();
 					engine.seek(doc.trim.end);
+					break;
+				case '+':
+				case '=':
+				case '-': {
+					// The timeline zooms around the playhead, as with the wheel.
+					handled();
+					state.setView(zoomView(state.view, event.key === '-' ? 1.5 : 1 / 1.5, state.playhead));
+					break;
+				}
+				case '0':
+					handled();
+					state.setView({ start: 0, end: doc.duration });
 					break;
 				case 'Escape':
 					if (state.selection) state.setSelection(null);
@@ -205,10 +220,11 @@ export function AudioEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 				exportActive: tool === 'export',
 			}}
 			viewer={<Viewer kind="audio" opened={opened} />}
-			timeline={
+			// The cover is the editor's picture, the waveform under it as in the other editors.
+			workspace={
 				editable ? (
-					<>
-						{batch && (
+					<div className="flex h-full min-h-0 flex-col">
+						{batch ? (
 							<BatchList
 								statuses={statuses}
 								locked={running}
@@ -216,9 +232,11 @@ export function AudioEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 								addLabel={m.batch_add_audio()}
 								accept="audio/*,video/*,.mka,.mkv,.opus,.flac"
 							/>
+						) : (
+							<AudioStage opened={opened} length={formatClock(duration)} />
 						)}
 						<AudioTimeline engine={engine} trimmable={!batch} />
-					</>
+					</div>
 				) : undefined
 			}
 			inspector={inspector()}

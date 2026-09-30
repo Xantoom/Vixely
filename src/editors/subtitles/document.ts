@@ -54,6 +54,8 @@ export interface AssHeader {
 	styles: string[];
 	/** `v4.00` for SSA, `v4.00+` for ASS. */
 	scriptType: string | null;
+	/** The program the script names as its maker; absent names this version of Vixely. */
+	generator?: string;
 }
 
 export interface SubtitleDoc {

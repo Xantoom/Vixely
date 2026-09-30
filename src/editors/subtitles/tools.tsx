@@ -1,10 +1,11 @@
-import { Languages, ScanText } from 'lucide-react';
+import { ArrowLeft, Languages, ScanText, Trash2, TriangleAlert } from 'lucide-react';
 import { useId, useRef, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { Section } from '@/editor/panel-parts';
 import { interfaceLanguage, languageName, trackName } from '@/lib/language';
 import { OCR_LANGUAGES, TextReader } from '@/media/ocr';
 import { m } from '@/paraglide/messages.js';
+import { Alert } from '@/ui/Alert';
 import { Button } from '@/ui/Button';
 import { FieldRow, Select } from '@/ui/fields';
 import { LANGUAGES } from '../video/MuxPanel';
@@ -32,6 +33,12 @@ export function TranslatePanel({ fileName }: { fileName: string }) {
 	const tracks = useProjectTracks();
 	const current = useSubtitleProject((state) => state.current);
 	const addTrack = useSubtitleProject((state) => state.addTrack);
+	const choose = useSubtitleProject((state) => state.choose);
+	const removeAdded = useSubtitleProject((state) => state.removeAdded);
+	const originKey = useSubtitleProject(
+		(state) => state.tracks.find((track) => track.key === state.current)?.origin?.key ?? null,
+	);
+	const [deleting, setDeleting] = useState(false);
 	const origin = useOrigin();
 	const doc = useSubtitleDoc();
 	const select = useSubtitleEditor((state) => state.select);
@@ -74,7 +81,61 @@ export function TranslatePanel({ fileName }: { fileName: string }) {
 					<Button disabled={left === 0} onClick={next}>
 						{m.translate_next()}
 					</Button>
+					<div className="flex flex-wrap gap-2">
+						{originKey !== null && (
+							<Button
+								onClick={() => {
+									choose(originKey);
+								}}
+							>
+								<ArrowLeft className="size-4.5" aria-hidden="true" />
+								{m.translate_leave()}
+							</Button>
+						)}
+						<Button
+							onClick={() => {
+								// Nothing typed yet: nothing to lose, no question.
+								if (origin.size - left > 0) setDeleting(true);
+								else if (current !== null) removeAdded(current);
+							}}
+						>
+							<Trash2 className="size-4.5" aria-hidden="true" />
+							{m.translate_delete()}
+						</Button>
+					</div>
 				</Section>
+			)}
+			{deleting && origin && (
+				<Alert
+					media="subtitles"
+					title={m.translate_delete_title()}
+					icon={<TriangleAlert className="text-ed-text size-5" aria-hidden="true" />}
+					onClose={() => {
+						setDeleting(false);
+					}}
+					actions={
+						<>
+							<Button
+								onClick={() => {
+									setDeleting(false);
+								}}
+							>
+								{m.cancel()}
+							</Button>
+							<Button
+								variant="primary"
+								onClick={() => {
+									setDeleting(false);
+									if (current !== null) removeAdded(current);
+								}}
+							>
+								{m.translate_delete_confirm()}
+							</Button>
+						</>
+					}
+				>
+					{m.translate_delete_body({ count: origin.size - left })}
+				</Alert>
 			)}
 			<Section title={m.translate_new()}>
 				{texts.length === 0 ? (

@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router';
-import { ArrowLeft, ArrowRight, Download, ImagePlus, ImageUp, Trash2, Undo2 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { ArrowLeft, ArrowRight, Copy, Download, ImagePlus, ImageUp, ListChecks, Trash2, Undo2 } from 'lucide-react';
+import { type MouseEvent, useEffect, useRef, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { Section } from '@/editor/panel-parts';
 import { saveFile } from '@/editors/image/export';
@@ -10,9 +10,21 @@ import { m } from '@/paraglide/messages.js';
 import { Button, IconButton } from '@/ui/Button';
 import { NumberField } from '@/ui/fields';
 import { FrameComposer } from './compose';
-import { frameAt, frameKey, frameLayout, keptKeys, moveFrame, type OutputFrame, setFrameDelays } from './document';
+import {
+	duplicateFrames,
+	frameAt,
+	frameLayout,
+	keptKeys,
+	moveFrames,
+	type OutputFrame,
+	setFrameDelays,
+} from './document';
 import type { GifEngine } from './engine';
 import { useGifDoc, useGifEditor } from './store';
+
+/** A row doing something with the frame shown, named in full. */
+const FRAME_ACTION =
+	'text-ui text-ink-2 hover:bg-surface hover:text-ink -mx-2 flex items-center gap-2.5 rounded-sm px-2 py-1.5 text-left font-medium transition-colors';
 
 /** Side of a frame's thumbnail, in CSS pixels. */
 const THUMB = 88;
@@ -90,28 +102,33 @@ function Thumbnail({
 			observer.disconnect();
 		};
 	}, [engine, frame, composer, doc]);
-	return <canvas ref={ref} className="max-h-full max-w-full rounded-[3px]" />;
+	return <canvas ref={ref} className="bg-surface-2 block h-auto w-full rounded-xs" />;
 }
 
 /** Shortest frame delay browsers play as asked, in milliseconds; and the longest offered. */
 const DELAY_RANGE = { min: 20, max: 60_000 };
 
 /**
- * Every frame of the output, to look at one by one: go to it, leave it out, move it, set how long
- * it shows, save it as a PNG or open it in the image editor. An animation made from images takes
- * more images here.
+ * Every frame of the output, to look at one by one or several at once: go to it, leave it out,
+ * copy it, move it, set how long it shows, save it as a PNG or open it in the image editor.
+ * Animations held in memory take more images here, after the frame chosen.
  */
 export function FramesPanel({ engine, fileName }: { engine: GifEngine; fileName: string }) {
 	const doc = useGifDoc();
 	const apply = useGifEditor((state) => state.apply);
 	const setPlaying = useGifEditor((state) => state.setPlaying);
 	const open = useSession((state) => state.open);
-	const addImages = useSession((state) => state.addImages);
 	const navigate = useNavigate();
 	const [composer, setComposer] = useState<FrameComposer | null>(null);
+	// Frames chosen besides the one shown, by key; one or none means the frame shown alone.
+	const [selected, setSelected] = useState<number[]>([]);
+	// Taps add to the selection rather than replace it: several frames chosen without a keyboard.
+	const [picking, setPicking] = useState(false);
 	const listRef = useRef<HTMLDivElement>(null);
 	const pickerRef = useRef<HTMLInputElement>(null);
-	// The frame being moved: it stays selected once the frames are laid out again.
+	// Where a Shift-click range starts.
+	const anchor = useRef<number | null>(null);
+	// The frame being moved: it stays shown once the frames are laid out again.
 	const following = useRef<number | null>(null);
 	const dragged = useRef<number | null>(null);
 	const { frames, source } = engine;
@@ -119,11 +136,17 @@ export function FramesPanel({ engine, fileName }: { engine: GifEngine; fileName:
 	// Only a new frame draws again, not every moment of playback.
 	const current = useGifEditor((state) => frameAt(frames, state.playhead));
 	const index = current ? frames.indexOf(current) : -1;
-	// Frames of their own, as in a GIF or images: they can be moved and timed one by one.
+	// Frames of their own, as in a GIF or images: they can be moved, copied and timed one by one.
 	const ownFrames = timing !== null && doc.fps === null;
-	const keys = ownFrames ? keptKeys(doc, timing) : [];
-	const key = current ? frameKey(current.source) : null;
-	const position = key === null ? -1 : keys.indexOf(key);
+	const keys = ownFrames ? keptKeys(doc, timing) : [...new Set(frames.map((frame) => frame.key))];
+	const key = current?.key ?? null;
+	// The frames acted on, in play order before the direction: those chosen, or the one shown.
+	const live = selected.filter((candidate) => keys.includes(candidate));
+	const chosen = live.length > 1 ? keys.filter((candidate) => live.includes(candidate)) : key === null ? [] : [key];
+	const several = chosen.length > 1;
+	const positions = chosen.map((candidate) => keys.indexOf(candidate));
+	const first = Math.min(...positions);
+	const last = Math.max(...positions);
 	// Earlier on screen is later in the source when the animation plays backwards.
 	const step = doc.direction === 'reverse' ? -1 : 1;
 
@@ -146,7 +169,7 @@ export function FramesPanel({ engine, fileName }: { engine: GifEngine; fileName:
 		const moved = following.current;
 		if (moved === null) return;
 		following.current = null;
-		const frame = frames.find((candidate) => frameKey(candidate.source) === moved);
+		const frame = frames.find((candidate) => candidate.key === moved);
 		if (frame) engine.seek(frame.start);
 	}, [frames, engine]);
 
@@ -154,64 +177,159 @@ export function FramesPanel({ engine, fileName }: { engine: GifEngine; fileName:
 	useEffect(() => {
 		const list = listRef.current;
 		if (!list?.contains(document.activeElement)) return;
-		list.querySelector<HTMLElement>('[aria-selected="true"]')?.focus();
+		list.querySelector<HTMLElement>('[aria-current="true"]')?.focus();
 	}, [index]);
 
-	const remove = () => {
-		if (!current || frames.length <= 1) return;
-		const removed = frameKey(current.source);
-		apply((doc) => ({ ...doc, removed: [...doc.removed, removed] }));
+	const show = (shown: number) => {
+		following.current = shown;
+		const frame = frames.find((candidate) => candidate.key === shown);
+		if (frame) engine.seek(frame.start);
 	};
 
-	const move = (moved: number, to: number) => {
+	const remove = () => {
+		if (chosen.length === 0 || chosen.length >= keys.length) return;
+		const gone = new Set(chosen);
+		// The frame shown next is the first one left after those removed.
+		const next =
+			keys.slice(last + 1).find((candidate) => !gone.has(candidate)) ??
+			keys.findLast((candidate) => !gone.has(candidate));
+		apply((doc) => ({ ...doc, removed: [...doc.removed, ...chosen] }));
+		setSelected([]);
+		if (next !== undefined) show(next);
+	};
+
+	const duplicate = () => {
+		if (!ownFrames || chosen.length === 0) return;
 		setPlaying(false);
-		following.current = moved;
-		apply((doc) => moveFrame(doc, timing, moved, to));
+		let copies: number[] = [];
+		apply((doc) => {
+			const result = duplicateFrames(doc, timing, chosen);
+			copies = result.copies;
+			return result.doc;
+		});
+		// The copies are chosen, so copying again copies them.
+		setSelected(copies.length > 1 ? copies : []);
+		const [shown] = copies;
+		if (shown !== undefined) following.current = shown;
+	};
+
+	/** The frames chosen moved `delta` places, forward, together. */
+	const shift = (delta: number) => {
+		if (!ownFrames || chosen.length === 0) return;
+		const gone = new Set(chosen);
+		const before = keys.slice(0, first).filter((candidate) => !gone.has(candidate)).length;
+		const lastBefore = keys.slice(0, last).filter((candidate) => !gone.has(candidate)).length;
+		move(chosen, delta < 0 ? before - 1 : lastBefore + 1);
+	};
+	const rest = keys.length - chosen.length;
+	const restBefore = keys.slice(0, first).filter((candidate) => !chosen.includes(candidate)).length;
+	const restAfter = keys.slice(last + 1).length;
+	const canShift = (delta: number) =>
+		ownFrames && chosen.length > 0 && rest > 0 && (delta < 0 ? restBefore > 0 : restAfter > 0);
+
+	const move = (moved: number[], to: number) => {
+		setPlaying(false);
+		following.current = key !== null && moved.includes(key) ? key : (moved[0] ?? null);
+		apply((doc) => moveFrames(doc, timing, moved, to));
+	};
+
+	const pick = (frame: OutputFrame, event: MouseEvent) => {
+		setPlaying(false);
+		const toggle = picking || event.ctrlKey || event.metaKey;
+		if (event.shiftKey) {
+			const from = keys.indexOf(anchor.current ?? key ?? frame.key);
+			const to = keys.indexOf(frame.key);
+			if (from >= 0 && to >= 0) {
+				setSelected(keys.slice(Math.min(from, to), Math.max(from, to) + 1));
+				engine.seek(frame.start);
+				return;
+			}
+		}
+		anchor.current = frame.key;
+		if (toggle) {
+			const base = live.length > 1 ? live : key === null ? [] : [key];
+			const next = base.includes(frame.key)
+				? base.filter((candidate) => candidate !== frame.key)
+				: [...base, frame.key];
+			setSelected(next);
+			// The frame shown stays among those chosen.
+			const shown = next.includes(frame.key) ? frame : frames.find((candidate) => candidate.key === next.at(-1));
+			if (shown) engine.seek(shown.start);
+			return;
+		}
+		setSelected([]);
+		engine.seek(frame.start);
 	};
 
 	return (
 		<>
 			<PanelTitle>{m.tool_frames()}</PanelTitle>
-			{(Boolean(source?.addImages) || doc.removed.length > 0) && (
-				<div className="flex flex-wrap gap-2">
-					{source?.addImages && (
-						<>
-							<Button
-								onClick={() => {
-									pickerRef.current?.click();
-								}}
-							>
-								<ImagePlus className="size-4.5" aria-hidden="true" />
-								{m.frames_add()}
-							</Button>
-							<input
-								ref={pickerRef}
-								type="file"
-								accept="image/*"
-								multiple
-								hidden
-								onChange={(event) => {
-									const files = [...(event.target.files ?? [])];
-									event.target.value = '';
-									if (files.length > 0) void addImages(files);
-								}}
-							/>
-						</>
-					)}
-					{doc.removed.length > 0 && (
+			<div className="flex flex-wrap gap-2">
+				{source?.addImages && (
+					<>
 						<Button
 							onClick={() => {
-								apply((doc) => ({ ...doc, removed: [] }));
+								pickerRef.current?.click();
 							}}
 						>
-							<Undo2 className="size-4.5" aria-hidden="true" />
-							{m.frames_restore({ count: doc.removed.length })}
+							<ImagePlus className="size-4.5" aria-hidden="true" />
+							{m.frames_add()}
 						</Button>
-					)}
-				</div>
-			)}
+						<input
+							ref={pickerRef}
+							type="file"
+							accept="image/*"
+							multiple
+							hidden
+							onChange={(event) => {
+								const files = [...(event.target.files ?? [])];
+								event.target.value = '';
+								// After the frames chosen, or at the end when none is.
+								const after = chosen.length > 0 ? (keys[last] ?? null) : null;
+								if (files.length > 0) void engine.addImages(files, after);
+							}}
+						/>
+					</>
+				)}
+				{frames.length > 1 && (
+					<Button
+						aria-pressed={picking}
+						onClick={() => {
+							setPicking(!picking);
+							if (picking) setSelected([]);
+						}}
+						className="aria-pressed:bg-ed-soft aria-pressed:text-ed-text aria-pressed:border-transparent"
+					>
+						<ListChecks className="size-4.5" aria-hidden="true" />
+						{m.frames_select()}
+					</Button>
+				)}
+				{picking && (
+					<Button
+						onClick={() => {
+							setSelected(keys);
+						}}
+					>
+						{m.frames_select_all()}
+					</Button>
+				)}
+				{doc.removed.length > 0 && (
+					<Button
+						onClick={() => {
+							apply((doc) => ({ ...doc, removed: [] }));
+						}}
+					>
+						<Undo2 className="size-4.5" aria-hidden="true" />
+						{m.frames_restore({ count: doc.removed.length })}
+					</Button>
+				)}
+			</div>
 			{current && (
-				<Section title={m.frame_number({ number: index + 1 })}>
+				<Section
+					title={
+						several ? m.frames_selected({ count: chosen.length }) : m.frame_number({ number: index + 1 })
+					}
+				>
 					{ownFrames && key !== null && (
 						<div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
 							<label className="grid gap-1.5">
@@ -222,7 +340,7 @@ export function FramesPanel({ engine, fileName }: { engine: GifEngine; fileName:
 									min={DELAY_RANGE.min}
 									max={DELAY_RANGE.max}
 									onCommit={(milliseconds) => {
-										apply((doc) => setFrameDelays(doc, [key], milliseconds / 1000));
+										apply((doc) => setFrameDelays(doc, chosen, milliseconds / 1000));
 									}}
 								/>
 							</label>
@@ -236,87 +354,115 @@ export function FramesPanel({ engine, fileName }: { engine: GifEngine; fileName:
 						</div>
 					)}
 					<div className="flex flex-wrap gap-1">
-						{ownFrames && key !== null && (
+						{ownFrames && (
 							<>
 								<IconButton
 									label={m.frame_earlier()}
-									disabled={position < 0 || position - step < 0 || position - step >= keys.length}
+									disabled={!canShift(-step)}
 									onClick={() => {
-										move(key, position - step);
+										shift(-step);
 									}}
 								>
 									<ArrowLeft className="size-5" />
 								</IconButton>
 								<IconButton
 									label={m.frame_later()}
-									disabled={position < 0 || position + step < 0 || position + step >= keys.length}
+									disabled={!canShift(step)}
 									onClick={() => {
-										move(key, position + step);
+										shift(step);
 									}}
 								>
 									<ArrowRight className="size-5" />
 								</IconButton>
+								<IconButton label={m.frame_duplicate()} onClick={duplicate}>
+									<Copy className="size-5" />
+								</IconButton>
 							</>
 						)}
-						<IconButton label={m.frame_delete()} onClick={remove} disabled={frames.length <= 1}>
+						<IconButton label={m.frame_delete()} onClick={remove} disabled={chosen.length >= keys.length}>
 							<Trash2 className="size-5" />
 						</IconButton>
-						<IconButton
-							label={m.frame_save()}
-							onClick={() => {
-								void framePng(engine, current, index, fileName).then(async (file) => {
-									if (file) await saveFile(file, file.name);
-								});
-							}}
-						>
-							<Download className="size-5" />
-						</IconButton>
-						<IconButton
-							label={m.frame_edit()}
-							onClick={() => {
-								setPlaying(false);
-								void framePng(engine, current, index, fileName).then(async (file) => {
-									if (!file) return;
-									const kind = await open([file], 'image');
-									if (kind) await navigate({ to: EDITORS[kind].path });
-								});
-							}}
-						>
-							<ImageUp className="size-5" />
-						</IconButton>
 					</div>
+					{!several && (
+						<div className="grid gap-0.5">
+							<button
+								type="button"
+								onClick={() => {
+									void framePng(engine, current, index, fileName).then(async (file) => {
+										if (file) await saveFile(file, file.name);
+									});
+								}}
+								className={FRAME_ACTION}
+							>
+								<Download className="size-[1.1rem]" aria-hidden="true" />
+								{m.frame_save()}
+							</button>
+							<button
+								type="button"
+								onClick={() => {
+									setPlaying(false);
+									void framePng(engine, current, index, fileName).then(async (file) => {
+										if (!file) return;
+										const kind = await open([file], 'image');
+										if (kind) await navigate({ to: EDITORS[kind].path });
+									});
+								}}
+								className={FRAME_ACTION}
+							>
+								<ImageUp className="size-[1.1rem]" aria-hidden="true" />
+								{m.frame_edit()}
+							</button>
+						</div>
+					)}
 				</Section>
 			)}
 			<div
 				ref={listRef}
 				role="listbox"
 				aria-label={m.tool_frames()}
+				aria-multiselectable="true"
 				className="grid grid-cols-[repeat(auto-fill,minmax(5.75rem,1fr))] gap-2"
 				onKeyDown={(event) => {
-					// Alt and the arrows move the frame shown; the arrows alone step through them.
-					if (!event.altKey || !ownFrames || key === null || position < 0) return;
+					if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
+						event.preventDefault();
+						setSelected(keys);
+						return;
+					}
+					if (event.key === 'Escape' && several) {
+						event.preventDefault();
+						event.stopPropagation();
+						setSelected([]);
+						return;
+					}
+					if (event.key === 'Delete' || event.key === 'Backspace') {
+						event.preventDefault();
+						remove();
+						return;
+					}
+					// Alt and the arrows move the frames chosen; the arrows alone step through them.
+					if (!event.altKey || !ownFrames) return;
 					const delta = event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0;
-					if (delta === 0) return;
+					if (delta === 0 || !canShift(delta)) return;
 					event.preventDefault();
-					const to = position + delta;
-					if (to >= 0 && to < keys.length) move(key, to);
+					shift(delta);
 				}}
 			>
 				{frames.map((frame, shown) => {
-					const frameKeyed = frameKey(frame.source);
 					// A frame played twice (back and forth) has a button for each time.
-					const repeat = frames.slice(0, shown).filter((before) => before.source === frame.source).length;
+					const repeat = frames.slice(0, shown).filter((before) => before.key === frame.key).length;
+					const isChosen = chosen.includes(frame.key);
 					return (
 						<button
-							key={`${frameKeyed}-${repeat}`}
+							key={`${frame.key}-${repeat}`}
 							type="button"
 							role="option"
-							aria-selected={shown === index}
+							aria-selected={isChosen}
+							aria-current={shown === index}
 							aria-label={m.frame_number({ number: shown + 1 })}
 							tabIndex={shown === index || (index < 0 && shown === 0) ? 0 : -1}
 							draggable={ownFrames}
 							onDragStart={(event) => {
-								dragged.current = frameKeyed;
+								dragged.current = frame.key;
 								event.dataTransfer.effectAllowed = 'move';
 							}}
 							onDragOver={(event) => {
@@ -325,23 +471,27 @@ export function FramesPanel({ engine, fileName }: { engine: GifEngine; fileName:
 							onDrop={(event) => {
 								const moved = dragged.current;
 								dragged.current = null;
-								if (moved === null || moved === frameKeyed) return;
+								if (moved === null || moved === frame.key) return;
 								event.preventDefault();
-								move(moved, keys.indexOf(frameKeyed));
+								// Dragging one of the frames chosen moves them all.
+								const group = chosen.includes(moved) ? chosen : [moved];
+								if (group.includes(frame.key)) return;
+								const target = keys
+									.filter((candidate) => !group.includes(candidate))
+									.indexOf(frame.key);
+								const forward = keys.indexOf(moved) < keys.indexOf(frame.key);
+								move(group, forward ? target + 1 : target);
 							}}
 							onDragEnd={() => {
 								dragged.current = null;
 							}}
-							onClick={() => {
-								setPlaying(false);
-								engine.seek(frame.start);
+							onClick={(event) => {
+								pick(frame, event);
 							}}
-							className="bg-surface aria-selected:bg-ed-soft aria-selected:shadow-[inset_0_0_0_1.5px_var(--ed)] grid gap-1 rounded-sm p-1.5 text-left transition-colors"
+							className={`hover:bg-surface aria-selected:bg-ed-soft aria-selected:shadow-[inset_0_0_0_1.5px_var(--ed)] grid content-start gap-1 rounded-sm p-1 text-left transition-colors ${several && shown === index ? 'outline-ed outline-2 outline-offset-1' : ''}`}
 						>
-							<span className="grid h-[5.5rem] place-items-center">
-								<Thumbnail engine={engine} frame={frame} composer={composer} />
-							</span>
-							<span className="text-caption text-muted tabular flex justify-between font-mono">
+							<Thumbnail engine={engine} frame={frame} composer={composer} />
+							<span className="text-caption text-muted tabular flex justify-between px-0.5">
 								<span>{shown + 1}</span>
 								<span>{Math.round(frame.duration * 1000)} ms</span>
 							</span>

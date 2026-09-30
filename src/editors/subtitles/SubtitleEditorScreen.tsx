@@ -151,6 +151,8 @@ function SingleSubtitleScreen({ initialTool }: { initialTool?: ToolId }) {
 			workspace={ready ? <Workspace title={opened.file.name.replace(/\.[^.]+$/, '')} /> : undefined}
 			inspector={inspector()}
 			inspectorFooter={tool === 'export' && ready ? <SubtitleExportFooter opened={opened} /> : undefined}
+			// The lines need the room: panels open when a tool is chosen, unless a task page asked for one.
+			panelOpenAtStart={initialTool !== undefined && initialTool !== 'lines' && initialTool !== 'info'}
 		/>
 	);
 }

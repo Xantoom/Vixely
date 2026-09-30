@@ -5,6 +5,7 @@ import { AROUND, AudioBox } from './AudioBox';
 import { gridLines, MIN_CUE, removeCues, setCueTimes } from './document';
 import { EditBox } from './EditBox';
 import { LineGrid } from './LineGrid';
+import { QualityBar, useVertical } from './QualityBar';
 import { useSubtitleEditor } from './store';
 import { SubtitleViewer } from './SubtitleViewer';
 
@@ -62,26 +63,51 @@ export function useSubtitleShortcuts(inDialog = false) {
 }
 
 /**
- * Aegisub's layout: the video top left, the sound of the line top right with the line's edit box
- * under it, and every line in a grid below.
+ * The editor's parts, laid out for the shape of the video. A wide video (films, series, anime)
+ * gets the picture large with the line being edited under it and every line beside them. A
+ * vertical one (TikTok, Reels, Shorts) stands in a narrow column, the line and the list beside
+ * it. The sound runs across the whole width at the bottom, under the one playback bar. On
+ * phones, one under the other: picture, sound, line, list.
  */
 export function Workspace({ title }: { title: string }) {
-	return (
-		<div className="grid h-full min-h-0 gap-3 p-3 max-lg:grid-rows-[max(240px,56vw)_180px_220px_60vh] max-lg:overflow-auto lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1.1fr)_minmax(0,1fr)]">
-			<div className="min-h-0 min-w-0">
-				<SubtitleViewer title={title} />
-			</div>
-			<div className="grid min-h-0 min-w-0 gap-3 max-lg:contents lg:grid-rows-[minmax(0,1fr)_minmax(150px,auto)]">
-				<div className="min-h-0 min-w-0">
-					<AudioBox />
-				</div>
-				<div className="min-h-0 min-w-0">
-					<EditBox />
-				</div>
-			</div>
-			<div className="min-h-0 min-w-0 lg:col-span-2">
+	const vertical = useVertical();
+	const list = (
+		<div className="flex min-w-0 flex-col gap-1 max-lg:order-4 max-lg:h-[60svh] max-lg:px-3 lg:min-h-0">
+			<QualityBar />
+			<div className="min-h-0 flex-1">
 				<LineGrid />
 			</div>
+		</div>
+	);
+	const timeline = (
+		<div className="min-w-0 max-lg:order-2 max-lg:h-52 max-lg:flex-none max-lg:px-3 lg:min-h-0">
+			<AudioBox />
+		</div>
+	);
+	if (vertical) {
+		return (
+			<div className="h-full min-h-0 gap-3 max-lg:flex max-lg:flex-col max-lg:overflow-auto max-lg:pb-3 lg:grid lg:grid-cols-[minmax(14rem,0.6fr)_minmax(0,1fr)_minmax(20rem,1fr)] lg:grid-rows-[minmax(0,1fr)_minmax(12rem,26%)] lg:p-3">
+				<div className="min-w-0 max-lg:order-1 lg:min-h-0">
+					<SubtitleViewer title={title} />
+				</div>
+				<div className="min-w-0 max-lg:order-3 lg:max-h-full lg:min-h-0 lg:self-start">
+					<EditBox />
+				</div>
+				{list}
+				<div className="contents lg:[&>div]:col-span-3">{timeline}</div>
+			</div>
+		);
+	}
+	return (
+		<div className="h-full min-h-0 gap-3 max-lg:flex max-lg:flex-col max-lg:overflow-auto max-lg:pb-3 lg:grid lg:grid-cols-[minmax(0,1.3fr)_minmax(22rem,1fr)] lg:grid-rows-[minmax(0,1fr)_auto_minmax(12rem,27%)] lg:p-3">
+			<div className="min-w-0 max-lg:order-1 lg:col-start-1 lg:row-start-1 lg:min-h-0">
+				<SubtitleViewer title={title} />
+			</div>
+			<div className="min-w-0 max-lg:order-3 lg:col-start-1 lg:row-start-2">
+				<EditBox />
+			</div>
+			<div className="contents lg:[&>div]:col-start-2 lg:[&>div]:row-span-2 lg:[&>div]:row-start-1">{list}</div>
+			<div className="contents lg:[&>div]:col-span-2 lg:[&>div]:row-start-3">{timeline}</div>
 		</div>
 	);
 }

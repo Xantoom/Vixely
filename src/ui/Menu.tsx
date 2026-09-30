@@ -218,9 +218,7 @@ export function Menu<T extends string>({
 								)}
 								<span className={index === selected ? 'font-semibold' : ''}>{item.label}</span>
 								{item.detail && (
-									<span className="text-muted ml-auto pl-3 font-mono text-[12.5px]">
-										{item.detail}
-									</span>
+									<span className="text-muted ml-auto pl-3 text-small">{item.detail}</span>
 								)}
 								<span
 									className={`grid w-4 flex-none place-items-center ${item.detail ? '' : 'ml-auto pl-3'}`}

@@ -44,7 +44,7 @@ export function TimeRuler({ view, onSeek }: { view: Range; onSeek?: (time: numbe
 		<div
 			ref={ref}
 			aria-hidden="true"
-			className={`text-caption text-muted relative h-[18px] overflow-hidden font-mono select-none ${onSeek ? 'cursor-pointer' : ''}`}
+			className={`text-caption text-muted relative h-[18px] overflow-hidden select-none ${onSeek ? 'cursor-pointer' : ''}`}
 			onPointerDown={(event) => {
 				if (!onSeek || event.button !== 0) return;
 				event.currentTarget.setPointerCapture(event.pointerId);

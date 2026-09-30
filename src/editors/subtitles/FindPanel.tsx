@@ -61,7 +61,7 @@ export function FindPanel() {
 		setCurrent(at);
 		select([match.id], match.id);
 		const cue = findCue(doc, match.id);
-		if (cue && !usePlayback.getState().playing) usePlayback.getState().seek(cue.start / 1000);
+		if (cue) usePlayback.getState().seek(cue.start / 1000);
 	};
 	// The next match after the line shown, or the first.
 	const next = (step: 1 | -1) => {

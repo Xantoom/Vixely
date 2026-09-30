@@ -46,7 +46,7 @@ await page.waitForURL('**/gif');
 await page.waitForSelector('section[aria-label="Batch"]', { timeout: 20000 });
 console.log('strip:', (await page.locator('section[aria-label="Batch"]').innerText()).replace(/\n/g, ' | '));
 console.log('rail:', (await page.locator('nav[aria-label="Editing tools"]').innerText()).replace(/\n/g, ' '));
-await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 await page.locator('aside').getByRole('radio', { name: /^WebP/ }).click();
 await page.getByLabel('Loop').click();
 await page.getByRole('option', { name: 'Once' }).click();

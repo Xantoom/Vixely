@@ -93,7 +93,7 @@ function head(page: Page): string {
 }
 
 // The interface's font loads with the page rather than once the style sheet asks for it: text is
-// drawn once, in its own font, instead of moving when the font arrives. Figures (Geist Mono) wait.
+// drawn once, in its own font, instead of moving when the font arrives.
 const fonts = readdirSync(join(DIST, 'assets')).filter((name) => /^geist-latin-wght-normal-.*\.woff2$/.test(name));
 const preloads = fonts
 	.map((name) => `<link rel="preload" href="/assets/${name}" as="font" type="font/woff2" crossorigin />`)

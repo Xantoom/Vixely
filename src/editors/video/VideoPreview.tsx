@@ -15,16 +15,16 @@ import { toOutput } from '@/document/timemap';
 import { CropOverlay } from '@/editor/CropOverlay';
 import type { OverlayEditing } from '@/editor/overlays/editing';
 import { shownAt } from '@/editor/overlays/model';
-import { OverlayLayer } from '@/editor/overlays/OverlayLayer';
-import { AudioTrackMenu, PictureButtons, PlayerControls, PlayerMenu } from '@/editor/PlayerControls';
-import { backingSize, useStageZoom, ZoomStage } from '@/editor/ZoomStage';
+import { CroppedLayers, OverlayLayer } from '@/editor/overlays/OverlayLayer';
+import { AudioTrackMenu, PlayerControls, PlayerMenu } from '@/editor/PlayerControls';
+import { backingSize, CompareButton, useStageZoom, ZoomReset, ZoomStage } from '@/editor/ZoomStage';
 import { EDITORS } from '@/editors/registry';
 import { trackName } from '@/lib/language';
 import { usePlayback } from '@/media/playback';
 import { type OpenedFile, useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { IconButton } from '@/ui/Button';
-import { effectiveCrop, type ImageDoc, orientedSize, type Rect, type Size } from '../image/document';
+import { effectiveCrop, type ImageDoc, orientedSize, type Rect, type Size, wholePictureDoc } from '../image/document';
 import type { PictureEditing } from '../image/editing';
 import { ImageRenderer } from '../image/renderer';
 import { cropRatio } from '../image/store';
@@ -123,6 +123,8 @@ function EditedPicture({
 			renderer.render(shown.current.doc, {
 				region: shown.current.region,
 				original: shown.current.original,
+				// The grain moves with the pictures, as in the export.
+				seed: sample.timestamp * 97,
 				time: sample.timestamp,
 			});
 		});
@@ -141,12 +143,13 @@ function EditedPicture({
 		const pixels = { width: backingSize(width, region.width), height: backingSize(height, region.height) };
 		if (canvas.width !== pixels.width) canvas.width = pixels.width;
 		if (canvas.height !== pixels.height) canvas.height = pixels.height;
-		if (renderer?.ready) renderer.render(doc, { region, original, time: frameTime.current });
+		const time = frameTime.current;
+		if (renderer?.ready) renderer.render(doc, { region, original, seed: (time ?? 0) * 97, time });
 	}, [width, height, doc, region, original]);
 
 	return (
-		<div className="relative size-full rounded-[3px] bg-black shadow-[0_1px_3px_rgb(0_0_0/0.18),0_12px_40px_-12px_rgb(0_0_0/0.35)]">
-			{video && <canvas ref={canvasRef} className="absolute inset-0 size-full rounded-[3px]" />}
+		<div className="stage-picture relative size-full bg-black">
+			{video && <canvas ref={canvasRef} className="absolute inset-0 size-full md:rounded-[3px]" />}
 			{children}
 		</div>
 	);
@@ -239,7 +242,7 @@ function FadeVeil() {
 	return (
 		<div
 			aria-hidden="true"
-			className="pointer-events-none absolute inset-0 rounded-[3px] bg-black"
+			className="pointer-events-none absolute inset-0 md:rounded-[3px] bg-black"
 			style={{ opacity: 1 - level }}
 		/>
 	);
@@ -308,15 +311,15 @@ export function VideoPreview({
 	);
 
 	return (
-		<div className="flex size-full min-h-0 flex-col gap-2">
+		<div className="flex size-full min-h-0 flex-col gap-3">
 			<div className="relative min-h-0 flex-1">
-				<ZoomStage width={region.width} height={region.height} compare>
+				<ZoomStage width={region.width} height={region.height} compare={!cropping}>
 					{(scale) => (
 						<EditedPicture
 							region={region}
 							width={region.width * scale}
 							height={region.height * scale}
-							doc={picture}
+							doc={cropping ? wholePictureDoc(picture, crop, bounds) : picture}
 							original={comparing}
 						>
 							{!cropping && !comparing && picture.overlays.length > 0 && (
@@ -331,7 +334,7 @@ export function VideoPreview({
 							{shown && projectReady && !cropping && (
 								// Subtitles belong to the whole picture: they lie over it and the crop cuts them,
 								// as when they are burnt in, rather than being squeezed into the crop.
-								<div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[3px]">
+								<div className="pointer-events-none absolute inset-0 overflow-hidden md:rounded-[3px]">
 									<div className="absolute" style={subtitleBox(picture, crop, upright, scale)}>
 										<PlayingSubtitles
 											doc={doc}
@@ -343,21 +346,23 @@ export function VideoPreview({
 								</div>
 							)}
 							{!cropping && !comparing && <FadeVeil />}
+							{cropping && <CroppedLayers overlays={visible} crop={crop} scale={scale} />}
 							{cropping && (
 								<VideoCropOverlay editing={editing} crop={crop} scale={scale} bounds={bounds} />
 							)}
 						</EditedPicture>
 					)}
 				</ZoomStage>
-				{!cropping && (
-					<PictureButtons>
-						<AudioTrackMenu />
-						{projectReady && <SubtitleMenu shown={shown} onShown={setChoice} />}
-					</PictureButtons>
-				)}
 			</div>
-			<PlayerControls>
+			<PlayerControls seek={false} frameRate={opened.info?.video?.fps ?? 30}>
+				<AudioTrackMenu />
+				{projectReady && <SubtitleMenu shown={shown} onShown={setChoice} />}
 				<CaptureButton file={opened.file} doc={picture} />
+				<span className="bg-line mx-1.5 h-5 w-px max-md:hidden" aria-hidden="true" />
+				{!cropping && <CompareButton className="max-md:hidden" />}
+				<span className="max-md:hidden">
+					<ZoomReset />
+				</span>
 			</PlayerControls>
 		</div>
 	);

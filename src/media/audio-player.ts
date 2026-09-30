@@ -5,6 +5,7 @@ import { findAudioTrack } from './audio-tracks';
 import { DECODER_PREROLL } from './decoder';
 import { canDecodeAudio } from './decoders';
 import { sameCompressor } from './dynamics';
+import { listeningGain, useListening } from './listening';
 import { EQ_BANDS, EQ_Q, type Planar, type SoundChanges, SoundProcessor } from './sound';
 import { SpeedPitch } from './stretch';
 
@@ -49,6 +50,9 @@ export class AudioPlayer {
 	private sink: Promise<AudioBufferSink | null>;
 	private context: AudioContext | null = null;
 	private gain: GainNode | null = null;
+	/** How loud the person listening wants it, after the edits' volume. */
+	private output: GainNode | null = null;
+	private stopListening: (() => void) | null = null;
 	/** The equalizer's filters, one per band, before the gain. */
 	private filters: BiquadFilterNode[] = [];
 	private plan: PlaybackPlan = { ranges: [], envelope: [] };
@@ -137,6 +141,7 @@ export class AudioPlayer {
 
 	dispose() {
 		this.disposed = true;
+		this.stopListening?.();
 		this.stop();
 		void this.context?.close();
 		this.input.dispose();
@@ -171,7 +176,14 @@ export class AudioPlayer {
 				from.connect(to);
 				return to;
 			});
-			this.gain.connect(context.destination);
+			const output = context.createGain();
+			output.gain.value = listeningGain(useListening.getState());
+			this.output = output;
+			this.stopListening = useListening.subscribe((state) => {
+				output.gain.setTargetAtTime(listeningGain(state), context.currentTime, 0.015);
+			});
+			this.gain.connect(output);
+			output.connect(context.destination);
 			this.setFilters();
 		}
 		return { context: this.context, gain: this.gain };

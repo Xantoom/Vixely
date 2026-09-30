@@ -153,6 +153,12 @@ export interface SoundChanges {
 	compressor?: CompressorSettings | null;
 }
 
+/** How a track is heard: its level as a linear factor, and its sound changes, if any. */
+export interface HeardSound {
+	gain: number;
+	sound: SoundChanges | null;
+}
+
 /** Planar audio and how many frames it holds. */
 export interface Planar {
 	data: Float32Array;
@@ -177,6 +183,16 @@ export class SoundProcessor {
 		const compressor = changes.compressor ? new Compressor(channels, rate, changes.compressor) : null;
 		const equalizer = isFlat(changes.eq) ? null : new Equalizer(changes.eq, channels, rate);
 		return new SoundProcessor(reducer, compressor, equalizer, channels);
+	}
+
+	/**
+	 * The compressor and the equalizer alone, ready at once: for sound processed as it is decoded,
+	 * where the noise reduction's model can't be waited for.
+	 */
+	static immediate(changes: SoundChanges, channels: number, rate: number): SoundProcessor {
+		const compressor = changes.compressor ? new Compressor(channels, rate, changes.compressor) : null;
+		const equalizer = isFlat(changes.eq) ? null : new Equalizer(changes.eq, channels, rate);
+		return new SoundProcessor(null, compressor, equalizer, channels);
 	}
 
 	push(input: Planar): Planar {

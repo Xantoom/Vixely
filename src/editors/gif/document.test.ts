@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
 	createGifDoc,
+	duplicateFrames,
 	fadeAmount,
 	frameAt,
 	frameKey,
 	frameLayout,
 	moveFrame,
+	moveFrames,
 	setFrameDelays,
 	framesUntouched,
 	outputFrames,
@@ -54,6 +56,36 @@ describe('gif document', () => {
 		).toEqual([0.8, 0]);
 		doc = setFrameDelays({ ...doc, speed: 2 }, [frameKey(0.8)], 0.3);
 		expect(outputFrames(doc, timing)[0]?.duration).toBeCloseTo(0.3);
+	});
+
+	it('moves several frames together, in their order', () => {
+		const doc = moveFrames(createGifDoc(1, null), timing, [frameKey(0.7), frameKey(0.2)], 0);
+		expect(
+			outputFrames(doc, timing)
+				.map((frame) => frame.source)
+				.slice(0, 4),
+		).toEqual([0.2, 0.7, 0, 0.1]);
+	});
+
+	it('copies frames right after themselves, each timed and left out on its own', () => {
+		const start = setFrameDelays(createGifDoc(1, null), [frameKey(0.3)], 0.4);
+		const { doc, copies } = duplicateFrames(start, timing, [frameKey(0.3), frameKey(0.5)]);
+		expect(copies).toHaveLength(2);
+		expect(copies.every((copy) => copy < 0)).toBe(true);
+		const frames = outputFrames(doc, timing);
+		expect(frames).toHaveLength(12);
+		expect(frames.slice(3, 5).map((frame) => frame.source)).toEqual([0.3, 0.3]);
+		expect(frames[4]?.key).toBe(copies[0]);
+		expect(frames[4]?.duration).toBeCloseTo(0.4);
+		expect(outputLength(frames)).toBeCloseTo(1.8);
+		expect(framesUntouched(doc)).toBe(false);
+
+		// A copy of a copy shows the same frame; removing a copy keeps its frame.
+		const again = duplicateFrames(doc, timing, [copies[0] ?? 0]);
+		expect(new Set(again.copies).size).toBe(1);
+		expect(copies).not.toContain(again.copies[0]);
+		const removed = outputFrames({ ...again.doc, removed: [copies[0] ?? 0] }, timing);
+		expect(removed.filter((frame) => frame.source === 0.3)).toHaveLength(2);
 	});
 
 	it('samples at a fixed rate when one is chosen', () => {

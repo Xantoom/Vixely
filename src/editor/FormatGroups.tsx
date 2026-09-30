@@ -93,9 +93,7 @@ export function FormatGroups({
 											</span>
 											<span className="grid min-w-0">
 												<span className="text-ui truncate">{choice.label}</span>
-												<span className="text-caption text-muted tabular font-mono">
-													{choice.detail}
-												</span>
+												<span className="text-caption text-muted tabular">{choice.detail}</span>
 											</span>
 										</button>
 									);

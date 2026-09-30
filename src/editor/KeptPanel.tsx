@@ -1,6 +1,6 @@
 import { RotateCcw } from 'lucide-react';
 import { type ReactNode, useId } from 'react';
-import { isShortened, type Kept, outputDuration, restoreCut, setTrim } from '@/document/kept';
+import { isShortened, type Kept, restoreCut, setTrim } from '@/document/kept';
 import { formatPreciseTime } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
 import { Button, IconButton } from '@/ui/Button';
@@ -28,18 +28,9 @@ export interface KeptEditing<T extends Kept> {
 function Section({ title, children }: { title: string; children: ReactNode }) {
 	return (
 		<section className="grid gap-3.5">
-			<h3 className="text-ui text-ink-2 font-semibold">{title}</h3>
+			<h3 className="text-ui font-semibold">{title}</h3>
 			{children}
 		</section>
-	);
-}
-
-function ValueRow({ label, value }: { label: string; value: string }) {
-	return (
-		<div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
-			<span className="text-ui text-ink-2">{label}</span>
-			<span className="tabular font-mono text-[12.5px]">{value}</span>
-		</div>
 	);
 }
 
@@ -49,7 +40,7 @@ function ValueRow({ label, value }: { label: string; value: string }) {
  * Shared by the audio and video editors.
  */
 export function KeptPanel<T extends Kept>({ editing }: { editing: KeptEditing<T> }) {
-	const { doc, apply, playhead, lengthLabel } = editing;
+	const { doc, apply, playhead } = editing;
 	const startId = useId();
 	const endId = useId();
 	const edited = isShortened(doc);
@@ -92,7 +83,6 @@ export function KeptPanel<T extends Kept>({ editing }: { editing: KeptEditing<T>
 						}}
 					/>
 				</FieldRow>
-				<ValueRow label={lengthLabel} value={formatPreciseTime(editing.length ?? outputDuration(doc))} />
 				<div className="grid grid-cols-2 gap-2">
 					<Button
 						title="I"
@@ -121,7 +111,7 @@ export function KeptPanel<T extends Kept>({ editing }: { editing: KeptEditing<T>
 								key={`${removed.start}-${removed.end}`}
 								className="border-line flex items-center justify-between gap-3 border-b py-1 last:border-b-0"
 							>
-								<span className="tabular font-mono text-[12.5px]">
+								<span className="tabular text-small">
 									{formatPreciseTime(removed.start)} → {formatPreciseTime(removed.end)}
 								</span>
 								<IconButton

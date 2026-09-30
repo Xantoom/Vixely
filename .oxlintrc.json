@@ -166,6 +166,6 @@
 		"shadcn": { "ui": "@/ui" }
 	},
 	"env": { "browser": true, "es2024": true },
-	"globals": { "FileReaderSync": "readonly" },
+	"globals": { "FileReaderSync": "readonly", "__VIXELY_VERSION__": "readonly" },
 	"overrides": [{ "files": ["src/ui/Flag.tsx"], "rules": { "shadcn/no-raw-colors": "off" } }]
 }

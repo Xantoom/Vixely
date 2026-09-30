@@ -57,7 +57,7 @@ export function SelectionBar<T extends Kept>({
 			className="menu-in bg-bg absolute -top-11 z-20 flex items-center gap-0.5 rounded-sm p-1 whitespace-nowrap shadow-[0_0_0_1px_var(--line-2),0_10px_28px_-10px_rgb(0_0_0/0.35)]"
 			style={{ left: `${middle * 100}%`, transform: `translateX(-${middle * 100}%)` }}
 		>
-			<span className="text-caption text-muted tabular px-2 font-mono">
+			<span className="text-caption text-muted tabular px-2">
 				{formatPreciseTime(selection.end - selection.start)}
 			</span>
 			<BarButton

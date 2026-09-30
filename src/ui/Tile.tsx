@@ -5,6 +5,7 @@ const SIZES = {
 	sm: { box: 'size-7 rounded-[0.45rem]', icon: 'size-4' },
 	md: { box: 'size-8 rounded-[0.55rem]', icon: 'size-[1.1rem]' },
 	lg: { box: 'size-9 rounded-[0.6rem]', icon: 'size-5' },
+	xl: { box: 'size-13 rounded-[0.85rem]', icon: 'size-6.5' },
 } as const;
 
 /** The gradient identity of a media type: its colour and its icon. */
@@ -22,7 +23,7 @@ export function Tile({
 	return (
 		<span
 			data-media={kind}
-			className={`bg-ed-gradient text-ed-ink grid flex-none place-items-center ${box} ${className}`}
+			className={`bg-ed text-ed-ink grid flex-none place-items-center ${box} ${className}`}
 			aria-hidden="true"
 		>
 			<Icon className={icon} strokeWidth={2} />

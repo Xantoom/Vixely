@@ -101,7 +101,10 @@ export function StylesPanel({ title }: { title: string }) {
 		return (
 			<>
 				<PanelTitle>{m.tool_styles()}</PanelTitle>
+				<p className="text-ui text-ink-2 -mt-2">{m.styles_intro()}</p>
 				<Button
+					variant="primary"
+					className="justify-self-start"
 					onClick={() => {
 						applyWhole((before) =>
 							toAssDoc(before, title, video ? { width: video.width, height: video.height } : undefined),
@@ -146,7 +149,7 @@ export function StylesPanel({ title }: { title: string }) {
 						<span className="text-body truncate" style={{ fontFamily: item.fontname }}>
 							{item.name}
 						</span>
-						<span className="text-small text-muted tabular font-mono">
+						<span className="text-small text-muted tabular">
 							{m.style_lines({ count: use.get(item.name ?? '') ?? 0 })}
 						</span>
 					</button>

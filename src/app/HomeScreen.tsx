@@ -1,6 +1,6 @@
-import { Link } from '@tanstack/react-router';
-import { Code, Plus, ShieldCheck, UserX, WifiOff } from 'lucide-react';
-import { type KeyboardEvent, useId, useState } from 'react';
+import { Link, useNavigate } from '@tanstack/react-router';
+import { ChevronDown, Plus, Upload } from 'lucide-react';
+import { type KeyboardEvent, useId, useRef, useState } from 'react';
 import { EDITOR_ORDER, EDITORS, type MediaKind } from '@/editors/registry';
 import { useSession } from '@/media/session';
 import { Tile } from '@/ui/Tile';
@@ -9,19 +9,14 @@ import { usePageHead } from './head';
 import { homeCopy } from './home/copy';
 import { Shot } from './home/Shot';
 import { useLocale } from './locale';
-import { OpenFileButton } from './OpenFileButton';
 import { ResumeCard } from './ResumeCard';
 import { SiteFooter } from './SiteFooter';
 import { SiteHeader } from './SiteHeader';
 import { TASKS } from './tasks';
 
 const WRAP = 'mx-auto w-full max-w-[76rem] px-[clamp(1rem,4vw,2.5rem)]';
-const SECTION = 'grid scroll-mt-20 gap-8 pt-[clamp(4rem,8vw,6.5rem)]';
-const H2 = 'text-[clamp(2rem,4vw,3rem)] leading-[1.05] font-bold tracking-[-0.035em] text-balance';
-
-/** The colours of the five editors, around the product picture. */
-const GLOW =
-	'conic-gradient(from 200deg, var(--video-1), var(--subtitles-1), var(--audio-1), var(--image-1), var(--gif-1), var(--video-1))';
+const SECTION = 'grid scroll-mt-20 gap-8 pt-[clamp(4rem,8vw,6.5rem)] max-md:gap-5 max-md:pt-14';
+const H2 = 'font-display text-[clamp(1.75rem,4vw,3rem)] leading-[1.05] font-bold tracking-[-0.02em] text-balance';
 
 function SectionHeader({ id, title, lede }: { id: string; title: string; lede?: string }) {
 	return (
@@ -34,58 +29,112 @@ function SectionHeader({ id, title, lede }: { id: string; title: string; lede?: 
 	);
 }
 
+/** The hidden file input of the page and what opening a file does: its editor opens. */
+function useFilePicker() {
+	const open = useSession((state) => state.open);
+	const busy = useSession((state) => state.reading !== null);
+	const navigate = useNavigate();
+	const inputRef = useRef<HTMLInputElement>(null);
+	const choose = () => {
+		if (!busy) inputRef.current?.click();
+	};
+	const input = (
+		<input
+			ref={inputRef}
+			type="file"
+			multiple
+			className="hidden"
+			tabIndex={-1}
+			onChange={(event) => {
+				const files = [...(event.target.files ?? [])];
+				event.target.value = '';
+				void open(files).then(async (kind) => {
+					if (kind) await navigate({ to: EDITORS[kind].path });
+				});
+			}}
+		/>
+	);
+	return { busy, choose, input };
+}
+
+/**
+ * The top of the page is the way in: one large area that takes a dropped, pasted or chosen file
+ * and opens the editor made for it, on a phone as on a computer, where a press chooses the file.
+ */
 function Hero() {
 	const copy = homeCopy();
 	const error = useSession((state) => state.error);
+	const { busy, choose, input } = useFilePicker();
 	return (
-		<section className="grid justify-items-center gap-6 pt-[clamp(3rem,8vw,6rem)] text-center">
-			<h1 className="max-w-[22ch] text-[clamp(2.25rem,5vw,3.75rem)] leading-[1.05] font-bold tracking-[-0.045em] text-balance">
-				{copy.title}
-			</h1>
-			<p className="text-muted max-w-[44ch] text-[clamp(1.0625rem,1.6vw,1.3rem)] text-balance">{copy.lede}</p>
-			<div className="grid justify-items-center gap-2.5">
-				<OpenFileButton reading={copy.reading} className="h-13 rounded-md px-6.5 text-[1.0625rem]">
-					{copy.open}
-				</OpenFileButton>
-				<span className="text-ui text-muted">{copy.dropHint}</span>
-				{error && (
-					<p role="alert" className="text-body text-danger max-w-[60ch]">
-						{errorMessage(error)}
+		<section className="grid gap-4 pt-[clamp(1.5rem,4vw,3rem)] max-md:pt-6" aria-labelledby="start">
+			<div
+				role="button"
+				tabIndex={0}
+				aria-labelledby="start"
+				aria-describedby="start-hint"
+				aria-disabled={busy || undefined}
+				onClick={choose}
+				onKeyDown={(event) => {
+					if (event.key === 'Enter' || event.key === ' ') {
+						event.preventDefault();
+						choose();
+					}
+				}}
+				className="group border-line-2 bg-surface hover:border-ink-2 focus-visible:outline-ink relative grid min-h-[clamp(20rem,52vh,30rem)] place-content-center justify-items-center gap-6 rounded-xl border-[1.5px] border-dashed px-6 py-12 text-center transition-colors duration-150 aria-disabled:cursor-progress max-md:min-h-[26rem] max-md:gap-5 max-md:px-5 max-md:py-10"
+			>
+				<div className="flex gap-2.5" aria-hidden="true">
+					{EDITOR_ORDER.map((kind, index) => (
+						<span
+							key={kind}
+							data-media={kind}
+							className="transition-transform duration-200 group-hover:-translate-y-1"
+							style={{ transitionDelay: `${index * 30}ms` }}
+						>
+							<Tile kind={kind} size="xl" className="max-sm:size-11! max-sm:rounded-[0.7rem]!" />
+						</span>
+					))}
+				</div>
+				<div className="grid justify-items-center gap-2">
+					<h1
+						id="start"
+						className="font-display max-w-[20ch] text-[clamp(2rem,4.6vw,3.5rem)] leading-[1.02] font-bold tracking-[-0.025em] text-balance"
+					>
+						{busy ? (
+							copy.reading
+						) : (
+							<>
+								<span className="pointer-coarse:hidden">{copy.title}</span>
+								<span className="pointer-fine:hidden">{copy.touchTitle}</span>
+							</>
+						)}
+					</h1>
+					<p
+						id="start-hint"
+						className="text-ink-2 max-w-[46ch] text-[clamp(1rem,1.4vw,1.1875rem)] leading-snug"
+					>
+						{copy.lede}
 					</p>
-				)}
+				</div>
+				<div className="grid justify-items-center gap-2">
+					<span className="bg-ink text-bg inline-flex h-12 items-center gap-2.5 rounded-md px-6 text-[1.0625rem] font-semibold max-md:h-13 transition-[filter] duration-150 group-hover:brightness-125">
+						<Upload className="size-[1.15em]" aria-hidden="true" />
+						{copy.open}
+					</span>
+					<span className="text-ui text-muted pointer-coarse:hidden">{copy.dropHint}</span>
+				</div>
 			</div>
-			<div className="w-full max-w-[40rem] text-left">
-				<ResumeCard />
-			</div>
-			<div className="relative mt-6 w-full">
-				<div
-					aria-hidden="true"
-					className="absolute inset-[8%_4%_-4%] rounded-[3rem] opacity-30 blur-[70px]"
-					style={{ background: GLOW }}
-				/>
-				<div className="border-line relative overflow-hidden rounded-xl border shadow-[0_30px_80px_-30px_rgb(0_0_0/0.45)]">
-					<Shot name="image-looks" alt={copy.heroAlt} sizes="(min-width: 1216px) 1136px, 94vw" eager />
+			{input}
+			{error && (
+				<p role="alert" className="text-body text-danger max-w-[60ch]">
+					{errorMessage(error)}
+				</p>
+			)}
+			<div className="grid justify-items-center has-[>div:empty]:hidden">
+				<div className="w-full max-w-[40rem]">
+					<ResumeCard />
 				</div>
 			</div>
 		</section>
-	);
-}
-
-function Trust() {
-	const copy = homeCopy();
-	const icons = [ShieldCheck, UserX, Code, WifiOff];
-	return (
-		<ul className="border-line mt-[clamp(4rem,8vw,6rem)] grid grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-4 border-y py-7">
-			{copy.trust.map((text, index) => {
-				const Icon = icons[index] ?? ShieldCheck;
-				return (
-					<li key={text} className="text-body text-ink-2 flex items-center gap-3 font-medium">
-						<Icon className="text-muted size-5 flex-none" aria-hidden="true" />
-						{text}
-					</li>
-				);
-			})}
-		</ul>
 	);
 }
 
@@ -172,11 +221,11 @@ function EditorTabs() {
 					</figcaption>
 				</figure>
 				<div className="grid gap-5">
-					<h3 className="text-[1.75rem] font-bold tracking-[-0.03em]">{editor.title}</h3>
+					<h3 className="font-display text-[1.75rem] font-bold tracking-[-0.025em]">{editor.title}</h3>
 					<p className="text-lead text-muted">{editor.lede}</p>
 					<ul className="grid gap-4">
 						{editor.points.map(([title, text]) => (
-							<li key={title} className="grid gap-0.5 border-l-2 border-[var(--ed)] pl-4">
+							<li key={title} className="grid gap-0.5">
 								<span className="text-body font-semibold">{title}</span>
 								<span className="text-ui text-muted">{text}</span>
 							</li>
@@ -198,24 +247,61 @@ function Tasks() {
 	const copy = homeCopy();
 	return (
 		<section className={SECTION} aria-labelledby="tasks">
-			<SectionHeader id="tasks" title={copy.tasksTitle} lede={copy.tasksLede} />
-			<ul className="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-3">
-				{TASKS.map((task) => (
-					<li key={task.slug} data-media={task.editor}>
-						<Link
-							to="/tools/$task"
-							params={{ task: task.slug }}
-							className="bg-surface hover:bg-surface-2 flex h-full items-center gap-3.5 rounded-md p-4 transition-[background-color,transform] duration-200 hover:-translate-y-0.5"
-						>
-							<Tile kind={task.editor} size="lg" className="!rounded-full" />
-							<span className="grid">
-								<span className="text-body font-semibold">{task.title()}</span>
-								<span className="text-small text-muted">{EDITORS[task.editor].label()}</span>
-							</span>
-						</Link>
-					</li>
+			<SectionHeader id="tasks" title={copy.tasksTitle} />
+			<div className="grid grid-cols-[repeat(auto-fill,minmax(12.5rem,1fr))] gap-x-8 gap-y-10 max-md:hidden">
+				{EDITOR_ORDER.map((kind) => (
+					<div key={kind} data-media={kind} className="grid content-start gap-3">
+						<h3 className="text-body flex items-center gap-2.5 font-semibold">
+							<Tile kind={kind} size="sm" />
+							{copy.editors[kind].title}
+						</h3>
+						<ul className="border-line grid border-t">
+							{TASKS.filter((task) => task.editor === kind).map((task) => (
+								<li key={task.slug} className="border-line border-b">
+									<Link
+										to="/tools/$task"
+										params={{ task: task.slug }}
+										className="text-body text-ink-2 hover:text-ink decoration-(--ed) block py-2.5 underline-offset-4 transition-colors hover:underline"
+									>
+										{task.title()}
+									</Link>
+								</li>
+							))}
+						</ul>
+					</div>
 				))}
-			</ul>
+			</div>
+			<div className="border-line -mt-2 grid border-t md:hidden">
+				{EDITOR_ORDER.map((kind) => {
+					const tasks = TASKS.filter((task) => task.editor === kind);
+					return (
+						<details key={kind} data-media={kind} className="group border-line border-b">
+							<summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden">
+								<Tile kind={kind} size="sm" />
+								<span className="text-body flex-1 font-semibold">{copy.editors[kind].title}</span>
+								<span className="text-small text-muted tabular">{tasks.length}</span>
+								<ChevronDown
+									className="text-muted size-5 transition-transform duration-200 group-open:rotate-180"
+									aria-hidden="true"
+								/>
+							</summary>
+							<ul className="grid pb-3 pl-10">
+								{tasks.map((task) => (
+									<li key={task.slug}>
+										<Link
+											to="/tools/$task"
+											params={{ task: task.slug }}
+											className="text-body text-ink-2 active:text-ink block py-2.5"
+										>
+											{task.title()}
+										</Link>
+									</li>
+								))}
+							</ul>
+						</details>
+					);
+				})}
+			</div>
 		</section>
 	);
 }
@@ -225,30 +311,21 @@ function Formats() {
 	return (
 		<section className={SECTION} aria-labelledby="formats">
 			<SectionHeader id="formats" title={copy.formatsTitle} />
-			<div className="grid grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-4">
+			<dl className="border-line grid border-t">
 				{copy.formats.map((group) => (
 					<div
 						key={group.kind}
 						data-media={group.kind}
-						className="grid content-start gap-3 rounded-md p-5 shadow-[inset_0_0_0_1px_var(--line)]"
+						className="border-line grid gap-x-8 gap-y-1 border-b py-4 sm:grid-cols-[12rem_minmax(0,1fr)]"
 					>
-						<h3 className="text-body flex items-center gap-2.5 font-semibold">
-							<Tile kind={group.kind} size="sm" />
+						<dt className="text-body flex items-center gap-2.5 font-semibold">
+							<span className="bg-ed size-2 rounded-full" aria-hidden="true" />
 							{group.title}
-						</h3>
-						<ul className="flex flex-wrap gap-1.5">
-							{group.items.map((item) => (
-								<li
-									key={item}
-									className="bg-surface text-caption rounded-xs px-2 py-1 font-mono font-medium"
-								>
-									{item}
-								</li>
-							))}
-						</ul>
+						</dt>
+						<dd className="text-body text-ink-2">{group.items.join(', ')}</dd>
 					</div>
 				))}
-			</div>
+			</dl>
 		</section>
 	);
 }
@@ -284,7 +361,6 @@ export function HomeScreen() {
 			<SiteHeader />
 			<main className={WRAP}>
 				<Hero />
-				<Trust />
 				<EditorTabs />
 				<Tasks />
 				<Formats />

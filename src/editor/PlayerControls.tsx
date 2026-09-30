@@ -1,4 +1,4 @@
-import { AudioLines, type LucideIcon, Pause, Play } from 'lucide-react';
+import { AudioLines, ChevronFirst, ChevronLast, type LucideIcon, Pause, Play } from 'lucide-react';
 import {
 	type KeyboardEvent as ReactKeyboardEvent,
 	type PointerEvent as ReactPointerEvent,
@@ -13,6 +13,7 @@ import type { AudioTrackInfo } from '@/media/audio-tracks';
 import { usePlayback, usePlaybackLength } from '@/media/playback';
 import { m } from '@/paraglide/messages.js';
 import { Menu, type MenuItem } from '@/ui/Menu';
+import { VolumeControl } from './VolumeControl';
 
 /**
  * The play button of every player: round, in the editor's colours, the icon swapping with a
@@ -38,7 +39,7 @@ export function PlayButton({
 			data-tip={playing ? m.pause() : m.play()}
 			disabled={disabled}
 			onClick={onToggle}
-			className={`bg-ed-gradient text-ed-ink ease-spring relative grid ${box} flex-none place-items-center rounded-full shadow-[0_6px_16px_-8px_var(--ed)] transition-[transform,filter,box-shadow] duration-200 enabled:hover:scale-[1.06] enabled:hover:brightness-[1.06] enabled:hover:shadow-[0_8px_22px_-8px_var(--ed)] enabled:active:scale-[0.94] disabled:opacity-45`}
+			className={`bg-ed text-ed-ink ease-spring relative grid ${box} flex-none place-items-center rounded-full transition-[transform,filter] duration-200 enabled:hover:scale-[1.06] enabled:hover:brightness-[1.06] enabled:active:scale-[0.94] disabled:opacity-45`}
 		>
 			<Play
 				size={icon}
@@ -58,18 +59,13 @@ export function PlayButton({
 	);
 }
 
-/** A button on the picture, over whatever it shows: dark glass that stays readable on any frame. */
-const ON_PICTURE =
-	'size-9 min-w-9 rounded-full bg-black/50 text-white backdrop-blur-md shadow-[0_2px_10px_rgb(0_0_0/0.25)] hover:bg-black/70 hover:text-white aria-expanded:bg-black/75 aria-expanded:text-white';
-
-/** A player's menu, as an icon: on the picture, or in a bar under a sound with no picture. */
+/** A player's menu, as an icon in the bar of the player. */
 export function PlayerMenu<T extends string>({
 	icon: Icon,
 	label,
 	value,
 	items,
 	onChange,
-	onPicture = true,
 	active = false,
 }: {
 	icon: LucideIcon;
@@ -77,35 +73,19 @@ export function PlayerMenu<T extends string>({
 	value: T | null;
 	items: MenuItem<T>[];
 	onChange: (value: T) => void;
-	onPicture?: boolean;
 	/** Something is on (subtitles shown): a mark under the icon, as players do. */
 	active?: boolean;
 }) {
 	return (
-		<Menu
-			label={label}
-			title={label}
-			value={value}
-			items={items}
-			onChange={onChange}
-			buttonClassName={onPicture ? ON_PICTURE : 'shadow-[inset_0_0_0_1px_var(--line-2)]'}
-		>
+		<Menu label={label} title={label} value={value} items={items} onChange={onChange} buttonClassName="text-muted">
 			<span className="relative grid place-items-center">
 				<Icon size={18} aria-hidden="true" />
 				{active && (
-					<span
-						className="bg-ed-line absolute -bottom-[5px] h-[2.5px] w-3.5 rounded-full"
-						aria-hidden="true"
-					/>
+					<span className="bg-ed absolute -bottom-[5px] h-[2.5px] w-3.5 rounded-full" aria-hidden="true" />
 				)}
 			</span>
 		</Menu>
 	);
-}
-
-/** Buttons laid on the picture's lower right corner, above the video itself. */
-export function PictureButtons({ children }: { children: ReactNode }) {
-	return <div className="absolute right-3 bottom-3 z-10 flex items-center gap-1.5">{children}</div>;
 }
 
 /** `English, Director's commentary`. */
@@ -119,7 +99,7 @@ export function audioTrackDetail(track: AudioTrackInfo): string {
 }
 
 /** Which audio track plays. Always offered, even for one track, so the user sees what they hear. */
-export function AudioTrackMenu({ onPicture = true }: { onPicture?: boolean }) {
+export function AudioTrackMenu() {
 	const tracks = usePlayback((state) => state.details?.audioTracks ?? null);
 	const current = usePlayback((state) => state.audioTrack);
 	const setAudioTrack = usePlayback((state) => state.setAudioTrack);
@@ -128,7 +108,6 @@ export function AudioTrackMenu({ onPicture = true }: { onPicture?: boolean }) {
 		<PlayerMenu
 			icon={AudioLines}
 			label={m.player_audio_track()}
-			onPicture={onPicture}
 			value={current === null ? null : String(current)}
 			items={tracks.map((track) => ({
 				value: String(track.id),
@@ -223,7 +202,7 @@ function SeekBar() {
 				setHover(null);
 			}}
 			onKeyDown={onKeyDown}
-			className="group/seek relative flex h-8 min-w-16 flex-1 cursor-pointer touch-none items-center rounded-full"
+			className="group/seek relative flex h-6 min-w-16 cursor-pointer touch-none items-center rounded-full"
 		>
 			<div
 				ref={trackRef}
@@ -235,10 +214,7 @@ function SeekBar() {
 						style={{ width: `${(hover / length) * 100}%` }}
 					/>
 				)}
-				<div
-					className="bg-ed-line absolute inset-y-0 left-0 rounded-full"
-					style={{ width: `${ratio * 100}%` }}
-				/>
+				<div className="bg-ed absolute inset-y-0 left-0 rounded-full" style={{ width: `${ratio * 100}%` }} />
 				<div
 					className="ease-spring absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 scale-75 rounded-full bg-white shadow-[0_0_0_1px_rgb(0_0_0/0.15),0_2px_6px_rgb(0_0_0/0.3)] transition-transform duration-150 group-hover/seek:scale-100 group-focus-visible/seek:scale-100 group-data-dragging-seek/seek:scale-110"
 					style={{ left: `${ratio * 100}%` }}
@@ -246,7 +222,7 @@ function SeekBar() {
 			</div>
 			{hover !== null && length > 0 && (
 				<span
-					className="bg-ink text-bg tabular pointer-events-none absolute bottom-full mb-1 -translate-x-1/2 rounded-xs px-1.5 py-0.5 font-mono text-[12px] font-medium whitespace-nowrap"
+					className="bg-ink text-bg tabular pointer-events-none absolute bottom-full mb-1 -translate-x-1/2 rounded-xs px-1.5 py-0.5 text-caption font-medium whitespace-nowrap"
 					style={{ left: `${(hover / length) * 100}%` }}
 				>
 					{formatPreciseTime(hover)}
@@ -256,24 +232,71 @@ function SeekBar() {
 	);
 }
 
+/** Goes one frame back or forward, paused, as editors do with the comma and period keys. */
+function StepButton({ direction, frameRate }: { direction: -1 | 1; frameRate: number }) {
+	const label = direction < 0 ? m.frame_back() : m.frame_forward();
+	return (
+		<button
+			type="button"
+			aria-label={label}
+			data-tip={label}
+			onClick={() => {
+				const playback = usePlayback.getState();
+				playback.pause();
+				playback.seek(Math.max(0, playback.time + direction / frameRate));
+			}}
+			className="text-ink-2 hover:bg-surface hover:text-ink grid size-9 place-items-center rounded-full transition-colors max-sm:size-8"
+		>
+			{direction < 0 ? (
+				<ChevronFirst className="size-[1.15rem]" aria-hidden="true" />
+			) : (
+				<ChevronLast className="size-[1.15rem]" aria-hidden="true" />
+			)}
+		</button>
+	);
+}
+
 /**
- * The controls under a video: play, time and position, and what the editor adds (the capture
- * button). Track choices sit on the picture. Space plays and pauses where the editor listens for it.
+ * The transport bar under a picture: the time on the left, frame back, play and frame forward in
+ * the middle, and what the editor adds on the right (track choices, capture, zoom). A position
+ * bar joins it where no timeline below does that job.
  */
-export function PlayerControls({ children }: { children?: ReactNode }) {
+export function PlayerControls({
+	children,
+	seek = true,
+	frameRate = 30,
+}: {
+	children?: ReactNode;
+	/** Shows the position bar; left out under a timeline, whose playhead already does it. */
+	seek?: boolean;
+	frameRate?: number;
+}) {
 	const playing = usePlayback((state) => state.playing);
 	const toggle = usePlayback((state) => state.toggle);
 	const time = usePlayback((state) => state.time);
 	const length = usePlaybackLength();
 	return (
-		<div className="flex min-w-0 items-center gap-3">
-			<PlayButton playing={playing} onToggle={toggle} />
-			<span className="tabular font-mono text-[13px] font-medium whitespace-nowrap">
-				{formatPreciseTime(time)}
-				<span className="text-muted"> / {formatPreciseTime(length)}</span>
-			</span>
-			<SeekBar />
-			{children && <div className="flex min-w-0 items-center gap-1.5">{children}</div>}
+		<div className="grid min-w-0 gap-1 max-md:px-3">
+			{seek && <SeekBar />}
+			<div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 max-sm:gap-1.5">
+				<div className="-ml-1.5 flex min-w-0 items-center gap-1.5">
+					<VolumeControl />
+					<span
+						role="timer"
+						aria-label={m.playhead()}
+						className="tabular text-small min-w-0 truncate font-medium whitespace-nowrap"
+					>
+						{formatPreciseTime(time)}
+						<span className="text-muted max-sm:hidden"> / {formatPreciseTime(length)}</span>
+					</span>
+				</div>
+				<div className="flex items-center gap-1.5 max-sm:gap-0.5">
+					<StepButton direction={-1} frameRate={frameRate} />
+					<PlayButton playing={playing} onToggle={toggle} />
+					<StepButton direction={1} frameRate={frameRate} />
+				</div>
+				<div className="-mr-1.5 flex min-w-0 items-center justify-end gap-0.5">{children}</div>
+			</div>
 		</div>
 	);
 }
@@ -298,7 +321,7 @@ export function PlayerPicture({ width, height, children }: { width: number; heig
 
 	return (
 		<div
-			className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[3px] bg-black shadow-[0_0_0_1px_var(--line)]"
+			className="stage-picture absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 overflow-hidden bg-black"
 			style={{ width, height }}
 		>
 			{video && <canvas ref={canvasRef} className="absolute inset-0 size-full" />}

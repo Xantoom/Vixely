@@ -23,16 +23,15 @@ interface EditorCopy {
 export interface HomeCopy {
 	nav: { label: string; editors: string; tasks: string; formats: string; faq: string; open: string };
 	title: string;
+	/** The title on touch screens, where files are chosen rather than dropped. */
+	touchTitle: string;
 	lede: string;
 	open: string;
 	reading: string;
 	dropHint: string;
-	heroAlt: string;
-	trust: string[];
 	editorsTitle: string;
 	editors: Record<MediaKind, EditorCopy>;
 	tasksTitle: string;
-	tasksLede: string;
 	formatsTitle: string;
 	formats: { kind: MediaKind; title: string; items: string[] }[];
 	faqTitle: string;
@@ -57,15 +56,13 @@ const EN: HomeCopy = {
 		faq: 'Questions',
 		open: 'Open a file',
 	},
-	title: 'Edit video, images, GIFs, sound and subtitles in your browser.',
-	lede: 'Your files stay on your device: they are read and saved here, never uploaded.',
-	open: 'Open a file',
+	title: 'Drop a file to start',
+	touchTitle: 'Open a file to start',
+	lede: 'A video, an image, a GIF, a sound or subtitles: its editor opens. Files are read on your device, never uploaded.',
+	open: 'Choose a file',
 	reading: 'Reading…',
-	dropHint: 'or drop it anywhere on the page, or paste it',
-	heroAlt:
-		'The image editor: a photo of a lake at sunset with the Vivid look, its light and colour settings beside it.',
-	trust: ['Nothing is uploaded', 'No account, no ads', 'Open source, AGPL-3.0', 'Works offline'],
-	editorsTitle: 'The editors',
+	dropHint: 'or paste it with Ctrl+V',
+	editorsTitle: 'What each editor does',
 	editors: {
 		video: {
 			title: 'Video',
@@ -73,7 +70,7 @@ const EN: HomeCopy = {
 			points: [
 				['Cuts without re-encoding', 'Removed passages are skipped and the rest copied as it is.'],
 				['A size you choose', 'Discord, WhatsApp, e-mail: the bitrate is worked out to fit.'],
-				['Sound and subtitle tracks', 'Keep, rename, add, set their volume, or burn subtitles in.'],
+				['Sound and subtitle tracks', 'Keep, rename, add, re-encode, set their volume, or burn subtitles in.'],
 			],
 			open: 'Open the video editor',
 			shots: [
@@ -89,8 +86,8 @@ const EN: HomeCopy = {
 				},
 				{
 					name: 'video-subtitles',
-					caption: 'Subtitle tracks',
-					alt: 'The subtitle tracks of a video, in English and French.',
+					caption: 'Sound and subtitle tracks',
+					alt: 'The tracks of a video: its sound, open on its encoding and volume, and its subtitles in English and French.',
 				},
 			],
 		},
@@ -203,7 +200,6 @@ const EN: HomeCopy = {
 		},
 	},
 	tasksTitle: 'I want to…',
-	tasksLede: 'Each task opens its editor already set up.',
 	formatsTitle: 'Formats',
 	formats: [
 		{
@@ -268,15 +264,13 @@ const FR: HomeCopy = {
 		faq: 'Questions',
 		open: 'Ouvrir un fichier',
 	},
-	title: 'Modifiez vidéos, images, GIF, sons et sous-titres dans votre navigateur.',
-	lede: 'Vos fichiers restent sur votre appareil : ils sont lus et enregistrés ici, jamais envoyés.',
-	open: 'Ouvrir un fichier',
+	title: 'Déposez un fichier pour commencer',
+	touchTitle: 'Ouvrez un fichier pour commencer',
+	lede: 'Une vidéo, une image, un GIF, un son ou des sous-titres : son éditeur s’ouvre. Les fichiers sont lus sur votre appareil, jamais envoyés.',
+	open: 'Choisir un fichier',
 	reading: 'Lecture…',
-	dropHint: 'ou déposez-le n’importe où sur la page, ou collez-le',
-	heroAlt:
-		'L’éditeur d’images : une photo de lac au coucher du soleil avec l’effet Vivid, ses réglages de lumière et de couleur à côté.',
-	trust: ['Rien n’est envoyé', 'Sans compte ni publicité', 'Code ouvert, AGPL-3.0', 'Fonctionne hors ligne'],
-	editorsTitle: 'Les éditeurs',
+	dropHint: 'ou collez-le avec Ctrl+V',
+	editorsTitle: 'Ce que fait chaque éditeur',
 	editors: {
 		video: {
 			title: 'Vidéo',
@@ -286,7 +280,7 @@ const FR: HomeCopy = {
 				['La taille que vous voulez', 'Discord, WhatsApp, e-mail : le débit est calculé pour tenir.'],
 				[
 					'Pistes son et sous-titres',
-					'Garder, renommer, ajouter, régler le volume, ou incruster les sous-titres.',
+					'Garder, renommer, ajouter, réencoder, régler le volume, ou incruster les sous-titres.',
 				],
 			],
 			open: 'Ouvrir l’éditeur vidéo',
@@ -303,8 +297,8 @@ const FR: HomeCopy = {
 				},
 				{
 					name: 'video-subtitles',
-					caption: 'Pistes de sous-titres',
-					alt: 'Les pistes de sous-titres d’une vidéo, en anglais et en français.',
+					caption: 'Pistes son et sous-titres',
+					alt: 'Les pistes d’une vidéo : le son, ouvert sur son encodage et son volume, puis les sous-titres en anglais et en français.',
 				},
 			],
 		},
@@ -417,7 +411,6 @@ const FR: HomeCopy = {
 		},
 	},
 	tasksTitle: 'Je veux…',
-	tasksLede: 'Chaque tâche ouvre son éditeur déjà réglé.',
 	formatsTitle: 'Formats',
 	formats: [
 		{

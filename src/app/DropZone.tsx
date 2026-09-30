@@ -91,9 +91,17 @@ export function DropZone({ compact = false, prefer }: { compact?: boolean; prefe
 						/>
 					))}
 				</span>
-				<span className="mt-1.5 text-lg font-semibold tracking-[-0.015em]">{reading ?? m.drop_title()}</span>
+				<span className="mt-1.5 text-lg font-semibold tracking-[-0.015em]">
+					{reading ?? (
+						<>
+							<span className="pointer-coarse:hidden">{m.drop_title()}</span>
+							{/* Phones choose files rather than drop them. */}
+							<span className="hidden pointer-coarse:inline">{m.drop_tap()}</span>
+						</>
+					)}
+				</span>
 				{!reading && (
-					<span className="text-muted text-body">
+					<span className="text-muted text-body pointer-coarse:hidden">
 						{m.drop_or()}{' '}
 						<span className="text-ink underline underline-offset-[3px]">{m.drop_choose()}</span>
 					</span>

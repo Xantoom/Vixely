@@ -14,7 +14,7 @@ function State({ ok }: { ok: boolean }) {
 function CodecTable({ title, codecs }: { title: string; codecs: CodecSupport[] }) {
 	return (
 		<section className="grid content-start gap-4">
-			<h2 className="text-title font-bold tracking-[-0.03em]">{title}</h2>
+			<h2 className="font-display text-title font-bold tracking-[-0.02em]">{title}</h2>
 			<table className="text-body w-full border-collapse">
 				<thead>
 					<tr className="text-ui text-muted border-line border-b text-left">
@@ -26,7 +26,7 @@ function CodecTable({ title, codecs }: { title: string; codecs: CodecSupport[] }
 				<tbody>
 					{codecs.map((codec) => (
 						<tr key={codec.codec} className="border-line border-b">
-							<td className="py-2.5 text-caption font-mono">{codecName(codec.codec)}</td>
+							<td className="py-2.5 text-caption">{codecName(codec.codec)}</td>
 							<td className="py-2.5">
 								<State ok={codec.decode} />
 							</td>
@@ -87,7 +87,7 @@ function SystemScreen() {
 			<SiteHeader />
 			<main className="mx-auto grid min-h-svh w-full max-w-[76rem] flex-1 content-start gap-12 px-[clamp(1rem,4vw,2.5rem)] pt-[clamp(3rem,7vw,5rem)]">
 				<div className="grid gap-3.5">
-					<h1 className="max-w-[18ch] text-[clamp(2.25rem,5vw,3.5rem)] leading-[1.02] font-bold tracking-[-0.045em] text-balance">
+					<h1 className="font-display max-w-[18ch] text-[clamp(2.25rem,5vw,3.5rem)] leading-[1.02] font-bold tracking-[-0.025em] text-balance">
 						{m.system_title()}
 					</h1>
 					<p className="text-lead text-muted max-w-[52ch]">{m.system_lede()}</p>
@@ -96,7 +96,9 @@ function SystemScreen() {
 				{caps ? (
 					<div className="grid gap-12 lg:grid-cols-3">
 						<section className="grid content-start gap-4">
-							<h2 className="text-title font-bold tracking-[-0.03em]">{m.system_features()}</h2>
+							<h2 className="font-display text-title font-bold tracking-[-0.02em]">
+								{m.system_features()}
+							</h2>
 							<dl className="text-body grid">
 								{features.map(([label, value]) => (
 									<div
@@ -106,7 +108,7 @@ function SystemScreen() {
 										<dt className="text-ink-2">{label}</dt>
 										<dd>
 											{typeof value === 'string' ? (
-												<span className="text-caption font-mono">{value}</span>
+												<span className="text-caption">{value}</span>
 											) : (
 												<State ok={value} />
 											)}

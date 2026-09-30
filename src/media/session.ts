@@ -54,8 +54,12 @@ interface SessionState {
 	open: (files: File[], prefer?: MediaKind) => Promise<MediaKind | null>;
 	/** Opens the current file in another editor, such as the audio of a video. */
 	openAs: (kind: MediaKind) => void;
+	/** Opens the file of one editor in another, such as the video open for a GIF made from it. */
+	openFrom: (from: MediaKind, kind: MediaKind) => void;
 	/** The editor on screen: its file becomes the current one. */
 	focus: (kind: MediaKind) => void;
+	/** Closes the file of one editor, and the batch it holds: the editor is empty again. */
+	close: (kind: MediaKind) => void;
 	/** Shows another file of the batch in the preview. */
 	select: (item: BatchFile) => Promise<void>;
 	addToBatch: (files: File[]) => Promise<void>;
@@ -151,7 +155,7 @@ async function batchKindOf(files: File[], prefer: MediaKind | undefined): Promis
 }
 
 /** The still images among files, in order, and how many other files there were. */
-async function stillImages(files: readonly File[]): Promise<{ images: StillImage[]; others: number }> {
+export async function stillImages(files: readonly File[]): Promise<{ images: StillImage[]; others: number }> {
 	const results = await Promise.all(files.map(async (file) => ({ file, result: await identify(file) })));
 	const images = results.flatMap(({ file, result }) =>
 		result.ok && result.value.kind === 'image' ? [{ file, format: result.value.format }] : [],
@@ -239,6 +243,17 @@ export const useSession = create<SessionState>((set, get) => ({
 		return opened.kind;
 	},
 
+	openFrom(from, kind) {
+		const source = get().opened[from];
+		if (!source) return;
+		const opened = { ...source, kind };
+		set({
+			opened: withOpened(get().opened, kind, opened),
+			current: opened,
+			...(get().batchKind === kind ? { batch: null, batchKind: null, batchKey: null } : {}),
+		});
+	},
+
 	openAs(kind) {
 		const current = get().current;
 		if (!current) return;
@@ -253,6 +268,20 @@ export const useSession = create<SessionState>((set, get) => ({
 	focus(kind) {
 		const opened = get().opened[kind];
 		if (opened && opened !== get().current) set({ current: opened });
+	},
+
+	close(kind) {
+		const closed = get().opened[kind];
+		if (!closed) return;
+		const rest: Opened = { ...get().opened };
+		delete rest[kind];
+		const poster = closed.poster;
+		if (poster && !Object.values(rest).some((entry) => entry.poster === poster)) poster.close();
+		set({
+			opened: rest,
+			current: get().current === closed ? null : get().current,
+			...(get().batchKind === kind ? { batch: null, batchKind: null, batchKey: null } : {}),
+		});
 	},
 
 	async select(item) {

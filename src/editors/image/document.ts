@@ -136,6 +136,28 @@ export function orientedSize(source: Size, rotation: Rotation): Size {
 		: { width: source.width, height: source.height };
 }
 
+/**
+ * The document drawn over the whole picture while cropping: its blurred zones, placed on the
+ * cropped output, moved to where that output lies in the whole picture, so they follow the frame.
+ */
+export function wholePictureDoc(doc: ImageDoc, crop: Rect, bounds: Size): ImageDoc {
+	if (!doc.overlays.some((overlay) => overlay.kind === 'zone')) return doc;
+	const scale = Math.min(crop.width, crop.height) / Math.min(bounds.width, bounds.height);
+	return {
+		...doc,
+		overlays: doc.overlays.map((overlay) =>
+			overlay.kind === 'zone'
+				? {
+						...overlay,
+						x: (crop.x + overlay.x * crop.width) / bounds.width,
+						y: (crop.y + overlay.y * crop.height) / bounds.height,
+						size: overlay.size * scale,
+					}
+				: overlay,
+		),
+	};
+}
+
 /** The part of the oriented image that ends up in the output. */
 export function effectiveCrop(doc: ImageDoc, source: Size): Rect {
 	const { width, height } = orientedSize(source, doc.rotation);

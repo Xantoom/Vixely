@@ -107,7 +107,7 @@ for (const [path, file, ready] of EDITORS) {
 		await page.waitForTimeout(600);
 		await walk(page, `${path} ${name}`);
 	}
-	await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+	await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 	await page.waitForTimeout(1000);
 	await walk(page, `${path} export`);
 }

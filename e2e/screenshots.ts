@@ -29,7 +29,7 @@ const open = async (page: Page, path: string, file: string, ready = TOOLS) => {
 	await page.waitForTimeout(2000);
 };
 const exportPanel = async (page: Page) => {
-	await page.locator('header').getByRole('button', { name: t('Export', 'Exporter'), exact: true }).click();
+	await page.getByRole('navigation').getByRole('button', { name: t('Export', 'Exporter'), exact: true }).click();
 	await page.waitForTimeout(800);
 };
 
@@ -44,7 +44,8 @@ export const SHOTS: Record<string, Shot> = {
 	'image-formats': async (page) => {
 		await open(page, '/image', 'lake.jpg');
 		await tool(page, t('Crop', 'Recadrer'));
-		await aside(page).getByRole('button', { name: 'Instagram', exact: true }).click();
+		await aside(page).getByRole('radio', { name: t('Social networks', 'Réseaux sociaux') }).click();
+		await aside(page).getByRole('radio', { name: /^Instagram Reels/ }).click();
 	},
 	'image-export': async (page) => {
 		await open(page, '/image', 'lake.jpg');
@@ -58,13 +59,13 @@ export const SHOTS: Record<string, Shot> = {
 	},
 	'video-export': async (page) => {
 		await open(page, '/video', 'sunset.mkv', tracks());
-		await tool(page, 'Formats');
-		await aside(page).getByRole('button', { name: /^Discord/ }).first().click();
 		await exportPanel(page);
+		await aside(page).getByRole('radio', { name: t('Convert', 'Convertir') }).click();
 	},
 	'video-subtitles': async (page) => {
 		await open(page, '/video', 'sunset.mkv', tracks());
-		await tool(page, t('Subtitles', 'Sous-titres'));
+		await tool(page, t('Tracks', 'Pistes'));
+		await aside(page).locator('li[data-media=audio] button[aria-expanded]').first().click();
 	},
 	'gif-frames': async (page) => {
 		await open(page, '/gif', 'sunset.gif');
@@ -88,7 +89,8 @@ export const SHOTS: Record<string, Shot> = {
 	'audio-sound': async (page) => {
 		await open(page, '/audio', 'sunset.mp3');
 		await tool(page, t('Sound', 'Son'));
-		await aside(page).getByRole('radio', { name: t('Voice', 'Voix') }).click();
+		await aside(page).getByLabel(t('Equalizer presets', 'Préréglages de l’égaliseur')).click();
+		await page.getByRole('option', { name: t('Voice', 'Voix') }).click();
 	},
 	'audio-export': async (page) => {
 		await open(page, '/audio', 'sunset.mp3');

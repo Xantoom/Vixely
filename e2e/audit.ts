@@ -83,7 +83,7 @@ for (const scheme of ['light', 'dark'] as const) {
 			await page.waitForTimeout(600);
 			await audit(page, `${scheme} ${path} ${name}`);
 		}
-		await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+		await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 		await page.waitForTimeout(1000);
 		await audit(page, `${scheme} ${path} export`);
 		// A list open, as drawn by the app.

@@ -10,13 +10,12 @@ import type { ToolId } from '@/editors/registry';
 import { useOpened, useSession } from '@/media/session';
 import type { ItemStatus } from './batch-export';
 import { BatchStrip } from './BatchStrip';
-import type { Size } from './document';
+import { effectiveCrop, orientedSize, type Size } from './document';
 import { overlayEditing, useImagePictureEditing } from './editing';
 import { outputSize, sourceExportSettings } from './export';
 import { ExportFooter } from './ExportFooter';
 import { ImageViewer } from './ImageViewer';
 import { AdjustPanel, CropPanel, ExportPanel } from './panels';
-import { PlatformFormats } from './PlatformFormats';
 import { ResizePanel } from './ResizePanel';
 import { useImageDoc, useImageEditor, useUndoState } from './store';
 
@@ -66,14 +65,31 @@ export function ImageEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	useEditorShortcuts({ undo, redo });
 	const doc = useImageDoc();
 	const exportSettings = useImageEditor((state) => state.exportSettings);
+	const setExport = useImageEditor((state) => state.setExport);
 	// The status bar shows what the export will make.
 	const cropped = source ? outputSize(doc, source, exportSettings) : null;
 	const editing = useImagePictureEditing({ width: source?.width ?? 1, height: source?.height ?? 1 }, source);
 
+	// The picture as the preview shows it: whole while cropping, cropped otherwise.
+	const shown = source ? (tool === 'crop' ? orientedSize(source, doc.rotation) : effectiveCrop(doc, source)) : null;
+
 	const inspector = () => {
 		if (tool === 'info' || !opened) return <FilePanel opened={opened} />;
 		if (!source) return <ToolLater kind="image" tool={tool} />;
-		if (tool === 'crop') return <CropPanel editing={editing} formats={<PlatformFormats editing={editing} />} />;
+		if (tool === 'crop')
+			return (
+				<CropPanel
+					editing={editing}
+					onSocialShape={(shape) => {
+						// Exported at the size the network recommends.
+						setExport({
+							exact: { width: shape.width, height: shape.height },
+							longestSide: null,
+							preset: null,
+						});
+					}}
+				/>
+			);
 		if (tool === 'resize') return <ResizePanel source={source} />;
 		if (tool === 'adjust') return <AdjustPanel editing={editing} />;
 		if (tool === 'layers') return <LayersPanel editing={overlayEditing(editing)} textRef={textRef} />;
@@ -84,6 +100,7 @@ export function ImageEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	return (
 		<EditorLayout
 			kind="image"
+			ambient={opened?.poster ?? null}
 			fileName={batch ? undefined : opened?.file.name}
 			tool={tool}
 			onTool={setTool}
@@ -117,6 +134,7 @@ export function ImageEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 				)
 			}
 			status={source ? <ZoomStatus size={cropped} /> : undefined}
+			aspect={shown ? shown.width / Math.max(1, shown.height) : undefined}
 			timeline={batch ? <BatchStrip statuses={statuses} locked={running} /> : undefined}
 			inspector={inspector()}
 			inspectorFooter={

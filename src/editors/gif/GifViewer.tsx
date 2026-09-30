@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { CropOverlay } from '@/editor/CropOverlay';
 import type { OverlayEditing } from '@/editor/overlays/editing';
-import { OverlayLayer } from '@/editor/overlays/OverlayLayer';
+import { CroppedLayers, OverlayLayer } from '@/editor/overlays/OverlayLayer';
 import { backingSize, useStageZoom, ZoomStage, ZoomStatus } from '@/editor/ZoomStage';
-import { effectiveCrop, orientedSize } from '@/editors/image/document';
+import { effectiveCrop, orientedSize, type Size, wholePictureDoc } from '@/editors/image/document';
 import { cropRatio } from '@/editors/image/store';
 import { formatPreciseTime } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
@@ -13,9 +13,15 @@ import type { GifEngine } from './engine';
 import { exportLayout } from './export';
 import { useGifDoc, useGifEditor } from './store';
 
-/** The document drawn while cropping: the whole picture turned, nothing else. */
-function croppingDoc(doc: GifDoc): GifDoc {
-	return { ...doc, picture: { ...doc.picture, crop: null, overlays: [] }, bands: null, fade: NO_FADE };
+/**
+ * The document drawn while cropping: the whole picture turned, with its colours and blurred zones.
+ * Text and stickers lie in the crop frame, over it; bands and fades wait for the crop.
+ */
+function croppingDoc(doc: GifDoc, source: Size): GifDoc {
+	const crop = effectiveCrop(doc.picture, source);
+	const whole = wholePictureDoc(doc.picture, crop, orientedSize(source, doc.picture.rotation));
+	const zones = whole.overlays.filter((overlay) => overlay.kind === 'zone');
+	return { ...doc, picture: { ...whole, crop: null, overlays: zones }, bands: null, fade: NO_FADE };
 }
 
 /** The frame on screen, drawn at the scale of the stage by the export's own composer. */
@@ -43,7 +49,7 @@ function GifPicture({
 	const composer = useRef<FrameComposer | null>(null);
 	const { source, frames, length } = engine;
 	const size = { width: source?.width ?? 1, height: source?.height ?? 1 };
-	const shown = cropping ? croppingDoc(doc) : doc;
+	const shown = cropping ? croppingDoc(doc, size) : doc;
 	// Only a new frame draws again, not every moment of playback.
 	const frame = useGifEditor((state) => frameAt(frames, state.playhead));
 	const bounds = orientedSize(size, doc.picture.rotation);
@@ -106,7 +112,7 @@ function GifPicture({
 		<>
 			<canvas
 				ref={canvasRef}
-				className={`block size-full rounded-[3px] bg-[conic-gradient(var(--surface-2)_25%,var(--bg)_0_50%,var(--surface-2)_0_75%,var(--bg)_0)] bg-size-[16px_16px] shadow-[0_1px_3px_rgb(0_0_0/0.18),0_12px_40px_-12px_rgb(0_0_0/0.35)] ${scale > 1.5 ? '[image-rendering:pixelated]' : ''}`}
+				className={`block size-full stage-picture bg-[conic-gradient(var(--surface-2)_25%,var(--bg)_0_50%,var(--surface-2)_0_75%,var(--bg)_0)] bg-size-[16px_16px] ${scale > 1.5 ? '[image-rendering:pixelated]' : ''}`}
 			/>
 			{!cropping && !comparing && overlays && (
 				<OverlayLayer
@@ -117,6 +123,7 @@ function GifPicture({
 					onEditText={onEditText}
 				/>
 			)}
+			{cropping && source && <CroppedLayers overlays={doc.picture.overlays} crop={crop} scale={scale} />}
 			{cropping && source && (
 				<CropOverlay
 					crop={crop}
@@ -152,9 +159,9 @@ export function GifViewer({
 	const doc = useGifDoc();
 	const { source } = engine;
 	const size = { width: source?.width ?? 1, height: source?.height ?? 1 };
-	const layout = frameLayout(cropping ? croppingDoc(doc) : doc, size, null);
+	const layout = frameLayout(cropping ? croppingDoc(doc, size) : doc, size, null);
 	return (
-		<ZoomStage width={layout.width} height={layout.height} compare>
+		<ZoomStage width={layout.width} height={layout.height} compare={!cropping}>
 			{(scale) => (
 				<GifPicture
 					engine={engine}
@@ -169,7 +176,20 @@ export function GifViewer({
 	);
 }
 
-/** Under the preview: zoom, then the size, frame count and length of the output. */
+/** Width over height of the picture the preview shows: whole while cropping, cropped otherwise. */
+export function useGifAspect(engine: GifEngine, cropping: boolean): number | undefined {
+	const doc = useGifDoc();
+	const { source } = engine;
+	if (!source) return undefined;
+	const layout = frameLayout(
+		cropping ? croppingDoc(doc, source) : doc,
+		{ width: source.width, height: source.height },
+		null,
+	);
+	return layout.width / Math.max(1, layout.height);
+}
+
+/** Along the bottom of the preview: zoom, then the size, frame count and length of the output. */
 export function GifStatus({ engine }: { engine: GifEngine }) {
 	const doc = useGifDoc();
 	const settings = useGifEditor((state) => state.exportSettings);

@@ -6,6 +6,8 @@ import {
 	ArrowUpToLine,
 	Bold,
 	Brush,
+	ChevronLeft,
+	ChevronRight,
 	Copy,
 	Droplets,
 	Grid3x3,
@@ -768,23 +770,24 @@ function LayerList({ editing }: { editing: OverlayEditing }) {
 						role="button"
 						tabIndex={0}
 						aria-pressed={overlay.id === selectedId}
+						title={m.layers_edit()}
 						onClick={() => {
-							select(overlay.id === selectedId ? null : overlay.id);
+							select(overlay.id);
 						}}
 						onKeyDown={(event) => {
 							if (event.key === 'Enter' || event.key === ' ') {
 								event.preventDefault();
-								select(overlay.id === selectedId ? null : overlay.id);
+								select(overlay.id);
 							}
 						}}
-						className="hover:bg-surface aria-pressed:bg-ed-soft aria-pressed:shadow-[inset_0_0_0_1.5px_var(--ed)] group flex h-11 cursor-grab items-center gap-3 rounded-sm px-2 transition-[background-color,box-shadow] active:cursor-grabbing"
+						className="hover:bg-surface aria-pressed:bg-ed-soft aria-pressed:shadow-[inset_0_0_0_1.5px_var(--ed)] group flex h-12 cursor-pointer items-center gap-3 rounded-sm pr-1 pl-2 transition-[background-color,box-shadow] active:cursor-grabbing"
 					>
 						<span className="bg-surface-2 grid size-8 flex-none place-items-center rounded-xs">
 							<LayerThumb overlay={overlay} />
 						</span>
 						<span className="text-ui min-w-0 flex-1 truncate font-medium">{layerName(overlay)}</span>
 						{editing.timing && (
-							<span className="text-caption text-muted tabular flex-none font-mono">
+							<span className="text-caption text-muted tabular flex-none">
 								{overlay.span
 									? `${formatClock(overlay.span.start)}–${formatClock(overlay.span.end)}`
 									: m.layers_always()}
@@ -797,10 +800,11 @@ function LayerList({ editing }: { editing: OverlayEditing }) {
 								editing.apply((list) => list.filter((candidate) => candidate.id !== overlay.id));
 								if (overlay.id === selectedId) select(null);
 							}}
-							className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 group-aria-pressed:opacity-100"
+							className="text-muted hover:text-danger"
 						>
 							<Trash2 className="size-4" />
 						</IconButton>
+						<ChevronRight className="text-muted size-4 flex-none" aria-hidden="true" />
 					</div>
 				</li>
 			))}
@@ -856,78 +860,133 @@ export function LayersPanel({
 		});
 	};
 
+	// A layer chosen: its settings alone, a way back to the list above them.
+	if (selected) {
+		return (
+			<>
+				<PanelTitle
+					action={
+						<IconButton
+							label={m.overlay_delete()}
+							onClick={() => {
+								editing.apply((list) => list.filter((overlay) => overlay.id !== selected.id));
+								select(null);
+							}}
+							className="hover:text-danger"
+						>
+							<Trash2 className="size-4" />
+						</IconButton>
+					}
+				>
+					{layerName(selected)}
+				</PanelTitle>
+				<button
+					type="button"
+					onClick={() => {
+						select(null);
+						setAdding(null);
+					}}
+					className="text-ui text-ink-2 hover:text-ink hover:bg-surface -mx-2 -mt-2 flex h-9 items-center gap-1.5 justify-self-start rounded-sm px-2 font-medium"
+				>
+					<ChevronLeft className="size-4" aria-hidden="true" />
+					{m.layers_all({ count: editing.overlays.length })}
+				</button>
+				{selected.kind === 'text' && <TextSettings editing={editing} text={selected} textRef={textRef} />}
+				{selected.kind === 'shape' && (
+					<Section title={m.text_style()}>
+						<ColorPicker
+							label={m.text_color()}
+							value={selected.color}
+							onChange={(color) => {
+								editing.apply(updateShape(selected.id, { color }));
+							}}
+						/>
+						<Switch
+							label={m.shape_outlined()}
+							checked={selected.outlined}
+							onChange={(outlined) => {
+								editing.apply(updateShape(selected.id, { outlined }));
+							}}
+						/>
+					</Section>
+				)}
+				{selected.kind === 'zone' && <ZoneSettings editing={editing} zone={selected} />}
+				{/* Still drawing: the lines drawn next join this drawing. */}
+				{selected.kind === 'drawing' && adding === 'draw' && (
+					<Section title={m.layers_add_draw()}>
+						<BrushSettings />
+					</Section>
+				)}
+				<Arrange editing={editing} overlay={selected} />
+			</>
+		);
+	}
+
 	return (
 		<>
 			<PanelTitle>{m.tool_layers()}</PanelTitle>
-			<div role="tablist" aria-label={m.layers_add()} className="grid grid-cols-5 gap-1.5">
-				{(['text', 'sticker', 'shape', 'zone', 'draw'] as const).map((kind) => {
-					const Icon = ADD_ICONS[kind];
-					return (
-						<button
-							key={kind}
-							type="button"
-							role="tab"
-							aria-selected={adding === kind}
-							onClick={() => {
-								setAdding(adding === kind ? null : kind);
-							}}
-							className="text-caption text-ink-2 hover:bg-surface hover:text-ink aria-selected:bg-ed-soft aria-selected:text-ink grid justify-items-center gap-1.5 rounded-sm px-1 pt-2.5 pb-2 font-medium shadow-[inset_0_0_0_1px_var(--line-2)] transition-[background-color,box-shadow,color] aria-selected:shadow-[inset_0_0_0_1.5px_var(--ed)]"
-						>
-							<span className="relative">
-								<Icon size={18} aria-hidden="true" />
-								<Plus
-									size={11}
-									strokeWidth={3}
-									className="bg-bg absolute -right-1.5 -bottom-1 rounded-full"
-									aria-hidden="true"
-								/>
-							</span>
-							{ADD_LABELS[kind]()}
-						</button>
-					);
-				})}
-			</div>
-			{adding === 'text' && <TextStyles onAdd={addText} />}
-			{adding === 'sticker' && <StickerPicker onAdd={add} />}
-			{adding === 'shape' && (
-				<ShapePicker color={selected?.kind === 'shape' ? selected.color : '#ff3b30'} onAdd={add} />
-			)}
-			{adding === 'zone' && (
-				<ZoneEffects
-					label={m.layers_add_zone()}
-					value={null}
-					onChoose={(effect) => {
-						add(createZone(effect));
-					}}
-				/>
-			)}
-			{adding === 'draw' && <BrushSettings />}
-			{editing.overlays.length > 0 && (
-				<Section title={m.layers_list()}>
-					<LayerList editing={editing} />
-				</Section>
-			)}
-			{selected?.kind === 'text' && <TextSettings editing={editing} text={selected} textRef={textRef} />}
-			{selected?.kind === 'shape' && (
-				<Section title={m.text_style()}>
-					<ColorPicker
-						label={m.text_color()}
-						value={selected.color}
-						onChange={(color) => {
-							editing.apply(updateShape(selected.id, { color }));
+			<Section
+				title={m.layers_applied()}
+				action={
+					<span className="bg-surface text-small tabular grid h-6 min-w-6 place-items-center rounded-full px-2 font-semibold">
+						{editing.overlays.length}
+					</span>
+				}
+			>
+				{editing.overlays.length > 0 ? (
+					<>
+						<LayerList editing={editing} />
+						{editing.overlays.length > 1 && (
+							<p className="text-small text-muted">{m.layers_order_hint()}</p>
+						)}
+					</>
+				) : (
+					<p className="text-small text-muted">{m.layers_empty()}</p>
+				)}
+			</Section>
+			<Section title={m.layers_add()}>
+				<div role="tablist" aria-label={m.layers_add()} className="grid grid-cols-5 gap-1.5">
+					{(['text', 'sticker', 'shape', 'zone', 'draw'] as const).map((kind) => {
+						const Icon = ADD_ICONS[kind];
+						return (
+							<button
+								key={kind}
+								type="button"
+								role="tab"
+								aria-selected={adding === kind}
+								onClick={() => {
+									setAdding(adding === kind ? null : kind);
+								}}
+								className="text-caption text-ink-2 hover:bg-surface hover:text-ink aria-selected:bg-ed-soft aria-selected:text-ink grid justify-items-center gap-1.5 rounded-sm px-1 pt-2.5 pb-2 font-medium shadow-[inset_0_0_0_1px_var(--line-2)] transition-[background-color,box-shadow,color] aria-selected:shadow-[inset_0_0_0_1.5px_var(--ed)]"
+							>
+								<span className="relative">
+									<Icon size={18} aria-hidden="true" />
+									<Plus
+										size={11}
+										strokeWidth={3}
+										className="bg-bg absolute -right-1.5 -bottom-1 rounded-full"
+										aria-hidden="true"
+									/>
+								</span>
+								{ADD_LABELS[kind]()}
+							</button>
+						);
+					})}
+				</div>
+				{adding === 'text' && <TextStyles onAdd={addText} />}
+				{adding === 'sticker' && <StickerPicker onAdd={add} />}
+				{adding === 'shape' && <ShapePicker color="#ff3b30" onAdd={add} />}
+				{adding === 'zone' && (
+					<ZoneEffects
+						label={m.layers_add_zone()}
+						value={null}
+						onChoose={(effect) => {
+							add(createZone(effect));
 						}}
 					/>
-					<Switch
-						label={m.shape_outlined()}
-						checked={selected.outlined}
-						onChange={(outlined) => {
-							editing.apply(updateShape(selected.id, { outlined }));
-						}}
-					/>
-				</Section>
-			)}
-			{selected?.kind === 'zone' && <ZoneSettings editing={editing} zone={selected} />}
-			{selected && <Arrange editing={editing} overlay={selected} />}
+				)}
+				{adding === 'draw' && <BrushSettings />}
+			</Section>
 		</>
 	);
 }

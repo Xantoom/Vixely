@@ -4,6 +4,7 @@
  */
 import { AudioSample } from 'mediabunny';
 import type { Range } from '@/document/timemap';
+import { type SoundChanges, SoundProcessor } from '@/media/sound';
 
 /** A source range and how far it moves to land in the output, in seconds. */
 export interface Placed {
@@ -79,4 +80,43 @@ export function placeAudio(
 		);
 	}
 	return pieces;
+}
+
+/**
+ * The compressor and the equalizer run over pieces of sound in order, their state carried from
+ * one piece to the next so the sound flows on without clicks.
+ */
+export class PieceSound {
+	private processor: SoundProcessor | null = null;
+
+	constructor(private readonly changes: SoundChanges) {}
+
+	/** The pieces with their sound changed. Pieces other than `input` itself were made for this and are closed. */
+	apply(pieces: AudioSample[], input: AudioSample): AudioSample[] {
+		return pieces.map((piece) => {
+			const channels = piece.numberOfChannels;
+			const frames = piece.numberOfFrames;
+			this.processor ??= SoundProcessor.immediate(this.changes, channels, piece.sampleRate);
+			const data = new Float32Array(frames * channels);
+			for (let plane = 0; plane < channels; plane++) {
+				piece.copyTo(data.subarray(plane * frames, (plane + 1) * frames), {
+					planeIndex: plane,
+					format: 'f32-planar',
+				});
+			}
+			this.processor.push({ data, frames });
+			for (let index = 0; index < data.length; index++) {
+				data[index] = Math.max(-1, Math.min(1, data[index] ?? 0));
+			}
+			const changed = new AudioSample({
+				data,
+				format: 'f32-planar',
+				numberOfChannels: channels,
+				sampleRate: piece.sampleRate,
+				timestamp: piece.timestamp,
+			});
+			if (piece !== input) piece.close();
+			return changed;
+		});
+	}
 }

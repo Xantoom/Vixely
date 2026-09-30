@@ -47,14 +47,14 @@ await page.goto(`${base}/video`);
 console.log('offline /video:', await page.title());
 await page.setInputFiles('input[type=file]', sample('film.mp4'));
 await page.waitForSelector('[role=group][aria-label="Tracks"]', { timeout: 30000 });
-await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 const [video] = await Promise.all([page.waitForEvent('download', { timeout: 120000 }), page.locator('aside + div').getByRole('button').first().click()]);
 console.log('  video:', video.suggestedFilename(), readFileSync(await video.path()).length, 'bytes');
 
 // A HEIC photo (libheif) encoded as AVIF (Rust, WebAssembly).
 await page.goto(`${base}/image`);
 await page.setInputFiles('input[type=file]', 'samples/photo.heic');
-await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 await aside.getByLabel('Format', { exact: true }).click();
 await page.getByRole('option', { name: /AVIF/ }).click();
 const [photo] = await Promise.all([page.waitForEvent('download', { timeout: 120000 }), page.locator('aside + div').getByRole('button').first().click()]);

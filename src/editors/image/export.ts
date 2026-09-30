@@ -22,7 +22,7 @@ const IMAGE_FORMATS = Object.keys(FORMAT_INFO).filter((key): key is ImageFormat 
 
 /** Formats that carry EXIF when exported. */
 export function keepsMetadata(format: ImageFormat): boolean {
-	return format === 'jpeg' || format === 'png' || format === 'avif' || format === 'jxl';
+	return format === 'jpeg' || format === 'png' || format === 'webp' || format === 'avif' || format === 'jxl';
 }
 
 /**
@@ -35,7 +35,6 @@ export async function sourceExportSettings(file: File, format: string): Promise<
 		return { format: 'jpeg', ...(quality !== null && { quality }) };
 	}
 	if (format === 'heic') return { format: 'jpeg', quality: 90 };
-	if (format === 'webp') return { format: (await canEncodeWebp()) ? 'webp' : 'png' };
 	if (format === 'tif') return { format: 'tiff' };
 	const same = IMAGE_FORMATS.find((candidate) => candidate === format);
 	if (same) return { format: same };
@@ -53,17 +52,6 @@ const AVIF_SPEED = { fast: 8, best: 4 } as const;
 /** libjxl's default effort is 7; 5 is close in size and much faster in WebAssembly. */
 const JXL_EFFORT = 5;
 
-let webpSupport: Promise<boolean> | null = null;
-
-/** WebP goes through the browser's encoder. Browsers silently fall back to PNG when they lack one. */
-export async function canEncodeWebp(): Promise<boolean> {
-	webpSupport ??= new OffscreenCanvas(1, 1)
-		.convertToBlob({ type: 'image/webp' })
-		.then((blob) => blob.type === 'image/webp')
-		.catch(() => false);
-	return webpSupport;
-}
-
 export function outputSize(doc: ImageDoc, source: Size, settings: ExportSettings): Size {
 	const crop = effectiveCrop(doc, source);
 	if (settings.exact) return settings.exact;
@@ -77,8 +65,8 @@ function exifFor(settings: ExportSettings, photo: PhotoMetadata | null): Uint8Ar
 
 /**
  * The picture at `size`, drawn by the same renderer as the preview, its text and stickers by the
- * same code as the preview's. Gives a canvas for the browser's encoders and straight RGBA pixels,
- * rows from the top, for ours.
+ * same code as the preview's. Gives a canvas, for icons, and straight RGBA pixels, rows from the
+ * top, for the encoders.
  */
 async function renderPicture(
 	source: ImageBitmap,
@@ -114,8 +102,8 @@ async function renderPicture(
 }
 
 /**
- * Renders the document at export size, then encodes it: jpegli, PNG, AVIF and JPEG XL in the codec
- * worker, WebP with the browser, BMP, TIFF and ICO here.
+ * Renders the document at export size, then encodes it: jpegli, PNG, WebP, AVIF and JPEG XL in the
+ * codec worker, BMP, TIFF and ICO here.
  */
 export async function exportImage(
 	source: ImageBitmap,
@@ -128,29 +116,34 @@ export async function exportImage(
 	const info = FORMAT_INFO[settings.format];
 	if (settings.format === 'ico') return exportIco(source, doc, size, settings.sampling);
 
-	const picture = await renderPicture(source, doc, size, !info.alpha, settings.sampling);
-	const { rgba } = picture;
+	const { rgba } = await renderPicture(source, doc, size, !info.alpha, settings.sampling);
 	if (settings.format === 'bmp') return new Blob([encodeBmp(rgba, width, height).slice()], { type: info.mime });
 	if (settings.format === 'tiff') return new Blob([encodeTiff(rgba, width, height).slice()], { type: info.mime });
 
 	const exif = exifFor(settings, photo);
 	const encode = async (quality: number, last: boolean): Promise<Blob> => {
-		if (settings.format === 'webp')
-			return picture.canvas.convertToBlob({ type: info.mime, quality: quality / 100 });
 		// The worker takes the pixels it is given: a copy, unless this is the last encode.
 		const base = { op: 'encode', rgba: last ? rgba : rgba.slice(), width, height, quality, exif } as const;
 		const bytes = await (settings.format === 'png'
 			? encodeImage({ ...base, format: 'png', lossless: !settings.pngLossy })
-			: settings.format === 'avif'
-				? encodeImage({ ...base, format: 'avif', speed: AVIF_SPEED[settings.avifEffort] })
-				: settings.format === 'jxl'
-					? encodeImage({ ...base, format: 'jxl', effort: JXL_EFFORT })
-					: encodeImage({ ...base, format: 'jpeg' }));
+			: settings.format === 'webp'
+				? encodeImage({ ...base, format: 'webp' })
+				: settings.format === 'avif'
+					? encodeImage({ ...base, format: 'avif', speed: AVIF_SPEED[settings.avifEffort] })
+					: settings.format === 'jxl'
+						? encodeImage({ ...base, format: 'jxl', effort: JXL_EFFORT })
+						: encodeImage({ ...base, format: 'jpeg' }));
 		return new Blob([new Uint8Array(bytes)], { type: info.mime });
 	};
 	if (settings.maxKb === null || !usesQuality(settings)) return encode(settings.quality, true);
-	return fitWeight(encode, settings.quality, settings.maxKb * 1000);
+	return fitWeight(encode, WEIGHT_QUALITY, settings.maxKb * 1000);
 }
+
+/**
+ * Quality tried first when the file must fit a weight, the quality slider then hidden: the best
+ * that fits is wanted, and above this files grow much for little that shows.
+ */
+const WEIGHT_QUALITY = 95;
 
 /** Tries of the quality when a file must fit a weight: enough to land within a step or two. */
 const WEIGHT_TRIES = 7;

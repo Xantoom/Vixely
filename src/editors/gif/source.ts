@@ -26,7 +26,7 @@ export interface FrameSource {
 	 * decoded no larger than needed). Valid until the next one is asked for.
 	 */
 	render: (times: readonly number[], scale: number) => AsyncGenerator<TexImageSource & CanvasImageSource>;
-	/** Made of still images: more can be added at the end. */
+	/** Made of frames held in memory (an animation, or still images): more images can follow. */
 	addImages?: (images: readonly StillImage[]) => Promise<FrameSource>;
 	dispose: () => void;
 }
@@ -81,28 +81,7 @@ export async function openAnimation(
 		},
 		signal,
 	);
-	const at = (time: number) => frames[frameIndex(frames, time)]?.bitmap ?? null;
-	return {
-		width,
-		height,
-		duration: clock,
-		timing: frames.map(({ start, duration }) => ({ start, duration })),
-		fps: null,
-		peek: at,
-		fetch: async (time) => Promise.resolve(at(time)),
-		prefetch: () => {},
-		// The frames are already in memory; the method is asynchronous for video sources.
-		// oxlint-disable-next-line require-await
-		async *render(times) {
-			for (const time of times) {
-				const picture = at(time);
-				if (picture) yield picture;
-			}
-		},
-		dispose: () => {
-			for (const frame of frames) frame.bitmap.close();
-		},
-	};
+	return framesSource(frames, width, height);
 }
 
 /** Longest side of the pictures kept for the preview of a video. The export reads at full size. */
@@ -240,21 +219,28 @@ export async function openImages(
 		if (bitmap) bitmaps.push(bitmap);
 		onProgress(bitmaps.length);
 	}
-	return imagesSource(bitmaps, width, height);
+	return framesSource(
+		bitmaps.map((bitmap, index) => ({ bitmap, start: index * IMAGE_DELAY, duration: IMAGE_DELAY })),
+		width,
+		height,
+	);
 }
 
-function imagesSource(bitmaps: ImageBitmap[], width: number, height: number): FrameSource {
-	const at = (time: number) =>
-		bitmaps[Math.min(bitmaps.length - 1, Math.max(0, Math.floor(time / IMAGE_DELAY + 1e-6)))] ?? null;
+/** Frames held in memory, played at their own times. Images added follow the last one. */
+function framesSource(frames: Frame[], width: number, height: number): FrameSource {
+	const at = (time: number) => frames[frameIndex(frames, time)]?.bitmap ?? null;
+	const last = frames.at(-1);
+	const duration = last ? last.start + last.duration : 0;
 	const source: FrameSource = {
 		width,
 		height,
-		duration: bitmaps.length * IMAGE_DELAY,
-		timing: bitmaps.map((_, index) => ({ start: index * IMAGE_DELAY, duration: IMAGE_DELAY })),
+		duration,
+		timing: frames.map(({ start, duration }) => ({ start, duration })),
 		fps: null,
 		peek: at,
 		fetch: async (time) => Promise.resolve(at(time)),
 		prefetch: () => {},
+		// The frames are already in memory; the method is asynchronous for video sources.
 		// oxlint-disable-next-line require-await
 		async *render(times) {
 			for (const time of times) {
@@ -263,18 +249,21 @@ function imagesSource(bitmaps: ImageBitmap[], width: number, height: number): Fr
 			}
 		},
 		async addImages(images) {
-			const added: ImageBitmap[] = [];
+			const added: Frame[] = [];
+			let clock = duration;
 			for (const image of images) {
 				// oxlint-disable-next-line no-await-in-loop
 				const bitmap = await fitImage(image, width, height);
-				if (bitmap) added.push(bitmap);
+				if (!bitmap) continue;
+				added.push({ bitmap, start: clock, duration: IMAGE_DELAY });
+				clock += IMAGE_DELAY;
 			}
 			// The pictures move to the new source, which frees them: this one no longer does.
 			source.dispose = () => {};
-			return imagesSource([...bitmaps, ...added], width, height);
+			return framesSource([...frames, ...added], width, height);
 		},
 		dispose: () => {
-			for (const bitmap of bitmaps) bitmap.close();
+			for (const frame of frames) frame.bitmap.close();
 		},
 	};
 	return source;

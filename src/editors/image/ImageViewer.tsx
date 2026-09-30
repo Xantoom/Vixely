@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { CropOverlay } from '@/editor/CropOverlay';
 import type { OverlayEditing } from '@/editor/overlays/editing';
-import { OverlayLayer } from '@/editor/overlays/OverlayLayer';
+import { CroppedLayers, OverlayLayer } from '@/editor/overlays/OverlayLayer';
 import { backingSize, useStageZoom, ZoomStage } from '@/editor/ZoomStage';
-import { effectiveCrop, orientedSize, type Rect, type Size } from './document';
+import { effectiveCrop, orientedSize, type Rect, type Size, wholePictureDoc } from './document';
 import { ImageRenderer } from './renderer';
 import { cropRatio, useImageDoc, useImageEditor } from './store';
 
@@ -68,7 +68,7 @@ function Picture({
 		if (!canvas || !renderer) return;
 		canvas.width = backingSize(region.width * scale, region.width);
 		canvas.height = backingSize(region.height * scale, region.height);
-		renderer.render(doc, { region, original: comparing, sampling });
+		renderer.render(cropping ? wholePictureDoc(doc, crop, bounds) : doc, { region, original: comparing, sampling });
 	});
 
 	return (
@@ -76,9 +76,9 @@ function Picture({
 			{/* The checkerboard shows through transparent areas. */}
 			<canvas
 				ref={canvasRef}
-				className={`block size-full rounded-[3px] bg-[conic-gradient(var(--surface-2)_25%,var(--bg)_0_50%,var(--surface-2)_0_75%,var(--bg)_0)] bg-size-[16px_16px] shadow-[0_1px_3px_rgb(0_0_0/0.18),0_12px_40px_-12px_rgb(0_0_0/0.35)] ${scale > 1.5 ? '[image-rendering:pixelated]' : ''}`}
+				className={`block size-full stage-picture bg-[conic-gradient(var(--surface-2)_25%,var(--bg)_0_50%,var(--surface-2)_0_75%,var(--bg)_0)] bg-size-[16px_16px] ${scale > 1.5 ? '[image-rendering:pixelated]' : ''}`}
 			/>
-			{/* Text and stickers belong to the cropped output: hidden while cropping and comparing. */}
+			{/* Text and stickers belong to the cropped output: in the crop frame while cropping. */}
 			{!cropping && !comparing && doc.overlays.length + (overlays ? 1 : 0) > 0 && (
 				<OverlayLayer
 					overlays={doc.overlays}
@@ -88,6 +88,7 @@ function Picture({
 					onEditText={onEditText}
 				/>
 			)}
+			{cropping && <CroppedLayers overlays={doc.overlays} crop={crop} scale={scale} />}
 			{cropping && <ImageCropOverlay crop={crop} scale={scale} bounds={bounds} />}
 		</>
 	);
@@ -114,7 +115,7 @@ export function ImageViewer({
 	const crop = effectiveCrop(doc, source);
 	const region: Rect = cropping ? { x: 0, y: 0, ...bounds } : crop;
 	return (
-		<ZoomStage width={region.width} height={region.height} compare>
+		<ZoomStage width={region.width} height={region.height} compare={!cropping}>
 			{(scale) => (
 				<Picture
 					source={source}

@@ -55,7 +55,7 @@ console.log('after all:', await grid());
 
 // 3. Styles: the SRT becomes ASS, its style made larger, bold, yellow, on top, with margins.
 await tools.getByRole('button', { name: 'Styles' }).click();
-await aside.getByRole('button', { name: 'Use styles' }).click();
+await aside.getByRole('button', { name: 'Add styles' }).click();
 await aside.getByLabel('Size').fill('80');
 await aside.getByLabel('Size').press('Enter');
 await aside.getByRole('button', { name: 'Bold' }).click();
@@ -83,7 +83,7 @@ await aside.getByRole('button', { name: 'Sort by time' }).click();
 console.log('sorted:', await grid());
 
 // 5. Written out as ASS.
-await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 await aside.getByRole('radio', { name: /^ASS/ }).click();
 const [download] = await Promise.all([
 	page.waitForEvent('download', { timeout: 60000 }),

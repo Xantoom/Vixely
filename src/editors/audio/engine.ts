@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AudioPlayer } from '@/media/audio-player';
 import type { Loudness, LoudnessReading } from '@/media/loudness';
-import { type Peaks, readPeaks } from '@/media/peaks';
+import { type Peaks, sharedPeaks } from '@/media/peaks';
 import { type AudioDoc, envelope, keptRanges, pitchOf, resolveGain, soundChanges, speedOf } from './document';
 import { useAudioDoc, useAudioEditor } from './store';
 
@@ -52,20 +52,18 @@ export function useAudioEngine(file: File | null, duration: number, track: numbe
 
 	useEffect(() => {
 		if (!file || duration <= 0) return;
-		const reader = readPeaks(
-			file,
-			duration,
-			() => {
-				setWaveform((state) => ({ ...state, version: state.version + 1 }));
-			},
-			track,
-		);
+		// Read once per file and track: going to another editor and back shows it at once.
+		const { reader, release } = sharedPeaks(file, duration, track, () => {
+			setWaveform((state) => ({ ...state, version: state.version + 1 }));
+		});
+		let live = true;
 		setWaveform({ peaks: reader.peaks, loudness: reader.loudness, version: 0, failed: false });
 		reader.done.catch(() => {
-			setWaveform((state) => ({ ...state, failed: true }));
+			if (live) setWaveform((state) => ({ ...state, failed: true }));
 		});
 		return () => {
-			reader.cancel();
+			live = false;
+			release();
 			setWaveform({ peaks: null, loudness: null, version: 0, failed: false });
 		};
 	}, [file, duration, track]);

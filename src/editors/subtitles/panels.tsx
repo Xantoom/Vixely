@@ -3,7 +3,7 @@ import { ArrowDownToLine, ArrowDownWideNarrow, ArrowLeft, Ban, Check, Plus, Tria
 import { useEffect, useId, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { ExportAnnounce } from '@/editor/ExportAnnounce';
-import { Section } from '@/editor/panel-parts';
+import { Group, Section } from '@/editor/panel-parts';
 import { saveFile } from '@/editors/image/export';
 import { EDITORS } from '@/editors/registry';
 import { decimal, formatBytes, formatPreciseTime } from '@/lib/format';
@@ -29,6 +29,7 @@ import { ENCODINGS, type EncodingId } from './formats/encoding';
 import { cueLabel } from './labels';
 import { writeSup } from './pgs';
 import { whenRead, applyWhole, exportName, useProjectTracks, useSubtitleProject } from './project';
+import { ScriptHeaderSection } from './ScriptHeader';
 import { useSubtitleDoc, useSubtitleEditor } from './store';
 import { projectTrackName } from './tools';
 import { codecLabel, unsupportedReason, type Unsupported } from './tracks';
@@ -37,7 +38,7 @@ function Row({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
 			<dt className="text-ink-2">{label}</dt>
-			<dd className="tabular font-mono text-[12.5px]">{value}</dd>
+			<dd className="tabular text-small">{value}</dd>
 		</div>
 	);
 }
@@ -107,7 +108,7 @@ function TracksSection({ fileName }: { fileName: string }) {
 									</span>
 								)}
 							</span>
-							<span className="text-small text-muted flex items-center gap-1.5 font-mono">
+							<span className="text-small text-muted flex items-center gap-1.5">
 								{!usable && info && <Ban size={13} aria-hidden="true" />}
 								{info ? (
 									codecLabel(info)
@@ -182,6 +183,7 @@ export function SubtitleInfoPanel({ opened }: { opened: OpenedFile }) {
 				{fonts.length > 0 && <Row label={m.subs_fonts()} value={String(fonts.length)} />}
 			</dl>
 			{(fromVideo || trackCount > 1) && <TracksSection fileName={opened.file.name} />}
+			{doc.ass && <ScriptHeaderSection />}
 			{source === 'text' && (
 				<Section title={m.subs_charset()}>
 					<label htmlFor={encodingId} className="sr-only">
@@ -232,7 +234,7 @@ export function OffsetField({ id, value, onChange }: { id: string; value: number
 				if (event.key === 'Enter') commit();
 				if (event.key === 'Escape') setDraft(null);
 			}}
-			className="border-line-2 bg-bg text-ink hover:border-muted tabular h-8 w-full cursor-text rounded-xs border px-2.5 font-mono text-[12.5px] transition-colors"
+			className="border-line-2 bg-bg text-ink hover:border-muted tabular h-8 w-full cursor-text rounded-xs border px-2.5 text-small transition-colors"
 		/>
 	);
 }
@@ -308,14 +310,14 @@ export function TimingPanel() {
 			</Section>
 
 			{first && second && first.id !== second.id && (
-				<Section title={m.subs_sync()}>
+				<Group title={m.subs_sync()} defaultOpen={false}>
 					{[
 						{ id: firstId, cue: first, target: firstTarget, index: 0 },
 						{ id: secondId, cue: second, target: secondTarget, index: 1 },
 					].map(({ id, cue, target, index }) => (
 						<div key={id} className="grid gap-1.5">
 							<p className="text-ui text-ink-2 line-clamp-1">
-								<span className="text-muted tabular mr-2 font-mono text-[12px]">
+								<span className="text-muted tabular mr-2 text-caption">
 									{formatPreciseTime(cue.start / 1000)}
 								</span>
 								{cueLabel(cue, doc.format).replace(/\n/g, ' ')}
@@ -348,9 +350,9 @@ export function TimingPanel() {
 						</div>
 					))}
 					{sync ? (
-						<p className="text-small text-muted tabular font-mono">
+						<p className="text-small text-muted tabular">
 							{m.subs_sync_result({
-								scale: decimal(sync.scale, 5),
+								percent: `${sync.scale >= 1 ? '+' : '−'}${decimal(Math.abs(sync.scale - 1) * 100, 2)} %`,
 								offset: signedSeconds(Math.round(sync.offset)),
 							})}
 						</p>
@@ -367,19 +369,18 @@ export function TimingPanel() {
 					>
 						{m.subs_sync_apply()}
 					</Button>
-					<button
-						type="button"
-						className="text-small text-muted hover:text-ink justify-self-start underline-offset-2 hover:underline"
+					<Button
+						className="justify-self-start"
 						onClick={() => {
 							seek(first.start / 1000);
 						}}
 					>
 						{m.subs_sync_listen()}
-					</button>
-				</Section>
+					</Button>
+				</Group>
 			)}
 
-			<Section title={m.subs_frame_rate()}>
+			<Group title={m.subs_frame_rate()} defaultOpen={false}>
 				<FieldRow label={m.subs_rate_from()} htmlFor={fromId}>
 					<Select id={fromId} value={fromRate} options={rateOptions} onChange={setFromRate} />
 				</FieldRow>
@@ -392,19 +393,21 @@ export function TimingPanel() {
 						applyWhole((current) => retime(current, rate(fromRate) / rate(toRate), 0));
 					}}
 				>
-					{m.subs_frame_rate_apply({ scale: decimal(rate(fromRate) / rate(toRate), 5) })}
+					{m.subs_frame_rate_apply({ rate: `${toRate} fps` })}
 				</Button>
-			</Section>
+			</Group>
 
-			<Button
-				disabled={inTimeOrder(doc)}
-				onClick={() => {
-					applyWhole(sortByTime);
-				}}
-			>
-				<ArrowDownWideNarrow size={16} aria-hidden="true" />
-				{m.subs_sort()}
-			</Button>
+			{/* Offered only when some lines start before the one above them. */}
+			{!inTimeOrder(doc) && (
+				<Button
+					onClick={() => {
+						applyWhole(sortByTime);
+					}}
+				>
+					<ArrowDownWideNarrow size={16} aria-hidden="true" />
+					{m.subs_sort()}
+				</Button>
+			)}
 		</>
 	);
 }

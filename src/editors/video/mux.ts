@@ -1,14 +1,20 @@
 import type { AudioCodec } from 'mediabunny';
+import { useEffect } from 'react';
 import { create } from 'zustand';
 import { isShortened, keptRanges } from '@/document/kept';
 import { type Range, toOutput } from '@/document/timemap';
 import { interfaceLanguage } from '@/lib/language';
+import { compressorFor } from '@/media/dynamics';
+import { usePlayback } from '@/media/playback';
 import { type AddedTrack, remux, type StreamData, type TrackChoice } from '@/media/remux';
 import { openScratchFile, type SaveTarget, type ScratchFile } from '@/media/save-target';
+import { FLAT_EQ, type HeardSound, type SoundChanges } from '@/media/sound';
+import { TYPICAL_LOUDNESS } from '../audio/document';
 import type { SubtitleDoc } from '../subtitles/document';
 import { matroskaStream, timedTextStream, trackCodec } from '../subtitles/mux-streams';
 import { type TrackKey, type TrackState, useProjectTracks, useSubtitleProject } from '../subtitles/project';
 import { codecLabel } from '../subtitles/tracks';
+import { gainOf } from './audio-pieces';
 import type { BurnJob } from './burn';
 import { type AudioPlan, copiesParts, copyTracks } from './copy-tracks';
 import { editTurn, fadeOf, pictureChange, speedOf, timeShaped, type VideoDoc, videoLength } from './document';
@@ -17,6 +23,9 @@ import {
 	bitrateForSize,
 	CONTAINERS,
 	convertVideo,
+	SOUND_AS_IS,
+	type TrackEncode,
+	type TrackSound,
 	type VideoContainer,
 	type VideoExportSettings,
 } from './export';
@@ -43,11 +52,80 @@ export interface MuxTrack {
 	blocked: 'pgs-mp4' | 'webm' | 'burned' | null;
 	/** Change of level of a sound track, in dB. */
 	decibels: number;
+	/** Equalizer gains of a sound track, in dB per band. */
+	eq: readonly number[];
+	/** How much a sound track's loud and quiet passages are evened out, 0 to 1. */
+	compress: number;
 	/** The file a sound track added here comes from. */
 	added: File | null;
+	/** A sound track encoded again in its own codec and bitrate; null keeps it as it is. */
+	encode: TrackEncode | null;
 }
 
-type Override = Partial<Pick<MuxTrack, 'include' | 'language' | 'name' | 'default' | 'forced' | 'decibels'>>;
+type Override = Partial<
+	Pick<MuxTrack, 'include' | 'language' | 'name' | 'default' | 'forced' | 'decibels' | 'eq' | 'compress' | 'encode'>
+>;
+
+/** The equalizer and compressor of a sound track, as the processors take them. */
+export function trackSound(track: Pick<MuxTrack, 'eq' | 'compress'>): SoundChanges {
+	return {
+		eq: track.eq,
+		denoise: 0,
+		compressor: track.compress > 0 ? compressorFor(track.compress, TYPICAL_LOUDNESS) : null,
+	};
+}
+
+/** Whether a sound track is heard otherwise than in the source: its level, equalizer or compressor. */
+export function soundEdited(track: Pick<MuxTrack, 'decibels' | 'eq' | 'compress'>): boolean {
+	return track.decibels !== 0 || track.eq.some((gain) => gain !== 0) || track.compress > 0;
+}
+
+/** A sound track's level, equalizer and compressor. */
+export type SoundEdit = Pick<MuxTrack, 'decibels' | 'eq' | 'compress'>;
+
+/**
+ * How the video's own sound tracks are heard, by ID, with the changes made to them; `drafts`
+ * stand in for changes being tried out, by track key.
+ */
+export function heardSounds(
+	overrides: Readonly<Record<string, Override>> | null,
+	drafts: ReadonlyMap<string, SoundEdit> = new Map(),
+): Map<number, HeardSound> {
+	const sounds = new Map<number, HeardSound>();
+	const keys = new Set([...Object.keys(overrides ?? {}), ...drafts.keys()]);
+	for (const key of keys) {
+		const match = /^audio-(\d+)$/.exec(key);
+		if (!match) continue;
+		const change = overrides?.[key] ?? {};
+		const edit = drafts.get(key) ?? {
+			decibels: change.decibels ?? 0,
+			eq: change.eq ?? FLAT_EQ,
+			compress: change.compress ?? 0,
+		};
+		if (soundEdited(edit)) sounds.set(Number(match[1]), { gain: gainOf(edit.decibels), sound: trackSound(edit) });
+	}
+	return sounds;
+}
+
+/** Plays the video's sound as it will be written: each track with its level, equalizer and compressor. */
+export function useHeardSounds(file: File | null) {
+	const overrides = useMuxSettings((state) => (state.file === file ? state.overrides : null));
+	useEffect(() => {
+		usePlayback.getState().setSounds(heardSounds(overrides));
+	}, [overrides]);
+	useEffect(
+		() => () => {
+			usePlayback.getState().setSounds(new Map());
+		},
+		[],
+	);
+}
+
+/** How a sound track changes, for the export. */
+function soundOf(track: MuxTrack): TrackSound {
+	if (!soundEdited(track) && !track.encode) return SOUND_AS_IS;
+	return { decibels: track.decibels, sound: soundEdited(track) ? trackSound(track) : null, encode: track.encode };
+}
 
 /** A sound track added from another file. */
 interface AddedAudio {
@@ -214,7 +292,10 @@ export function useMuxTracks(
 		edited: false,
 		blocked: null,
 		decibels: 0,
+		eq: FLAT_EQ,
+		compress: 0,
 		added: null,
+		encode: null,
 	}));
 	for (const audio of addedAudio ?? []) {
 		tracks.push({
@@ -231,7 +312,10 @@ export function useMuxTracks(
 			edited: false,
 			blocked: null,
 			decibels: 0,
+			eq: FLAT_EQ,
+			compress: 0,
 			added: audio.file,
+			encode: null,
 		});
 	}
 	for (const track of subtitles) {
@@ -259,7 +343,10 @@ export function useMuxTracks(
 							? 'pgs-mp4'
 							: null,
 			decibels: 0,
+			eq: FLAT_EQ,
+			compress: 0,
 			added: null,
+			encode: null,
 		});
 	}
 	const chosen = tracks.map((track) => {
@@ -375,7 +462,9 @@ export interface ConvertedJob extends MuxJob {
 
 /** Whether the tracks can't simply be copied into a file like the source: their sound changes. */
 export function soundChanged(tracks: readonly MuxTrack[]): boolean {
-	return tracks.some((track) => track.include && (track.decibels !== 0 || track.added !== null));
+	return tracks.some(
+		(track) => track.include && (soundEdited(track) || track.added !== null || track.encode !== null),
+	);
 }
 
 /** The subtitles burned into the pictures, as edited. */
@@ -395,15 +484,18 @@ async function withSizeLimit(job: ConvertedJob): Promise<VideoExportSettings> {
 	if (settings.mode !== 'encode' || settings.sizeLimit === null) return settings;
 	const sound = job.tracks.filter((track) => track.kind === 'audio' && track.include);
 	const copied = sound.flatMap((track) =>
-		settings.audio === 'copy' && track.decibels === 0 && track.number !== null ? [track.number] : [],
+		settings.audio === 'copy' && !soundEdited(track) && !track.encode && track.number !== null
+			? [track.number]
+			: [],
 	);
 	const measured = copied.length > 0 ? await audioBitrates(job.file, copied) : new Map<number, number>();
 	const audio = sound.reduce(
 		(total, track) =>
 			total +
-			(track.number !== null && measured.has(track.number)
-				? (measured.get(track.number) ?? 0)
-				: settings.audioBitrate),
+			(track.encode?.bitrate ??
+				(track.number !== null && measured.has(track.number)
+					? (measured.get(track.number) ?? 0)
+					: settings.audioBitrate)),
 		0,
 	);
 	return { ...settings, bitrate: bitrateForSize(settings.sizeLimit, videoLength(doc), audio) };
@@ -451,8 +543,9 @@ export async function exportConverted(
 	const plan = (track: MuxTrack, from: AudioPlan['from'], encode: AudioPlan['encode']): AudioPlan => ({
 		from,
 		decibels: track.decibels,
-		encode,
-		bitrate: settings.audioBitrate,
+		sound: soundEdited(track) ? trackSound(track) : null,
+		encode: track.encode?.codec ?? encode,
+		bitrate: track.encode?.bitrate ?? settings.audioBitrate,
 		language: track.language,
 		name: track.name,
 		default: track.default,
@@ -479,7 +572,7 @@ export async function exportConverted(
 	// in a second pass: the conversion only encodes the tracks whose level changes.
 	const copiedCut =
 		settings.mode === 'encode' && settings.audio === 'copy' && doc.cuts.length > 0 && !timeShaped(doc)
-			? own.filter(({ track }) => track.decibels === 0)
+			? own.filter(({ track }) => !soundEdited(track) && !track.encode)
 			: [];
 	const encodedOwn = own.filter((entry) => !copiedCut.includes(entry));
 	// Sound from other files goes in while copying; a conversion is completed by a copy with it,
@@ -503,19 +596,19 @@ export async function exportConverted(
 		const target = written?.target ?? save.target;
 		let ranges: Range[] | null;
 		if (settings.mode === 'encode') {
-			const audioTracks = new Map(encodedOwn.map(({ track, id }) => [id, track.decibels]));
+			const audioTracks = new Map(encodedOwn.map(({ track, id }) => [id, soundOf(track)]));
 			const convert = { file: job.file, doc, settings, upright: job.upright, audioTracks, burn: burnJob(job) };
 			await convertVideo(convert, target, step(0), signal);
 			ranges = kept;
 		} else if (shortened && !copiesParts(container, doc.cuts.length > 0) && !soundChanged(job.tracks)) {
 			// MP4 trimmed at both ends: copied exactly, an edit list hiding the pictures before the start.
-			const audioTracks = new Map(own.map(({ id }) => [id, 0]));
+			const audioTracks = new Map(own.map(({ id }) => [id, SOUND_AS_IS]));
 			const convert = { file: job.file, doc, settings, upright: job.upright, audioTracks };
 			await convertVideo(convert, target, step(0), signal);
 			ranges = kept;
 		} else {
 			const audio = [
-				...own.map(({ track, id }) => plan(track, { id }, track.decibels === 0 ? null : 'auto')),
+				...own.map(({ track, id }) => plan(track, { id }, soundEdited(track) ? 'auto' : null)),
 				...added.map((track) => addedPlan(track, null, undefined)),
 			];
 			const turn = pictureChange(doc.picture) === 'turn' ? editTurn(doc.picture) : null;
@@ -536,7 +629,12 @@ export async function exportConverted(
 				...own.map((entry) =>
 					copiedCut.includes(entry)
 						? { ...plan(entry.track, { file: job.file, id: entry.id }, null), ranges: kept ?? undefined }
-						: { ...plan(entry.track, { number: encodedOwn.indexOf(entry) + 1 }, null), decibels: 0 },
+						: {
+								...plan(entry.track, { number: encodedOwn.indexOf(entry) + 1 }, null),
+								decibels: 0,
+								sound: null,
+								encode: null,
+							},
 				),
 				...added.map((entry) =>
 					addedPlan(entry, settings.audio === 'copy' ? null : settings.audio, kept ?? undefined),

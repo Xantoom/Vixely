@@ -11,6 +11,11 @@ export interface Kept {
 	trim: Range;
 	/** Passages removed inside the trim, in source seconds: sorted, never touching each other. */
 	cuts: readonly Range[];
+	/**
+	 * Where the kept part is split into clips, in source seconds, sorted. A split changes nothing
+	 * in the output by itself: it lets one clip be removed without the others.
+	 */
+	splits?: readonly number[];
 }
 
 /** Shortest output allowed: a trim or a cut never leaves less than this. */
@@ -56,10 +61,53 @@ function normaliseCuts(cuts: readonly Range[], trim: Range): Range[] {
 	return merged;
 }
 
+/** Splits inside what is kept, away from its edges: others mean nothing any more. */
+function normaliseSplits(splits: readonly number[], ranges: readonly Range[]): number[] {
+	return [...new Set(splits)]
+		.filter((time) =>
+			ranges.some((range) => time > range.start + MIN_OUTPUT / 2 && time < range.end - MIN_OUTPUT / 2),
+		)
+		.toSorted((a, b) => a - b);
+}
+
 /** Applies a new trim and cuts, unless they would leave almost nothing. */
 function withRanges<T extends Kept>(doc: T, trim: Range, cuts: readonly Range[]): T {
 	const next = { ...doc, trim, cuts: normaliseCuts(cuts, trim) };
-	return outputDuration(next) < MIN_OUTPUT ? doc : next;
+	if (outputDuration(next) < MIN_OUTPUT) return doc;
+	if (doc.splits?.length) next.splits = normaliseSplits(doc.splits, keptRanges(next));
+	return next;
+}
+
+/**
+ * The clips of the output, in source seconds and in order: what is kept, cut at each removed
+ * passage and at each split.
+ */
+export function clipsOf(doc: Kept): Range[] {
+	const clips: Range[] = [];
+	for (const range of keptRanges(doc)) {
+		let start = range.start;
+		for (const split of doc.splits ?? []) {
+			if (split <= start || split >= range.end) continue;
+			clips.push({ start, end: split });
+			start = split;
+		}
+		clips.push({ start, end: range.end });
+	}
+	return clips;
+}
+
+/** Splits the clip under a moment in two. Nothing happens at a clip's edge or outside the clips. */
+export function splitAt<T extends Kept>(doc: T, time: number): T {
+	const inside = keptRanges(doc).some(
+		(range) => time > range.start + MIN_OUTPUT / 2 && time < range.end - MIN_OUTPUT / 2,
+	);
+	if (!inside || doc.splits?.includes(time)) return doc;
+	return { ...doc, splits: normaliseSplits([...(doc.splits ?? []), time], keptRanges(doc)) };
+}
+
+/** Joins two clips again, at the split nearest a moment. */
+export function joinAt<T extends Kept>(doc: T, split: number): T {
+	return { ...doc, splits: (doc.splits ?? []).filter((time) => time !== split) };
 }
 
 /** Moves the start and end of the kept part. Cuts outside it are dropped. */
@@ -95,5 +143,10 @@ export function keepOnly<T extends Kept>(doc: T, passage: Range): T {
 }
 
 export function restoreCut<T extends Kept>(doc: T, index: number): T {
-	return { ...doc, cuts: doc.cuts.filter((_, i) => i !== index) };
+	const restored = doc.cuts[index];
+	const next = { ...doc, cuts: doc.cuts.filter((_, i) => i !== index) };
+	// The passage comes back as a clip of its own, between the ones around it.
+	if (restored)
+		next.splits = normaliseSplits([...(doc.splits ?? []), restored.start, restored.end], keptRanges(next));
+	return next;
 }

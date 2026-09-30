@@ -1,6 +1,6 @@
 import { PanelTitle } from '@/editor/EditorLayout';
 import { Group, ResetButton } from '@/editor/panel-parts';
-import { decimal, formatPreciseTime } from '@/lib/format';
+import { decimal } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
 import { getLocale } from '@/paraglide/runtime.js';
 import { Slider } from '@/ui/fields';
@@ -68,10 +68,6 @@ export function VideoSpeedPanel() {
 					</button>
 				))}
 			</div>
-			<p className="text-ui text-ink-2 flex justify-between">
-				<span>{m.video_final_length()}</span>
-				<span className="tabular text-ink font-mono text-[13px]">{formatPreciseTime(videoLength(doc))}</span>
-			</p>
 		</>
 	);
 }

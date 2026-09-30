@@ -2,7 +2,7 @@ import { m } from '@/paraglide/messages.js';
 
 export type MediaKind = 'video' | 'image' | 'gif' | 'audio' | 'subtitles';
 
-/** `export` opens from the app bar rather than the tool rail. */
+/** `export` ends the tool rail, set apart from the editing tools. */
 export type ToolId =
 	| 'info'
 	| 'trim'
@@ -16,8 +16,7 @@ export type ToolId =
 	| 'sound'
 	| 'translate'
 	| 'ocr'
-	| 'audio'
-	| 'subtitles'
+	| 'tracks'
 	| 'speed'
 	| 'lines'
 	| 'timing'
@@ -43,7 +42,7 @@ export const EDITORS: Record<MediaKind, EditorDefinition> = {
 		path: '/video',
 		label: () => m.media_video(),
 		page: () => m.editor_page_video(),
-		tools: ['info', 'presets', 'trim', 'speed', 'crop', 'adjust', 'layers', 'audio', 'subtitles'],
+		tools: ['info', 'trim', 'speed', 'crop', 'adjust', 'layers', 'tracks'],
 		timed: true,
 	},
 	image: {
@@ -59,7 +58,7 @@ export const EDITORS: Record<MediaKind, EditorDefinition> = {
 		path: '/gif',
 		label: () => m.media_gif(),
 		page: () => m.editor_page_gif(),
-		tools: ['info', 'presets', 'trim', 'crop', 'resize', 'adjust', 'layers', 'speed', 'frames'],
+		tools: ['info', 'trim', 'crop', 'resize', 'adjust', 'layers', 'speed', 'frames'],
 		timed: true,
 	},
 	audio: {
@@ -99,8 +98,7 @@ export const TOOL_LABELS: Record<ToolId, () => string> = {
 	sound: () => m.tool_sound(),
 	translate: () => m.tool_translate(),
 	ocr: () => m.tool_ocr(),
-	audio: () => m.tool_audio(),
-	subtitles: () => m.tool_subtitles(),
+	tracks: () => m.tool_tracks(),
 	speed: () => m.tool_speed(),
 	lines: () => m.tool_lines(),
 	timing: () => m.tool_timing(),

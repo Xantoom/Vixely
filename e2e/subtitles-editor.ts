@@ -93,7 +93,7 @@ console.log('with video:', await page.getByRole('button', { name: 'Audio track' 
 await page.getByRole('button', { name: 'Play', exact: true }).click();
 await page.waitForTimeout(2800);
 await page.getByRole('button', { name: 'Pause', exact: true }).click();
-console.log('after playing:', await page.getByRole('slider', { name: 'Playhead', exact: true }).getAttribute('aria-valuenow'));
+console.log('after playing:', await page.getByRole('timer', { name: 'Playhead' }).first().innerText());
 await page.screenshot({ path: 'shots/subs-playing.png' });
 
 // Line 2 picked on the grid, retyped in the edit box; Enter goes to line 3.
@@ -130,15 +130,16 @@ await page.locator('nav[aria-label="Editing tools"]').getByRole('button', { name
 await aside.getByLabel('Shift by').fill('1.5');
 await aside.getByLabel('Shift by').press('Enter');
 await aside.getByRole('button', { name: /^Shift \+1\.500 s/ }).click();
+{ const sync = aside.getByRole('button', { name: 'Two-point sync' }); if ((await sync.getAttribute('aria-expanded')) === 'false') await sync.click(); }
 const fields = aside.getByLabel('New start');
 await fields.nth(1).fill('55');
 await fields.nth(1).press('Enter');
-console.log('sync:', (await aside.innerText()).match(/Speed ×[^\n]*/)?.[0]);
+console.log('sync:', (await aside.innerText()).match(/Timing stretched[^\n]*/)?.[0]);
 await aside.getByRole('button', { name: 'Sync the lines' }).click();
 await page.screenshot({ path: 'shots/subs-timing.png' });
 
 // Export as ASS.
-await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 await aside.getByRole('radio', { name: /^ASS/ }).click();
 const [download] = await Promise.all([
 	page.waitForEvent('download'),
@@ -175,7 +176,7 @@ await page.getByRole('grid').getByRole('row').nth(1).click();
 await page.waitForTimeout(800);
 await page.screenshot({ path: 'shots/subs-ass.png' });
 console.log('ass info:', (await aside.innerText()).replace(/\n/g, ' | ').slice(0, 200));
-await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 await aside.getByRole('radio', { name: /^SRT/ }).click();
 console.log('ass → srt panel:', (await aside.innerText()).replace(/\n/g, ' | ').slice(0, 500));
 const [second] = await Promise.all([

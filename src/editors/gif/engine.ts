@@ -1,7 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { OpenedFile } from '@/media/session';
-import { createGifDoc, FRAME_RATES, type OutputFrame, outputFrames, outputLength } from './document';
-import { type FrameSource, openAnimation, openImages, openVideo } from './source';
+import { type OpenedFile, stillImages, useSession } from '@/media/session';
+import {
+	createGifDoc,
+	FRAME_RATES,
+	frameKey,
+	type GifDoc,
+	keptKeys,
+	moveFrames,
+	type OutputFrame,
+	outputFrames,
+	outputLength,
+} from './document';
+import { type FrameSource, openAnimation, openImages, openVideo, type StillImage } from './source';
 import { useGifDoc, useGifEditor } from './store';
 
 /** Width a GIF made from a video starts at: wider ones weigh too much for most uses. */
@@ -22,6 +32,34 @@ export interface GifEngine {
 	togglePlay: () => void;
 	/** Moves the playhead, in output seconds. */
 	seek: (time: number) => void;
+	/**
+	 * Adds still images as frames of their own, after the frame `after` (by key), or at the end.
+	 * Only for animations held in memory: GIFs, animated images and images.
+	 */
+	addImages: (files: File[], after: number | null) => Promise<void>;
+}
+
+/**
+ * The document once `next` holds the frames `before` ended with, and more after: those new frames
+ * are played, right after the frame `after` if given. Frames trimmed off the end stay out.
+ */
+function withAddedFrames(doc: GifDoc, next: FrameSource, before: number, after: number | null): GifDoc {
+	const timing = next.timing ?? [];
+	const added = timing.filter((frame) => frame.start >= before - 1e-6).map((frame) => frameKey(frame.start));
+	const trimmedOff = timing
+		.filter((frame) => frame.start >= doc.trim.end - 1e-6 && frame.start < before - 1e-6)
+		.map((frame) => frameKey(frame.start));
+	let grown: GifDoc = {
+		...doc,
+		duration: next.duration,
+		trim: { start: doc.trim.start, end: next.duration },
+		removed: [...doc.removed, ...trimmedOff],
+	};
+	const kept = keptKeys(grown, timing);
+	const at = after === null ? -1 : kept.indexOf(after);
+	if (at >= 0) grown = moveFrames(grown, timing, added, at + 1);
+	else if (grown.order) grown = { ...grown, order: [...grown.order.filter((key) => !added.includes(key)), ...added] };
+	return grown;
 }
 
 /** The fastest standard rate at or under both the target and the source's own rate. */
@@ -34,6 +72,17 @@ function startRate(sourceFps: number | null): number {
  * Opens the pictures of a file, a GIF or a video, and plays the output. Animations keep their own
  * frames and size by default; a video starts at 20 fps and 480 px wide, what most GIFs need.
  */
+/**
+ * The frames read last, kept when the editor is left: coming back to the same file shows them
+ * at once rather than decoding it again. Another file frees them.
+ */
+let kept: { file: File; batchKey: object | null; source: FrameSource } | null = null;
+
+function keep(file: File, batchKey: object | null, source: FrameSource) {
+	if (kept && kept.source !== source) kept.source.dispose();
+	kept = { file, batchKey, source };
+}
+
 export function useGifEngine(opened: OpenedFile | null, batchKey: object | null): GifEngine {
 	const doc = useGifDoc();
 	const load = useGifEditor((state) => state.load);
@@ -56,6 +105,8 @@ export function useGifEngine(opened: OpenedFile | null, batchKey: object | null)
 	// The source shown last, freed when the file changes; and which opening it belongs to.
 	const latest = useRef<FrameSource | null>(null);
 	const generation = useRef(0);
+	// The frame images being added to an animation made from images go after, until they are read.
+	const addAfter = useRef<number | null>(null);
 
 	useEffect(() => {
 		if (!file) return;
@@ -63,13 +114,14 @@ export function useGifEngine(opened: OpenedFile | null, batchKey: object | null)
 		generation.current += 1;
 		setFailed(false);
 		setReading(0);
+		const still = imagesRef.current;
 		const ready = (next: FrameSource) => {
 			if (controller.signal.aborted) {
 				next.dispose();
 				return;
 			}
 			const fps = next.timing ? null : startRate(next.fps);
-			const width = next.addImages
+			const width = still
 				? Math.min(next.width, IMAGES_WIDTH)
 				: next.timing
 					? null
@@ -82,13 +134,24 @@ export function useGifEngine(opened: OpenedFile | null, batchKey: object | null)
 			setSource(next);
 			setReading(null);
 		};
-		const still = imagesRef.current;
 		if (still) imageCount.current = still.length;
-		const open = still
-			? openImages(still, setReading)
-			: isVideo
-				? openVideo(file, videoFps)
-				: openAnimation(file, format, setReading, controller.signal);
+		// Images added one by one change the source: only a single file's frames are kept.
+		const reused = !still && kept?.file === file && kept.batchKey === batchKey ? kept.source : null;
+		if (!reused && kept) {
+			// Freed once the views have let go of it.
+			const stale = kept.source;
+			kept = null;
+			setTimeout(() => {
+				stale.dispose();
+			}, 0);
+		}
+		const open = reused
+			? Promise.resolve(reused)
+			: still
+				? openImages(still, setReading)
+				: isVideo
+					? openVideo(file, videoFps)
+					: openAnimation(file, format, setReading, controller.signal);
 		open.then(ready).catch(() => {
 			if (!controller.signal.aborted) {
 				setFailed(true);
@@ -99,39 +162,45 @@ export function useGifEngine(opened: OpenedFile | null, batchKey: object | null)
 			controller.abort();
 			generation.current += 1;
 			setSource(null);
-			// Freed once the views have let go of it: they still draw it during this render.
+			// A single file's frames are kept for when the editor comes back to it; images are freed
+			// once the views have let go of them, as they still draw them during this render.
 			const previous = latest.current;
 			latest.current = null;
-			setTimeout(() => {
-				previous?.dispose();
-			}, 0);
+			if (previous && !imagesRef.current) keep(file, batchKey, previous);
+			else
+				setTimeout(() => {
+					previous?.dispose();
+				}, 0);
 			setPlaying(false);
 		};
 	}, [file, isVideo, format, videoFps, batchKey, load, retarget, setPlaying]);
 
-	// Images added to an animation made from images: read, then played at the end. The source
-	// they join hands its pictures over to the new one.
+	// Images added: read, then played where asked. The source they join hands its pictures over
+	// to the new one.
+	const grow = useRef<(from: FrameSource, added: readonly StillImage[], after: number | null) => Promise<void>>(
+		async () => {},
+	);
+	grow.current = async (from, added, after) => {
+		if (!from.addImages) return;
+		const opening = generation.current;
+		const next = await from.addImages(added);
+		if (opening !== generation.current) {
+			next.dispose();
+			return;
+		}
+		useGifEditor.getState().apply((doc) => withAddedFrames(doc, next, from.duration, after));
+		latest.current = next;
+		setSource(next);
+	};
+
+	// An animation made from images keeps its images in the session, so it opens again whole.
 	useEffect(() => {
 		if (!source?.addImages || !images || images.length <= imageCount.current) return;
 		const added = images.slice(imageCount.current);
 		imageCount.current = images.length;
-		const opening = generation.current;
-		void source.addImages(added).then((next) => {
-			if (opening !== generation.current) {
-				next.dispose();
-				return;
-			}
-			const before = source.duration;
-			useGifEditor
-				.getState()
-				.apply((doc) => ({
-					...doc,
-					duration: next.duration,
-					trim: { start: doc.trim.start, end: doc.trim.end >= before - 1e-6 ? next.duration : doc.trim.end },
-				}));
-			latest.current = next;
-			setSource(next);
-		});
+		const after = addAfter.current;
+		addAfter.current = null;
+		void grow.current(source, added, after);
 	}, [source, images]);
 
 	const frames = useMemo(() => (source && doc.duration > 0 ? outputFrames(doc, source.timing) : []), [source, doc]);
@@ -169,6 +238,17 @@ export function useGifEngine(opened: OpenedFile | null, batchKey: object | null)
 			},
 			seek: (time: number) => {
 				setPlayhead(Math.min(Math.max(0, time), Math.max(0, length - 1e-3)));
+			},
+			addImages: async (files: File[], after: number | null) => {
+				if (!source?.addImages) return;
+				setPlaying(false);
+				if (imagesRef.current) {
+					addAfter.current = after;
+					if (!(await useSession.getState().addImages(files))) addAfter.current = null;
+					return;
+				}
+				const { images: added } = await stillImages(files);
+				if (added.length > 0) await grow.current(source, added, after);
 			},
 		}),
 		[source, reading, failed, frames, length, setPlaying, setPlayhead],

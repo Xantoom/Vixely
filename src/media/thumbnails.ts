@@ -5,8 +5,8 @@ import type { ThumbnailMessage, ThumbnailRequest } from './thumbnails-protocol';
  * before each time; pictures are kept, so zooming out and back in shows them at once.
  */
 export class Thumbnails {
-	/** Called when pictures or key frames arrive: views draw again. */
-	onChange: () => void = () => {};
+	/** Told when pictures or key frames arrive: views draw again. */
+	readonly listeners = new Set<() => void>();
 	failed = false;
 
 	private worker: Worker;
@@ -27,7 +27,7 @@ export class Thumbnails {
 					if (key !== undefined) this.keyOf.set(time, key);
 				});
 			} else this.pictures.set(message.key, message.bitmap);
-			this.onChange();
+			for (const listener of this.listeners) listener();
 		};
 		this.post({ type: 'open', file, height });
 	}
@@ -57,4 +57,34 @@ export class Thumbnails {
 	private post(message: ThumbnailRequest) {
 		this.worker.postMessage(message);
 	}
+}
+
+/** Filmstrips kept, the most recent last: going to another editor and back decodes nothing again. */
+const kept: { file: File; height: number; thumbnails: Thumbnails }[] = [];
+const KEPT_FILMSTRIPS = 3;
+
+/**
+ * The pictures of a video at this height, made once and shared: `onChange` hears of new ones
+ * until `release` is called. They stay for the next timeline to show them.
+ */
+export function sharedThumbnails(
+	file: File,
+	height: number,
+	onChange: () => void,
+): { thumbnails: Thumbnails; release: () => void } {
+	let entry = kept.find((candidate) => candidate.file === file && candidate.height === height);
+	if (entry) kept.splice(kept.indexOf(entry), 1);
+	else {
+		entry = { file, height, thumbnails: new Thumbnails(file, height) };
+		while (kept.length >= KEPT_FILMSTRIPS) kept.shift()?.thumbnails.dispose();
+	}
+	kept.push(entry);
+	const { thumbnails } = entry;
+	thumbnails.listeners.add(onChange);
+	return {
+		thumbnails,
+		release: () => {
+			thumbnails.listeners.delete(onChange);
+		},
+	};
 }

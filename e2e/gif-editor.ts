@@ -18,7 +18,7 @@ const analyse = async (bytes: Buffer) => page.evaluate(async (data) => {
 	for (let f = reader.next_frame(); f; f = reader.next_frame()) { frames++; total += f.delay; }
 	return { width: reader.width(), height: reader.height(), frames, ms: Math.round(total) };
 }, Array.from(bytes));
-const preview = async () => (await page.locator('[data-status]').innerText()).replace(/\n/g, ' ');
+const preview = async () => (await page.locator('div[data-status]').innerText()).replace(/\n/g, ' ');
 const exportNow = async () => {
 	const [download] = await Promise.all([page.waitForEvent('download', { timeout: 120000 }), page.locator('aside + div').getByRole('button').first().click()]);
 	return { name: download.suggestedFilename(), data: readFileSync(await download.path()) };
@@ -29,7 +29,8 @@ await page.setInputFiles('input[type=file]', 'samples/anim.gif');
 await page.waitForURL('**/gif');
 await page.waitForSelector('[aria-label="Frames"]', { timeout: 20000 });
 console.log('opened:', await preview());
-await page.getByRole('button', { name: 'Play', exact: true }).click();
+// An animation plays on a loop as soon as it opens.
+await page.getByRole('button', { name: 'Pause', exact: true }).waitFor();
 await page.waitForTimeout(1200);
 console.log('playing at', await page.locator('[aria-label="Playhead"]').innerText());
 await page.keyboard.press('Space');
@@ -46,7 +47,7 @@ await page.locator('aside').getByRole('radio', { name: 'Back and forth' }).click
 console.log('2× back and forth:', await preview());
 await rail.getByRole('button', { name: 'Crop' }).click();
 await page.locator('aside').getByRole('radio', { name: /^1:1/ }).click();
-await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 const edited = await exportNow();
 console.log('exported', edited.name, edited.data.length, 'bytes', JSON.stringify(await analyse(edited.data)));
 let undos = 0;
@@ -75,12 +76,13 @@ const video = Buffer.from(await page.evaluate(async () => {
 await page.goto(`${BASE}/`);
 await page.setInputFiles('input[type=file]', { name: 'clip.webm', mimeType: 'video/webm', buffer: video });
 await page.waitForURL('**/video');
-await page.getByRole('button', { name: 'Make a GIF' }).click();
+await page.locator('header').getByRole('link', { name: 'GIF', exact: true }).click();
+await page.getByRole('button', { name: /^Use the open video/ }).click();
 await page.waitForURL('**/gif');
 await page.waitForSelector('[aria-label="Frames"]', { timeout: 20000 });
 await page.waitForTimeout(1000);
 console.log('video as GIF:', await preview());
-await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 const fromVideo = await exportNow();
 console.log('video GIF', fromVideo.name, fromVideo.data.length, 'bytes', JSON.stringify(await analyse(fromVideo.data)));
 console.log(errors.length ? errors.join('\n') : 'no errors');

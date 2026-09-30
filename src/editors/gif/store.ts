@@ -39,6 +39,9 @@ export interface GifExportSettings {
 	preset: string | null;
 }
 
+/** Seconds past which a GIF weighs a lot and plays with difficulty. */
+export const LONG_GIF = 60;
+
 interface GifEditorState {
 	owner: object | null;
 	history: History<GifDoc>;
@@ -98,7 +101,9 @@ export const useGifEditor = create<GifEditorState>((set, get) => ({
 			history: createHistory(doc),
 			gestureStart: null,
 			playhead: 0,
-			playing: false,
+			// An animation plays on a loop from the start, as it will once shared; a long one waits,
+			// as playing it is heavy.
+			playing: doc.duration <= LONG_GIF,
 			cropAspect: 'original',
 			exportSettings: defaultExport(width, copyable),
 		});
@@ -107,7 +112,7 @@ export const useGifEditor = create<GifEditorState>((set, get) => ({
 	},
 
 	retarget(doc) {
-		set({ history: createHistory(doc), gestureStart: null, playhead: 0, playing: false });
+		set({ history: createHistory(doc), gestureStart: null, playhead: 0, playing: doc.duration <= LONG_GIF });
 	},
 
 	apply(change) {

@@ -1,10 +1,9 @@
-import { Film, TriangleAlert, X } from 'lucide-react';
+import { Film, Replace, Trash2, TriangleAlert } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { AssOverlay } from '@/editor/AssOverlay';
-import { AudioTrackMenu, PictureButtons, PlayerControls, PlayerPicture } from '@/editor/PlayerControls';
+import { PlayerPicture } from '@/editor/PlayerControls';
 import { usePlayback } from '@/media/playback';
 import { m } from '@/paraglide/messages.js';
-import { IconButton } from '@/ui/Button';
 import { useBoxSize } from '@/ui/use-box-size';
 import type { SubtitleDoc } from './document';
 import { toAssScript } from './formats';
@@ -61,45 +60,74 @@ export function SubtitleLayer({
 	);
 }
 
-/** Picks the video (or audio) played under subtitles opened from a file, or removes it. */
-function ChooseMedia() {
+/** The video (or sound) played under subtitles opened from a file: chosen, replaced or removed. */
+function useMediaPicker() {
 	const inputRef = useRef<HTMLInputElement>(null);
-	const file = usePlayback((state) => state.file);
 	const load = usePlayback((state) => state.load);
-	const fromVideo = useSubtitleProject((state) => state.source === 'video');
-	if (fromVideo) return null;
+	const input = (
+		<input
+			ref={inputRef}
+			type="file"
+			accept="video/*,audio/*,.mkv,.mka"
+			className="hidden"
+			tabIndex={-1}
+			onChange={(event) => {
+				const chosen = event.target.files?.[0];
+				if (chosen) load(chosen);
+				event.target.value = '';
+			}}
+		/>
+	);
+	return {
+		input,
+		choose: () => inputRef.current?.click(),
+		remove: () => {
+			load(null);
+		},
+	};
+}
+
+/** In place of the picture while no video is chosen: the way to choose one. */
+function ChooseVideo({ onChoose }: { onChoose: () => void }) {
 	return (
-		<div className="flex min-w-0 items-center gap-0.5">
-			<input
-				ref={inputRef}
-				type="file"
-				accept="video/*,audio/*,.mkv,.mka"
-				className="hidden"
-				onChange={(event) => {
-					const chosen = event.target.files?.[0];
-					if (chosen) load(chosen);
-					event.target.value = '';
-				}}
-			/>
+		<button
+			type="button"
+			onClick={onChoose}
+			className="group border-line-2 bg-surface hover:border-ink-2 absolute inset-0 grid place-content-center justify-items-center gap-3 rounded-md border-[1.5px] border-dashed px-6 text-center transition-colors"
+		>
+			<span className="bg-ed text-ed-ink grid size-12 place-items-center rounded-xl transition-transform duration-200 group-hover:-translate-y-0.5">
+				<Film className="size-6" aria-hidden="true" />
+			</span>
+			<span className="text-lead font-semibold">{m.subs_video_load()}</span>
+			<span className="text-small text-muted max-w-[34ch]">{m.subs_video_load_hint()}</span>
+		</button>
+	);
+}
+
+/** The video chosen, its name cut short, and the buttons that replace or remove it. */
+function VideoBar({ name, onReplace, onRemove }: { name: string; onReplace: () => void; onRemove: () => void }) {
+	return (
+		<div className="flex min-w-0 items-center gap-2 max-lg:px-3">
+			<Film className="text-muted size-4 flex-none" aria-hidden="true" />
+			<span className="text-small text-ink-2 min-w-0 flex-1 truncate" title={name}>
+				{name}
+			</span>
 			<button
 				type="button"
-				title={m.subs_media_choose()}
-				onClick={() => inputRef.current?.click()}
-				className="text-ui text-ink-2 hover:text-ink hover:bg-surface inline-flex h-8 max-w-56 min-w-0 items-center gap-1.5 rounded-sm px-2 font-medium shadow-[inset_0_0_0_1px_var(--line-2)] transition-colors"
+				onClick={onReplace}
+				className="text-small text-ink-2 hover:bg-surface hover:text-ink flex h-8 flex-none items-center gap-1.5 rounded-sm px-2 font-medium transition-colors"
 			>
-				<Film size={15} aria-hidden="true" className="flex-none" />
-				<span className="truncate">{file ? file.name : m.subs_media_choose_short()}</span>
+				<Replace className="size-4" aria-hidden="true" />
+				<span className="max-sm:sr-only">{m.subs_video_replace()}</span>
 			</button>
-			{file && (
-				<IconButton
-					label={m.subs_media_remove()}
-					onClick={() => {
-						load(null);
-					}}
-				>
-					<X size={15} />
-				</IconButton>
-			)}
+			<button
+				type="button"
+				onClick={onRemove}
+				className="text-small text-ink-2 hover:bg-surface hover:text-danger flex h-8 flex-none items-center gap-1.5 rounded-sm px-2 font-medium transition-colors"
+			>
+				<Trash2 className="size-4" aria-hidden="true" />
+				<span className="max-sm:sr-only">{m.subs_video_remove()}</span>
+			</button>
 		</div>
 	);
 }
@@ -114,6 +142,9 @@ export function SubtitleViewer({ title }: { title: string }) {
 	const areaRef = useRef<HTMLDivElement>(null);
 	const area = useBoxSize(areaRef);
 	const [rendererFailed, setRendererFailed] = useState(false);
+	const file = usePlayback((state) => state.file);
+	const fromVideo = useSubtitleProject((state) => state.source === 'video');
+	const picker = useMediaPicker();
 	const frame = subtitleFrame(doc, video);
 	const scale = area.width && area.height ? Math.min(area.width / frame.width, area.height / frame.height) : 0;
 	const width = Math.floor(frame.width * scale);
@@ -121,7 +152,14 @@ export function SubtitleViewer({ title }: { title: string }) {
 
 	return (
 		<div className="flex h-full min-h-0 flex-col gap-2">
-			<div ref={areaRef} className="relative min-h-0 flex-1">
+			{picker.input}
+			{!fromVideo && file && <VideoBar name={file.name} onReplace={picker.choose} onRemove={picker.remove} />}
+			<div
+				ref={areaRef}
+				className="relative min-h-0 flex-1 max-lg:aspect-(--frame) max-lg:max-h-[50svh] max-lg:flex-none"
+				// On narrow screens the picture spans the width, as tall as its shape needs.
+				style={{ '--frame': `${frame.width} / ${frame.height}` }}
+			>
 				<PlayerPicture width={width} height={height}>
 					{width > 0 && (
 						<SubtitleLayer
@@ -144,13 +182,8 @@ export function SubtitleViewer({ title }: { title: string }) {
 						</span>
 					)}
 				</PlayerPicture>
-				<PictureButtons>
-					<AudioTrackMenu />
-				</PictureButtons>
+				{!fromVideo && !file && <ChooseVideo onChoose={picker.choose} />}
 			</div>
-			<PlayerControls>
-				<ChooseMedia />
-			</PlayerControls>
 		</div>
 	);
 }

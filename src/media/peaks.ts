@@ -266,3 +266,53 @@ export function readPeaks(
 		},
 	};
 }
+
+interface SharedPeaks {
+	file: File;
+	track: number | null;
+	reader: PeaksReader;
+	listeners: Set<() => void>;
+}
+
+/** Waveforms kept, the most recent last: going to another editor and back reads nothing again. */
+const shared: SharedPeaks[] = [];
+const KEPT_WAVEFORMS = 4;
+
+/**
+ * The waveform of a file's sound track, read once and shared by every editor that shows it:
+ * `onUpdate` hears of what is read until `release` is called. The reading goes on, and stays,
+ * for the next to show it.
+ */
+export function sharedPeaks(
+	file: File,
+	duration: number,
+	track: number | null,
+	onUpdate: () => void,
+): { reader: PeaksReader; release: () => void } {
+	let entry = shared.find((candidate) => candidate.file === file && candidate.track === track);
+	if (entry) {
+		shared.splice(shared.indexOf(entry), 1);
+	} else {
+		const listeners = new Set<() => void>();
+		const reader = readPeaks(
+			file,
+			duration,
+			() => {
+				for (const listener of listeners) listener();
+			},
+			track,
+		);
+		reader.done.catch(() => undefined);
+		entry = { file, track, reader, listeners };
+		while (shared.length >= KEPT_WAVEFORMS) shared.shift()?.reader.cancel();
+	}
+	shared.push(entry);
+	const { listeners } = entry;
+	listeners.add(onUpdate);
+	return {
+		reader: entry.reader,
+		release: () => {
+			listeners.delete(onUpdate);
+		},
+	};
+}

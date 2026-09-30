@@ -191,6 +191,34 @@ pub fn avif(
 	Ok(encoder.encode_rgba(image).map_err(fail)?.avif_file)
 }
 
+/// WebP. Quality 100 encodes losslessly. Method 4 is libwebp's default balance of speed and size.
+/// An opaque picture goes through as RGB, so the file carries no alpha channel.
+pub fn webp(rgba: &[u8], width: u32, height: u32, quality: f32, exif: &[u8]) -> Result<Vec<u8>, EncodeError> {
+	use zenwebp::{EncodeRequest, LosslessConfig, LossyConfig, PixelLayout};
+	check_size(rgba, width, height)?;
+	let quality = quality.clamp(1.0, 100.0);
+	let rgb: Vec<u8>;
+	let (pixels, layout) = if is_opaque(rgba) {
+		rgb = rgba.chunks_exact(4).flat_map(|p| [p[0], p[1], p[2]]).collect();
+		(&rgb[..], PixelLayout::Rgb8)
+	} else {
+		(rgba, PixelLayout::Rgba8)
+	};
+	let lossless = LosslessConfig::new().with_quality(100.0).with_method(4);
+	let lossy = LossyConfig::new().with_quality(quality).with_method(4);
+	let request = if quality >= 100.0 {
+		EncodeRequest::lossless(&lossless, pixels, layout, width, height)
+	} else {
+		EncodeRequest::lossy(&lossy, pixels, layout, width, height)
+	};
+	let request = if exif.is_empty() {
+		request
+	} else {
+		request.with_exif(exif)
+	};
+	request.encode().map_err(fail)
+}
+
 /// Maps a JPEG-like quality (1 to 100) to a JPEG XL Butteraugli distance, as libjxl's cjxl does.
 /// 100 means lossless.
 pub fn jxl_distance(quality: f32) -> f32 {
@@ -315,6 +343,35 @@ mod tests {
 		let (rgba, w, h) = sample();
 		let out = avif(&rgba, w, h, 70.0, 10, &[]).unwrap();
 		assert_eq!(&out[4..12], b"ftypavif");
+	}
+
+	#[test]
+	fn webp_round_trips_with_transparency() {
+		let (rgba, w, h) = sample();
+		for quality in [80.0, 100.0] {
+			let out = webp(&rgba, w, h, quality, &[]).unwrap();
+			assert_eq!((&out[..4], &out[8..12]), (&b"RIFF"[..], &b"WEBP"[..]));
+			let (decoded, dw, dh) = zenwebp::oneshot::decode_rgba(&out).unwrap();
+			assert_eq!((dw, dh), (w, h));
+			assert_eq!(decoded[3], 0, "the transparent corner stays transparent");
+			if quality >= 100.0 {
+				// Fully transparent pixels may lose their unseen colour.
+				let visible = |pixels: &[u8]| -> Vec<u8> {
+					pixels.chunks_exact(4).filter(|p| p[3] > 0).flatten().copied().collect()
+				};
+				assert_eq!(visible(&decoded), visible(&rgba), "quality 100 must be lossless");
+			}
+		}
+	}
+
+	#[test]
+	fn opaque_webp_is_plain_vp8() {
+		let (mut rgba, w, h) = sample();
+		for pixel in rgba.chunks_exact_mut(4) {
+			pixel[3] = 255;
+		}
+		let out = webp(&rgba, w, h, 80.0, &[]).unwrap();
+		assert_eq!(&out[12..16], b"VP8 ");
 	}
 
 	#[test]

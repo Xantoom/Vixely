@@ -150,7 +150,7 @@ export function resolveGain(doc: AudioDoc, reading: LoudnessReading | null): Aud
 }
 
 /** Loudness assumed until the sound is measured, in LUFS: a typical recording. */
-const TYPICAL_LOUDNESS = -20;
+export const TYPICAL_LOUDNESS = -20;
 
 /** What changes the sound itself, as the processors take it. */
 export function soundChanges(doc: AudioDoc): SoundChanges {

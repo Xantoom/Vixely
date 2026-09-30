@@ -12,7 +12,7 @@ await page.goto(`${BASE}/`);
 await page.setInputFiles('input[type=file]', 'samples/anim.gif');
 await page.waitForURL('**/gif');
 await page.waitForSelector('[aria-label="Frames"]', { timeout: 20000 });
-await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 const aside = page.locator('aside');
 console.log('panel:', (await aside.innerText()).replace(/\n/g, ' | ').slice(0, 260));
 const exportButton = page.locator('aside + div').getByRole('button').first();
@@ -41,7 +41,7 @@ const inspect = async (data: Buffer, kind: string) => page.evaluate(async ([byte
 await page.locator('nav[aria-label="Editing tools"]').getByRole('button', { name: 'Trim' }).click();
 await page.getByLabel('Start', { exact: true }).fill('1'); await page.keyboard.press('Enter');
 await page.getByLabel('End', { exact: true }).fill('2.5'); await page.keyboard.press('Enter');
-await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 await page.getByLabel('Loop').click();
 await page.getByRole('option', { name: 'Once' }).click();
 console.log('inert while original:', await aside.locator('[inert]').count());
@@ -71,7 +71,7 @@ await page.getByRole('option', { name: 'No limit' }).click();
 // 3. A speed change blocks the original.
 await page.locator('nav[aria-label="Editing tools"]').getByRole('button', { name: 'Speed' }).click();
 await page.locator('aside').getByRole('radio', { name: 'Reverse' }).click();
-await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 console.log('original disabled after reverse:', await aside.getByRole('radio', { name: /^Original/ }).isDisabled(), (await aside.innerText()).includes('redraw the frames'));
 console.log(errors.length ? errors.join('\n') : 'no errors');
 await browser.close();

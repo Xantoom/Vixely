@@ -1,3 +1,4 @@
+import '@fontsource-variable/geist-mono';
 import '@fontsource/anton';
 import '@fontsource/bebas-neue';
 import '@fontsource-variable/oswald';

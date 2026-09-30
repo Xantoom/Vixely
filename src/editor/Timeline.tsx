@@ -93,9 +93,7 @@ export function Timeline({ file, info, poster }: { file: File; info: MediaInfo |
 		<section aria-label={m.timeline()} className="border-line grid gap-1.5 border-t px-4 pt-2.5 pb-4">
 			<div className="text-ui flex items-baseline gap-2">
 				<span className="text-muted">{m.info_duration()}</span>
-				<span className="tabular font-mono text-[12.5px]">
-					{duration === null ? '–' : formatTimecode(duration, fps)}
-				</span>
+				<span className="tabular text-small">{duration === null ? '–' : formatTimecode(duration, fps)}</span>
 			</div>
 
 			{duration !== null && duration > 0 && (

@@ -24,7 +24,7 @@ await page.goto(`${BASE}/video`);
 await page.setInputFiles('input[type=file]', [sample('clip.mkv'), sample('h264.mp4'), sample('rotated.mp4')]);
 await page.getByRole('region', { name: 'Batch' }).waitFor({ timeout: 30000 });
 await page.waitForTimeout(1500);
-await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 await aside.getByLabel('Made for').click();
 await page.getByRole('option', { name: /^Discord(?! Nitro)/ }).click();
 await page.waitForTimeout(300);

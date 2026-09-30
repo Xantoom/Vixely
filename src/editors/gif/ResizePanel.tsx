@@ -2,6 +2,7 @@ import { Link2, Unlink2 } from 'lucide-react';
 import { useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { ResetButton, Section } from '@/editor/panel-parts';
+import { ScaleChoices, SizeSummary } from '@/editor/ResizeParts';
 import type { Size } from '@/editors/image/document';
 import { m } from '@/paraglide/messages.js';
 import { IconButton } from '@/ui/Button';
@@ -12,9 +13,6 @@ import { useGifDoc, useGifEditor } from './store';
 
 /** Widths offered, when narrower than the frame: what chats, forums and pages commonly show. */
 const WIDTHS = [1080, 800, 640, 480, 320, 240, 128];
-
-/** Shares of the frame offered; above 100 % enlarges, for pixel art. */
-const SCALES = [25, 50, 75, 100, 200];
 
 /** Largest side typed, in pixels. */
 const LARGEST = 4096;
@@ -66,6 +64,26 @@ export function GifResizePanel({ source }: { source: Size }) {
 				{m.tool_resize()}
 			</PanelTitle>
 
+			<SizeSummary from={natural} to={current} />
+
+			<Section title={m.resize_scale()}>
+				<ScaleChoices
+					from={natural}
+					scale={scale}
+					untouched={untouched}
+					largest={LARGEST}
+					onScale={(percent) => {
+						setSize({
+							width: Math.min(LARGEST, Math.max(1, Math.round((natural.width * percent) / 100))),
+							height: Math.min(LARGEST, Math.max(1, Math.round((natural.height * percent) / 100))),
+						});
+					}}
+					onOriginal={() => {
+						setExport({ exact: null, width: null });
+					}}
+				/>
+			</Section>
+
 			<Section title={m.resize_dimensions()}>
 				<div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-2">
 					<label className="grid gap-1.5">
@@ -86,28 +104,6 @@ export function GifResizePanel({ source }: { source: Size }) {
 						<NumberField value={current.height} unit="px" min={1} max={LARGEST} onCommit={setHeight} />
 					</label>
 				</div>
-				<div role="radiogroup" aria-label={m.resize_scale()} className="grid grid-cols-5 gap-1.5">
-					{SCALES.map((percent) => (
-						<button
-							key={percent}
-							type="button"
-							role="radio"
-							aria-checked={scale === percent && (percent !== 100 || untouched || exact !== null)}
-							onClick={() => {
-								setSize({
-									width: Math.min(LARGEST, Math.max(1, Math.round((natural.width * percent) / 100))),
-									height: Math.min(
-										LARGEST,
-										Math.max(1, Math.round((natural.height * percent) / 100)),
-									),
-								});
-							}}
-							className="text-ui tabular text-ink-2 hover:bg-surface aria-checked:bg-ed-soft aria-checked:text-ink h-9 rounded-sm font-medium shadow-[inset_0_0_0_1px_var(--line-2)] transition-[background-color,box-shadow] aria-checked:shadow-[inset_0_0_0_1.5px_var(--ed)]"
-						>
-							{percent} %
-						</button>
-					))}
-				</div>
 			</Section>
 
 			<Section title={m.resize_common()}>
@@ -118,8 +114,7 @@ export function GifResizePanel({ source }: { source: Size }) {
 						{ value: 'original', label: m.size_original(), detail: `${natural.width} × ${natural.height}` },
 						...WIDTHS.filter((width) => width < natural.width).map((width) => ({
 							value: String(width),
-							label: `${width} px`,
-							detail: `${width} × ${Math.max(1, Math.round((natural.height * width) / natural.width))}`,
+							label: `${width} × ${Math.max(1, Math.round((natural.height * width) / natural.width))}`,
 						})),
 					]}
 					onChange={(value) => {

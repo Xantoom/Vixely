@@ -30,11 +30,12 @@ import {
 import { isShortened, keptRanges } from '@/document/kept';
 import { isKept, toOutput, totalLength } from '@/document/timemap';
 import { drawOverlays, loadOverlayAssets } from '@/editor/overlays/draw';
+import { changesSound, type SoundChanges } from '@/media/sound';
 import type { LogoId } from '@/ui/BrandLogo';
 import { ensureEncoder } from '../audio/export';
 import { effectiveCrop, type ImageDoc, type Size } from '../image/document';
 import { ImageRenderer } from '../image/renderer';
-import { gainOf, placeAudio, placeRanges } from './audio-pieces';
+import { gainOf, PieceSound, placeAudio, placeRanges } from './audio-pieces';
 import { AudioShaper } from './audio-shaping';
 import { type BurnJob, type Box, createBurner, type SubtitleBurner } from './burn';
 import {
@@ -944,14 +945,36 @@ export class EncoderMissing extends Error {
 	}
 }
 
+/** How a sound track changes: its level in dB, and its equalizer and compressor. */
+export interface TrackSound {
+	decibels: number;
+	sound: SoundChanges | null;
+	/** Encoded again in this codec and bitrate, whatever the export's sound settings. */
+	encode?: TrackEncode | null;
+}
+
+/** A sound track encoded again on its own terms: its codec, and its bitrate in kb/s. */
+export interface TrackEncode {
+	codec: 'aac' | 'opus';
+	bitrate: number;
+}
+
+/** A sound track kept as it is. */
+export const SOUND_AS_IS: TrackSound = { decibels: 0, sound: null };
+
+/** Whether a sound track changes, and so is decoded and encoded again. */
+export function soundChanges(track: TrackSound): boolean {
+	return track.decibels !== 0 || (track.sound !== null && changesSound(track.sound)) || Boolean(track.encode);
+}
+
 export interface ConvertJob {
 	file: File;
 	doc: VideoDoc;
 	settings: VideoExportSettings;
 	/** Size of the source's pictures, upright. */
 	upright: Size;
-	/** Audio tracks kept, by the IDs the file gives them, with the change of their level in dB. */
-	audioTracks: ReadonlyMap<number, number>;
+	/** Audio tracks kept, by the IDs the file gives them, with how their sound changes. */
+	audioTracks: ReadonlyMap<number, TrackSound>;
 	/** Subtitles burned into the pictures. */
 	burn?: BurnJob | null;
 }
@@ -1049,24 +1072,32 @@ export async function convertVideo(
 
 	const placed = placeRanges(ranges);
 	const audio = (track: InputAudioTrack): ConversionAudioOptions => {
-		const decibels = job.audioTracks.get(track.id);
-		if (decibels === undefined) return { discard: true };
-		// Removed passages and level changes are made on decoded sound: it is then encoded again.
-		const copy = settings.audio === 'copy' && !cuts && decibels === 0 && !shaped;
+		const edit = job.audioTracks.get(track.id);
+		if (edit === undefined) return { discard: true };
+		// Removed passages and sound changes are made on decoded sound: it is then encoded again.
+		const copy = settings.audio === 'copy' && !cuts && !soundChanges(edit) && !shaped;
 		const options: ConversionAudioOptions = copy
 			? {}
-			: {
-					codec:
-						settings.audio === 'copy' ? (settings.container === 'webm' ? 'opus' : 'aac') : settings.audio,
-					quality: new Quality({ bitrate: settings.audioBitrate * 1000 }),
-				};
-		const gain = gainOf(decibels);
+			: edit.encode
+				? { codec: edit.encode.codec, quality: new Quality({ bitrate: edit.encode.bitrate * 1000 }) }
+				: {
+						codec:
+							settings.audio === 'copy'
+								? settings.container === 'webm'
+									? 'opus'
+									: 'aac'
+								: settings.audio,
+						quality: new Quality({ bitrate: settings.audioBitrate * 1000 }),
+					};
+		const gain = gainOf(edit.decibels);
 		const placing = cuts || gain !== 1;
 		const shaper = shaped ? new AudioShaper(speed, fade, length) : null;
-		if (placing || shaper) {
+		const sound = edit.sound && changesSound(edit.sound) ? new PieceSound(edit.sound) : null;
+		if (placing || shaper || sound) {
 			options.process = (sample) => {
 				const pieces = placing ? placeAudio(sample, placed, offset, gain) : [sample];
-				return shaper ? shaper.shape(pieces, sample) : pieces;
+				const changed = sound ? sound.apply(pieces, sample) : pieces;
+				return shaper ? shaper.shape(changed, sample) : changed;
 			};
 		}
 		return options;
@@ -1097,7 +1128,11 @@ export async function convertVideo(
 
 	try {
 		// Browsers without their own AAC encoder (Chromium) get the WebAssembly one.
-		if (encodesAac(settings, cuts || shaped || [...job.audioTracks.values()].some((decibels) => decibels !== 0))) {
+		const tracks = [...job.audioTracks.values()];
+		if (
+			encodesAac(settings, cuts || shaped || tracks.some(soundChanges)) ||
+			tracks.some((track) => track.encode?.codec === 'aac')
+		) {
 			await ensureEncoder('aac', { numberOfChannels: 2, sampleRate: 48_000 });
 		}
 		const conversion = await Conversion.init({

@@ -55,7 +55,10 @@ export async function detectCapabilities(): Promise<Capabilities> {
 			webCodecs ? getDecodableVideoCodecs() : Promise.resolve([]),
 			webCodecs ? getEncodableVideoCodecs() : Promise.resolve([]),
 			webCodecs ? getDecodableAudioCodecs() : Promise.resolve([]),
-			webCodecs ? getEncodableAudioCodecs() : Promise.resolve([]),
+			// No encoder makes TrueHD, and asking about it throws.
+			webCodecs
+				? getEncodableAudioCodecs(AUDIO_CODECS.filter((codec) => codec !== 'truehd'))
+				: Promise.resolve([]),
 			simd(),
 			threads(),
 			loadCore().catch(() => null),

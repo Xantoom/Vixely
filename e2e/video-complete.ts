@@ -34,7 +34,9 @@ const open = async (path: string) => {
 	await page.waitForTimeout(1500);
 };
 const exportAs = async (name: string, mode: RegExp, choose: () => Promise<void> = async () => {}) => {
-	await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+	// The rail's Export opens the panel, or closes it when it is open already.
+	const exportTool = page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true });
+	if ((await exportTool.getAttribute('aria-pressed')) !== 'true') await exportTool.click();
 	const radio = aside.getByRole('radio', { name: mode });
 	if (await radio.isEnabled()) await radio.click();
 	console.log(`${name}: ${mode} ${(await radio.getAttribute('aria-checked')) === 'true' ? 'chosen' : 'NOT chosen'}`);
@@ -76,7 +78,8 @@ console.log('  first packets (source, copy):', run(['-select_streams', 'v', '-sh
 
 // 2. Metadata and a cover made from the picture shown, still copied.
 await open(sample('clip.mkv'));
-await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
+await aside.getByRole('button', { name: 'Metadata', expanded: false }).first().click();
 await aside.getByLabel('Title').fill('Vixely test');
 await aside.getByLabel('Artist').fill('Xantoom');
 await aside.getByLabel('Artist').press('Tab');
@@ -89,7 +92,8 @@ console.log('  attachments:', run(['-show_entries', 'stream_tags=filename,mimety
 
 // 2b. The same in an MP4, whose timed text goes through the remuxer too.
 await open(sample('clip.mp4'));
-await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
+await aside.getByRole('button', { name: 'Metadata', expanded: false }).first().click();
 await aside.getByLabel('Title').fill('Vixely MP4');
 await aside.getByLabel('Title').press('Tab');
 await aside.getByRole('button', { name: 'Current frame' }).click();
@@ -116,10 +120,32 @@ streams(titled);
 frame(titled, 1, 'titled-1s');
 frame(titled, 4, 'titled-4s');
 
+// 3b. The layers stay on the timeline in every tool; a bar dragged up a row comes forward.
+await tool('Layers');
+{ const back = aside.getByRole('button', { name: /^All layers/ }); if (await back.isVisible()) await back.click(); }
+await aside.getByRole('tab', { name: 'Text' }).click();
+await aside.getByRole('button', { name: /^Caption/ }).click();
+await tool('Info');
+const layerRows = page.locator('section[aria-label="Timeline"]').getByRole('group', { name: 'Layers' });
+const bars = layerRows.getByRole('button');
+const order = async () => (await bars.evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')))).join(' / ');
+console.log('layers on the timeline, Info tool:', await order());
+const bottom = (await bars.nth(1).boundingBox())!;
+await page.mouse.move(bottom.x + 20, bottom.y + bottom.height / 2);
+await page.mouse.down();
+await page.mouse.move(bottom.x + 20, bottom.y - bottom.height, { steps: 6 });
+await page.mouse.up();
+await page.waitForTimeout(200);
+console.log('after dragging the lower one up:', await order());
+await tool('Crop');
+await page.waitForTimeout(300);
+await page.locator('section[aria-label="Preview"]').screenshot({ path: 'shots/crop-with-layers.png' });
+
 // 4. TikTok: cropped to 9:16 from the middle.
 await open(sample('clip.mp4'));
-await tool('Formats');
-await aside.getByRole('button', { name: /^TikTok/ }).click();
+await tool('Crop');
+await aside.getByRole('radio', { name: 'Social networks' }).click();
+await aside.getByRole('radio', { name: /^TikTok/ }).click();
 await page.waitForTimeout(500);
 await page.screenshot({ path: 'shots/tiktok-editor.png' });
 const tiktok = await exportAs('tiktok.mp4', /Convert/);
@@ -186,18 +212,22 @@ for (const file of ['ac3.mkv', 'dts.mkv', 'truehd.mkv', 'truehd.m2ts', 'truehd.m
 	await tool('Speed');
 	await aside.getByRole('radio', { name: /^2/ }).click();
 	// Playback keeps the pace: two seconds of source for every second.
-	const playhead = page.getByRole('slider', { name: 'Playhead' }).first();
+	// The time shown under the picture, m:ss.mmm, in seconds.
+	const playhead = async () => {
+		const [minutes = '0', seconds = '0'] = ((await page.getByRole('timer', { name: 'Playhead' }).first().innerText()).split('/')[0] ?? '').trim().split(':');
+		return Number(minutes) * 60 + Number(seconds);
+	};
 	await page.getByRole('button', { name: 'Play' }).first().click();
 	await page.waitForTimeout(200);
-	const from = Number(await playhead.getAttribute('aria-valuenow'));
+	const from = await playhead();
 	await page.waitForTimeout(2000);
-	const to = Number(await playhead.getAttribute('aria-valuenow'));
+	const to = await playhead();
 	await page.getByRole('button', { name: 'Pause' }).first().click();
 	console.log(`  preview pace: ${((to - from) / 2).toFixed(2)}× (asked 2×)`);
 	await tool('Trim');
 	await aside.getByRole('slider', { name: 'Fade in' }).fill('10');
 	await aside.getByRole('slider', { name: 'Fade out' }).fill('10');
-	console.log('speed panel length:', await aside.getByText('Final length').locator('..').innerText().then((t) => t.replace(/\s+/g, ' ')));
+	console.log('final length:', (await page.locator('main').innerText()).match(/Final length\s+([\d:.]+)/)?.[1]);
 	const path = await exportAs('fast.mp4', /Convert/);
 	console.log('  duration:', run(['-show_entries', 'format=duration', '-of', 'csv=p=0'], path), 's');
 	if (ffmpeg) {
@@ -216,8 +246,8 @@ for (const file of ['ac3.mkv', 'dts.mkv', 'truehd.mkv', 'truehd.m2ts', 'truehd.m
 
 // 6. A subtitle file added to the video as a track, copied into it.
 await open(sample('clip.mkv'));
-await tool('Subtitles');
-await aside.locator('input[type=file]').setInputFiles('samples/extra.fr.srt');
+await tool('Tracks');
+await aside.locator('input[type=file][accept^=".srt"]').setInputFiles('samples/extra.fr.srt');
 await page.waitForTimeout(500);
 await aside.screenshot({ path: 'shots/subtitles-added.png' });
 const added = await exportAs('added.mkv', /Original/);

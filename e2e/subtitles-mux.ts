@@ -26,7 +26,9 @@ const open = async (path: string | { name: string; mimeType: string; buffer: Buf
 	await page.waitForSelector('[role=grid]', { timeout: 60000 });
 };
 const exportVideo = async (from: 'subtitles' | 'video') => {
-	await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+	// The rail's Export opens the panel, or closes it when it is open already.
+	const exportTool = page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true });
+	if ((await exportTool.getAttribute('aria-pressed')) !== 'true') await exportTool.click();
 	if (from === 'subtitles') await aside.getByRole('radio', { name: /The video/ }).click();
 	await page.waitForTimeout(500);
 	const [download] = await Promise.all([
@@ -43,7 +45,7 @@ await open(sample('film.mkv'));
 await page.getByRole('grid').getByRole('row').nth(1).click();
 await page.getByLabel('Text', { exact: true }).fill('Edited in Vixely');
 await page.getByLabel('Text', { exact: true }).blur();
-await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 await aside.getByRole('radio', { name: /The video/ }).click();
 await page.waitForTimeout(300);
 await aside.screenshot({ path: 'shots/mux-panel.png' });
@@ -66,6 +68,9 @@ if (box) {
 }
 await page.getByLabel('Text', { exact: true }).fill('New line in MP4');
 await page.getByLabel('Text', { exact: true }).blur();
+// The subtitle editor starts with its panel folded: the way back is in Info.
+const info = page.locator('nav[aria-label="Editing tools"]').getByRole('button', { name: 'Info' });
+if ((await info.getAttribute('aria-pressed')) !== 'true') await info.click();
 await page.getByRole('button', { name: 'Back to the video' }).click();
 const mp4 = await exportVideo('video');
 console.log('exported', mp4.name, mp4.data.length, 'bytes');
@@ -112,7 +117,7 @@ if (big) {
 	await large.goto(`${BASE}/subtitles`);
 	await large.setInputFiles('input[type=file]', big);
 	await large.waitForSelector('[role=grid]', { timeout: 60000 });
-	await large.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+	await large.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 	await large.locator('aside').getByRole('radio', { name: /The video/ }).click();
 	const start = Date.now();
 	await large.locator('aside + div').getByRole('button').first().click();

@@ -30,7 +30,8 @@ await tools.getByRole('button', { name: 'Sound', exact: true }).click();
 const strength = aside.getByRole('slider', { name: 'Strength' });
 await strength.focus();
 await page.keyboard.press('End');
-await aside.getByRole('radio', { name: 'Voice' }).click();
+await aside.getByLabel('Equalizer presets').click();
+await page.getByRole('option', { name: 'Voice' }).click();
 await page.waitForTimeout(300);
 await aside.screenshot({ path: 'shots/sound-panel.png' });
 
@@ -39,7 +40,7 @@ await page.keyboard.press('Space');
 await page.waitForTimeout(2000);
 await page.keyboard.press('Space');
 
-await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 await aside.getByRole('radio', { name: /WAV/ }).click();
 const t0 = Date.now();
 const [download] = await Promise.all([

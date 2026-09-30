@@ -45,13 +45,24 @@ await page.waitForSelector('[role=group][aria-label="Tracks"]', { timeout: 30000
 await page.waitForTimeout(1000);
 await tools().getByRole('button', { name: 'Crop', exact: true }).click();
 await aside().getByRole('button', { name: 'Rotate right' }).click();
-await tools().getByRole('button', { name: 'Subtitles', exact: true }).click();
-await aside().getByRole('button', { name: /^Edit / }).first().click();
-const dialog = page.getByRole('dialog', { name: 'Tracks' });
-await dialog.getByRole('grid').getByRole('row').nth(1).click();
-await dialog.getByLabel('Text', { exact: true }).fill('Kept across tabs');
-await dialog.getByLabel('Text', { exact: true }).press('Enter');
-await dialog.getByRole('button', { name: 'Close the panel' }).click();
+// The lines of a track are edited in the subtitle editor, reached from the Tracks tool.
+const editLines = async () => {
+	await tools().getByRole('button', { name: 'Tracks', exact: true }).click();
+	await aside().locator('li[data-media=subtitles] button[aria-expanded]').first().click();
+	await aside().getByRole('button', { name: 'Edit the lines' }).click();
+	await page.waitForURL('**/subtitles');
+	await page.getByRole('grid').waitFor({ timeout: 20000 });
+};
+const backToVideo = async () => {
+	await page.getByRole('navigation', { name: 'Switch editor' }).getByRole('link', { name: 'Video' }).click();
+	await page.waitForURL('**/video');
+	await page.waitForSelector('[role=group][aria-label="Tracks"]', { timeout: 30000 });
+};
+await editLines();
+await page.getByRole('grid').getByRole('row').nth(1).click();
+await page.getByLabel('Text', { exact: true }).fill('Kept across tabs');
+await page.getByLabel('Text', { exact: true }).press('Enter');
+await backToVideo();
 await settle();
 await page.close();
 page = await ctx.newPage();
@@ -64,24 +75,23 @@ await card.click();
 await page.waitForURL('**/video');
 await page.waitForSelector('[role=group][aria-label="Tracks"]', { timeout: 30000 });
 await page.waitForTimeout(1500);
-await tools().getByRole('button', { name: 'Subtitles', exact: true }).click();
-await aside().getByRole('button', { name: /^Edit / }).first().click();
-const again = page.getByRole('dialog', { name: 'Tracks' });
-console.log('subtitles:', (await again.getByRole('grid').innerText()).replace(/\s+/g, ' ').slice(0, 120));
-await again.getByRole('button', { name: 'Close the panel' }).click();
+await editLines();
+console.log('subtitles:', (await page.getByRole('grid').innerText()).replace(/\s+/g, ' ').slice(0, 120));
+await backToVideo();
 console.log('video undo:', await undo().isEnabled());
 
 // 3. The Voice equalizer on a sound, reloaded.
 await page.goto(`${base}/audio`);
 await page.setInputFiles('input[type=file]', 'samples/noisy.wav');
 await tools().getByRole('button', { name: 'Sound', exact: true }).click();
-await aside().getByRole('radio', { name: 'Voice' }).click();
+await aside().getByLabel('Equalizer presets').click();
+await page.getByRole('option', { name: 'Voice' }).click();
 await settle();
 await page.reload();
 await undo().waitFor({ timeout: 30000 });
 await page.waitForTimeout(1000);
 await tools().getByRole('button', { name: 'Sound', exact: true }).click();
-console.log('audio preset after reload:', await aside().getByRole('radio', { name: 'Voice' }).getAttribute('aria-checked'));
+console.log('audio preset after reload:', await aside().getByLabel('Equalizer presets').innerText());
 
 // 4. A batch of two photos with a look, reloaded: both files and the look come back.
 await page.goto(`${base}/image`);

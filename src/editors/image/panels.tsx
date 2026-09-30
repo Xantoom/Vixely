@@ -1,12 +1,14 @@
 import { FlipHorizontal2, FlipVertical2, RotateCcw, RotateCw } from 'lucide-react';
-import { type ReactNode, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { ASPECT_LABELS, Group, ResetButton, Section, ToolButton } from '@/editor/panel-parts';
+import { SocialShapes, type SocialShape } from '@/editor/SocialShapes';
 import { decimal } from '@/lib/format';
 import { ICO_SIZES } from '@/media/image-formats';
 import type { PhotoMetadata } from '@/media/probe';
 import { m } from '@/paraglide/messages.js';
 import { FieldRow, NumberField, Select, type SelectOption, Slider, Switch } from '@/ui/fields';
+import { Segmented } from '@/ui/Segmented';
 import { TRACKS } from '@/ui/tracks';
 import { containRect, fitRatio } from './crop';
 import {
@@ -22,7 +24,7 @@ import {
 	rotate,
 } from './document';
 import type { PictureEditing } from './editing';
-import { canEncodeWebp, keepsMetadata, outputSize, usesQuality } from './export';
+import { keepsMetadata, outputSize, usesQuality } from './export';
 import { LookStrip } from './LookStrip';
 import { findPreset, presetGroupTitle } from './presets';
 import {
@@ -70,7 +72,7 @@ function AspectTiles({
 						onClick={() => {
 							onChange(id);
 						}}
-						className="group text-ink-2 hover:bg-surface aria-checked:bg-ed-soft aria-checked:text-ink grid justify-items-center gap-1.5 rounded-sm px-1 pt-3 pb-2 shadow-[inset_0_0_0_1px_var(--line-2)] transition-[background-color,box-shadow,color] duration-150 aria-checked:shadow-[inset_0_0_0_1.5px_var(--ed)]"
+						className="group text-ink-2 hover:bg-surface aria-checked:bg-ed-soft aria-checked:text-ink grid justify-items-center gap-1 rounded-sm px-1 pt-2.5 pb-2 shadow-[inset_0_0_0_1px_var(--line-2)] transition-[background-color,box-shadow,color] duration-150 aria-checked:shadow-[inset_0_0_0_1.5px_var(--ed)]"
 					>
 						<span className="grid h-6 w-9 place-items-center" aria-hidden="true">
 							<span
@@ -83,9 +85,6 @@ function AspectTiles({
 							/>
 						</span>
 						<span className="text-caption font-semibold">{label}</span>
-						<span className="text-caption text-muted group-aria-checked:text-ink-2 tabular font-mono text-[11px]">
-							{size.width}×{size.height}
-						</span>
 					</button>
 				);
 			})}
@@ -94,15 +93,25 @@ function AspectTiles({
 }
 
 /** Crop, rotation and mirrors of a picture: an image, or the frames of a video. */
-export function CropPanel({ editing, formats }: { editing: PictureEditing; formats?: ReactNode }) {
+export function CropPanel({
+	editing,
+	onSocialShape,
+}: {
+	editing: PictureEditing;
+	/** Also told of a social network's shape chosen, to export at the size it recommends. */
+	onSocialShape?: (shape: SocialShape) => void;
+}) {
 	const { doc, apply, preview, settle, aspect, setAspect, size: source } = editing;
 	const bounds = orientedSize(source, doc.rotation);
 	const crop = effectiveCrop(doc, source);
 	const full: Rect = { x: 0, y: 0, ...bounds };
 	const ratio = cropRatio(aspect, bounds);
+	const [view, setView] = useState<'ratios' | 'social'>('ratios');
+	const [social, setSocial] = useState<string | null>(null);
 
 	const chooseAspect = (next: AspectId) => {
 		setAspect(next);
+		setSocial(null);
 		const nextRatio = cropRatio(next, bounds);
 		if (next === 'original') apply((d) => ({ ...d, crop: null }));
 		else if (nextRatio !== null) apply((d) => ({ ...d, crop: fitRatio(full, nextRatio) }));
@@ -123,6 +132,21 @@ export function CropPanel({ editing, formats }: { editing: PictureEditing; forma
 		setAspect(turnedAspect(aspect));
 	};
 
+	const field = (key: keyof Rect, label: string, max: number, min = 0) => (
+		<label className="grid gap-1">
+			<span className="text-caption text-muted">{label}</span>
+			<NumberField
+				value={crop[key]}
+				unit="px"
+				min={min}
+				max={max}
+				onCommit={(value) => {
+					setGeometry({ [key]: value });
+				}}
+			/>
+		</label>
+	);
+
 	return (
 		<>
 			<PanelTitle
@@ -131,6 +155,7 @@ export function CropPanel({ editing, formats }: { editing: PictureEditing; forma
 						disabled={doc.crop === null && doc.rotation === 0 && !doc.flipX && !doc.flipY && !doc.angle}
 						onClick={() => {
 							setAspect('original');
+							setSocial(null);
 							apply((d) => ({ ...d, crop: null, rotation: 0, flipX: false, flipY: false, angle: 0 }));
 						}}
 					/>
@@ -140,19 +165,40 @@ export function CropPanel({ editing, formats }: { editing: PictureEditing; forma
 			</PanelTitle>
 
 			<Section title={m.crop_aspect()}>
-				<AspectTiles
-					value={aspect}
-					onChange={chooseAspect}
-					options={[...ASPECTS, ...(isFixedAspect(aspect) ? [] : [aspect])].map((id) => {
-						const r = cropRatio(id, bounds);
-						const size = id === 'free' ? crop : r === null ? bounds : fitRatio(full, r);
-						const label = isFixedAspect(id) ? ASPECT_LABELS[id]() : id;
-						return { id, label, ratio: r ?? size.width / size.height, size };
-					})}
+				<Segmented
+					label={m.crop_aspect()}
+					value={view}
+					options={[
+						{ value: 'ratios', label: m.crop_ratios() },
+						{ value: 'social', label: m.crop_social() },
+					]}
+					onChange={setView}
 				/>
+				{view === 'ratios' ? (
+					<AspectTiles
+						value={aspect}
+						onChange={chooseAspect}
+						options={[...ASPECTS, ...(isFixedAspect(aspect) ? [] : [aspect])].map((id) => {
+							const r = cropRatio(id, bounds);
+							const size = id === 'free' ? crop : r === null ? bounds : fitRatio(full, r);
+							const label = isFixedAspect(id) ? ASPECT_LABELS[id]() : id;
+							return { id, label, ratio: r ?? size.width / size.height, size };
+						})}
+					/>
+				) : (
+					<SocialShapes
+						chosen={social}
+						onChoose={(shape) => {
+							chooseAspect(shape.aspect);
+							setSocial(shape.id);
+							onSocialShape?.(shape);
+						}}
+					/>
+				)}
+				<p className="text-small text-muted tabular">
+					{m.crop_result({ size: `${crop.width} × ${crop.height}` })}
+				</p>
 			</Section>
-
-			{formats}
 
 			<Section title={m.crop_orientation()}>
 				<div className="grid grid-cols-4 gap-2">
@@ -204,58 +250,14 @@ export function CropPanel({ editing, formats }: { editing: PictureEditing; forma
 				/>
 			</Section>
 
-			<Section title={m.crop_geometry()}>
-				<div className="grid gap-2.5">
-					<FieldRow label={m.field_width()} htmlFor="crop-w">
-						<NumberField
-							id="crop-w"
-							value={crop.width}
-							unit="px"
-							min={16}
-							max={bounds.width}
-							onCommit={(width) => {
-								setGeometry({ width });
-							}}
-						/>
-					</FieldRow>
-					<FieldRow label={m.field_height()} htmlFor="crop-h">
-						<NumberField
-							id="crop-h"
-							value={crop.height}
-							unit="px"
-							min={16}
-							max={bounds.height}
-							onCommit={(height) => {
-								setGeometry({ height });
-							}}
-						/>
-					</FieldRow>
-					<FieldRow label="X" htmlFor="crop-x">
-						<NumberField
-							id="crop-x"
-							value={crop.x}
-							unit="px"
-							min={0}
-							max={bounds.width}
-							onCommit={(x) => {
-								setGeometry({ x });
-							}}
-						/>
-					</FieldRow>
-					<FieldRow label="Y" htmlFor="crop-y">
-						<NumberField
-							id="crop-y"
-							value={crop.y}
-							unit="px"
-							min={0}
-							max={bounds.height}
-							onCommit={(y) => {
-								setGeometry({ y });
-							}}
-						/>
-					</FieldRow>
+			<Group title={m.crop_geometry()} defaultOpen={false}>
+				<div className="grid grid-cols-2 gap-x-2.5 gap-y-3">
+					{field('width', m.field_width(), bounds.width, 16)}
+					{field('height', m.field_height(), bounds.height, 16)}
+					{field('x', 'X', bounds.width)}
+					{field('y', 'Y', bounds.height)}
 				</div>
-			</Section>
+			</Group>
 		</>
 	);
 }
@@ -318,6 +320,7 @@ export function AdjustPanel({ editing }: { editing: PictureEditing }) {
 				max={max}
 				track={ADJUSTMENT_TRACKS[id]}
 				format={ADJUSTMENT_FORMATS[id]}
+				resettable
 				onChange={(value) => {
 					preview((d) => ({ ...d, adjust: { ...d.adjust, [id]: value } }));
 				}}
@@ -371,21 +374,15 @@ export function ExportPanel({ source, photo }: { source: ImageBitmap; photo: Pho
 	const doc = useImageDoc();
 	const settings = useImageEditor((state) => state.exportSettings);
 	const setExport = useImageEditor((state) => state.setExport);
-	const [webp, setWebp] = useState(false);
-
-	useEffect(() => {
-		void canEncodeWebp().then(setWebp);
-	}, []);
-
 	const current = outputSize(doc, source, settings);
-	const lossless = settings.format === 'jxl' && settings.quality >= 100;
+	const lossless = (settings.format === 'jxl' || settings.format === 'webp') && settings.quality >= 100;
 	const hasMetadata = photo !== null && photo.exifFull.length > 0;
 	const preset = findPreset(settings.preset);
 
 	const formats: SelectOption<ImageFormat>[] = [
 		{ value: 'jpeg', label: 'JPEG' },
 		{ value: 'png', label: 'PNG' },
-		{ value: 'webp', label: 'WebP', disabled: !webp },
+		{ value: 'webp', label: 'WebP' },
 		{ value: 'avif', label: 'AVIF' },
 		{ value: 'jxl', label: 'JPEG XL' },
 		{ value: 'tiff', label: 'TIFF' },
@@ -460,7 +457,7 @@ export function ExportPanel({ source, photo }: { source: ImageBitmap; photo: Pho
 					</FieldRow>
 				)}
 			</div>
-			{usesQuality(settings) && (
+			{usesQuality(settings) && settings.maxKb === null && (
 				<Slider
 					label={m.export_quality()}
 					value={settings.quality}
@@ -502,6 +499,7 @@ export function ExportPanel({ source, photo }: { source: ImageBitmap; photo: Pho
 							/>
 						</FieldRow>
 					)}
+					{settings.maxKb !== null && <p className="text-small text-muted">{m.export_limit_hint()}</p>}
 				</div>
 			)}
 			<p className="text-small text-muted">

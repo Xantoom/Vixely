@@ -1,13 +1,12 @@
-import { ChevronsLeftRight, ZoomIn, ZoomOut } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { clampView, MIN_VIEW, type Range } from '@/document/timemap';
+import { clampView, type Range } from '@/document/timemap';
+import { FitButton } from '@/editor/FitButton';
 import { PlayButton } from '@/editor/PlayerControls';
 import { TimeRuler } from '@/editor/TimeRuler';
 import { TrimHandle } from '@/editor/TrimHandle';
 import { panDelta, wheelIntent } from '@/editor/wheel';
 import { formatPreciseTime } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
-import { IconButton } from '@/ui/Button';
 import { useBoxSize } from '@/ui/use-box-size';
 import { frameAt, type OutputFrame, setTrim } from './document';
 import type { GifEngine } from './engine';
@@ -119,40 +118,19 @@ export function GifTimeline({ engine }: { engine: GifEngine }) {
 		<section aria-label={m.timeline()} className="border-line grid gap-2 border-t px-4 pt-2.5 pb-3">
 			<div className="flex items-center gap-3">
 				<PlayButton playing={playing} onToggle={engine.togglePlay} disabled={!source} />
-				<span className="tabular font-mono text-[15px] font-medium" aria-label={m.playhead()}>
+				<span className="tabular text-[15px] font-medium" aria-label={m.playhead()}>
 					{formatPreciseTime(playhead)}
 				</span>
-				<span className="text-ui text-muted tabular font-mono whitespace-nowrap">
+				<span className="text-ui text-muted tabular whitespace-nowrap">
 					/ {formatPreciseTime(engine.length)}
 				</span>
-				<div className="ml-auto flex gap-0.5">
-					<IconButton
-						label={m.zoom_out()}
-						disabled={span >= doc.duration}
-						onClick={() => {
-							zoomBy(2);
-						}}
-					>
-						<ZoomOut size={17} />
-					</IconButton>
-					<IconButton
-						label={m.zoom_in()}
-						disabled={span <= MIN_VIEW}
-						onClick={() => {
-							zoomBy(0.5);
-						}}
-					>
-						<ZoomIn size={17} />
-					</IconButton>
-					<IconButton
-						label={m.zoom_fit()}
-						disabled={span >= doc.duration}
-						onClick={() => {
+				<div className="ml-auto">
+					<FitButton
+						zoomed={span < doc.duration}
+						onFit={() => {
 							setZoom(null);
 						}}
-					>
-						<ChevronsLeftRight size={17} />
-					</IconButton>
+					/>
 				</div>
 			</div>
 			<div className="grid gap-1">

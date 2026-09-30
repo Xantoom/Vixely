@@ -120,13 +120,13 @@ function BatchTable({
 						<div
 							key={item.id}
 							role="row"
-							className="border-line/60 grid h-8 items-center border-b text-[12.5px]"
+							className="border-line/60 grid h-8 items-center border-b text-small"
 							style={{ gridTemplateColumns: columns }}
 						>
 							<span role="cell" className="truncate px-2" title={item.file.name}>
 								{item.file.name}
 							</span>
-							<span role="cell" className="text-muted flex items-center gap-1 px-2 font-mono">
+							<span role="cell" className="text-muted flex items-center gap-1 px-2">
 								{source}
 								{target && target !== source && (
 									<>
@@ -135,10 +135,10 @@ function BatchTable({
 									</>
 								)}
 							</span>
-							<span role="cell" className="tabular px-2 font-mono">
+							<span role="cell" className="tabular px-2">
 								{doc ? shownCues(doc).length : doc === null ? '–' : ''}
 							</span>
-							<span role="cell" className="tabular flex items-center gap-1 px-2 font-mono">
+							<span role="cell" className="tabular flex items-center gap-1 px-2">
 								{from !== null && (
 									<>
 										{formatPreciseTime(from / 1000)}

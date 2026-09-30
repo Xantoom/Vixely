@@ -1,4 +1,5 @@
 /// <reference types="vitest/config" />
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import tailwindcss from '@tailwindcss/vite';
@@ -13,7 +14,11 @@ const isolationHeaders = {
 	'Cross-Origin-Embedder-Policy': 'require-corp',
 };
 
+const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
+
 export default defineConfig({
+	// The app's version, written into the files it makes (ASS scripts name it as their editor).
+	define: { __VIXELY_VERSION__: JSON.stringify(version) },
 	plugins: [
 		tanstackRouter({ target: 'react', autoCodeSplitting: true }),
 		react(),

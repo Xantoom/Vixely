@@ -39,7 +39,7 @@ const removePassage = async (from: number, to: number, duration: number) => {
 	await page.keyboard.press('Delete');
 };
 const convert = async (name: string, choose: () => Promise<void> = async () => {}, mode = /Convert/) => {
-	await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+	await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 	await aside.getByRole('radio', { name: mode }).click();
 	await choose();
 	await page.waitForTimeout(300);
@@ -141,14 +141,12 @@ const loudness = (path: string, stream: string) => {
 
 // 7. MKV as it is, its sound 6 dB louder and a WAV added: pictures copied, sound encoded again.
 await open(sample('clip.mkv'));
-await tools.getByRole('button', { name: 'Audio' }).click();
-await aside.getByRole('button', { name: /^Edit / }).first().click();
-const tracks = page.getByRole('dialog', { name: 'Tracks' });
-await tracks.getByRole('slider', { name: 'Volume' }).focus();
+await tools.getByRole('button', { name: 'Tracks' }).click();
+await aside.locator('li[data-media=audio] button[aria-expanded]').first().click();
+await aside.getByRole('slider', { name: 'Volume', exact: true }).focus();
 for (let i = 0; i < 12; i++) await page.keyboard.press('ArrowRight');
-await tracks.screenshot({ path: 'shots/tracks-dialog.png' });
-await tracks.getByRole('button', { name: 'Close the panel' }).click();
-await aside.locator('input[type=file]').setInputFiles('samples/long.wav');
+await aside.screenshot({ path: 'shots/tracks-tool.png' });
+await aside.locator('input[type=file][accept^="audio"]').setInputFiles('samples/long.wav');
 await aside.getByText('Audio, long').waitFor();
 await aside.screenshot({ path: 'shots/audio-tool.png' });
 const louder = await convert('louder.mkv', async () => {}, /Original/);
@@ -156,11 +154,27 @@ probe(louder);
 loudness(sample('clip.mkv'), '0:a:0');
 loudness(louder, '0:a:0');
 
+// 7b. MKV as it is, its sound track encoded again on its own terms: AAC at 96 kb/s.
+await open(sample('clip.mkv'));
+await tools.getByRole('button', { name: 'Tracks' }).click();
+await aside.locator('li[data-media=audio] button[aria-expanded]').first().click();
+await aside.getByRole('radio', { name: 'Re-encode' }).click();
+await aside.getByLabel('Codec', { exact: true }).click();
+await page.getByRole('option', { name: 'AAC' }).click();
+await aside.getByLabel('Bitrate', { exact: true }).click();
+await page.getByRole('option', { name: '96 kb/s' }).click();
+const reencoded = await convert('reencoded.mkv', async () => {}, /Original/);
+probe(reencoded);
+if (ffprobe) {
+	const rate = spawnSync(ffprobe, ['-v', 'error', '-select_streams', 'a:0', '-show_entries', 'stream=codec_name:format=duration,size', '-of', 'compact', reencoded], { encoding: 'utf8' }).stdout.trim();
+	console.log('  re-encoded sound:', rate.replace(/\n/g, ' | '));
+}
+
 // 8. MP4 converted with a passage removed and a WAV added: the sound added follows the cut.
 await open(sample('clip.mp4'));
 await removePassage(4, 8, 24);
-await tools.getByRole('button', { name: 'Audio' }).click();
-await aside.locator('input[type=file]').setInputFiles('samples/long.wav');
+await tools.getByRole('button', { name: 'Tracks' }).click();
+await aside.locator('input[type=file][accept^="audio"]').setInputFiles('samples/long.wav');
 await aside.getByText('Audio, long').waitFor();
 const dubbed = await convert('dubbed.mp4');
 probe(dubbed);
@@ -175,9 +189,9 @@ const frames = (path: string, times: number[], name: string) => {
 
 // 9. MKV converted to MP4 with its styled English subtitles burned in.
 await open(sample('clip.mkv'));
-await tools.getByRole('button', { name: 'Subtitles' }).click();
-await aside.getByLabel('Track', { exact: true }).click();
-await page.getByRole('option', { name: /English \(styled\)/ }).click();
+await tools.getByRole('button', { name: 'Tracks' }).click();
+await aside.locator('li[data-media=subtitles]', { hasText: /styled/ }).locator('button[aria-expanded]').click();
+await aside.getByRole('switch', { name: 'Burn into the picture' }).click();
 await aside.screenshot({ path: 'shots/subtitles-tool.png' });
 const burned = await convert('burned.mp4', async () => {
 	await aside.getByLabel('Container').click();
@@ -188,9 +202,9 @@ frames(burned, [12.5, 20.5], 'burned');
 
 // 10. PGS burned in.
 await open(sample('sample.mkv'));
-await tools.getByRole('button', { name: 'Subtitles' }).click();
-await aside.getByLabel('Track', { exact: true }).click();
-await page.getByRole('option').nth(1).click();
+await tools.getByRole('button', { name: 'Tracks' }).click();
+await aside.locator('li[data-media=subtitles] button[aria-expanded]').first().click();
+await aside.getByRole('switch', { name: 'Burn into the picture' }).click();
 const pgs = await convert('burned-pgs.mp4', async () => {
 	await aside.getByLabel('Container').click();
 	await page.getByRole('option', { name: 'MP4' }).click();

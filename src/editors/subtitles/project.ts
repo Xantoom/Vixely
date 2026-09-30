@@ -694,3 +694,39 @@ export function isPictures(track: ProjectTrack): boolean {
 	if (track.original) return track.original.format === 'pgs';
 	return track.reading === true && track.info !== null && isPictureKind(trackKind(track.info));
 }
+
+/** The subtitle tracks as they are, to come back to: their edits and the one shown. */
+export interface EditsSnapshot {
+	tracks: readonly ProjectTrack[];
+	current: TrackKey | null;
+	/** Edits of the track shown, which the editor holds until another is chosen. */
+	shown: History<SubtitleDoc>;
+}
+
+export function snapshotEdits(): EditsSnapshot {
+	useSubtitleEditor.getState().settle();
+	const { tracks, current } = useSubtitleProject.getState();
+	return { tracks, current, shown: useSubtitleEditor.getState().history };
+}
+
+/**
+ * Puts the tracks back as the snapshot has them: edits undone, tracks made since removed and
+ * those removed since back. Tracks still being read keep what they read.
+ */
+export function restoreEdits(snapshot: EditsSnapshot): void {
+	const editor = useSubtitleEditor.getState();
+	editor.settle();
+	const now = new Map(useSubtitleProject.getState().tracks.map((track) => [track.key, track]));
+	const before = new Set(snapshot.tracks.map((track) => track.key));
+	const tracks = [
+		...snapshot.tracks.map((old) => {
+			const track = now.get(old.key);
+			if (!track) return old;
+			return track.reading || old.reading ? track : { ...track, history: old.history };
+		}),
+		// Tracks the video listed while the snapshot was taken stay; only those made here go.
+		...[...now.values()].filter((track) => !before.has(track.key) && typeof track.key === 'number'),
+	];
+	useSubtitleProject.setState({ tracks, current: snapshot.current });
+	if (snapshot.current !== null) editor.show(showKey(snapshot.current), snapshot.shown, editor.encoding);
+}

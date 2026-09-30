@@ -46,3 +46,6 @@ interface ImportMetaEnv {
 	/** GoatCounter site code for counting visits; unset leaves counting off. */
 	readonly VITE_GOATCOUNTER?: string;
 }
+
+/** The app's version, from package.json (vite.config.ts). */
+declare const __VIXELY_VERSION__: string;

@@ -1,5 +1,5 @@
 /**
- * Client for the image codec worker: jpegli, PNG (lossless or palette), AVIF and JPEG XL
+ * Client for the image codec worker: jpegli, PNG (lossless or palette), WebP, AVIF and JPEG XL
  * encoding, and decoding of formats browsers can't read. The worker and its WebAssembly module
  * load on first use only.
  */
@@ -19,6 +19,7 @@ interface EncodeBase {
 export type EncodeRequest =
 	| (EncodeBase & { format: 'jpeg' })
 	| (EncodeBase & { format: 'png'; lossless: boolean })
+	| (EncodeBase & { format: 'webp' })
 	| (EncodeBase & { format: 'avif'; speed: number })
 	| (EncodeBase & { format: 'jxl'; effort: number });
 

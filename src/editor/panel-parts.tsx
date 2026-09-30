@@ -6,10 +6,17 @@ import { IconButton } from '@/ui/Button';
 
 /** Pieces shared by the inspector panels of every editor. */
 
-export function Section({ title, children }: { title: string; children: ReactNode }) {
+/**
+ * A part of a panel under its title. At the top level of a panel, a line across the whole panel
+ * sets it off from the parts around it (the panel's own styles), so each can be found at a glance.
+ */
+export function Section({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
 	return (
-		<section className="grid gap-3">
-			<h3 className="text-ui text-ink-2 font-semibold">{title}</h3>
+		<section className="border-line grid gap-3.5 border-t pt-4">
+			<div className="-my-1 flex min-h-8 items-center gap-2">
+				<h3 className="text-ui text-ink flex-1 font-semibold tracking-[-0.005em]">{title}</h3>
+				{action}
+			</div>
 			{children}
 		</section>
 	);
@@ -24,43 +31,47 @@ export function ResetButton({ disabled, onClick }: { disabled: boolean; onClick:
 }
 
 /**
- * A group of settings on a card, folded by its title. A dot tells it differs from the start, and
- * its own button resets it.
+ * A group of settings under a line, folded by its title. A dot tells it differs from the start,
+ * and its own button resets it.
  */
 export function Group({
 	title,
 	changed = false,
 	onReset,
+	defaultOpen = true,
 	children,
 }: {
 	title: string;
 	changed?: boolean;
 	onReset?: () => void;
+	/** Settings seldom changed start folded. */
+	defaultOpen?: boolean;
 	children: ReactNode;
 }) {
-	const [open, setOpen] = useState(true);
+	const [open, setOpen] = useState(defaultOpen);
 	const bodyId = useId();
 	const toggle = () => {
 		setOpen((value) => !value);
 	};
 	return (
-		<section className="bg-surface rounded-md">
-			<div className="flex items-center gap-0.5 py-1.5 pr-2 pl-4">
+		<section className="border-line border-t pt-2">
+			<div className="-mr-2 flex items-center gap-0.5">
 				<button
 					type="button"
 					aria-expanded={open}
 					aria-controls={bodyId}
 					onClick={toggle}
-					className="text-body flex flex-1 items-center gap-2 py-1.5 text-left font-semibold"
+					className="text-ui text-ink flex flex-1 items-center gap-2 py-1.5 text-left font-semibold tracking-[-0.005em]"
 				>
+					{title}
 					<span
 						aria-hidden="true"
 						className={`bg-ed ease-spring size-[0.45rem] rounded-full transition-transform duration-300 ${changed ? 'scale-100' : 'scale-0'}`}
 					/>
-					{title}
 				</button>
 				{onReset && <ResetButton disabled={!changed} onClick={onReset} />}
-				<IconButton label={title} aria-expanded={open} aria-controls={bodyId} onClick={toggle}>
+				{/* A larger target for the mouse; the keyboard and assistive tech use the title. */}
+				<IconButton label={title} aria-hidden="true" tabIndex={-1} onClick={toggle}>
 					<ChevronDown
 						className={`ease-out-soft size-[1.15rem] transition-transform duration-300 ${open ? '' : '-rotate-90'}`}
 					/>
@@ -70,8 +81,9 @@ export function Group({
 				id={bodyId}
 				className={`ease-out-soft grid transition-[grid-template-rows] duration-300 ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
 			>
-				<div className="overflow-hidden">
-					<div className="grid gap-4 px-4 pt-1 pb-4.5">{children}</div>
+				{/* Folded, its settings are out of reach of the keyboard and of assistive tech too. */}
+				<div className="overflow-hidden" inert={!open}>
+					<div className="grid gap-4 pt-1.5 pb-2">{children}</div>
 				</div>
 			</div>
 		</section>

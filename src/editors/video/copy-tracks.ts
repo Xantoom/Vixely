@@ -23,8 +23,9 @@ import {
 	type Target,
 } from 'mediabunny';
 import type { Range } from '@/document/timemap';
+import { changesSound, type SoundChanges } from '@/media/sound';
 import { ensureEncoder } from '../audio/export';
-import { gainOf, type Placed, placeAudio, placeRanges } from './audio-pieces';
+import { gainOf, PieceSound, type Placed, placeAudio, placeRanges } from './audio-pieces';
 import { AudioShaper } from './audio-shaping';
 import type { VideoFade } from './document';
 import { composeTurn, type Turn, type VideoMeta } from './document';
@@ -151,6 +152,8 @@ export interface AudioPlan {
 	from: { id: number } | { number: number } | { file: File } | { file: File; id: number };
 	/** Change of level, in dB. */
 	decibels: number;
+	/** Equalizer and compressor over the sound; absent or null leaves it as it is. */
+	sound?: SoundChanges | null;
 	/**
 	 * Codec it is encoded again in; 'auto' keeps its own where it can. Null copies it as it is,
 	 * unless its level changes or the container doesn't take it.
@@ -302,6 +305,7 @@ export async function copyTracks(
 			const copied =
 				plan.encode === null &&
 				plan.decibels === 0 &&
+				!(plan.sound && changesSound(plan.sound)) &&
 				!plan.shape &&
 				own !== null &&
 				CONTAINERS[job.container].audio.includes(own);
@@ -318,7 +322,10 @@ export async function copyTracks(
 				const shaper = plan.shape
 					? new AudioShaper(plan.shape.speed, plan.shape.fade, plan.shape.length)
 					: null;
-				pumps.push(async () => encodeAudio(track, source, where, gain, shaper, pace, 1 + index, signal));
+				const sound = plan.sound && changesSound(plan.sound) ? new PieceSound(plan.sound) : null;
+				pumps.push(async () =>
+					encodeAudio(track, source, where, { gain, sound, shaper }, pace, 1 + index, signal),
+				);
 			} else {
 				const source = new EncodedAudioPacketSource(own);
 				output.addAudioTrack(source, metadata);
@@ -425,8 +432,7 @@ async function encodeAudio(
 	track: InputAudioTrack,
 	source: AudioSampleSource,
 	placed: readonly Placed[],
-	gain: number,
-	shaper: AudioShaper | null,
+	{ gain, sound, shaper }: { gain: number; sound: PieceSound | null; shaper: AudioShaper | null },
 	pace: Pace,
 	index: number,
 	signal: AbortSignal,
@@ -442,7 +448,8 @@ async function encodeAudio(
 			// oxlint-disable-next-line no-await-in-loop -- parts are encoded in order
 			for await (const sample of samples) {
 				const placedPieces = placeAudio(sample, [part], 0, gain);
-				const pieces = shaper ? shaper.shape(placedPieces, sample) : placedPieces;
+				const changed = sound ? sound.apply(placedPieces, sample) : placedPieces;
+				const pieces = shaper ? shaper.shape(changed, sample) : changed;
 				sample.close();
 				for (const piece of pieces) {
 					if (!signal.aborted) {

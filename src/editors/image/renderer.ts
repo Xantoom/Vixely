@@ -46,6 +46,8 @@ void main() {
 const FINISH = `
 uniform float uVignette;
 uniform float uGrain;
+/** Output pixels across one grain: grain keeps its size relative to the picture. */
+uniform float uGrainSize;
 uniform float uSeed;
 uniform bool uDither;
 uniform bool uOpaque;
@@ -54,6 +56,29 @@ uniform float uFade;
 
 float noise(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 
+/** A hash without the patterns sin() shows at large coordinates. */
+float hash(vec2 p) {
+	vec3 q = fract(vec3(p.xyx) * 0.1031);
+	q += dot(q, q.yzx + 33.33);
+	return fract((q.x + q.y) * q.z);
+}
+
+/** Smooth noise: random values at whole coordinates, blended between them. */
+float blob(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + 1.0), f.x), f.y);
+}
+
+/**
+ * Film grain around 0: clumps of silver of uneven sizes, two scales of smooth noise over a touch
+ * of fine noise, rather than one random value per screen pixel.
+ */
+float grain(vec2 p) {
+	return blob(p) * 0.5 + blob(p * 2.13 + 19.1) * 0.3 + hash(p * 3.7) * 0.2 - 0.5;
+}
+
 vec4 finish(vec3 c, float alpha, vec2 uv) {
 	if (uVignette != 0.0) {
 		// 0 in the middle, 1 in the corners, whatever the shape of the picture.
@@ -61,10 +86,15 @@ vec4 finish(vec3 c, float alpha, vec2 uv) {
 		c = uVignette > 0.0 ? c * (1.0 - edge * uVignette) : mix(c, vec3(1.0), edge * -uVignette);
 	}
 	if (uGrain > 0.0) {
-		// Two samples averaged: softer, film-like grain rather than hard digital noise.
-		vec2 p = gl_FragCoord.xy + uSeed;
-		float n = (noise(p) + noise(p + 17.31)) * 0.5 - 0.5;
-		c += n * uGrain;
+		// A new pattern each picture, as each frame of film has its own grain.
+		vec2 p = gl_FragCoord.xy / uGrainSize + vec2(hash(vec2(uSeed, 1.7)), hash(vec2(3.1, uSeed))) * 4096.0;
+		float mono = grain(p);
+		// Each colour layer of the film has its own grain, mostly alike.
+		vec3 n = mono + vec3(grain(p + 71.3), grain(p + 143.9), grain(p + 211.7)) * 0.35;
+		// Strongest in the middle tones, as on film: pure black and white hold none.
+		float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+		float response = 0.2 + 0.8 * smoothstep(0.0, 1.0, 4.0 * l * (1.0 - l));
+		c += n * uGrain * response;
 	}
 	// Half a step of noise breaks the banding that edits create in smooth gradients.
 	if (uDither) c += (noise(gl_FragCoord.xy + 3.7) - 0.5) / 255.0;
@@ -143,19 +173,34 @@ vec3 toLinear(vec3 c) { return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)
 vec3 toSrgb(vec3 c) { return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
 float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 
+/** Exposure and white balance, which act on light, so in linear space. */
+vec3 light(vec3 srgb) {
+	vec3 c = toLinear(srgb) * exp2(uExposure);
+	c *= vec3(1.0 + uTemperature * 0.3 + uTint * 0.1, 1.0 - uTint * 0.2, 1.0 - uTemperature * 0.3 + uTint * 0.1);
+	return toSrgb(clamp(c, 0.0, 1.0));
+}
+
 void main() {
 	// Read first, where every pixel reads: the level of detail needs its neighbours.
 	vec4 source = zoned(texture(uSource, vUv));
 
-	// Exposure and white balance act on light, so they work in linear space.
-	vec3 c = toLinear(source.rgb) * exp2(uExposure);
-	c *= vec3(1.0 + uTemperature * 0.3 + uTint * 0.1, 1.0 - uTint * 0.2, 1.0 - uTemperature * 0.3 + uTint * 0.1);
-	c = toSrgb(clamp(c, 0.0, 1.0));
+	vec3 c = light(source.rgb);
 
-	// Shadows and highlights bend the curve at one end only, weighted by how dark or light it is.
+	// Shadows bend the curve at the dark end only, weighted by how dark the pixel is.
 	float l = luma(c);
 	c = mix(c, pow(c, vec3(exp2(-uShadows))), 1.0 - smoothstep(0.0, 0.6, l));
-	c = mix(c, 1.0 - pow(1.0 - c, vec3(exp2(uHighlights))), smoothstep(0.4, 1.0, l));
+
+	// Highlights move the upper half of the tones only, most at the top, so the middle tones stay
+	// put, unlike brightness, which moves them most. Down, the light tones are pressed together
+	// below white, keeping their order and colour: a white sky turns to detail. Up, they spread
+	// towards white without clipping.
+	if (uHighlights < 0.0) {
+		l = luma(c);
+		float over = max(l - 0.4, 0.0);
+		c *= (l + uHighlights * 0.5 * over * over / 0.6) / max(l, 1e-4);
+	} else if (uHighlights > 0.0) {
+		c += uHighlights * (1.0 - c) * smoothstep(0.45, 1.0, luma(c)) * 0.8;
+	}
 
 	// Brightness, contrast and saturation act on perception, so they work in sRGB.
 	c = pow(c, vec3(exp2(-uBrightness)));
@@ -247,9 +292,9 @@ type ColorUniform =
 
 type BlurUniform = 'uInput' | 'uStep' | 'uRadius' | 'uFinish' | 'uFlipY' | FinishUniform;
 
-type FinishUniform = 'uVignette' | 'uGrain' | 'uSeed' | 'uDither' | 'uOpaque' | 'uFade';
+type FinishUniform = 'uVignette' | 'uGrain' | 'uGrainSize' | 'uSeed' | 'uDither' | 'uOpaque' | 'uFade';
 
-const FINISH_UNIFORMS: FinishUniform[] = ['uVignette', 'uGrain', 'uSeed', 'uDither', 'uOpaque', 'uFade'];
+const FINISH_UNIFORMS: FinishUniform[] = ['uVignette', 'uGrain', 'uGrainSize', 'uSeed', 'uDither', 'uOpaque', 'uFade'];
 
 export interface RenderOptions {
 	/** Area of the oriented image to draw, in pixels. */
@@ -274,6 +319,12 @@ export type Sampling = 'smooth' | 'pixel';
 
 /** Size of a zone's blocks at its strongest, as a share of the output's shorter side. */
 const ZONE_BLOCK = 0.07;
+
+/** Grains across the picture's shorter side: about 1.5 pixels each in 1080p, as 35 mm film shows. */
+const GRAIN_ACROSS = 720;
+
+/** Spread of the grain at 100, in shares of full brightness. */
+const GRAIN_STRENGTH = 0.28;
 
 /** Blur radius at 100, as a share of the picture's shorter side: the same look at any size. */
 const BLUR_SHARE = 0.03;
@@ -477,7 +528,11 @@ export class ImageRenderer {
 	): void {
 		const gl = this.gl;
 		gl.uniform1f(program.at('uVignette'), (adjust.vignette / 100) * 0.85);
-		gl.uniform1f(program.at('uGrain'), (adjust.grain / 100) * 0.3);
+		gl.uniform1f(program.at('uGrain'), (adjust.grain / 100) * GRAIN_STRENGTH);
+		gl.uniform1f(
+			program.at('uGrainSize'),
+			Math.max(1, Math.min(this.canvas.width, this.canvas.height) / GRAIN_ACROSS),
+		);
 		gl.uniform1f(program.at('uSeed'), options.seed % 1000);
 		gl.uniform1i(program.at('uDither'), options.original ? 0 : 1);
 		gl.uniform1i(program.at('uOpaque'), options.opaque ? 1 : 0);
@@ -522,7 +577,7 @@ export class ImageRenderer {
 		gl.uniform1f(color.at('uExposure'), adjust.exposure / 50);
 		gl.uniform1f(color.at('uBrightness'), adjust.brightness / 100);
 		gl.uniform1f(color.at('uContrast'), adjust.contrast < 0 ? adjust.contrast / 125 : adjust.contrast / 100);
-		gl.uniform1f(color.at('uHighlights'), (adjust.highlights / 100) * 1.2);
+		gl.uniform1f(color.at('uHighlights'), adjust.highlights / 100);
 		gl.uniform1f(color.at('uShadows'), (adjust.shadows / 100) * 1.2);
 		gl.uniform1f(color.at('uSaturation'), adjust.saturation / 100);
 		gl.uniform1f(color.at('uTemperature'), adjust.temperature / 100);

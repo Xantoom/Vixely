@@ -50,6 +50,12 @@ pub fn encode_jxl(
 	encode::jxl(rgba, width, height, quality, effort, exif).map_err(js_error)
 }
 
+/// Quality 100 encodes losslessly.
+#[wasm_bindgen]
+pub fn encode_webp(rgba: &[u8], width: u32, height: u32, quality: f32, exif: &[u8]) -> Result<Vec<u8>, JsError> {
+	encode::webp(rgba, width, height, quality, exif).map_err(js_error)
+}
+
 #[wasm_bindgen(getter_with_clone)]
 pub struct DecodedImage {
 	pub width: u32,

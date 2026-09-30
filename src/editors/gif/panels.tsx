@@ -9,7 +9,7 @@ import { Group, ResetButton, Section } from '@/editor/panel-parts';
 import { fitRatio } from '@/editors/image/crop';
 import { orientedSize } from '@/editors/image/document';
 import { saveFile } from '@/editors/image/export';
-import { decimal, formatBytes, formatFrameRate, formatPreciseTime } from '@/lib/format';
+import { decimal, formatBytes, formatFrameRate } from '@/lib/format';
 import { type FileDestination, openFileDestination } from '@/media/file-destination';
 import { type GifInfo, readGifInfo } from '@/media/gif-info';
 import { outputName } from '@/media/save';
@@ -67,10 +67,6 @@ export function TrimPanel({ engine }: { engine: GifEngine }) {
 						}}
 					/>
 				</FieldRow>
-				<div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
-					<span className="text-ui text-ink-2">{m.audio_final_length()}</span>
-					<span className="tabular text-small font-mono">{formatPreciseTime(engine.length)}</span>
-				</div>
 			</div>
 			<FadeSection length={engine.length} />
 		</>
@@ -187,7 +183,7 @@ export function BandsSection({ width, height }: { width: number; height: number 
 				</FieldRow>
 			)}
 			{current && (
-				<p className="text-small text-muted tabular font-mono">
+				<p className="text-small text-muted tabular">
 					{layout.width} × {layout.height} px
 				</p>
 			)}
@@ -354,6 +350,10 @@ export function ExportPanel({ engine, isGif }: { engine: GifEngine; isGif: boole
 		<>
 			<PanelTitle>{m.export_animation_title()}</PanelTitle>
 
+			<Group title={m.export_platform()} defaultOpen={settings.preset !== null}>
+				<GifPlatformFormats engine={engine} />
+			</Group>
+
 			<div className="grid gap-2">
 				<OptionList
 					label={m.export_encoding()}
@@ -379,96 +379,98 @@ export function ExportPanel({ engine, isGif }: { engine: GifEngine; isGif: boole
 				/>
 			</div>
 
-			{/* Kept visible but inactive while the original is kept. */}
-			<div inert={copying} className={`grid gap-6 transition-opacity ${copying ? 'opacity-45' : ''}`}>
-				<div className="grid gap-2">
-					<OptionList
-						label={m.export_format()}
-						value={settings.format}
-						options={FORMATS.map((option) => ({
-							value: option.value,
-							label: option.label(),
-							detail:
-								option.value === 'video'
-									? encoders.h264 && !settings.alpha
-										? '.mp4'
-										: '.webm'
-									: `.${FORMAT_FILES[option.value].extension}`,
-						}))}
-						onChange={(value) => {
-							setExport({ format: value });
-						}}
-					/>
-					{note && <p className="text-small text-ed-text font-medium">{note}</p>}
-				</div>
+			{/* Only when converting: keeping the original has nothing to set but its loop. */}
+			{!copying && (
+				<div className="grid gap-6">
+					<div className="grid gap-2">
+						<OptionList
+							label={m.export_format()}
+							value={settings.format}
+							options={FORMATS.map((option) => ({
+								value: option.value,
+								label: option.label(),
+								detail:
+									option.value === 'video'
+										? encoders.h264 && !settings.alpha
+											? '.mp4'
+											: '.webm'
+										: `.${FORMAT_FILES[option.value].extension}`,
+							}))}
+							onChange={(value) => {
+								setExport({ format: value });
+							}}
+						/>
+						{note && <p className="text-small text-ed-text font-medium">{note}</p>}
+					</div>
 
-				<div className="grid gap-4">
-					{settings.format !== 'apng' && settings.format !== 'frames' && (
-						<Slider
-							label={m.export_quality()}
-							value={settings.quality}
-							min={1}
-							max={100}
-							defaultValue={90}
-							format={String}
-							onChange={(quality) => {
-								setExport({ quality });
-							}}
-							onEnd={() => {}}
-						/>
-					)}
-					{settings.format === 'gif' && (
-						<Slider
-							label={m.gif_compression()}
-							value={settings.compression}
-							min={0}
-							max={100}
-							defaultValue={0}
-							format={String}
-							onChange={(compression) => {
-								setExport({ compression });
-							}}
-							onEnd={() => {}}
-						/>
-					)}
-					{settings.format === 'gif' && (
-						<Switch
-							label={m.gif_dither()}
-							checked={settings.dither}
-							onChange={(dither) => {
-								setExport({ dither });
-							}}
-						/>
-					)}
-					{settings.format === 'video' && (
-						<Switch
-							label={m.video_alpha()}
-							checked={settings.alpha}
-							onChange={(alpha) => {
-								setExport({ alpha });
-							}}
-						/>
-					)}
-					<div className="grid gap-1.5">
-						<FieldRow label={m.max_size()} htmlFor={limitId}>
-							<Select
-								id={limitId}
-								value={String(settings.maxBytes ?? 'none')}
-								options={[
-									{ value: 'none', label: m.max_size_none() },
-									...SIZE_LIMITS.map((bytes) => ({
-										value: String(bytes),
-										label: formatBytes(bytes),
-									})),
-								]}
-								onChange={(value) => {
-									setExport({ maxBytes: value === 'none' ? null : Number(value) });
+					<div className="grid gap-4">
+						{settings.format !== 'apng' && settings.format !== 'frames' && (
+							<Slider
+								label={m.export_quality()}
+								value={settings.quality}
+								min={1}
+								max={100}
+								defaultValue={90}
+								format={String}
+								onChange={(quality) => {
+									setExport({ quality });
+								}}
+								onEnd={() => {}}
+							/>
+						)}
+						{settings.format === 'gif' && (
+							<Slider
+								label={m.gif_compression()}
+								value={settings.compression}
+								min={0}
+								max={100}
+								defaultValue={0}
+								format={String}
+								onChange={(compression) => {
+									setExport({ compression });
+								}}
+								onEnd={() => {}}
+							/>
+						)}
+						{settings.format === 'gif' && (
+							<Switch
+								label={m.gif_dither()}
+								checked={settings.dither}
+								onChange={(dither) => {
+									setExport({ dither });
 								}}
 							/>
-						</FieldRow>
+						)}
+						{settings.format === 'video' && (
+							<Switch
+								label={m.video_alpha()}
+								checked={settings.alpha}
+								onChange={(alpha) => {
+									setExport({ alpha });
+								}}
+							/>
+						)}
+						<div className="grid gap-1.5">
+							<FieldRow label={m.max_size()} htmlFor={limitId}>
+								<Select
+									id={limitId}
+									value={String(settings.maxBytes ?? 'none')}
+									options={[
+										{ value: 'none', label: m.max_size_none() },
+										...SIZE_LIMITS.map((bytes) => ({
+											value: String(bytes),
+											label: formatBytes(bytes),
+										})),
+									]}
+									onChange={(value) => {
+										setExport({ maxBytes: value === 'none' ? null : Number(value) });
+									}}
+								/>
+							</FieldRow>
+						</div>
 					</div>
 				</div>
-			</div>
+			)}
 
 			{(copying || (settings.format !== 'video' && settings.format !== 'frames')) && (
 				<FieldRow label={m.loop()} htmlFor={loopId}>
@@ -675,7 +677,7 @@ export function ExportFooter({
  * What platforms ask for, one click each: the frame's width, a square crop for emotes and
  * stickers, the format and the size limit.
  */
-export function GifPresetsPanel({ engine }: { engine: GifEngine }) {
+function GifPlatformFormats({ engine }: { engine: GifEngine }) {
 	const chosen = useGifEditor((state) => state.exportSettings.preset);
 	const setExport = useGifEditor((state) => state.setExport);
 	const apply = useGifEditor((state) => state.apply);
@@ -707,28 +709,25 @@ export function GifPresetsPanel({ engine }: { engine: GifEngine }) {
 	};
 
 	return (
-		<>
-			<PanelTitle>{m.tool_presets()}</PanelTitle>
-			<FormatGroups
-				groups={GIF_PRESET_GROUPS.map((group) => ({
-					title: group.title(),
-					logo: group.logo,
-					choices: group.presets.map((preset) => ({
-						id: preset.id,
-						label: preset.label(),
-						detail: `${preset.square ? `${preset.width} × ${preset.width}` : `${preset.width} px`} · ${FORMAT_FILES[preset.format].extension.toUpperCase()}${preset.maxBytes ? ` · ≤ ${formatBytes(preset.maxBytes)}` : ''}`,
-						// Square, or the shape of the animation as it is.
-						width: preset.square ? 1 : (source?.width ?? 16),
-						height: preset.square ? 1 : (source?.height ?? 9),
-					})),
-				}))}
-				chosen={chosen}
-				onChoose={(id) => {
-					const preset = GIF_PRESETS.find((item) => item.id === id);
-					if (preset) choose(preset);
-				}}
-			/>
-		</>
+		<FormatGroups
+			groups={GIF_PRESET_GROUPS.map((group) => ({
+				title: group.title(),
+				logo: group.logo,
+				choices: group.presets.map((preset) => ({
+					id: preset.id,
+					label: preset.label(),
+					detail: `${preset.square ? `${preset.width} × ${preset.width}` : `${preset.width} px`} · ${FORMAT_FILES[preset.format].extension.toUpperCase()}${preset.maxBytes ? ` · ≤ ${formatBytes(preset.maxBytes)}` : ''}`,
+					// Square, or the shape of the animation as it is.
+					width: preset.square ? 1 : (source?.width ?? 16),
+					height: preset.square ? 1 : (source?.height ?? 9),
+				})),
+			}))}
+			chosen={chosen}
+			onChoose={(id) => {
+				const preset = GIF_PRESETS.find((item) => item.id === id);
+				if (preset) choose(preset);
+			}}
+		/>
 	);
 }
 
@@ -793,7 +792,7 @@ export function GifInfoPanel({ engine, opened }: { engine: GifEngine; opened: Op
 						{rows.map(([label, value]) => (
 							<div key={label} className="contents">
 								<dt className="text-ui text-ink-2">{label}</dt>
-								<dd className="text-small tabular text-right font-mono">{value}</dd>
+								<dd className="text-small tabular text-right">{value}</dd>
 							</div>
 						))}
 					</dl>

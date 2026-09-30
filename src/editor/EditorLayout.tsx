@@ -14,17 +14,7 @@ import {
 	ZoomIn,
 	ZoomOut,
 } from 'lucide-react';
-import {
-	createContext,
-	Fragment,
-	type ReactNode,
-	use,
-	useCallback,
-	useEffect,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from 'react';
+import { createContext, Fragment, type ReactNode, use, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AppBar, type EditorActions } from '@/app/AppBar';
 import { changeLocale, LOCALE_NAMES } from '@/app/locale';
 import { useTask } from '@/app/task-context';
@@ -34,6 +24,8 @@ import { m } from '@/paraglide/messages.js';
 import { getLocale, locales } from '@/paraglide/runtime.js';
 import { IconButton } from '@/ui/Button';
 import { MEDIA_ICONS, TOOL_ICONS } from '@/ui/icons';
+import { fadeMask, useOverflowEdges } from '@/ui/use-overflow-edges';
+import { Ambient } from './Ambient';
 import { type Command, CommandPalette, type ShortcutGroup, ShortcutHelp } from './CommandPalette';
 import { isTyping } from './shortcuts';
 import { useStageZoom } from './ZoomStage';
@@ -43,55 +35,25 @@ const PanelContext = createContext<(() => void) | null>(null);
 /** False where a panel shows under a heading of its own, such as a tab: its title is left out. */
 export const PanelTitles = createContext(true);
 
-/**
- * Which ends of a scrolling row or column have more beyond them, to fade those edges: the cue that
- * the tools go on past the screen.
- */
-function useOverflowEdges<T extends HTMLElement>() {
-	const ref = useRef<T>(null);
-	const [edges, setEdges] = useState({ start: false, end: false });
-	useEffect(() => {
-		const element = ref.current;
-		if (!element) return;
-		const measure = () => {
-			const across = element.scrollWidth > element.clientWidth + 1;
-			const position = across ? element.scrollLeft : element.scrollTop;
-			const room = across
-				? element.scrollWidth - element.clientWidth
-				: element.scrollHeight - element.clientHeight;
-			setEdges({ start: room > 1 && position > 1, end: room > 1 && position < room - 1 });
-		};
-		measure();
-		const observer = new ResizeObserver(measure);
-		observer.observe(element);
-		element.addEventListener('scroll', measure, { passive: true });
-		return () => {
-			observer.disconnect();
-			element.removeEventListener('scroll', measure);
-		};
-	}, []);
-	return { ref, edges };
-}
-
 function Rail({
 	tools,
 	current,
 	open,
 	onSelect,
-	exportable,
 	disabled,
+	exportable,
 }: {
+	/** The editing tools, export apart: it ends the rail, set off from them. */
 	tools: ToolId[];
 	current: ToolId;
 	open: boolean;
 	onSelect: (tool: ToolId) => void;
 	/** Before a file is open: the tools show what the editor does, and wait for it. */
 	disabled: boolean;
-	/** Export sits at the end of the rail, apart, once the file can be exported. */
+	/** False while the file can't be exported yet (still being read). */
 	exportable: boolean;
 }) {
 	const { ref, edges } = useOverflowEdges<HTMLDivElement>();
-	const fade = (edge: 'start' | 'end') => (edges[edge] ? 'transparent' : '#000');
 	// The highlight behind the chosen tool slides from one tool to the next.
 	const [mark, setMark] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 	const pressedRef = useRef<HTMLButtonElement | null>(null);
@@ -117,7 +79,7 @@ function Rail({
 		return () => {
 			observer.disconnect();
 		};
-	}, [current, open, tools, exportable, ref]);
+	}, [current, open, tools, ref]);
 	const moved = useRef(false);
 	useEffect(() => {
 		moved.current = mark !== null;
@@ -125,12 +87,12 @@ function Rail({
 	return (
 		<nav
 			aria-label={m.editing_tools()}
-			className="border-line bg-bg max-md:border-t max-md:pb-[env(safe-area-inset-bottom,0px)] md:h-full md:border-r"
+			className="border-line bg-bg flex max-md:border-t max-md:pb-[env(safe-area-inset-bottom,0px)] md:h-full md:flex-col md:border-r"
 		>
 			<div
 				ref={ref}
-				style={{ '--fade-start': fade('start'), '--fade-end': fade('end') }}
-				className="relative flex gap-1 [scrollbar-width:none] max-md:overflow-x-auto max-md:px-1.5 max-md:py-1.5 max-md:[mask-image:linear-gradient(90deg,var(--fade-start),#000_2.5rem,#000_calc(100%-2.5rem),var(--fade-end))] md:h-full md:flex-col md:items-stretch md:overflow-y-auto md:px-2 md:py-3 md:[mask-image:linear-gradient(180deg,var(--fade-start),#000_2.5rem,#000_calc(100%-2.5rem),var(--fade-end))]"
+				style={{ '--fade-x': fadeMask(edges, 'x'), '--fade-y': fadeMask(edges, 'y') }}
+				className="relative flex min-h-0 min-w-0 flex-1 gap-1 [scrollbar-width:none] max-md:overflow-x-auto max-md:px-1.5 max-md:py-1.5 max-md:[mask-image:var(--fade-x)] md:h-full md:flex-col md:items-stretch md:overflow-y-auto md:px-2 md:py-3 md:[mask-image:var(--fade-y)]"
 			>
 				<span
 					aria-hidden="true"
@@ -145,21 +107,11 @@ function Rail({
 							: undefined
 					}
 				/>
-				{[
-					...tools.filter((tool) => tool !== 'export'),
-					...(exportable || tools.includes('export') ? (['export'] as const) : []),
-				].map((tool) => {
+				{tools.map((tool) => {
 					const Icon = TOOL_ICONS[tool];
 					const pressed = open && tool === current;
-					const last = tool === 'export';
 					return (
 						<Fragment key={tool}>
-							{last && (
-								<span
-									aria-hidden="true"
-									className="separator max-md:hidden md:mx-2 md:my-1.5 md:mt-auto"
-								/>
-							)}
 							<button
 								ref={
 									pressed
@@ -179,7 +131,7 @@ function Rail({
 										behavior: 'smooth',
 									});
 								}}
-								className={`group text-caption enabled:hover:bg-surface enabled:hover:text-ink disabled:opacity-40 aria-pressed:text-ed-text relative grid min-w-15 aria-pressed:hover:bg-transparent flex-1 justify-items-center gap-1.5 rounded-md px-1 pt-3 pb-2.5 font-medium transition-colors duration-200 md:flex-none ${last ? 'text-ed-text' : 'text-muted'}`}
+								className={`group text-caption enabled:hover:bg-surface enabled:hover:text-ink disabled:opacity-40 aria-pressed:text-ed-text relative grid min-w-15 aria-pressed:hover:bg-transparent flex-1 justify-items-center gap-1.5 rounded-md px-1 pt-3 pb-2.5 font-medium text-muted transition-colors duration-200 md:flex-none`}
 							>
 								<Icon
 									strokeWidth={1.75}
@@ -192,16 +144,29 @@ function Rail({
 					);
 				})}
 			</div>
+			<span className="bg-line flex-none max-md:my-2.5 max-md:w-px md:mx-3 md:my-2 md:h-px" aria-hidden="true" />
+			<button
+				type="button"
+				disabled={disabled || !exportable}
+				title={exportable ? undefined : m.export_later()}
+				aria-pressed={open && current === 'export'}
+				onClick={() => {
+					onSelect('export');
+				}}
+				className="group text-caption text-ed-text enabled:hover:bg-ed-soft aria-pressed:bg-ed-soft relative m-1.5 grid min-w-15 flex-none md:mx-2 md:mt-0 md:mb-3 justify-items-center gap-1.5 rounded-md px-1 pt-2.5 pb-2.5 font-semibold transition-colors duration-200 disabled:opacity-40"
+			>
+				<span className="bg-ed text-ed-ink ease-spring grid size-8 place-items-center rounded-sm transition-transform duration-300 group-enabled:group-hover:-translate-y-px">
+					<Download strokeWidth={2} aria-hidden="true" className="size-[1.1rem]" />
+				</span>
+				<span>{TOOL_LABELS.export()}</span>
+			</button>
 		</nav>
 	);
 }
 
-/** Where the sheet rests on a phone, as the share of its height hidden below the screen. */
-const SHEET_HALF = 45;
-
 /**
  * The inspector: a panel beside the rail on larger screens, which the rail opens and closes; on a
- * phone, a sheet over the preview, dragged by its handle between half and full height.
+ * phone, the space under the picture, as below a video in a player app.
  */
 function Panel({
 	open,
@@ -209,7 +174,6 @@ function Panel({
 	children,
 	footer,
 	tool,
-	onSheet,
 }: {
 	open: boolean;
 	onClose: () => void;
@@ -217,8 +181,6 @@ function Panel({
 	footer?: ReactNode;
 	/** Each tool keeps its own scroll position; one never scrolled starts at the top. */
 	tool: ToolId;
-	/** Where the sheet's top comes to rest, from the top of the editor, in pixels; null when closed. */
-	onSheet: (top: number | null) => void;
 }) {
 	const scrolls = useRef(new Map<ToolId, number>());
 	const asideRef = useRef<HTMLElement>(null);
@@ -226,53 +188,13 @@ function Panel({
 		const aside = asideRef.current;
 		if (aside) aside.scrollTop = scrolls.current.get(tool) ?? 0;
 	}, [tool]);
-	const [rest, setRest] = useState(SHEET_HALF);
-	const [drag, setDrag] = useState<number | null>(null);
-	const start = useRef<{ y: number; rest: number; height: number } | null>(null);
-	useEffect(() => {
-		if (open) setRest(SHEET_HALF);
-	}, [open]);
-	const hidden = drag ?? rest;
-	const sheetRef = useRef<HTMLDivElement>(null);
-	useLayoutEffect(() => {
-		const sheet = sheetRef.current;
-		// Measured without its transform: where it will be once it has slid there.
-		onSheet(open && sheet ? sheet.offsetTop + (sheet.offsetHeight * hidden) / 100 : null);
-	}, [open, hidden, onSheet]);
 	return (
 		<div
-			ref={sheetRef}
 			data-open={open}
-			style={{ '--sheet': `${open ? hidden : 105}%` }}
-			className={`border-line bg-bg flex min-h-0 flex-col overflow-hidden md:h-full max-md:absolute max-md:inset-x-0 max-md:bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] max-md:z-20 max-md:h-[82%] max-md:translate-y-(--sheet) max-md:rounded-t-[1.25rem] max-md:shadow-[0_-12px_40px_-12px_rgb(0_0_0/0.35)] md:border-r ${drag === null ? 'ease-spring transition-transform duration-[340ms]' : ''}`}
+			// Folded away, nothing in it can be reached by the keyboard or clicked.
+			inert={!open}
+			className={`border-line bg-bg flex h-full min-h-0 flex-col overflow-hidden max-md:border-t md:border-r ${open ? '' : 'max-md:hidden'}`}
 		>
-			<div
-				aria-hidden="true"
-				className="grid h-6 flex-none cursor-grab touch-none place-items-center md:hidden"
-				onPointerDown={(event) => {
-					start.current = {
-						y: event.clientY,
-						rest,
-						height: event.currentTarget.parentElement?.offsetHeight ?? 1,
-					};
-					event.currentTarget.setPointerCapture(event.pointerId);
-					setDrag(rest);
-				}}
-				onPointerMove={(event) => {
-					const from = start.current;
-					if (!from) return;
-					setDrag(Math.min(100, Math.max(0, from.rest + ((event.clientY - from.y) / from.height) * 100)));
-				}}
-				onPointerUp={() => {
-					const at = drag ?? rest;
-					start.current = null;
-					setDrag(null);
-					if (at > 72) onClose();
-					else setRest(at < 22 ? 0 : SHEET_HALF);
-				}}
-			>
-				<span className="bg-line-2 h-1 w-10 rounded-full" />
-			</div>
 			<PanelContext value={onClose}>
 				<aside
 					key={tool}
@@ -281,13 +203,15 @@ function Panel({
 					onScroll={(event) => {
 						scrolls.current.set(tool, event.currentTarget.scrollTop);
 					}}
-					className="panel-in grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] auto-rows-max content-start gap-6 overflow-auto px-5 pb-6 md:w-(--panel-w)"
+					className="panel-in grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] auto-rows-max content-start gap-5 overflow-auto overscroll-contain px-5 pb-6 md:w-(--panel-w) [&>section]:-mx-5 [&>section]:px-5 [&>[data-panel-title]+section]:border-t-0 [&>[data-panel-title]+section]:pt-0"
 				>
 					{children}
 				</aside>
 			</PanelContext>
 			{footer && (
-				<div className="border-line grid gap-3.5 border-t px-5 pt-4 pb-5 md:w-(--panel-w)">{footer}</div>
+				<div className="border-line grid gap-3.5 border-t px-5 pt-4 pb-5 max-md:pt-3 max-md:pb-3 md:w-(--panel-w)">
+					{footer}
+				</div>
 			)}
 		</div>
 	);
@@ -305,18 +229,30 @@ interface EditorLayoutProps {
 	timeline?: ReactNode;
 	/** Takes the place of the preview and the timeline, for editors laid out their own way. */
 	workspace?: ReactNode;
-	/** The bar under the preview: zoom and the size of the picture. */
+	/** The bar along the bottom of the preview: zoom, the size of the picture, the comparison. */
 	status?: ReactNode;
+	/**
+	 * Width over height of the picture shown. On a phone the picture spans the screen's width at
+	 * the top, as in a video app, and this sets its height.
+	 */
+	aspect?: number;
+	/** The preview ends with a player's bar (play, time, position), under the picture. */
+	player?: boolean;
 	/** Null before a file is open: there is nothing to show in it yet. */
 	inspector: ReactNode | null;
 	/** Sticks to the bottom of the inspector, for the final action of a panel. */
 	inspectorFooter?: ReactNode;
+	/** Whether the panel starts open; editors whose workspace needs the room start with it closed. */
+	panelOpenAtStart?: boolean;
+	/** A picture of the file, blurred behind the preview. */
+	ambient?: ImageBitmap | null;
 }
 
 /**
  * The shared layout of every editor: tools on the left, their panel beside them, the preview in
- * the middle with the timeline and a status bar below. On a phone the tools move to a bottom bar
- * within thumb reach and the panel becomes a sheet over the preview.
+ * the middle with its bar of zoom along its bottom, and the timeline below. On a phone, as in a
+ * video app: the picture spans the width at the top, the timeline and the tool's settings follow,
+ * and the tools sit in a bottom bar within thumb reach.
  */
 export function EditorLayout({
 	kind,
@@ -329,30 +265,28 @@ export function EditorLayout({
 	timeline,
 	workspace,
 	status,
+	aspect,
+	player = false,
 	inspector,
 	inspectorFooter,
+	panelOpenAtStart = true,
+	ambient = null,
 }: EditorLayoutProps) {
 	const editor = EDITORS[kind];
 	const task = useTask();
-	// On a phone the sheet would hide the picture: it waits for a tool to be chosen.
-	const [panelOpen, setOpen] = useState(() => !window.matchMedia('(max-width: 767.98px)').matches);
+	// Open from the start, on a phone too: there it sits under the picture, as a video's details do.
+	const [panelOpen, setOpen] = useState(panelOpenAtStart);
 	const open = panelOpen && inspector !== null;
-	// On a phone, the picture moves up to the room the sheet leaves it, rather than hiding under it.
-	const previewRef = useRef<HTMLElement>(null);
-	const [cover, setCover] = useState(0);
-	const onSheet = useCallback((top: number | null) => {
-		const preview = previewRef.current;
-		const phone = window.matchMedia('(max-width: 767.98px)').matches;
-		if (top === null || !preview || !phone) {
-			setCover(0);
-			return;
-		}
-		// A strip of the picture stays when the sheet is pulled up to the top.
-		setCover(Math.min(preview.offsetHeight - 96, Math.max(0, preview.offsetTop + preview.offsetHeight - top)));
-	}, []);
 	const close = () => {
 		setOpen(false);
 	};
+	// A tool chosen otherwise than on the rail, by a shortcut or a link, opens its panel too.
+	const shownTool = useRef(tool);
+	useEffect(() => {
+		if (shownTool.current === tool) return;
+		shownTool.current = tool;
+		setOpen(true);
+	}, [tool]);
 	// Choosing a tool opens its panel; choosing the open one again closes it.
 	const select = (next: ToolId) => {
 		if (open && next === tool) {
@@ -366,6 +300,19 @@ export function EditorLayout({
 	const navigate = useNavigate();
 	const { mode: themeMode } = useTheme();
 	const zoomable = status !== undefined;
+	// On a phone the picture spans the width at the height its shape needs, as in a video app's
+	// player, rather than filling the screen between black bars.
+	const sized = aspect !== undefined && Number.isFinite(aspect) && aspect > 0;
+	// On a phone, from the top: the preview (or workspace), the timeline, the open panel, the tools.
+	const phoneRows = workspace
+		? open
+			? 'max-md:grid-rows-[auto_minmax(0,1fr)_auto]'
+			: 'max-md:grid-rows-[minmax(0,1fr)_auto]'
+		: open
+			? 'max-md:grid-rows-[auto_auto_minmax(0,1fr)_auto]'
+			: sized
+				? 'max-md:grid-rows-[auto_minmax(0,1fr)_auto]'
+				: 'max-md:grid-rows-[minmax(0,1fr)_auto_auto]';
 
 	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
@@ -567,20 +514,24 @@ export function EditorLayout({
 				/>
 			)}
 			<div
-				className={`ease-out-soft grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto_auto] transition-[grid-template-columns] duration-300 max-md:grid-cols-1 md:grid-rows-[minmax(0,1fr)_auto_auto] ${open ? 'md:grid-cols-[var(--rail-w)_var(--panel-w)_minmax(0,1fr)]' : 'md:grid-cols-[var(--rail-w)_0px_minmax(0,1fr)]'}`}
+				style={{ '--stage-h': stageHeight(aspect, player, open) }}
+				className={`ease-out-soft grid min-h-0 flex-1 grid-cols-1 transition-[grid-template-columns] duration-300 md:grid-rows-[minmax(0,1fr)_auto] ${phoneRows} ${open ? 'md:grid-cols-[var(--rail-w)_var(--panel-w)_minmax(0,1fr)]' : 'md:grid-cols-[var(--rail-w)_0px_minmax(0,1fr)]'}`}
 			>
-				<div className="z-30 max-md:order-4 md:row-span-3">
+				<div className="z-30 max-md:order-4 md:row-span-2">
 					<Rail
-						tools={tools ?? editor.tools}
+						tools={(tools ?? editor.tools).filter((id) => id !== 'export')}
 						current={tool}
 						open={open}
-						onSelect={select}
-						exportable={Boolean(actions?.onExport)}
+						onSelect={(next) => {
+							if (next === 'export' && !(open && tool === 'export')) shownActions?.onExport?.();
+							else select(next);
+						}}
 						disabled={inspector === null}
+						exportable={Boolean(actions?.onExport)}
 					/>
 				</div>
-				<div className="contents md:row-span-3 md:block md:min-h-0">
-					<Panel open={open} onClose={close} footer={inspectorFooter} tool={tool} onSheet={onSheet}>
+				<div className="min-h-0 max-md:order-3 md:row-span-2">
+					<Panel open={open} onClose={close} footer={inspectorFooter} tool={tool}>
 						{inspector}
 					</Panel>
 				</div>
@@ -590,34 +541,35 @@ export function EditorLayout({
 					{workspace ? (
 						<section
 							aria-label={m.preview()}
-							className="bg-canvas min-h-0 min-w-0 overflow-hidden max-md:order-1 md:row-span-3"
+							className={`bg-canvas min-h-0 min-w-0 overflow-hidden max-md:order-1 md:row-span-2 ${open ? 'max-md:h-[45svh]' : ''}`}
 						>
 							{workspace}
 						</section>
 					) : (
 						<>
 							<section
-								ref={previewRef}
 								aria-label={m.preview()}
-								className="bg-canvas relative min-h-0 min-w-0 overflow-hidden max-md:order-1"
+								className={`bg-canvas relative flex min-h-0 min-w-0 flex-col overflow-hidden max-md:order-1 ${open || sized ? 'max-md:h-(--stage-h)' : ''}`}
 							>
+								{ambient && <Ambient bitmap={ambient} />}
 								{/* A box with a definite size, so the media can be contained in it whatever its resolution. */}
-								<div
-									style={cover > 0 ? { bottom: cover + 16 } : undefined}
-									className="ease-spring absolute inset-4 flex items-center justify-center transition-[bottom] duration-[340ms] md:inset-8"
-								>
-									{viewer}
+								<div className="relative min-h-0 flex-1">
+									<div
+										className={`absolute flex items-center justify-center md:inset-x-6 md:top-6 ${status || player ? 'md:bottom-3' : 'md:bottom-6'} ${player ? 'max-md:inset-x-0 max-md:top-0 max-md:bottom-2' : 'max-md:inset-0'}`}
+									>
+										{viewer}
+									</div>
 								</div>
+								{status && (
+									<div
+										data-status
+										className="relative flex h-13 min-w-0 flex-none items-center gap-1 px-4 max-md:hidden"
+									>
+										{status}
+									</div>
+								)}
 							</section>
-							<div className="min-w-0 max-md:order-2">{timeline}</div>
-							{status && (
-								<div
-									data-status
-									className="border-line bg-bg flex h-14 min-w-0 items-center gap-1.5 border-t px-4 max-md:hidden"
-								>
-									{status}
-								</div>
-							)}
+							<div className="min-w-0 max-md:order-2 max-md:self-start">{timeline}</div>
 						</>
 					)}
 				</main>
@@ -626,14 +578,25 @@ export function EditorLayout({
 	);
 }
 
+/**
+ * How tall the preview is on a phone: the picture at the full width of the screen, and its
+ * player's bar, up to half the screen for tall pictures while a tool is open below it.
+ */
+function stageHeight(aspect: number | undefined, player: boolean, open: boolean): string {
+	if (!aspect || !Number.isFinite(aspect) || aspect <= 0) return '40svh';
+	return `min(calc(100vw / ${aspect.toFixed(4)}${player ? ' + 5.5rem' : ''}), ${open ? 50 : 70}svh)`;
+}
+
 /** The panel's heading, with an optional action (reset) and the button closing the panel. */
 export function PanelTitle({ children, action }: { children: string; action?: ReactNode }) {
 	const close = use(PanelContext);
 	if (!use(PanelTitles)) return null;
 	return (
-		<div className="bg-bg sticky top-0 z-10 -mx-5 -mb-2 flex items-center gap-2 px-5 pt-5 pb-3 max-md:pt-1">
-			<span aria-hidden="true" className="separator absolute inset-x-5 bottom-0" />
-			<h2 className="text-title flex-1 font-[650] tracking-[-0.02em]">{children}</h2>
+		<div
+			data-panel-title
+			className="bg-bg border-line sticky top-0 z-10 -mx-5 -mb-1 flex h-14 flex-none items-center gap-1 border-b pr-3 pl-5 max-md:h-12"
+		>
+			<h2 className="text-lead flex-1 font-semibold tracking-[-0.015em]">{children}</h2>
 			{action}
 			{close && (
 				<IconButton label={m.close_panel()} onClick={close}>

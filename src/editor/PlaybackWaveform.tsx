@@ -1,19 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Range } from '@/document/timemap';
-import { type Peaks, type PeaksReader, readPeaks } from '@/media/peaks';
+import { type Peaks, sharedPeaks } from '@/media/peaks';
 import { usePlayback } from '@/media/playback';
 import { useCssColors } from '@/ui/css-colors';
 import { useBoxSize } from '@/ui/use-box-size';
 
-const WAVE_COLORS = ['--audio-1'] as const;
-
-/**
- * The waveform read once per file and audio track, and kept when the editor is left and
- * reopened: long files take a few seconds.
- */
-let cached: { file: File; track: number | null; reader: PeaksReader } | null = null;
-/** Waveforms on screen, told when more of the file is read. */
-const listeners = new Set<() => void>();
+/** Neutral, so the lines laid over it in the subtitle colour stand out. */
+const WAVE_COLORS = ['--muted'] as const;
 
 export function usePlaybackPeaks(): { peaks: Peaks | null; version: number } {
 	const file = usePlayback((state) => state.file);
@@ -27,27 +20,12 @@ export function usePlaybackPeaks(): { peaks: Peaks | null; version: number } {
 			setPeaks(null);
 			return;
 		}
-		if (cached?.file !== file || cached.track !== track) {
-			cached?.reader.cancel();
-			const reader = readPeaks(
-				file,
-				duration,
-				() => {
-					for (const listener of listeners) listener();
-				},
-				track,
-			);
-			reader.done.catch(() => undefined);
-			cached = { file, track, reader };
-		}
-		setPeaks(cached.reader.peaks);
-		const listener = () => {
+		// Read once per file and track, and kept when the editor is left and reopened.
+		const { reader, release } = sharedPeaks(file, duration, track, () => {
 			setVersion((value) => value + 1);
-		};
-		listeners.add(listener);
-		return () => {
-			listeners.delete(listener);
-		};
+		});
+		setPeaks(reader.peaks);
+		return release;
 	}, [file, duration, track]);
 
 	return { peaks, version };

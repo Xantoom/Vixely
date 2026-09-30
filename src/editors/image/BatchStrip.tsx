@@ -54,9 +54,7 @@ function Thumb({ item }: { item: BatchFile }) {
 		};
 	}, [item]);
 	return failed ? (
-		<span className="text-caption text-muted grid size-full place-items-center font-mono uppercase">
-			{item.format}
-		</span>
+		<span className="text-caption text-muted grid size-full place-items-center">{item.format}</span>
 	) : (
 		<canvas ref={ref} className="size-full object-cover" />
 	);

@@ -28,7 +28,7 @@ export function SiteHeader() {
 					className="hover:bg-surface -ml-1.5 flex h-10 items-center gap-2.5 rounded-sm px-1.5 transition-colors"
 				>
 					<LogoMark size={30} />
-					<span className="text-lead font-bold tracking-[-0.03em]">Vixely</span>
+					<span className="text-lead font-bold tracking-[-0.02em]">Vixely</span>
 				</Link>
 				<nav aria-label={copy.nav.label} className="flex gap-6 max-md:hidden">
 					{sections.map(([hash, label]) => (

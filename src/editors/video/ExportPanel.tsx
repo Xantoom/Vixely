@@ -443,7 +443,7 @@ function VideoSettings({ upright }: { upright: Size }) {
 					<div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
 						<span className="text-ui text-ink-2">{m.export_bitrate()}</span>
 						<span
-							className={`tabular font-mono text-[12.5px] ${limited < LOW_BITRATE ? 'text-danger' : ''}`}
+							className={`tabular text-small ${limited < LOW_BITRATE ? 'text-danger' : ''}`}
 							title={limited < LOW_BITRATE ? m.bitrate_low() : undefined}
 						>
 							{limited} kb/s
@@ -452,7 +452,7 @@ function VideoSettings({ upright }: { upright: Size }) {
 				)}
 				<div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
 					<span className="text-ui text-ink-2">{m.export_size()}</span>
-					<span className="tabular font-mono text-[12.5px]">
+					<span className="tabular text-small">
 						{size.width} × {size.height}
 					</span>
 				</div>
@@ -522,7 +522,6 @@ export function VideoExportPanel({ opened, upright }: { opened: OpenedFile; upri
 	const blocker = useCopyBlocker();
 	const mode = useExportMode();
 	const settings = useVideoEditor((state) => state.exportSettings);
-	const exportSource = useVideoEditor((state) => state.exportSource);
 	const set = useVideoEditor((state) => state.setExport);
 	return (
 		<>
@@ -542,7 +541,7 @@ export function VideoExportPanel({ opened, upright }: { opened: OpenedFile; upri
 						value: 'encode',
 						label: m.encoding_convert(),
 						detail: settings
-							? `${CONTAINERS[settings.container].label} ${CODEC_LABELS[settings.codec]} · ${encoderLabel(settings.encoder, exportSource?.gpu ?? null)}`
+							? `${CONTAINERS[settings.container].label}, ${CODEC_LABELS[settings.codec]}`
 							: undefined,
 						disabled: settings === null,
 					},

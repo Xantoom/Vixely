@@ -53,10 +53,8 @@ const afterBack = await trimmed();
 console.log('back in the video:', (await header.innerText()).replace(/\n/g, ' '), '| final length', afterBack, afterBack === before ? 'KEPT' : 'LOST');
 
 // A GIF made from the video, its frames shown without a click.
-// The editor comes back on Info: clicking it again would close the panel.
-if ((await tools.getByRole('button', { name: 'Info' }).getAttribute('aria-pressed')) !== 'true')
-	await tools.getByRole('button', { name: 'Info' }).click();
-await aside.getByRole('button', { name: 'Make a GIF' }).click();
+await header.getByRole('link', { name: 'GIF', exact: true }).click();
+await page.getByRole('button', { name: /^Use the open video/ }).click();
 await page.waitForURL('**/gif**', { timeout: 60000 });
 await page.waitForTimeout(2500);
 await tools.getByRole('button', { name: 'Frames' }).click();
@@ -73,9 +71,8 @@ const drawn = await page.evaluate(() => {
 console.log('GIF frames drawn without a click:', drawn, 'of 8');
 await page.screenshot({ path: 'shots/roundtrip-frames.png' });
 
-// Back to the video through the editor switcher.
-await header.locator('button[aria-haspopup=menu]').first().click();
-await page.getByRole('menuitem', { name: /Video/ }).first().click();
+// Back to the video through the editors' tabs.
+await header.getByRole('link', { name: 'Video', exact: true }).click();
 await page.waitForURL('**/video**');
 await page.waitForSelector('[role=group][aria-label="Tracks"]', { timeout: 20000 });
 await page.waitForTimeout(800);

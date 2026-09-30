@@ -117,7 +117,7 @@ function Keys({ keys }: { keys: string }) {
 			{keys.split(' ').map((key) => (
 				<kbd
 					key={key}
-					className="text-caption text-muted min-w-6 rounded-[0.35rem] px-1.5 py-0.5 text-center font-mono shadow-[inset_0_0_0_1px_var(--line-2)]"
+					className="text-caption text-muted min-w-6 rounded-[0.35rem] px-1.5 py-0.5 text-center shadow-[inset_0_0_0_1px_var(--line-2)]"
 				>
 					{key}
 				</kbd>
@@ -139,9 +139,7 @@ export function ShortcutHelp({ groups, onClose }: { groups: ShortcutGroup[]; onC
 				<h2 className="text-title font-[650] tracking-[-0.02em]">{m.shortcuts_title()}</h2>
 				{groups.map((group) => (
 					<section key={group.title} className="grid gap-1">
-						<h3 className="text-caption text-muted font-semibold tracking-[0.06em] uppercase">
-							{group.title}
-						</h3>
+						<h3 className="text-small text-muted font-medium">{group.title}</h3>
 						{group.shortcuts.map(([label, keys]) => (
 							<div
 								key={label}

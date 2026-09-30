@@ -167,7 +167,7 @@ function ColorChooser({ value, onChange }: { value: string; onChange: (color: st
 					onBlur={() => {
 						setDraft(null);
 					}}
-					className="border-line-2 bg-bg text-ink hover:border-muted h-8 min-w-0 flex-1 rounded-xs border px-2.5 font-mono text-[13px] uppercase transition-colors"
+					className="border-line-2 bg-bg text-ink hover:border-muted h-8 min-w-0 flex-1 rounded-xs border px-2.5 text-caption uppercase transition-colors"
 				/>
 			</div>
 		</div>

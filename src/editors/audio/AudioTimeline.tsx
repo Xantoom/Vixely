@@ -1,24 +1,25 @@
-import { AudioLines, ChevronsLeftRight, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
+import { AudioLines, RotateCcw } from 'lucide-react';
 import { ALL_FORMATS, BlobSource, Input } from 'mediabunny';
 import { type PointerEvent as ReactPointerEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Range } from '@/document/timemap';
+import { FitButton } from '@/editor/FitButton';
 import { audioTrackDetail, audioTrackLabel, PlayButton, PlayerMenu } from '@/editor/PlayerControls';
 import { SelectionBar } from '@/editor/SelectionBar';
 import { percent, timeAt, zoomView } from '@/editor/timeline-view';
 import { TimeRuler } from '@/editor/TimeRuler';
 import { TrimHandle } from '@/editor/TrimHandle';
 import { ViewScroll } from '@/editor/ViewScroll';
+import { VolumeControl } from '@/editor/VolumeControl';
 import { panDelta, wheelIntent } from '@/editor/wheel';
 import { formatPreciseTime } from '@/lib/format';
 import { type AudioTrackInfo, listAudioTracks } from '@/media/audio-tracks';
 import { useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
-import { IconButton } from '@/ui/Button';
 import { useCssColors } from '@/ui/css-colors';
 import { useBoxSize } from '@/ui/use-box-size';
 import { type AudioDoc, audioLength, envelope, keptRanges, restoreCut, setTrim, sourceGainAt } from './document';
 import type { AudioEngine } from './engine';
-import { MIN_VIEW, useAudioDoc, useAudioEditor } from './store';
+import { useAudioDoc, useAudioEditor } from './store';
 
 /** Waveform, removed audio, and audio pushed past full scale. */
 const WAVE_COLORS = ['--audio-1', '--line-2', '--danger'] as const;
@@ -52,7 +53,6 @@ function AudioTrackPicker() {
 		<PlayerMenu
 			icon={AudioLines}
 			label={m.player_audio_track()}
-			onPicture={false}
 			value={String(track ?? found.primary ?? '')}
 			items={found.tracks.map((option) => ({
 				value: String(option.id),
@@ -71,7 +71,7 @@ function AudioTrackPicker() {
 function PlayheadTime() {
 	const playhead = useAudioEditor((state) => state.playhead);
 	return (
-		<span className="tabular font-mono text-[15px] font-medium" aria-label={m.playhead()}>
+		<span className="tabular text-body font-medium" aria-label={m.playhead()}>
 			{formatPreciseTime(playhead)}
 		</span>
 	);
@@ -85,16 +85,12 @@ function Transport({ engine }: { engine: AudioEngine }) {
 	const { peaks, failed } = engine.waveform;
 	const progress = peaks ? peaks.progress() : 0;
 	const span = view.end - view.start;
-	// Zoom around the playhead when it is visible, around the middle otherwise.
-	const anchor = () => {
-		const { playhead } = useAudioEditor.getState();
-		return playhead >= view.start && playhead <= view.end ? playhead : view.start + span / 2;
-	};
 
 	return (
 		<div className="flex items-center gap-3">
 			<PlayButton playing={playing} onToggle={engine.togglePlay} disabled={!engine.player || failed} />
 			<PlayheadTime />
+			<VolumeControl />
 			{failed ? (
 				<span className="text-small text-danger truncate">{m.waveform_failed()}</span>
 			) : (
@@ -108,36 +104,13 @@ function Transport({ engine }: { engine: AudioEngine }) {
 			<div className="flex-1" />
 			<AudioTrackPicker />
 			<span className="text-ui text-muted max-sm:hidden">{m.audio_final_length()}</span>
-			<span className="tabular font-mono text-[12.5px] max-sm:hidden">{formatPreciseTime(audioLength(doc))}</span>
-			<div className="ml-2 flex gap-0.5">
-				<IconButton
-					label={m.zoom_out()}
-					disabled={span >= doc.duration}
-					onClick={() => {
-						setView(zoomView(view, 2, anchor()));
-					}}
-				>
-					<ZoomOut size={17} />
-				</IconButton>
-				<IconButton
-					label={m.zoom_in()}
-					disabled={span <= MIN_VIEW}
-					onClick={() => {
-						setView(zoomView(view, 0.5, anchor()));
-					}}
-				>
-					<ZoomIn size={17} />
-				</IconButton>
-				<IconButton
-					label={m.zoom_fit()}
-					disabled={span >= doc.duration}
-					onClick={() => {
-						setView({ start: 0, end: doc.duration });
-					}}
-				>
-					<ChevronsLeftRight size={17} />
-				</IconButton>
-			</div>
+			<span className="tabular text-small max-sm:hidden">{formatPreciseTime(audioLength(doc))}</span>
+			<FitButton
+				zoomed={span < doc.duration}
+				onFit={() => {
+					setView({ start: 0, end: doc.duration });
+				}}
+			/>
 		</div>
 	);
 }
@@ -173,7 +146,7 @@ function AudioTrimHandle({ side, doc, view }: { side: 'start' | 'end'; doc: Audi
 }
 
 /** The waveform, with what is kept, removed and selected, and the trim handles. */
-function WaveArea({ engine, trimmable }: { engine: AudioEngine; trimmable: boolean }) {
+function WaveArea({ engine, trimmable, fill }: { engine: AudioEngine; trimmable: boolean; fill: boolean }) {
 	// Drawn as it sounds: with normalization, the gain comes from the measured loudness.
 	const doc = engine.resolved;
 	const view = useAudioEditor((state) => state.view);
@@ -310,7 +283,7 @@ function WaveArea({ engine, trimmable }: { engine: AudioEngine; trimmable: boole
 			onPointerCancel={() => {
 				drag.current = null;
 			}}
-			className="relative h-24 cursor-text touch-none rounded-xs bg-[color-mix(in_srgb,var(--audio-1)_6%,var(--bg))] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--audio-1)_22%,transparent)] select-none lg:h-32"
+			className={`relative cursor-text touch-none rounded-sm bg-[color-mix(in_srgb,var(--audio-1)_6%,var(--bg))] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--audio-1)_22%,transparent)] select-none ${fill ? 'min-h-32 flex-1' : 'h-24 lg:h-32'}`}
 		>
 			<canvas ref={canvasRef} className="absolute inset-0 size-full" />
 			{outside.map((range) => (
@@ -379,10 +352,18 @@ function AudioViewScroll() {
 
 /**
  * Timeline of the audio editor. It shows the whole source: removed audio stays visible, greyed
- * out, so any edit can be seen and undone.
+ * out, so any edit can be seen and undone. `trimmable` is false in a batch, where cutting doesn't
+ * apply: the waveform is for listening only. With `fill`, the waveform takes all the height given.
  */
-/** `trimmable` is false in a batch, where cutting doesn't apply: the waveform is for listening only. */
-export function AudioTimeline({ engine, trimmable }: { engine: AudioEngine; trimmable: boolean }) {
+export function AudioTimeline({
+	engine,
+	trimmable,
+	fill = false,
+}: {
+	engine: AudioEngine;
+	trimmable: boolean;
+	fill?: boolean;
+}) {
 	const view = useAudioEditor((state) => state.view);
 
 	// While playing, the view turns the page when the playhead leaves it.
@@ -399,11 +380,18 @@ export function AudioTimeline({ engine, trimmable }: { engine: AudioEngine; trim
 	);
 
 	return (
-		<section aria-label={m.timeline()} className="border-line grid gap-2 border-t px-4 pt-2.5 pb-3">
+		<section
+			aria-label={m.timeline()}
+			className={
+				fill
+					? 'flex min-h-0 flex-1 flex-col gap-3 px-4 pt-4 pb-4 md:px-8 md:pt-6 md:pb-7'
+					: 'border-line grid gap-2 border-t px-4 pt-2.5 pb-3'
+			}
+		>
 			<Transport engine={engine} />
-			<div id="audio-waveform" className="grid gap-1">
+			<div id="audio-waveform" className={fill ? 'flex min-h-0 flex-1 flex-col gap-1' : 'grid gap-1'}>
 				<TimeRuler view={view} onSeek={engine.seek} />
-				<WaveArea engine={engine} trimmable={trimmable} />
+				<WaveArea engine={engine} trimmable={trimmable} fill={fill} />
 				<AudioViewScroll />
 			</div>
 		</section>

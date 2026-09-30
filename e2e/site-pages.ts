@@ -18,7 +18,7 @@ const aside = page.locator('aside');
 
 // Home: the tasks link to their pages.
 await page.goto(`${BASE}/`);
-await page.getByRole('link', { name: /^Compress a video Video/ }).click();
+await page.getByRole('link', { name: 'Compress a video', exact: true }).first().click();
 await page.waitForURL('**/tools/compress-video');
 await page.getByRole('heading', { name: 'Compress a video' }).waitFor();
 console.log('home → compress:', await page.title());

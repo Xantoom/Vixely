@@ -1,8 +1,9 @@
-import { ChevronsLeftRight, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
+import { RotateCcw } from 'lucide-react';
 import { type PointerEvent as ReactPointerEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { keptRanges, restoreCut, setTrim } from '@/document/kept';
 import type { Range } from '@/document/timemap';
-import { beyond, MIN_VIEW, totalLength } from '@/document/timemap';
+import { beyond, totalLength } from '@/document/timemap';
+import { FitButton } from '@/editor/FitButton';
 import type { OverlayEditing } from '@/editor/overlays/editing';
 import { LayerLanes } from '@/editor/overlays/LayerLanes';
 import { SelectionBar } from '@/editor/SelectionBar';
@@ -13,9 +14,8 @@ import { ViewScroll } from '@/editor/ViewScroll';
 import { panDelta, wheelIntent } from '@/editor/wheel';
 import { formatPreciseTime } from '@/lib/format';
 import { usePlayback } from '@/media/playback';
-import { Thumbnails } from '@/media/thumbnails';
+import { sharedThumbnails, type Thumbnails } from '@/media/thumbnails';
 import { m } from '@/paraglide/messages.js';
-import { IconButton } from '@/ui/Button';
 import { useBoxSize } from '@/ui/use-box-size';
 import { type VideoDoc, videoLength } from './document';
 import { useVideoDoc, useVideoEditor } from './store';
@@ -24,7 +24,17 @@ import { useVideoDoc, useVideoEditor } from './store';
 const STRIP_HEIGHT = 48;
 
 /** Pictures along the visible part of the video, one per slot, each the key frame before it. */
-function Filmstrip({ file, view, aspect }: { file: File; view: Range; aspect: number }) {
+function Filmstrip({
+	file,
+	view,
+	aspect,
+	height: laneHeight,
+}: {
+	file: File;
+	view: Range;
+	aspect: number;
+	height: number;
+}) {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const size = useBoxSize(canvasRef);
 	const [thumbnails, setThumbnails] = useState<Thumbnails | null>(null);
@@ -32,15 +42,13 @@ function Filmstrip({ file, view, aspect }: { file: File; view: Range; aspect: nu
 
 	useEffect(() => {
 		const ratio = Math.min(window.devicePixelRatio || 1, 2);
-		const next = new Thumbnails(file, Math.round(STRIP_HEIGHT * ratio));
-		next.onChange = () => {
+		// Made once per file: going to another editor and back shows them at once.
+		const { thumbnails: shared, release } = sharedThumbnails(file, Math.round(laneHeight * ratio), () => {
 			setVersion((value) => value + 1);
-		};
-		setThumbnails(next);
-		return () => {
-			next.dispose();
-		};
-	}, [file]);
+		});
+		setThumbnails(shared);
+		return release;
+	}, [file, laneHeight]);
 
 	useLayoutEffect(() => {
 		const canvas = canvasRef.current;
@@ -77,10 +85,12 @@ function Playhead({ view }: { view: Range }) {
 	if (time < view.start || time > view.end) return null;
 	return (
 		<div
-			className="bg-ink pointer-events-none absolute -top-1 -bottom-1 w-0.5 -translate-x-1/2"
+			className="pointer-events-none absolute -top-1 -bottom-1 z-10 w-0.5 -translate-x-1/2 bg-[var(--ed)]"
 			style={{ left: percent(time, view) }}
 			aria-hidden="true"
-		/>
+		>
+			<span className="absolute -top-0.5 left-1/2 size-2.5 -translate-x-1/2 rotate-45 rounded-[2px] bg-[var(--ed)]" />
+		</div>
 	);
 }
 
@@ -105,10 +115,10 @@ function VideoTrimHandle({ side, doc, view }: { side: 'start' | 'end'; doc: Vide
 }
 
 /**
- * The tracks of the video along time, with what is kept, removed and selected. Pressing moves
- * playback there, dragging selects a passage, the handles move the start and the end.
+ * The video along time, with what is kept and removed. Pressing or dragging moves playback there.
+ * While cutting, dragging selects a passage instead, and the handles move the start and the end.
  */
-function Lanes({ file, aspect }: { file: File; aspect: number }) {
+function Lanes({ file, aspect, cutting }: { file: File; aspect: number; cutting: boolean }) {
 	const doc = useVideoDoc();
 	const view = useVideoEditor((state) => state.view);
 	const selection = useVideoEditor((state) => state.selection);
@@ -146,6 +156,11 @@ function Lanes({ file, aspect }: { file: File; aspect: number }) {
 		};
 	}, []);
 
+	// Out of the trim tool, nothing is left selected to cut.
+	useEffect(() => {
+		if (!cutting) useVideoEditor.getState().setSelection(null);
+	}, [cutting]);
+
 	const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
 		if (event.button !== 0) return;
 		event.currentTarget.setPointerCapture(event.pointerId);
@@ -159,12 +174,13 @@ function Lanes({ file, aspect }: { file: File; aspect: number }) {
 		if (!current.moved && Math.abs(event.clientX - current.x) < 4) return;
 		current.moved = true;
 		const time = timeAt(event.currentTarget, event.clientX, view, doc.duration);
-		setSelection({ start: Math.min(current.time, time), end: Math.max(current.time, time) });
+		if (cutting) setSelection({ start: Math.min(current.time, time), end: Math.max(current.time, time) });
+		else seek(time);
 	};
 	const onPointerUp = () => {
 		const current = drag.current;
 		drag.current = null;
-		if (current && !current.moved) setSelection(null);
+		if (current && !current.moved && cutting) setSelection(null);
 	};
 
 	const copied = useVideoEditor((state) => state.copied);
@@ -187,15 +203,14 @@ function Lanes({ file, aspect }: { file: File; aspect: number }) {
 			onPointerCancel={() => {
 				drag.current = null;
 			}}
-			className="relative grid cursor-text touch-none gap-1 select-none"
+			className={`relative grid touch-none gap-1 select-none ${cutting ? 'cursor-text' : 'cursor-pointer'}`}
 		>
 			<div
-				className="relative overflow-hidden rounded-xs bg-[color-mix(in_srgb,var(--video-1)_16%,var(--bg))] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--video-1)_35%,transparent)]"
+				className="relative overflow-hidden rounded-sm bg-[color-mix(in_srgb,var(--video-1)_16%,var(--bg))]"
 				style={{ height: STRIP_HEIGHT }}
 			>
-				<Filmstrip file={file} view={view} aspect={aspect} />
+				<Filmstrip file={file} view={view} aspect={aspect} height={STRIP_HEIGHT} />
 			</div>
-
 			{outside.map((range) => (
 				<div
 					key={range.start}
@@ -210,23 +225,25 @@ function Lanes({ file, aspect }: { file: File; aspect: number }) {
 						className="bg-canvas/70 absolute inset-y-0 bg-[repeating-linear-gradient(135deg,transparent_0_6px,color-mix(in_srgb,var(--ink)_12%,transparent)_6px_7px)] shadow-[inset_1px_0_0_var(--line-2),inset_-1px_0_0_var(--line-2)]"
 						style={rangeBox(removed, view)}
 					>
-						<button
-							type="button"
-							aria-label={m.removed_restore_label({
-								start: formatPreciseTime(removed.start),
-								end: formatPreciseTime(removed.end),
-							})}
-							title={m.removed_restore()}
-							onPointerDown={(event) => {
-								event.stopPropagation();
-							}}
-							onClick={() => {
-								apply((current) => restoreCut(current, index));
-							}}
-							className="bg-bg text-ink-2 hover:text-ink absolute top-1.5 left-1/2 grid size-6 -translate-x-1/2 place-items-center rounded-full shadow-[0_0_0_1px_var(--line-2)] transition-colors"
-						>
-							<RotateCcw size={12} strokeWidth={2.4} />
-						</button>
+						{cutting && (
+							<button
+								type="button"
+								aria-label={m.removed_restore_label({
+									start: formatPreciseTime(removed.start),
+									end: formatPreciseTime(removed.end),
+								})}
+								title={m.removed_restore()}
+								onPointerDown={(event) => {
+									event.stopPropagation();
+								}}
+								onClick={() => {
+									apply((current) => restoreCut(current, index));
+								}}
+								className="bg-bg text-ink-2 hover:text-ink absolute top-1.5 left-1/2 grid size-6 -translate-x-1/2 place-items-center rounded-full shadow-[0_0_0_1px_var(--line-2)] transition-colors"
+							>
+								<RotateCcw size={12} strokeWidth={2.4} />
+							</button>
+						)}
 					</div>
 				) : null,
 			)}
@@ -254,61 +271,38 @@ function Lanes({ file, aspect }: { file: File; aspect: number }) {
 					}}
 				/>
 			)}
-			<VideoTrimHandle side="start" doc={doc} view={view} />
-			<VideoTrimHandle side="end" doc={doc} view={view} />
+			{cutting && <VideoTrimHandle side="start" doc={doc} view={view} />}
+			{cutting && <VideoTrimHandle side="end" doc={doc} view={view} />}
 			<Playhead view={view} />
 		</div>
 	);
 }
 
-function Toolbar() {
-	const doc = useVideoDoc();
+/** Back to the whole video, shown only once the timeline is zoomed. */
+function VideoFit() {
 	const view = useVideoEditor((state) => state.view);
+	const duration = useVideoEditor((state) => state.history.present.duration);
 	const setView = useVideoEditor((state) => state.setView);
-	const copied = useVideoEditor((state) => state.copied);
-	const span = view.end - view.start;
-	// Zoom around the playhead when it is visible, around the middle otherwise.
-	const anchor = () => {
-		const { time } = usePlayback.getState();
-		return time >= view.start && time <= view.end ? time : view.start + span / 2;
-	};
 	return (
-		<div className="flex items-center gap-3">
-			<span className="text-ui text-muted">{m.video_final_length()}</span>
-			<span className="tabular font-mono text-[12.5px]">
+		<FitButton
+			zoomed={view.end - view.start < duration - 1e-3}
+			onFit={() => {
+				setView({ start: 0, end: duration });
+			}}
+		/>
+	);
+}
+
+function FinalLength() {
+	const doc = useVideoDoc();
+	const copied = useVideoEditor((state) => state.copied);
+	return (
+		<span className="text-small text-muted flex items-baseline gap-2">
+			{m.video_final_length()}
+			<span className="tabular text-ink font-medium">
 				{formatPreciseTime(copied ? totalLength(copied) : videoLength(doc))}
 			</span>
-			<div className="flex-1" />
-			<div className="flex gap-0.5">
-				<IconButton
-					label={m.zoom_out()}
-					disabled={span >= doc.duration}
-					onClick={() => {
-						setView(zoomView(view, 2, anchor()));
-					}}
-				>
-					<ZoomOut size={17} />
-				</IconButton>
-				<IconButton
-					label={m.zoom_in()}
-					disabled={span <= MIN_VIEW}
-					onClick={() => {
-						setView(zoomView(view, 0.5, anchor()));
-					}}
-				>
-					<ZoomIn size={17} />
-				</IconButton>
-				<IconButton
-					label={m.zoom_fit()}
-					disabled={span >= doc.duration}
-					onClick={() => {
-						setView({ start: 0, end: doc.duration });
-					}}
-				>
-					<ChevronsLeftRight size={17} />
-				</IconButton>
-			</div>
-		</div>
+		</span>
 	);
 }
 
@@ -321,13 +315,16 @@ export function VideoTimeline({
 	aspect,
 	layers,
 	onLayer,
+	cutting,
 }: {
 	file: File;
 	aspect: number;
 	/** Text, stickers and shapes, each on its own row. */
-	layers: OverlayEditing;
+	layers?: OverlayEditing;
 	/** A layer was pressed on its row. */
 	onLayer: () => void;
+	/** The trim tool is open: passages can be selected and removed, the ends moved. */
+	cutting: boolean;
 }) {
 	const view = useVideoEditor((state) => state.view);
 	const duration = useVideoEditor((state) => state.history.present.duration);
@@ -348,12 +345,16 @@ export function VideoTimeline({
 	);
 
 	return (
-		<section aria-label={m.timeline()} className="border-line grid gap-1.5 border-t px-4 pt-2.5 pb-3">
-			<Toolbar />
+		<section aria-label={m.timeline()} className="border-line grid gap-1 border-t px-4 pt-2 pb-3">
+			<div className="flex h-8 items-center gap-3">
+				<FinalLength />
+				<div className="flex-1" />
+				<VideoFit />
+			</div>
 			<div id="video-timeline" className="grid gap-1">
 				<TimeRuler view={view} onSeek={seek} />
-				<Lanes file={file} aspect={aspect} />
-				<LayerLanes editing={layers} view={view} onSelect={onLayer} />
+				<Lanes file={file} aspect={aspect} cutting={cutting} />
+				{layers && <LayerLanes editing={layers} view={view} onSelect={onLayer} />}
 				<ViewScroll view={view} duration={duration} onView={setView} controls="video-timeline" />
 			</div>
 		</section>

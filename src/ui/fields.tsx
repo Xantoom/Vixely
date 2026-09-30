@@ -1,11 +1,11 @@
-import { Lock } from 'lucide-react';
+import { Lock, RotateCcw } from 'lucide-react';
 import { type ReactNode, useId, useLayoutEffect, useRef, useState } from 'react';
 import { formatPreciseTime, parseTime } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
 import { Dropdown, type DropdownOption } from './Dropdown';
 
 const FIELD =
-	'h-10 w-full rounded-xs border border-line-2 bg-bg font-mono text-small text-ink transition-colors hover:border-muted';
+	'h-10 w-full rounded-xs border border-line-2 bg-bg text-small text-ink transition-colors hover:border-muted';
 
 /** A label and its control on one row: the label reads left, the value sits right. */
 export function FieldRow({ label, htmlFor, children }: { label: string; htmlFor?: string; children: ReactNode }) {
@@ -82,7 +82,7 @@ export function NumberField({
 				className={`${FIELD} cursor-text px-2.5 ${unit ? 'pr-8' : ''}`}
 			/>
 			{unit && (
-				<span className="text-caption text-muted pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 font-mono">
+				<span className="text-caption text-muted pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2">
 					{unit}
 				</span>
 			)}
@@ -181,6 +181,7 @@ export function Slider({
 	parse,
 	track,
 	hint,
+	resettable = false,
 	onChange,
 	onEnd,
 }: {
@@ -197,6 +198,8 @@ export function Slider({
 	/** A gradient showing what the setting does, in place of the filled track. */
 	track?: string;
 	hint?: ReactNode;
+	/** Shows a button that returns to the neutral value once moved away from it. */
+	resettable?: boolean;
 	onChange: (value: number) => void;
 	onEnd: () => void;
 }) {
@@ -228,9 +231,23 @@ export function Slider({
 	return (
 		<div className="grid gap-1.5">
 			<div className="flex items-center justify-between gap-3">
-				<label htmlFor={id} className="text-ui text-ink-2">
+				<label htmlFor={id} className="text-ui text-ink-2 min-w-0 flex-1 truncate">
 					{label}
 				</label>
+				{resettable && value !== defaultValue && (
+					<button
+						type="button"
+						aria-label={m.slider_reset({ label })}
+						title={m.slider_reset({ label })}
+						onClick={() => {
+							onChange(defaultValue);
+							onEnd();
+						}}
+						className="text-muted hover:bg-surface hover:text-ink -my-1 -mr-2 grid size-6 flex-none cursor-pointer place-items-center rounded-xs transition-colors"
+					>
+						<RotateCcw className="size-3.5" aria-hidden="true" />
+					</button>
+				)}
 				<input
 					aria-label={m.slider_value({ label })}
 					value={draft ?? format(value)}
@@ -252,7 +269,7 @@ export function Slider({
 					}}
 					// As wide as what it shows, digits being all the same width: nothing is cut off.
 					style={{ width: `calc(${Math.max(6, (draft ?? format(value)).length + 1)}ch + 0.75rem)` }}
-					className="tabular hover:bg-surface focus:bg-bg focus:shadow-[inset_0_0_0_1px_var(--line-2)] max-w-40 rounded-xs bg-transparent px-1.5 py-0.5 text-right font-mono text-small outline-none transition-colors"
+					className="tabular hover:bg-surface focus:bg-bg focus:shadow-[inset_0_0_0_1px_var(--line-2)] max-w-40 rounded-xs bg-transparent px-1.5 py-0.5 text-right text-small outline-none transition-colors"
 				/>
 			</div>
 			<input
@@ -310,7 +327,7 @@ export function OptionList<T extends string>({
 				>
 					<span className="size-4 rounded-full shadow-[inset_0_0_0_1.5px_var(--line-2)] group-aria-checked:shadow-[inset_0_0_0_5px_var(--ed)]" />
 					<span className="text-body">{option.label}</span>
-					<span className="text-small text-muted flex items-center gap-1.5 font-mono">
+					<span className="text-small text-muted flex items-center gap-1.5">
 						{option.disabled && option.reason && <Lock size={12} aria-hidden="true" />}
 						{option.detail}
 					</span>

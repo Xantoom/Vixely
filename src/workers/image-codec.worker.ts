@@ -9,7 +9,7 @@ import type { CodecRequest, CodecResponse } from '@/media/image-codec';
 /** What both builds offer: the single and multithreaded ones differ only in how they start. */
 type ImageCodec = Pick<
 	typeof import('@/wasm/vixely-image/vixely_image.js'),
-	'encode_jpeg' | 'encode_png' | 'encode_avif' | 'encode_jxl' | 'decode_image'
+	'encode_jpeg' | 'encode_png' | 'encode_webp' | 'encode_avif' | 'encode_jxl' | 'decode_image'
 >;
 type LibHeif = Awaited<ReturnType<typeof import('libheif-js/libheif-wasm/libheif-bundle.mjs').default>>;
 
@@ -87,6 +87,8 @@ async function run(request: CodecRequest): Promise<Result> {
 			return { bytes: codec.encode_jpeg(rgba, width, height, quality, exif) };
 		case 'png':
 			return { bytes: codec.encode_png(rgba, width, height, request.lossless ? 0 : quality, exif) };
+		case 'webp':
+			return { bytes: codec.encode_webp(rgba, width, height, quality, exif) };
 		case 'avif':
 			return { bytes: codec.encode_avif(rgba, width, height, quality, request.speed, exif) };
 		case 'jxl':

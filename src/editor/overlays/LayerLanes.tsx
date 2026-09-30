@@ -1,4 +1,4 @@
-import { type PointerEvent as ReactPointerEvent, useRef } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { Range } from '@/document/timemap';
 import { formatClock } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
@@ -11,7 +11,28 @@ const MIN_SPAN = 0.1;
 /** Width of the grip at each end of a bar, in CSS pixels. */
 const GRIP = 7;
 
-type Grab = { id: string; part: 'start' | 'end' | 'move'; x: number; span: Range; moved: boolean };
+type Grab = {
+	id: string;
+	part: 'start' | 'end' | 'move';
+	x: number;
+	y: number;
+	span: Range;
+	/** Place in the stack when grabbed, 0 at the back. */
+	depth: number;
+	/** Distance between two rows, in CSS pixels. */
+	pitch: number;
+	moved: boolean;
+};
+
+/** The overlay `id` put at `depth` in the stack, 0 at the back. */
+function restack(id: string, depth: number) {
+	return (overlays: Overlay[]): Overlay[] => {
+		const overlay = overlays.find((candidate) => candidate.id === id);
+		if (!overlay) return overlays;
+		const rest = overlays.filter((candidate) => candidate !== overlay);
+		return rest.toSpliced(Math.min(rest.length, Math.max(0, depth)), 0, overlay);
+	};
+}
 
 function label(overlay: Overlay): string {
 	if (overlay.kind === 'text') return overlay.text.split('\n')[0] || m.layers_add_text();
@@ -23,8 +44,9 @@ function label(overlay: Overlay): string {
 
 /**
  * The layers along time, one row each, the front one on top, as in a video editor's timeline:
- * pressing a bar selects its layer, dragging it moves when it shows, dragging an end moves that
- * end. A layer shown all along fills its row.
+ * pressing a bar selects its layer, dragging it sideways moves when it shows, up or down moves it
+ * in front of or behind the others, and dragging an end moves that end. A layer shown all along
+ * fills its row.
  */
 export function LayerLanes({
 	editing,
@@ -38,7 +60,6 @@ export function LayerLanes({
 }) {
 	const selected = useOverlaySelection((state) => state.selected);
 	const select = useOverlaySelection((state) => state.select);
-	const grab = useRef<Grab | null>(null);
 	const timing = editing.timing;
 	if (!timing || editing.overlays.length === 0) return null;
 	const { duration } = timing;
@@ -50,43 +71,57 @@ export function LayerLanes({
 		const bar = event.currentTarget.getBoundingClientRect();
 		const x = event.clientX - bar.left;
 		const part = x < GRIP ? 'start' : x > bar.width - GRIP ? 'end' : 'move';
-		event.currentTarget.setPointerCapture(event.pointerId);
-		grab.current = {
+		const row = event.currentTarget.parentElement;
+		const neighbour = row?.nextElementSibling ?? row?.previousElementSibling;
+		const pitch =
+			row && neighbour ? Math.abs(neighbour.getBoundingClientRect().top - row.getBoundingClientRect().top) : 0;
+		const width = row?.clientWidth ?? 1;
+		const current: Grab = {
 			id: overlay.id,
 			part,
 			x: event.clientX,
+			y: event.clientY,
 			span: overlay.span ?? { start: 0, end: duration },
+			depth: editing.overlays.findIndex((candidate) => candidate.id === overlay.id),
+			pitch: pitch || 26,
 			moved: false,
 		};
-	};
-	const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-		const current = grab.current;
-		const row = event.currentTarget.parentElement;
-		if (!current || !row) return;
-		if (!current.moved && Math.abs(event.clientX - current.x) < 3) return;
-		current.moved = true;
-		const shift = ((event.clientX - current.x) / row.clientWidth) * span;
-		const { start, end } = current.span;
-		let next: Range;
-		if (current.part === 'move') {
-			const moved = Math.min(Math.max(start + shift, 0), duration - (end - start));
-			next = { start: moved, end: moved + end - start };
-		} else if (current.part === 'start') {
-			next = { start: Math.min(Math.max(0, start + shift), end - MIN_SPAN), end };
-		} else {
-			next = { start, end: Math.max(Math.min(duration, end + shift), start + MIN_SPAN) };
-		}
-		editing.preview(placeOverlay(current.id, { span: next }));
-	};
-	const onPointerUp = () => {
-		const current = grab.current;
-		grab.current = null;
-		if (!current) return;
-		if (current.moved) editing.settle();
-		else {
-			select(current.id);
-			onSelect();
-		}
+		// Followed on the window: the bar moves to another row as the layer changes place.
+		const move = (moving: PointerEvent) => {
+			if (moving.pointerId !== event.pointerId) return;
+			if (!current.moved && Math.hypot(moving.clientX - current.x, moving.clientY - current.y) < 3) return;
+			current.moved = true;
+			const shift = ((moving.clientX - current.x) / width) * span;
+			const { start, end } = current.span;
+			let next: Range;
+			if (current.part === 'move') {
+				const moved = Math.min(Math.max(start + shift, 0), duration - (end - start));
+				next = { start: moved, end: moved + end - start };
+			} else if (current.part === 'start') {
+				next = { start: Math.min(Math.max(0, start + shift), end - MIN_SPAN), end };
+			} else {
+				next = { start, end: Math.max(Math.min(duration, end + shift), start + MIN_SPAN) };
+			}
+			// The front layer is on top: dragging up brings a layer forward.
+			const rows = current.part === 'move' ? Math.round((current.y - moving.clientY) / current.pitch) : 0;
+			const place = placeOverlay(current.id, { span: next });
+			const stack = restack(current.id, current.depth + rows);
+			editing.preview((overlays) => stack(place(overlays)));
+		};
+		const stop = (ending: PointerEvent) => {
+			if (ending.pointerId !== event.pointerId) return;
+			window.removeEventListener('pointermove', move);
+			window.removeEventListener('pointerup', stop);
+			window.removeEventListener('pointercancel', stop);
+			if (current.moved) editing.settle();
+			else if (ending.type === 'pointerup') {
+				select(current.id);
+				onSelect();
+			}
+		};
+		window.addEventListener('pointermove', move);
+		window.addEventListener('pointerup', stop);
+		window.addEventListener('pointercancel', stop);
 	};
 
 	return (
@@ -105,11 +140,6 @@ export function LayerLanes({
 								title={`${label(overlay)} · ${overlay.span ? `${formatClock(shown.start)}–${formatClock(shown.end)}` : m.layers_always()}`}
 								onPointerDown={(event) => {
 									onPointerDown(event, overlay);
-								}}
-								onPointerMove={onPointerMove}
-								onPointerUp={onPointerUp}
-								onPointerCancel={() => {
-									grab.current = null;
 								}}
 								className={`group text-caption absolute inset-y-0.5 flex min-w-2 cursor-grab touch-none items-center overflow-hidden rounded-[4px] px-2 font-medium whitespace-nowrap transition-[background-color,box-shadow] select-none active:cursor-grabbing ${
 									active

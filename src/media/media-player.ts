@@ -3,6 +3,7 @@ import type { GainPoint } from '@/document/gain-curve';
 import { type Range, toOutput, toSource, totalLength } from '@/document/timemap';
 import { AudioPlayer } from './audio-player';
 import { type AudioTrackInfo, listAudioTracks } from './audio-tracks';
+import type { HeardSound } from './sound';
 
 export interface MediaDetails {
 	/** Seconds. */
@@ -61,6 +62,8 @@ export class MediaPlayer {
 	private speed = 1;
 	/** Fades in and out of the sound, in seconds of what is heard. */
 	private fade = { in: 0, out: 0 };
+	/** How each audio track is heard, by ID: its level and sound changes as the editor sets them. */
+	private sounds: ReadonlyMap<number, HeardSound> = new Map();
 	/** Draws a picture on the canvas; the default fits it in, as it comes. */
 	private painter: Painter | null = null;
 	/** Canvases attached, the last one drawn on. */
@@ -143,7 +146,7 @@ export class MediaPlayer {
 		if (id !== null) {
 			const audio = new AudioPlayer(this.file, id);
 			if (await audio.playable()) {
-				audio.setPlan(this.plan());
+				audio.setPlan(this.plan(id));
 				audio.onTime = (time) => {
 					this.onTime(time);
 				};
@@ -306,9 +309,25 @@ export class MediaPlayer {
 		if (this.clockPlaying) this.anchor = { page: performance.now(), output: toOutput(this.played(), time) };
 	}
 
-	private plan() {
+	/** Hears each audio track, by ID, with its level and sound changes; tracks left out play as they are. */
+	setSounds(sounds: ReadonlyMap<number, HeardSound>) {
+		this.sounds = sounds;
+		this.audio?.setPlan(this.plan());
+	}
+
+	private plan(id = this.audioTrackId) {
 		const ranges = this.played();
-		return { ranges, envelope: this.fadeEnvelope(totalLength(ranges)), speed: this.speed };
+		const heard = id === null ? undefined : this.sounds.get(id);
+		const gain = heard?.gain ?? 1;
+		const fades = this.fadeEnvelope(totalLength(ranges));
+		// A level change scales the fades, or holds the whole way when there are none.
+		const envelope =
+			gain === 1
+				? fades
+				: fades.length > 0
+					? fades.map((point) => ({ time: point.time, gain: point.gain * gain }))
+					: [{ time: 0, gain }];
+		return { ranges, envelope, speed: this.speed, sound: heard?.sound ?? undefined };
 	}
 
 	/** The fades as a volume curve over output time before the speed change, `length` long. */

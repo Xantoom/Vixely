@@ -12,13 +12,14 @@ page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 
 await page.goto(`${BASE}/image`);
 await page.setInputFiles('input[type=file]', '../public/samples/lake.jpg');
-await page.waitForSelector('[data-status]', { timeout: 20000 });
+await page.waitForSelector('div[data-status]', { timeout: 20000 });
 const rail = page.locator('nav[aria-label="Editing tools"]');
 await rail.getByRole('button', { name: 'Layers' }).click();
 await page.getByRole('button', { name: 'MEME' }).click();
 const field = page.getByRole('textbox', { name: 'Text' });
 await field.fill('WHEN THE EXPORT\nMATCHES THE PREVIEW');
 await field.blur();
+{ const back = page.getByRole('button', { name: /^All layers/ }); if (await back.isVisible()) await back.click(); }
 await page.getByRole('tab', { name: 'Text' }).click();
 await page.getByRole('button', { name: 'Caption' }).click();
 await page.getByRole('textbox', { name: 'Text' }).fill('Lake at sunset');
@@ -26,8 +27,10 @@ await page.getByRole('textbox', { name: 'Text' }).blur();
 await page.waitForTimeout(300);
 await page.screenshot({ path: 'shots/overlay-text.png' });
 
+{ const back = page.getByRole('button', { name: /^All layers/ }); if (await back.isVisible()) await back.click(); }
 await page.getByRole('tab', { name: 'Sticker' }).click();
 await page.getByRole('button', { name: '🔥' }).click();
+{ const back = page.getByRole('button', { name: /^All layers/ }); if (await back.isVisible()) await back.click(); }
 await page.getByRole('tab', { name: 'Shape' }).click();
 await page.getByRole('button', { name: 'Arrow' }).click();
 // Drag the arrow to the right and turn it with the knob.
@@ -41,7 +44,7 @@ await page.waitForTimeout(200);
 await page.screenshot({ path: 'shots/overlay-stickers.png' });
 console.log('undo enabled', await page.getByRole('button', { name: 'Undo' }).isEnabled());
 
-await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 await page.locator('#export-format').click();
 await page.getByRole('option', { name: 'PNG', exact: true }).click();
 const [download] = await Promise.all([page.waitForEvent('download', { timeout: 120000 }), page.locator('aside + div').getByRole('button').first().click()]);

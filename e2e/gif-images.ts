@@ -1,7 +1,8 @@
 /**
  * A GIF made from three images of two shapes: reordered with Alt + arrow and by dragging, timed
- * one by one, an image added, resized and exported; then platform formats, the filmstrip reached
- * by keyboard, and a GIF made from an image batch.
+ * one by one, an image added after the frame chosen, frames chosen together, copied and deleted,
+ * resized and exported; then platform formats, the filmstrip reached by keyboard, a GIF made from
+ * an image batch, and an image added to a GIF file.
  */
 import { engine, BASE } from './engine';
 import { readFileSync } from 'node:fs';
@@ -52,10 +53,28 @@ await list.getByRole('option').nth(0).click();
 await page.getByLabel('Duration').fill('1000');
 await page.getByLabel('Duration').press('Enter');
 
-// 5. One more image, added from the panel.
+// 5. One more image, added from the panel: right after the frame chosen, the first.
 await page.locator('aside input[type=file]').setInputFiles([{ name: 'purple.png', mimeType: 'image/png', buffer: await png(640, 360, 'purple') }]);
 await list.getByRole('option').nth(3).waitFor({ timeout: 10000 });
-console.log('durations:', (await list.locator('.font-mono').allInnerTexts()).map((text) => text.replace('\n', ':')).join(' '));
+const durations = async () => (await list.locator('.tabular').allInnerTexts()).map((text) => text.replace('\n', ':')).join(' ');
+console.log('durations:', await durations());
+
+// 5b. Frames 3 and 4 chosen with Ctrl, copied (the copies follow each), then the copies deleted.
+await list.getByRole('option').nth(2).click();
+await list.getByRole('option').nth(3).click({ modifiers: ['Control'] });
+console.log('chosen:', await list.locator('[aria-selected=true]').count(), '|', await page.locator('aside h3, aside h2').filter({ hasText: /selected/ }).first().innerText());
+await page.getByRole('button', { name: 'Duplicate' }).click();
+await list.getByRole('option').nth(5).waitFor({ timeout: 5000 });
+console.log('after copying:', await durations(), '| chosen', await list.locator('[aria-selected=true]').count());
+await page.getByRole('button', { name: 'Delete', exact: true }).click();
+await page.waitForTimeout(200);
+console.log('copies deleted:', await durations());
+// A range with Shift, then Escape keeps the frame shown alone.
+await list.getByRole('option').nth(0).click();
+await list.getByRole('option').nth(2).click({ modifiers: ['Shift'] });
+const ranged = await list.locator('[aria-selected=true]').count();
+await page.keyboard.press('Escape');
+console.log('shift range:', ranged, '| after Escape', await list.locator('[aria-selected=true]').count());
 
 // 6. Resize: 50 %, then the height unlinked and set by hand, sharp pixels.
 const tools = page.locator('nav[aria-label="Editing tools"]');
@@ -68,7 +87,7 @@ await page.getByLabel('Height').press('Enter');
 await page.getByRole('radio', { name: /^Sharp pixels/ }).click();
 
 // 7. Export as GIF: size, frame count, delays and colours in order.
-await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 const [download] = await Promise.all([page.waitForEvent('download', { timeout: 120000 }), page.locator('aside + div').getByRole('button').first().click()]);
 const bytes = readFileSync(await download.path());
 const delays: number[] = [];
@@ -86,8 +105,8 @@ const frames = await page.evaluate(async (data) => {
 }, Array.from(bytes));
 console.log('gif:', `${frames.width}×${frames.height}`, '| delays', delays.join(' '), '| colours', frames.colors.join(' / '));
 
-// 8. Formats: Discord's emoji, from its folded row.
-await tools.getByRole('button', { name: 'Formats' }).click();
+// 8. Platforms, in the export panel still open: Discord's emoji, from its folded row.
+{ const platform = page.getByRole('button', { name: 'Made for a platform' }); if ((await platform.getAttribute('aria-expanded')) === 'false') await platform.click(); }
 await page.getByRole('button', { name: 'Discord', exact: true }).click();
 await page.getByRole('button', { name: /^Discord Emoji/ }).click();
 console.log('discord emoji chosen:', await page.getByRole('button', { name: /^Discord Emoji/ }).getAttribute('aria-pressed'), '| status:', await page.locator('main').getByText(/× \d+ px/).first().innerText());
@@ -109,6 +128,17 @@ await page.getByRole('button', { name: 'Make a GIF' }).click();
 await page.waitForURL('**/gif');
 await page.getByRole('listbox', { name: 'Frames' }).getByRole('option').nth(1).waitFor({ timeout: 20000 });
 console.log('from the batch:', await page.getByRole('listbox', { name: 'Frames' }).getByRole('option').count(), 'frames');
+
+// 11. A GIF file takes images too, after the frame chosen.
+await page.goto(`${BASE}/gif`);
+await page.setInputFiles('input[type=file]', 'samples/anim.gif');
+const gifFrames = page.getByRole('listbox', { name: 'Frames' });
+await page.locator('nav[aria-label="Editing tools"]').getByRole('button', { name: 'Frames' }).click();
+await gifFrames.getByRole('option').nth(59).waitFor({ timeout: 20000 });
+await gifFrames.getByRole('option').nth(9).click();
+await page.locator('aside input[type=file]').setInputFiles([{ name: 'red.png', mimeType: 'image/png', buffer: await png(200, 200, 'red') }]);
+await gifFrames.getByRole('option').nth(60).waitFor({ timeout: 10000 });
+console.log('gif + image:', await gifFrames.getByRole('option').count(), 'frames | 11th lasts', await gifFrames.getByRole('option').nth(10).locator('.tabular').innerText());
 
 console.log(errors.length ? `errors ${JSON.stringify(errors)}` : 'no errors');
 await browser.close();

@@ -119,7 +119,7 @@ await page.waitForTimeout(1200);
 await page.keyboard.press('Space');
 
 // 6. Exported as WAV and read back.
-await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 await aside.getByRole('radio', { name: /WAV/ }).click();
 const [download] = await Promise.all([
 	page.waitForEvent('download', { timeout: 120000 }),

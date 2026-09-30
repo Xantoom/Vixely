@@ -1,6 +1,6 @@
 /**
  * The subtitle editor's own tools: an SRT translated by hand into English with the original beside
- * each line; a Blu-ray .sup read into text. Tesseract's English data is downloaded the first time.
+ * each line, left for the original, then deleted; a Blu-ray .sup read into text. Tesseract's English data is downloaded the first time.
  */
 import { engine, BASE } from './engine';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -45,9 +45,23 @@ await page.waitForTimeout(300);
 console.log('translation grid:', await grid());
 console.log('progress:', await aside.getByRole('status').or(aside.locator('p.tabular')).first().innerText().catch(() => '?'));
 await page.screenshot({ path: 'shots/translation.png' });
-await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 const translated = await save('translated.srt');
 console.log('  file:', translated.data.toString('utf8').replace(/\s+/g, ' '));
+
+// 1b. Back to the original, then the translation deleted, after being asked.
+await tools.getByRole('button', { name: 'Translate', exact: true }).click();
+await aside.getByRole('button', { name: 'Back to the original' }).click();
+console.log('back to the original:', (await grid()).slice(0, 60), '| translation actions', await aside.getByRole('button', { name: 'Delete this translation' }).count());
+await tools.getByRole('button', { name: 'Info', exact: true }).click();
+await aside.getByRole('radio', { name: /English/ }).click();
+await tools.getByRole('button', { name: 'Translate', exact: true }).click();
+await aside.getByRole('button', { name: 'Delete this translation' }).click();
+const ask = page.getByRole('alertdialog');
+console.log('asked:', await ask.innerText().then((t) => t.replace(/\s+/g, ' ')));
+await ask.getByRole('button', { name: 'Delete', exact: true }).click();
+await tools.getByRole('button', { name: 'Info', exact: true }).click();
+console.log('tracks left:', (await aside.getByRole('radiogroup', { name: 'Tracks' }).innerText().catch(() => 'no track list')).replace(/\s+/g, ' '), '| grid', (await grid()).slice(0, 60));
 
 // 2. Blu-ray pictures read into text.
 await page.goto(`${BASE}/subtitles`);

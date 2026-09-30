@@ -1,4 +1,4 @@
-import { AudioLines, ChevronFirst, ChevronLast, Play, ZoomIn, ZoomOut } from 'lucide-react';
+import { AudioLines, ChevronFirst, ChevronLast, Play } from 'lucide-react';
 import {
 	type MouseEvent as ReactMouseEvent,
 	type PointerEvent as ReactPointerEvent,
@@ -8,7 +8,9 @@ import {
 	useState,
 } from 'react';
 import { clampView, type Range } from '@/document/timemap';
+import { FitButton } from '@/editor/FitButton';
 import { usePlaybackPeaks, Waveform } from '@/editor/PlaybackWaveform';
+import { AudioTrackMenu, PlayerControls } from '@/editor/PlayerControls';
 import { TimeRuler } from '@/editor/TimeRuler';
 import { ViewScroll } from '@/editor/ViewScroll';
 import { panDelta, wheelIntent } from '@/editor/wheel';
@@ -18,6 +20,8 @@ import { IconButton } from '@/ui/Button';
 import { useBoxSize } from '@/ui/use-box-size';
 import { addCue, type Cue, findCue, MIN_CUE, setCueTimes } from './document';
 import { cueLabel } from './labels';
+import { hasError } from './quality';
+import { useLineIssues } from './QualityBar';
 import { useSubtitleDoc, useSubtitleEditor } from './store';
 
 /** Seconds shown at first: a few lines, enough to hear each one start and end. */
@@ -57,6 +61,7 @@ function PlayheadLine({ view }: { view: Range }) {
  */
 export function AudioBox() {
 	const doc = useSubtitleDoc();
+	const { issues } = useLineIssues();
 	const active = useSubtitleEditor((state) => state.active);
 	const preview = useSubtitleEditor((state) => state.preview);
 	const settle = useSubtitleEditor((state) => state.settle);
@@ -244,6 +249,12 @@ export function AudioBox() {
 		setView({ start: middle - next / 2, end: middle + next / 2 });
 	};
 
+	// Ten seconds around the line, or the whole file when shorter.
+	const defaultSpan = Math.min(DEFAULT_SPAN, Math.max(length, MIN_SPAN));
+	const fit = () => {
+		zoom(defaultSpan / span);
+	};
+
 	const toX = (time: number) => ((time / 1000 - view.start) / span) * 100;
 	const visible = doc.cues.filter(
 		(line) => !line.comment && line.end / 1000 > view.start && line.start / 1000 < view.end,
@@ -251,6 +262,42 @@ export function AudioBox() {
 
 	return (
 		<div className="flex h-full min-h-0 flex-col gap-1.5">
+			<PlayerControls seek={false}>
+				<IconButton
+					label={m.subs_play_before()}
+					disabled={!cue}
+					onClick={() => {
+						if (cue) playRange(Math.max(0, cue.start / 1000 - AROUND), cue.start / 1000);
+					}}
+				>
+					<ChevronFirst size={17} />
+				</IconButton>
+				<button
+					type="button"
+					disabled={!cue}
+					onClick={() => {
+						if (cue) playRange(cue.start / 1000, cue.end / 1000);
+					}}
+					className="text-small text-ink-2 enabled:hover:bg-surface enabled:hover:text-ink flex h-9 flex-none items-center gap-1.5 rounded-sm px-2.5 font-medium transition-colors disabled:opacity-45"
+				>
+					<Play className="size-4" aria-hidden="true" />
+					<span className="max-xl:sr-only">{m.subs_play_line()}</span>
+				</button>
+				<IconButton
+					label={m.subs_play_after()}
+					disabled={!cue}
+					onClick={() => {
+						if (cue) playRange(cue.end / 1000, cue.end / 1000 + AROUND);
+					}}
+				>
+					<ChevronLast size={17} />
+				</IconButton>
+				<span className="bg-line mx-1 h-5 w-px flex-none max-sm:hidden" aria-hidden="true" />
+				<AudioTrackMenu />
+				<span className="max-sm:hidden">
+					<FitButton zoomed={Math.abs(span - defaultSpan) > 0.01} onFit={fit} />
+				</span>
+			</PlayerControls>
 			<TimeRuler view={view} onSeek={seek} />
 			<div
 				ref={areaRef}
@@ -274,7 +321,11 @@ export function AudioBox() {
 					line.id === cue?.id ? null : (
 						<div
 							key={line.id}
-							className="bg-ed/10 border-ed/40 absolute inset-y-0 border-x"
+							className={`absolute inset-y-0 border-x ${
+								hasError(issues.get(line.id))
+									? 'border-danger/60 bg-[color-mix(in_srgb,var(--danger)_12%,transparent)] shadow-[inset_0_2px_0_var(--danger)]'
+									: 'bg-ed/10 border-ed/40'
+							}`}
 							style={{ left: `${toX(line.start)}%`, width: `${toX(line.end) - toX(line.start)}%` }}
 						>
 							<span className="text-caption text-muted absolute top-1 right-1 left-1 truncate">
@@ -320,54 +371,6 @@ export function AudioBox() {
 				)}
 			</div>
 			<ViewScroll view={view} duration={Math.max(length, MIN_SPAN)} onView={setView} controls="subtitle-audio" />
-			<div className="flex items-center gap-0.5">
-				<IconButton
-					label={m.subs_play_before()}
-					disabled={!cue}
-					onClick={() => {
-						if (cue) playRange(Math.max(0, cue.start / 1000 - AROUND), cue.start / 1000);
-					}}
-				>
-					<ChevronFirst size={17} />
-				</IconButton>
-				<IconButton
-					label={m.subs_play_line()}
-					disabled={!cue}
-					onClick={() => {
-						if (cue) playRange(cue.start / 1000, cue.end / 1000);
-					}}
-				>
-					<Play size={16} />
-				</IconButton>
-				<IconButton
-					label={m.subs_play_after()}
-					disabled={!cue}
-					onClick={() => {
-						if (cue) playRange(cue.end / 1000, cue.end / 1000 + AROUND);
-					}}
-				>
-					<ChevronLast size={17} />
-				</IconButton>
-				<div className="flex-1" />
-				<IconButton
-					label={m.zoom_out()}
-					disabled={span >= length}
-					onClick={() => {
-						zoom(2);
-					}}
-				>
-					<ZoomOut size={17} />
-				</IconButton>
-				<IconButton
-					label={m.zoom_in()}
-					disabled={span <= MIN_SPAN}
-					onClick={() => {
-						zoom(0.5);
-					}}
-				>
-					<ZoomIn size={17} />
-				</IconButton>
-			</div>
 		</div>
 	);
 }

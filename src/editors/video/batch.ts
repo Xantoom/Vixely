@@ -7,6 +7,7 @@ import type { ItemStatus } from '@/editor/BatchList';
 import { outputName, uniqueName } from '@/media/save';
 import { downloadTarget, type FolderTargets } from '@/media/save-target';
 import type { BatchFile } from '@/media/session';
+import { FLAT_EQ } from '@/media/sound';
 import { SubtitleSource } from '@/media/subtitle-source';
 import type { SubtitleDoc } from '../subtitles/document';
 import { codecLabel, trackDoc, trackKind } from '../subtitles/tracks';
@@ -48,7 +49,10 @@ function baseTrack(key: string, kind: MuxTrack['kind']): MuxTrack {
 		edited: false,
 		blocked: null,
 		decibels: 0,
+		eq: FLAT_EQ,
+		compress: 0,
 		added: null,
+		encode: null,
 	};
 }
 

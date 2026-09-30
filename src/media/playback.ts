@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Range } from '@/document/timemap';
 import type { MediaDetails, MediaPlayer } from './media-player';
+import type { HeardSound } from './sound';
 
 /** Plays nothing, keeps time: the preview of subtitles without a video. */
 class Clock {
@@ -89,6 +90,9 @@ interface PlaybackState {
 	/** How fast the video plays and its fades, in seconds of what is seen. */
 	shaping: Shaping;
 	setShaping: (shaping: Shaping) => void;
+	/** How each audio track is heard, by ID: the video editor's level, equalizer and compressor. */
+	sounds: ReadonlyMap<number, HeardSound>;
+	setSounds: (sounds: ReadonlyMap<number, HeardSound>) => void;
 }
 
 export interface Shaping {
@@ -140,6 +144,7 @@ export const usePlayback = create<PlaybackState>((set, get) => {
 		clockLength: 0,
 		ranges: null,
 		shaping: NO_SHAPING,
+		sounds: new Map(),
 
 		load(file) {
 			if (file === get().file) return;
@@ -165,6 +170,7 @@ export const usePlayback = create<PlaybackState>((set, get) => {
 						set({ details });
 						player.setRanges(get().ranges);
 						player.setShaping(get().shaping.speed, get().shaping.fade);
+						player.setSounds(get().sounds);
 						player.seek(get().time);
 					},
 					() => {
@@ -217,6 +223,11 @@ export const usePlayback = create<PlaybackState>((set, get) => {
 		setShaping(shaping) {
 			set({ shaping });
 			get().player?.setShaping(shaping.speed, shaping.fade);
+		},
+
+		setSounds(sounds) {
+			set({ sounds });
+			get().player?.setSounds(sounds);
 		},
 
 		setClockLength(length) {

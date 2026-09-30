@@ -1,4 +1,4 @@
-import { Check, Lock, type LucideIcon } from 'lucide-react';
+import { Check, Lock, type LucideIcon, Search } from 'lucide-react';
 import {
 	type KeyboardEvent,
 	type ReactNode,
@@ -10,8 +10,13 @@ import {
 	useState,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { m } from '@/paraglide/messages.js';
 import { layerOf } from './layer';
 import { type Place, placeList } from './place';
+import { searchable } from './SearchField';
+
+/** Lists this long get a search field at their top. */
+const SEARCH_FROM = 12;
 
 export interface DropdownOption<T extends string> {
 	value: T;
@@ -64,8 +69,21 @@ export function Dropdown<T extends string>({
 	const listRef = useRef<HTMLDivElement>(null);
 	const listId = useId();
 	const typed = useRef({ text: '', at: 0 });
+	const searchRef = useRef<HTMLInputElement>(null);
+	const [query, setQuery] = useState('');
 	const selected = options.findIndex((option) => option.value === value);
 	const current = options[selected];
+	const withSearch = options.length >= SEARCH_FROM;
+	// The options the search leaves, by their place in `options`.
+	const words = searchable(query).split(/\s+/).filter(Boolean);
+	const visible = options
+		.map((_, index) => index)
+		.filter((index) => {
+			const option = options[index];
+			if (!option || words.length === 0) return true;
+			const text = searchable(`${option.label} ${option.detail ?? ''}`);
+			return words.every((word) => text.includes(word));
+		});
 
 	const close = useCallback((focus: boolean) => {
 		setOpen(false);
@@ -78,6 +96,7 @@ export function Dropdown<T extends string>({
 		// The list is drawn outside the editor, so it takes the editor's colour along.
 		setMedia(buttonRef.current?.closest('[data-media]')?.getAttribute('data-media') ?? null);
 		setActive(selected >= 0 ? selected : options.findIndex((option) => !option.disabled));
+		setQuery('');
 		setOpen(true);
 	};
 
@@ -97,7 +116,9 @@ export function Dropdown<T extends string>({
 	// Hidden while measured, the list can take the focus only once placed.
 	const placed = place !== null;
 	useEffect(() => {
-		if (placed) listRef.current?.focus({ preventScroll: true });
+		if (!placed) return;
+		if (searchRef.current) searchRef.current.focus({ preventScroll: true });
+		else listRef.current?.focus({ preventScroll: true });
 	}, [placed]);
 
 	useEffect(() => {
@@ -136,10 +157,16 @@ export function Dropdown<T extends string>({
 		if (option.value !== value) onChange(option.value);
 	};
 
+	// Moves among the options shown, skipping those that can't be picked.
 	const move = (from: number, step: number) => {
-		for (let index = from + step, tries = 0; tries < options.length; index += step, tries += 1) {
-			const wrapped = (index + options.length) % options.length;
-			if (!options[wrapped]?.disabled) return wrapped;
+		const count = visible.length;
+		if (count === 0) return -1;
+		const at = visible.indexOf(from);
+		let position = at === -1 ? (step > 0 ? -1 : count) : at;
+		for (let tries = 0; tries < count; tries += 1) {
+			position = (position + step + count) % count;
+			const index = visible[position] ?? -1;
+			if (!options[index]?.disabled) return index;
 		}
 		return from;
 	};
@@ -163,12 +190,13 @@ export function Dropdown<T extends string>({
 			event.preventDefault();
 			setActive((index) => move(index, event.key === 'ArrowDown' ? 1 : -1));
 		} else if (event.key === 'Home' || event.key === 'End') {
+			if (withSearch) return;
 			event.preventDefault();
-			setActive(event.key === 'Home' ? move(-1, 1) : move(options.length, -1));
-		} else if (event.key === 'Enter' || event.key === ' ') {
+			setActive(event.key === 'Home' ? move(-1, 1) : move(-2, -1));
+		} else if (event.key === 'Enter' || (event.key === ' ' && !withSearch)) {
 			event.preventDefault();
 			pick(active);
-		} else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+		} else if (!withSearch && event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
 			const now = performance.now();
 			typed.current = {
 				text:
@@ -206,7 +234,7 @@ export function Dropdown<T extends string>({
 			className={`group/dropdown relative flex min-w-0 items-center gap-1.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
 				compact
 					? 'text-ink-2 enabled:hover:text-ink enabled:hover:bg-surface aria-expanded:bg-surface aria-expanded:text-ink h-8 max-w-60 rounded-sm pr-7 pl-2 shadow-[inset_0_0_0_1px_var(--line-2)]'
-					: 'border-line-2 bg-bg text-ink enabled:hover:border-muted aria-expanded:border-muted h-8 w-full rounded-xs border pr-7 pl-2.5 font-mono text-[12.5px]'
+					: 'border-line-2 bg-bg text-ink enabled:hover:border-muted aria-expanded:border-muted h-8 w-full rounded-xs border pr-7 pl-2.5 text-small'
 			} ${className}`}
 		>
 			{Icon && <Icon size={15} aria-hidden="true" className="flex-none" />}
@@ -247,44 +275,82 @@ export function Dropdown<T extends string>({
 								: { top: 0, left: 0, visibility: 'hidden' }
 						}
 					>
-						{options.map((option, index) => (
-							<div
-								key={option.value}
-								id={`${listId}-${index}`}
-								data-index={index}
-								role="option"
-								aria-selected={index === selected}
-								aria-disabled={option.disabled || undefined}
-								title={option.disabled ? option.reason : undefined}
-								onPointerMove={() => {
-									if (!option.disabled && index !== active) setActive(index);
-								}}
-								onClick={() => {
-									pick(index);
-								}}
-								className={`text-ui flex min-h-8 items-center gap-2 rounded-xs py-1.5 pr-2.5 pl-2 whitespace-nowrap ${
-									option.disabled ? 'text-muted cursor-not-allowed opacity-60' : 'cursor-pointer'
-								} ${index === active && !option.disabled ? 'bg-surface-2' : ''}`}
-							>
-								<span className="grid w-4 flex-none place-items-center">
-									{index === selected ? (
-										<Check
-											size={14}
-											strokeWidth={2.6}
-											className="text-ed-text"
-											aria-hidden="true"
-										/>
-									) : option.disabled && option.reason ? (
-										<Lock size={12} aria-hidden="true" />
-									) : null}
-								</span>
-								{option.leading}
-								<span className={index === selected ? 'font-medium' : ''}>{option.label}</span>
-								{option.detail && (
-									<span className="text-muted ml-auto pl-4 font-mono">{option.detail}</span>
-								)}
+						{withSearch && (
+							<div className="bg-bg sticky -top-1 z-10 -mx-1 -mt-1 mb-1 border-b border-(--line) p-1">
+								<div className="relative">
+									<Search
+										className="text-muted pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2"
+										aria-hidden="true"
+									/>
+									<input
+										ref={searchRef}
+										type="search"
+										value={query}
+										aria-label={label || undefined}
+										aria-controls={listId}
+										aria-activedescendant={active >= 0 ? `${listId}-${active}` : undefined}
+										placeholder={m.search_list()}
+										onChange={(event) => {
+											const next = event.target.value;
+											setQuery(next);
+											const nextWords = searchable(next).split(/\s+/).filter(Boolean);
+											const first = options.findIndex(
+												(option) =>
+													!option.disabled &&
+													nextWords.every((word) =>
+														searchable(`${option.label} ${option.detail ?? ''}`).includes(
+															word,
+														),
+													),
+											);
+											setActive(first);
+										}}
+										className="bg-surface text-ui h-8 w-full rounded-xs pr-2 pl-7 outline-none [&::-webkit-search-cancel-button]:hidden"
+									/>
+								</div>
 							</div>
-						))}
+						)}
+						{visible.length === 0 && (
+							<p className="text-small text-muted px-2 py-1.5">{m.search_nothing()}</p>
+						)}
+						{options.map((option, index) =>
+							!visible.includes(index) ? null : (
+								<div
+									key={option.value}
+									id={`${listId}-${index}`}
+									data-index={index}
+									role="option"
+									aria-selected={index === selected}
+									aria-disabled={option.disabled || undefined}
+									title={option.disabled ? option.reason : undefined}
+									onPointerMove={() => {
+										if (!option.disabled && index !== active) setActive(index);
+									}}
+									onClick={() => {
+										pick(index);
+									}}
+									className={`text-ui flex min-h-8 items-center gap-2 rounded-xs py-1.5 pr-2.5 pl-2 whitespace-nowrap ${
+										option.disabled ? 'text-muted cursor-not-allowed opacity-60' : 'cursor-pointer'
+									} ${index === active && !option.disabled ? 'bg-surface-2' : ''}`}
+								>
+									<span className="grid w-4 flex-none place-items-center">
+										{index === selected ? (
+											<Check
+												size={14}
+												strokeWidth={2.6}
+												className="text-ed-text"
+												aria-hidden="true"
+											/>
+										) : option.disabled && option.reason ? (
+											<Lock size={12} aria-hidden="true" />
+										) : null}
+									</span>
+									{option.leading}
+									<span className={index === selected ? 'font-medium' : ''}>{option.label}</span>
+									{option.detail && <span className="text-muted ml-auto pl-4">{option.detail}</span>}
+								</div>
+							),
+						)}
 					</div>,
 					layerOf(buttonRef.current),
 				)}

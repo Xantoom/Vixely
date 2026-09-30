@@ -1,3 +1,4 @@
+import { TriangleAlert } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useDropHandler } from '@/app/GlobalDrop';
 import { useLeaveGuard } from '@/app/leave-guard';
@@ -12,22 +13,16 @@ import { AdjustPanel, CropPanel } from '@/editors/image/panels';
 import type { ToolId } from '@/editors/registry';
 import { useOpened, useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
+import { Alert } from '@/ui/Alert';
+import { Button } from '@/ui/Button';
 import { frameAt } from './document';
 import { type GifEngine, useGifEngine } from './engine';
 import { FramesPanel } from './FramesPanel';
 import { GifTimeline } from './GifTimeline';
-import { GifStatus, GifViewer } from './GifViewer';
-import {
-	BandsSection,
-	ExportFooter,
-	ExportPanel,
-	GifInfoPanel,
-	GifPresetsPanel,
-	SpeedPanel,
-	TrimPanel,
-} from './panels';
+import { GifStatus, GifViewer, useGifAspect } from './GifViewer';
+import { BandsSection, ExportFooter, ExportPanel, GifInfoPanel, SpeedPanel, TrimPanel } from './panels';
 import { GifResizePanel } from './ResizePanel';
-import { useGifEditor, useGifPictureEditing, useGifUndoState } from './store';
+import { LONG_GIF, useGifEditor, useGifPictureEditing, useGifUndoState } from './store';
 
 /**
  * Space plays and pauses, like everywhere else (Enter still presses a focused button); the arrows
@@ -104,6 +99,7 @@ export function GifEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	const [chosenTool, setTool] = useState<ToolId>(initialTool ?? 'info');
 	const tool = batch && chosenTool !== 'export' ? 'info' : chosenTool;
 	const engine = useGifEngine(opened, batchKey);
+	const aspect = useGifAspect(engine, tool === 'crop');
 	const { source } = engine;
 	// Only a GIF file can keep its frames: not a video, an APNG or a WebP.
 	const isGif = opened?.format === 'gif' && !opened.info?.video;
@@ -128,7 +124,6 @@ export function GifEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 
 	const inspector = () => {
 		if (tool === 'info' || !source) return <GifInfoPanel engine={engine} opened={opened} />;
-		if (tool === 'presets') return <GifPresetsPanel engine={engine} />;
 		if (tool === 'trim') return <TrimPanel engine={engine} />;
 		if (tool === 'crop')
 			return (
@@ -169,62 +164,98 @@ export function GifEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	};
 
 	return (
-		<EditorLayout
-			kind="gif"
-			fileName={batch ? undefined : opened?.file.name}
-			tool={tool}
-			onTool={setTool}
-			tools={batch ? ['info'] : undefined}
-			actions={{
-				canUndo,
-				canRedo,
-				onUndo: undo,
-				onRedo: redo,
-				onExport: source
-					? () => {
-							setTool('export');
-						}
-					: undefined,
-				exportActive: tool === 'export',
-			}}
-			viewer={viewer()}
-			status={source && !batch ? <GifStatus engine={engine} /> : undefined}
-			timeline={
-				source ? (
-					<>
-						{batch && (
-							<BatchList
-								statuses={statuses}
-								locked={running}
-								count={(count) => m.batch_count_gif({ count })}
-								addLabel={m.batch_add_audio()}
-								accept="image/gif,image/png,image/webp,.gif,.apng,.webp"
-							/>
-						)}
-						{!batch && <GifTimeline engine={engine} />}
-					</>
-				) : undefined
+		<>
+			{source && opened?.info?.video && source.duration > LONG_GIF && <LongVideoAlert file={opened.file} />}
+			<EditorLayout
+				kind="gif"
+				ambient={opened?.poster ?? null}
+				fileName={batch ? undefined : opened?.file.name}
+				tool={tool}
+				onTool={setTool}
+				tools={batch ? ['info'] : undefined}
+				actions={{
+					canUndo,
+					canRedo,
+					onUndo: undo,
+					onRedo: redo,
+					onExport: source
+						? () => {
+								setTool('export');
+							}
+						: undefined,
+					exportActive: tool === 'export',
+				}}
+				viewer={viewer()}
+				status={source && !batch ? <GifStatus engine={engine} /> : undefined}
+				aspect={batch ? undefined : aspect}
+				timeline={
+					source ? (
+						<>
+							{batch && (
+								<BatchList
+									statuses={statuses}
+									locked={running}
+									count={(count) => m.batch_count_gif({ count })}
+									addLabel={m.batch_add_audio()}
+									accept="image/gif,image/png,image/webp,.gif,.apng,.webp"
+								/>
+							)}
+							{!batch && <GifTimeline engine={engine} />}
+						</>
+					) : undefined
+				}
+				inspector={inspector()}
+				inspectorFooter={
+					tool === 'export' && source && opened ? (
+						<ExportFooter
+							engine={engine}
+							file={opened.file}
+							isGif={isGif}
+							batch={batch}
+							onRunning={setRunning}
+							onStatus={(id, status) => {
+								setStatuses((previous) => {
+									const next = new Map(previous);
+									if (status) next.set(id, status);
+									else next.delete(id);
+									return next;
+								});
+							}}
+						/>
+					) : undefined
+				}
+			/>
+		</>
+	);
+}
+
+/** Videos warned about already: coming back to one doesn't warn again. */
+const warned = new WeakSet<File>();
+
+/**
+ * A video over a minute long, opened to make a GIF: warned once that the GIF will weigh a lot
+ * and play with difficulty, so the passage kept is best chosen first.
+ */
+function LongVideoAlert({ file }: { file: File }) {
+	const [open, setOpen] = useState(() => !warned.has(file));
+	if (!open) return null;
+	const close = () => {
+		warned.add(file);
+		setOpen(false);
+	};
+	return (
+		<Alert
+			title={m.gif_long_title()}
+			media="gif"
+			icon={<TriangleAlert className="text-ed-text size-5" aria-hidden="true" />}
+			onClose={close}
+			actions={
+				<Button variant="primary" onClick={close}>
+					{m.gif_long_ok()}
+				</Button>
 			}
-			inspector={inspector()}
-			inspectorFooter={
-				tool === 'export' && source && opened ? (
-					<ExportFooter
-						engine={engine}
-						file={opened.file}
-						isGif={isGif}
-						batch={batch}
-						onRunning={setRunning}
-						onStatus={(id, status) => {
-							setStatuses((previous) => {
-								const next = new Map(previous);
-								if (status) next.set(id, status);
-								else next.delete(id);
-								return next;
-							});
-						}}
-					/>
-				) : undefined
-			}
-		/>
+		>
+			{m.gif_long_body()}
+		</Alert>
 	);
 }

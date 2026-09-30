@@ -70,7 +70,7 @@ for (const [name, options] of [
 			await page.waitForTimeout(500);
 			await check(page, `${name} ${path} ${label}`);
 		}
-		const exp = page.locator('header').getByRole('button', { name: 'Exporter', exact: true });
+		const exp = page.getByRole('navigation').getByRole('button', { name: 'Exporter', exact: true });
 		if (await exp.isVisible()) {
 			await exp.click();
 			await page.waitForTimeout(800);

@@ -19,7 +19,7 @@ const analyse = async (bytes: Buffer) => page.evaluate(async (data) => {
 	for (let f = reader.next_frame(); f; f = reader.next_frame()) { frames++; total += f.delay; }
 	return { width: reader.width(), height: reader.height(), frames, ms: Math.round(total) };
 }, Array.from(bytes));
-const status = async () => (await page.locator('[data-status]').innerText()).replace(/\n/g, ' ');
+const status = async () => (await page.locator('div[data-status]').innerText()).replace(/\n/g, ' ');
 const exportNow = async () => {
 	const [download] = await Promise.all([page.waitForEvent('download', { timeout: 120000 }), page.locator('aside + div').getByRole('button').first().click()]);
 	return { name: download.suggestedFilename(), data: readFileSync(await download.path()) };
@@ -63,7 +63,7 @@ await page.locator('#' + (await page.getByText('Frames kept').getAttribute('for'
 await page.getByRole('option', { name: '1 in 2' }).click();
 console.log('1 in 2:', await status());
 
-await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 await page.getByRole('switch', { name: 'Dithering' }).click();
 let out = await exportNow();
 writeFileSync('shots/gif-effects.gif', out.data);
@@ -81,11 +81,11 @@ writeFileSync('shots/gif-alpha.webm', out.data);
 console.log('transparent video', out.name, out.data.length);
 
 // Presets: a Discord emoji is a 128 px square under 256 KB.
-await tool('Formats');
+await tool('Export');
+{ const platform = page.getByRole('button', { name: 'Made for a platform' }); if ((await platform.getAttribute('aria-expanded')) === 'false') await platform.click(); }
 await page.getByRole('button', { name: 'Discord', exact: true }).click();
 await page.getByRole('button', { name: /^Discord Emoji/ }).click();
 console.log('preset:', await status());
-await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
 out = await exportNow();
 console.log('Discord emoji', out.name, out.data.length, JSON.stringify(await analyse(out.data)));
 console.log('errors', errors);

@@ -1,15 +1,18 @@
+import { Plus } from 'lucide-react';
 import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { formatPreciseTime } from '@/lib/format';
 import { usePlayback } from '@/media/playback';
 import { m } from '@/paraglide/messages.js';
 import { useBoxSize } from '@/ui/use-box-size';
-import { gridLines } from './document';
+import { addCue, gridLines } from './document';
 import { FAST_READING, readingSpeed } from './EditBox';
 import { cueLabel } from './labels';
 import { useOrigin } from './project';
+import { hasError } from './quality';
+import { useLineIssues } from './QualityBar';
 import { useSubtitleDoc, useSubtitleEditor } from './store';
 
-const ROW = 28;
+const ROW = 36;
 /** Rows drawn above and below the visible ones, so fast scrolling doesn't show gaps. */
 const OVERSCAN = 8;
 
@@ -33,6 +36,7 @@ export function LineGrid() {
 	const active = useSubtitleEditor((state) => state.active);
 	const select = useSubtitleEditor((state) => state.select);
 	const lines = useMemo(() => gridLines(doc), [doc]);
+	const { issues, label } = useLineIssues();
 	// A translation shows the original line beside the one typed.
 	const origin = useOrigin();
 	const current = useLineAtPlayhead(lines);
@@ -40,15 +44,15 @@ export function LineGrid() {
 	const { width, height } = useBoxSize(scrollRef);
 	const [scrollTop, setScrollTop] = useState(0);
 	const anchorRef = useRef<number | null>(null);
-	// Narrow screens keep the number, the times and the text.
+	// Narrow lists keep the number, the times, the style and the text.
 	const narrow = width > 0 && width < 560;
-	const ass = doc.format === 'ass' && !narrow;
+	const ass = doc.format === 'ass';
 	const pictures = doc.format === 'pgs';
 	const speedShown = !pictures && !narrow;
 	const originShown = origin !== null;
 	const text = originShown ? 'minmax(0,1fr) minmax(0,1fr)' : 'minmax(0,1fr)';
 	const columns = narrow
-		? `40px 84px 84px ${text}`
+		? `40px 84px 84px ${ass ? 'minmax(48px,80px) ' : ''}${text}`
 		: `52px 96px 96px ${speedShown ? '64px ' : ''}${ass ? 'minmax(64px,120px) ' : ''}${text}`;
 
 	const activeIndex = lines.findIndex((line) => line.id === active);
@@ -85,8 +89,8 @@ export function LineGrid() {
 			return;
 		}
 		select([line.id]);
-		// As in Aegisub, the video goes to the line picked, unless it is playing.
-		if (!usePlayback.getState().playing) usePlayback.getState().seek(line.start / 1000);
+		// The video goes to the start of the line picked, every time, playing or not.
+		usePlayback.getState().seek(line.start / 1000);
 	};
 
 	const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -147,6 +151,8 @@ export function LineGrid() {
 					const index = first + offset;
 					const selected = selection.has(line.id);
 					const speed = speedShown ? readingSpeed(line, doc.format) : 0;
+					const found = issues.get(line.id);
+					const flagged = hasError(found) ? found : undefined;
 					return (
 						<div
 							key={line.id}
@@ -156,29 +162,43 @@ export function LineGrid() {
 							onPointerDown={(event) => {
 								if (event.button === 0) pick(index, event);
 							}}
-							className={`border-line/60 absolute inset-x-0 grid cursor-pointer border-b text-[12.5px] ${
-								line.id === active ? 'bg-ed/25' : selected ? 'bg-ed-soft' : 'hover:bg-surface'
+							title={flagged?.map((issue) => label(issue)).join('\n')}
+							className={`border-line/60 absolute inset-x-0 grid cursor-pointer border-b text-ui ${
+								line.id === active
+									? 'bg-ed/25'
+									: selected
+										? 'bg-ed-soft'
+										: flagged
+											? 'bg-[color-mix(in_srgb,var(--danger)_6%,var(--bg))] hover:bg-surface'
+											: 'hover:bg-surface'
 							}`}
 							style={{ top: index * ROW, height: ROW, gridTemplateColumns: columns }}
 						>
 							<span
 								role="gridcell"
-								className={`text-muted tabular flex items-center px-2 font-mono ${
-									index === current ? 'shadow-[inset_3px_0_0_var(--ed)]' : ''
+								className={`tabular flex items-center gap-1 px-2 ${flagged ? 'text-danger font-semibold' : 'text-muted'} ${
+									index === current
+										? 'shadow-[inset_3px_0_0_var(--ed)]'
+										: flagged
+											? 'shadow-[inset_3px_0_0_var(--danger)]'
+											: ''
 								}`}
 							>
 								{index + 1}
+								{flagged && (
+									<span className="sr-only">{flagged.map((issue) => label(issue)).join(', ')}</span>
+								)}
 							</span>
-							<span role="gridcell" className="tabular flex items-center px-2 font-mono">
+							<span role="gridcell" className="tabular flex items-center px-2">
 								{formatPreciseTime(line.start / 1000)}
 							</span>
-							<span role="gridcell" className="tabular flex items-center px-2 font-mono">
+							<span role="gridcell" className="tabular flex items-center px-2">
 								{formatPreciseTime(line.end / 1000)}
 							</span>
 							{speedShown && (
 								<span
 									role="gridcell"
-									className={`tabular flex items-center px-2 font-mono ${
+									className={`tabular flex items-center px-2 ${
 										speed > FAST_READING ? 'text-danger font-semibold' : 'text-muted'
 									}`}
 								>
@@ -206,6 +226,26 @@ export function LineGrid() {
 					);
 				})}
 			</div>
+			{/* Pictures (PGS) come from files; text lines can be written here. */}
+			{!pictures && (
+				<button
+					type="button"
+					onClick={() => {
+						const state = useSubtitleEditor.getState();
+						let created = 0;
+						state.apply((present) => {
+							const result = addCue(present, usePlayback.getState().time * 1000);
+							created = result.id;
+							return result.doc;
+						});
+						state.select([created]);
+					}}
+					className="text-ui text-muted hover:text-ink hover:bg-surface flex w-full items-center gap-2 px-2.5 py-2.5 text-left font-medium transition-colors"
+				>
+					<Plus size={16} aria-hidden="true" />
+					{m.subs_add_line()}
+				</button>
+			)}
 		</div>
 	);
 }

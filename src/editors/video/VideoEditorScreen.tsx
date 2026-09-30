@@ -8,13 +8,13 @@ import { KeptPanel } from '@/editor/KeptPanel';
 import { LayersPanel } from '@/editor/overlays/panels';
 import { isTyping, useEditorShortcuts } from '@/editor/shortcuts';
 import { Timeline } from '@/editor/Timeline';
+import { zoomView } from '@/editor/timeline-view';
 import { Viewer } from '@/editor/Viewer';
-import { ZoomStatus } from '@/editor/ZoomStage';
 import { EDITORS, type ToolId } from '@/editors/registry';
 import { NO_SHAPING, usePlayback } from '@/media/playback';
 import { useOpened, useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
-import { effectiveCrop } from '../image/document';
+import { effectiveCrop, orientedSize } from '../image/document';
 import { AdjustPanel, CropPanel } from '../image/panels';
 import { useSubtitleProject } from '../subtitles/project';
 import { VideoBatchFooter } from './BatchFooter';
@@ -28,9 +28,9 @@ import {
 	VideoBatchPanel,
 	VideoExportPanel,
 } from './ExportPanel';
-import { muxContainer } from './mux';
+import { muxContainer, useHeardSounds } from './mux';
 import { MuxFooter } from './MuxPanel';
-import { OpenIn, VideoAudioPanel, VideoPresetsPanel, VideoSubtitlesPanel } from './panels';
+import { VideoTracksPanel } from './panels';
 import { useVideoDoc, useVideoEditor, useVideoPictureEditing, useVideoUndoState, videoOverlayEditing } from './store';
 import { VideoFades, VideoSpeedPanel } from './TimePanels';
 import { VideoPreview } from './VideoPreview';
@@ -50,7 +50,7 @@ function isSlider(target: EventTarget | null): boolean {
 const SLIDER_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'Home', 'End']);
 
 /**
- * Space plays and pauses, Delete removes the selection, I and O set where the video starts and
+ * Space plays and pauses, Delete removes the passage selected, + and - zoom the timeline and 0 shows it whole, I and O set where the video starts and
  * ends, the arrows move playback, Home and End jump to the edges of the kept video.
  */
 function useVideoShortcuts() {
@@ -73,12 +73,25 @@ function useVideoShortcuts() {
 				case 'Delete':
 				case 'Backspace': {
 					const { selection } = state;
-					if (!selection) return;
-					handled();
-					state.apply((current) => cut(current, selection));
-					state.setSelection(null);
+					if (selection) {
+						handled();
+						state.apply((current) => cut(current, selection));
+						state.setSelection(null);
+					}
 					break;
 				}
+				case '+':
+				case '=':
+				case '-': {
+					// The timeline zooms around the playhead, as with the wheel.
+					handled();
+					state.setView(zoomView(state.view, event.key === '-' ? 1.5 : 1 / 1.5, playback.time));
+					break;
+				}
+				case '0':
+					handled();
+					state.setView({ start: 0, end: doc.duration });
+					break;
 				case 'i':
 				case 'I':
 					handled();
@@ -211,6 +224,7 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	);
 
 	useExportSource(ready ? opened : null, details?.video ?? null);
+	useHeardSounds(ready ? opened.file : null);
 	useCopiedRanges(ready ? opened.file : null, tool === 'export' && !batch);
 	useVideoShortcuts();
 	useEditorShortcuts({ undo, redo });
@@ -225,34 +239,25 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 			);
 		}
 		if (tool === 'info' || !opened) {
-			return (
-				<>
-					<FilePanel opened={opened} />
-					{opened && (
-						<div className="grid gap-2">
-							{playable && <OpenIn kind="gif" />}
-							{opened.info?.audio && <OpenIn kind="audio" />}
-							<OpenIn kind="subtitles" />
-						</div>
-					)}
-				</>
-			);
+			return <FilePanel opened={opened} />;
 		}
 		if (!ready) return <ToolLater kind="video" tool={tool} />;
-		if (tool === 'presets') return <VideoPresetsPanel upright={upright} />;
 		if (tool === 'trim') return <VideoTrimPanel />;
 		if (tool === 'speed') return <VideoSpeedPanel />;
 		if (tool === 'crop') return <CropPanel editing={editing} />;
 		if (tool === 'adjust') return <AdjustPanel editing={editing} />;
 		if (tool === 'layers') return <LayersPanel editing={overlays} textRef={textRef} />;
-		if (tool === 'audio') return <VideoAudioPanel opened={opened} />;
-		if (tool === 'subtitles') return <VideoSubtitlesPanel opened={opened} />;
+		if (tool === 'tracks') return <VideoTracksPanel opened={opened} />;
 		return <ToolLater kind="video" tool={tool} />;
 	};
+
+	// The picture as the preview shows it: whole while cropping, cropped otherwise.
+	const shown = tool === 'crop' ? orientedSize(upright, editing.doc.rotation) : effectiveCrop(editing.doc, upright);
 
 	return (
 		<EditorLayout
 			kind="video"
+			ambient={opened?.poster ?? null}
 			fileName={batch ? undefined : opened?.file.name}
 			tool={tool}
 			onTool={setTool}
@@ -271,9 +276,10 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 						}
 					: undefined
 			}
-			status={
-				opened && playable && !batch ? <ZoomStatus size={effectiveCrop(editing.doc, upright)} /> : undefined
-			}
+			// Zoom lives in the player's bar, under the picture: no bar of its own.
+			status={opened && playable && !batch ? null : undefined}
+			aspect={opened && playable && !batch ? aspectOf(shown) : undefined}
+			player={Boolean(opened && playable && !batch)}
 			viewer={
 				opened && playable ? (
 					<VideoPreview
@@ -307,6 +313,7 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 						onLayer={() => {
 							setTool('layers');
 						}}
+						cutting={tool === 'trim'}
 					/>
 				) : opened ? (
 					<Timeline file={opened.file} info={opened.info} poster={opened.poster} />
@@ -355,4 +362,8 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 			}
 		/>
 	);
+}
+
+function aspectOf(size: { width: number; height: number }): number {
+	return size.width / Math.max(1, size.height);
 }

@@ -1,8 +1,7 @@
-import { Columns2, Scan, ZoomIn, ZoomOut } from 'lucide-react';
+import { Columns2, Scan } from 'lucide-react';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { create } from 'zustand';
 import { m } from '@/paraglide/messages.js';
-import { IconButton } from '@/ui/Button';
 import { useBoxSize } from '@/ui/use-box-size';
 import { wheelIntent } from './wheel';
 
@@ -17,6 +16,8 @@ interface StageZoom {
 	pan: { x: number; y: number };
 	/** Held down by the compare button or the C key: the preview shows the original. */
 	comparing: boolean;
+	/** The stage on screen offers the comparison (not while cropping, where it shows the whole picture). */
+	comparable: boolean;
 	setZoom: (zoom: number | null) => void;
 	zoomBy: (factor: number) => void;
 	setComparing: (comparing: boolean) => void;
@@ -28,6 +29,7 @@ export const useStageZoom = create<StageZoom>()((set, get) => ({
 	fit: 1,
 	pan: { x: 0, y: 0 },
 	comparing: false,
+	comparable: false,
 	setZoom: (zoom) => {
 		set({
 			zoom: zoom === null ? null : Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom)),
@@ -70,7 +72,7 @@ export function ZoomStage({
 }) {
 	const areaRef = useRef<HTMLDivElement>(null);
 	const area = useBoxSize(areaRef);
-	const { zoom, pan, comparing, setComparing } = useStageZoom();
+	const { zoom, pan } = useStageZoom();
 	useZoomShortcuts();
 	const [panning, setPanning] = useState(false);
 	const drag = useRef<{ x: number; y: number; pan: { x: number; y: number } } | null>(null);
@@ -83,6 +85,12 @@ export function ZoomStage({
 	useEffect(() => {
 		useStageZoom.setState({ fit });
 	}, [fit]);
+	useEffect(() => {
+		useStageZoom.setState({ comparable: compare });
+		return () => {
+			useStageZoom.setState({ comparable: false, comparing: false });
+		};
+	}, [compare]);
 	// A new picture starts fitted.
 	useEffect(() => {
 		useStageZoom.setState({ zoom: null, pan: { x: 0, y: 0 } });
@@ -140,7 +148,7 @@ export function ZoomStage({
 	return (
 		<div
 			ref={areaRef}
-			className={`relative size-full touch-none overflow-visible ${zoomed ? (panning ? 'cursor-grabbing' : 'cursor-grab') : ''}`}
+			className={`relative size-full touch-none [overflow-clip-margin:10px] [overflow:clip] ${zoomed ? (panning ? 'cursor-grabbing' : 'cursor-grab') : ''}`}
 			onPointerDown={(event) => {
 				if (!zoomed || event.button > 1) return;
 				if (event.target instanceof Element && event.target.closest('[data-no-pan]')) return;
@@ -172,38 +180,80 @@ export function ZoomStage({
 					{children(scale)}
 				</div>
 			)}
-			{compare && (
-				<button
-					type="button"
-					aria-label={m.compare_hold()}
-					title={m.compare_hold()}
-					aria-pressed={comparing}
-					onPointerDown={(event) => {
-						event.stopPropagation();
-						setComparing(true);
-					}}
-					onPointerUp={() => {
-						setComparing(false);
-					}}
-					onPointerLeave={() => {
-						setComparing(false);
-					}}
-					onKeyDown={(event) => {
-						if (event.key === ' ' || event.key === 'Enter') setComparing(true);
-					}}
-					onKeyUp={() => {
-						setComparing(false);
-					}}
-					className="ease-spring bg-bg/85 aria-pressed:bg-ed aria-pressed:text-ed-ink absolute -top-2 -right-2 z-10 grid size-11 place-items-center rounded-full shadow-[0_1px_2px_rgb(0_0_0/0.08),0_8px_24px_-8px_rgb(0_0_0/0.25)] backdrop-blur-md transition-transform duration-200 select-none hover:scale-105 aria-pressed:scale-95 md:-top-4 md:-right-4"
-				>
-					<Columns2 className="size-5" aria-hidden="true" />
-				</button>
-			)}
+			{compare && <CompareButton className="absolute top-2 right-2 z-10 md:hidden" onPicture />}
 		</div>
 	);
 }
 
-/** Zoom controls and the picture's size, for the status bar under the preview. */
+/**
+ * Shows the original while held, by pointer or keyboard. In the stage's bar on larger screens;
+ * on a phone, on the picture's corner, where the thumb is.
+ */
+export function CompareButton({ className = '', onPicture = false }: { className?: string; onPicture?: boolean }) {
+	const comparing = useStageZoom((state) => state.comparing);
+	const setComparing = useStageZoom((state) => state.setComparing);
+	return (
+		<button
+			type="button"
+			aria-label={m.compare_hold()}
+			title={m.compare_hold()}
+			aria-pressed={comparing}
+			onPointerDown={(event) => {
+				event.stopPropagation();
+				setComparing(true);
+			}}
+			onPointerUp={() => {
+				setComparing(false);
+			}}
+			onPointerLeave={() => {
+				setComparing(false);
+			}}
+			onKeyDown={(event) => {
+				if (event.key === ' ' || event.key === 'Enter') setComparing(true);
+			}}
+			onKeyUp={() => {
+				setComparing(false);
+			}}
+			className={`aria-pressed:bg-ed aria-pressed:text-ed-ink flex items-center gap-2 transition-colors duration-150 select-none ${
+				onPicture
+					? 'size-9 justify-center rounded-full bg-black/55 text-white backdrop-blur-md'
+					: 'text-ui text-ink-2 hover:bg-surface-2 h-9 rounded-sm px-3 font-medium'
+			} ${className}`}
+		>
+			<Columns2 className="size-[1.1rem]" aria-hidden="true" />
+			{!onPicture && <span aria-hidden="true">{m.compare_original()}</span>}
+		</button>
+	);
+}
+
+/**
+ * The zoom as a percentage, which brings the picture back to fit when it was zoomed. Zooming
+ * itself is done with the wheel, a pinch, or + and − on the keyboard.
+ */
+export function ZoomReset() {
+	const zoom = useStageZoom((state) => state.zoom);
+	const fit = useStageZoom((state) => state.fit);
+	const setZoom = useStageZoom((state) => state.setZoom);
+	const percent = Math.round((zoom ?? fit) * 100);
+	const zoomed = zoom !== null;
+	return (
+		<button
+			type="button"
+			disabled={!zoomed}
+			title={zoomed ? m.zoom_reset() : m.zoom_hint()}
+			aria-label={zoomed ? `${m.zoom_reset()} (${percent} %)` : `${percent} %`}
+			onClick={() => {
+				setZoom(null);
+			}}
+			className="text-small tabular text-muted enabled:text-ink enabled:hover:bg-surface flex h-9 items-center gap-1.5 rounded-sm px-2.5 font-medium transition-colors disabled:cursor-default"
+		>
+			{zoomed && <Scan className="size-4" aria-hidden="true" />}
+			{percent} %
+		</button>
+	);
+}
+
+/** The picture's size, then the comparison and the zoom, for the bar under the stage. */
 export function ZoomStatus({
 	size,
 	children,
@@ -212,56 +262,19 @@ export function ZoomStatus({
 	/** More about the output, after its size. */
 	children?: ReactNode;
 }) {
-	const { zoom, fit, setZoom, zoomBy } = useStageZoom();
-	const percent = Math.round((zoom ?? fit) * 100);
+	const comparable = useStageZoom((state) => state.comparable);
 	return (
 		<>
-			<IconButton
-				label={m.zoom_out()}
-				onClick={() => {
-					zoomBy(0.8);
-				}}
-				disabled={(zoom ?? fit) <= MIN_ZOOM}
-			>
-				<ZoomOut className="size-5" />
-			</IconButton>
-			<button
-				type="button"
-				title={m.zoom_fit()}
-				onClick={() => {
-					setZoom(null);
-				}}
-				className="text-ui hover:bg-surface tabular min-w-16 rounded-xs px-1 py-1.5 text-center font-mono font-medium transition-colors"
-			>
-				{percent} %
-			</button>
-			<IconButton
-				label={m.zoom_in()}
-				onClick={() => {
-					zoomBy(1.25);
-				}}
-				disabled={(zoom ?? fit) >= MAX_ZOOM}
-			>
-				<ZoomIn className="size-5" />
-			</IconButton>
-			<IconButton
-				label={m.zoom_fit()}
-				onClick={() => {
-					setZoom(null);
-				}}
-				disabled={zoom === null}
-			>
-				<Scan className="size-5" />
-			</IconButton>
 			{size && (
-				<>
-					<span className="bg-line mx-2 h-6 w-px" aria-hidden="true" />
-					<span className="text-small text-muted tabular font-mono">
-						{size.width} × {size.height} px
-					</span>
-				</>
+				<span className="text-small text-muted tabular">
+					{size.width} × {size.height} px
+				</span>
 			)}
-			{children && <span className="text-small text-muted tabular ml-5 flex gap-5 font-mono">{children}</span>}
+			{children && <span className="text-small text-muted tabular ml-4 flex gap-4">{children}</span>}
+			<span className="ml-auto flex items-center gap-1">
+				{comparable && <CompareButton />}
+				<ZoomReset />
+			</span>
 		</>
 	);
 }

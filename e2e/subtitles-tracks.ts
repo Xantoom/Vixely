@@ -27,7 +27,7 @@ const tool = async (name: string) => {
 	if ((await button.getAttribute('aria-pressed')) !== 'true') await button.click();
 };
 const exportAs = async (format: RegExp) => {
-	await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click();
+	await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 	await aside.getByRole('radio', { name: format }).click();
 	const [download] = await Promise.all([
 		page.waitForEvent('download'),
@@ -43,11 +43,11 @@ const open = async (path: string) => {
 	return Date.now() - t0;
 };
 const seekTo = async (seconds: number) => {
-	// Clicked on the position bar where that moment is.
-	const bar = page.getByRole('slider', { name: 'Playhead', exact: true });
-	const length = Number(await bar.getAttribute('aria-valuemax'));
-	const box = (await bar.boundingBox())!;
-	await page.mouse.click(box.x + (box.width * seconds) / length, box.y + box.height / 2);
+	// The subtitle editor has one playback bar, without a position bar: playback is moved directly.
+	await page.evaluate(async (time) => {
+		const { usePlayback } = await import('/src/media/playback.ts');
+		usePlayback.getState().seek(time);
+	}, seconds);
 	await page.waitForTimeout(900);
 };
 

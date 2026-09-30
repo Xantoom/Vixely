@@ -1,14 +1,15 @@
 import { Scissors } from 'lucide-react';
-import { type ReactNode, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useId, useMemo, useRef, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { KeptPanel } from '@/editor/KeptPanel';
 import { Group, ResetButton } from '@/editor/panel-parts';
-import { decimal, formatDb, formatPreciseTime, signedDb } from '@/lib/format';
+import { decimal, formatDb, signedDb } from '@/lib/format';
 import { EQ_BANDS, EQ_PRESET_IDS, EQ_PRESETS, EQ_RANGE, type EqPresetId, FLAT_EQ, responseAt } from '@/media/sound';
 import { PITCH_RANGE } from '@/media/stretch';
 import { m } from '@/paraglide/messages.js';
 import { getLocale } from '@/paraglide/runtime.js';
 import { Button } from '@/ui/Button';
+import { Dropdown } from '@/ui/Dropdown';
 import { OptionList, Slider } from '@/ui/fields';
 import {
 	AUDIO_SPEEDS,
@@ -29,7 +30,7 @@ import { useAudioDoc, useAudioEditor } from './store';
 function Section({ title, children }: { title: string; children: ReactNode }) {
 	return (
 		<section className="grid gap-3.5">
-			<h3 className="text-ui text-ink-2 font-semibold">{title}</h3>
+			<h3 className="text-ui font-semibold">{title}</h3>
 			{children}
 		</section>
 	);
@@ -39,7 +40,7 @@ function ValueRow({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
 			<span className="text-ui text-ink-2">{label}</span>
-			<span className="tabular font-mono text-[12.5px]">{value}</span>
+			<span className="tabular text-small">{value}</span>
 		</div>
 	);
 }
@@ -251,7 +252,7 @@ export function VolumePanel({ engine }: { engine: AudioEngine }) {
 				)}
 			</div>
 
-			<Section title={m.fades_title()}>
+			<Group title={m.fades_title()} defaultOpen={false}>
 				<Slider
 					label={m.fade_in()}
 					value={Math.min(doc.fadeIn, fadeMax)}
@@ -276,7 +277,7 @@ export function VolumePanel({ engine }: { engine: AudioEngine }) {
 					}}
 					onEnd={settle}
 				/>
-			</Section>
+			</Group>
 		</>
 	);
 }
@@ -356,15 +357,11 @@ export function AudioSpeedPanel() {
 				}}
 				onEnd={settle}
 			/>
-			<p className="text-ui text-ink-2 flex justify-between">
-				<span>{m.audio_final_length()}</span>
-				<span className="tabular text-ink font-mono text-[13px]">{formatPreciseTime(audioLength(doc))}</span>
-			</p>
 		</>
 	);
 }
 
-const EQ_PRESET_LABELS: Record<EqPresetId, () => string> = {
+export const EQ_PRESET_LABELS: Record<EqPresetId, () => string> = {
 	flat: () => m.eq_flat(),
 	voice: () => m.eq_voice(),
 	bass: () => m.eq_bass(),
@@ -403,7 +400,7 @@ function snapDb(db: number): number {
  * The equalizer as a curve across the audible range, with a point on each band: dragged up or
  * down, or moved with the arrows once focused (Page keys by 3 dB, Home back to 0).
  */
-function EqCurve({
+export function EqCurve({
 	eq,
 	onPreview,
 	onSettle,
@@ -465,6 +462,16 @@ function EqCurve({
 						vectorEffect="non-scaling-stroke"
 					/>
 				</svg>
+				{[EQ_RANGE.max, EQ_RANGE.min].map((db) => (
+					<span
+						key={db}
+						aria-hidden="true"
+						className="text-caption tabular text-muted pointer-events-none absolute left-1.5 -translate-y-1/2 leading-none"
+						style={{ top: `${(curveY(db) / CURVE.height) * 100}%` }}
+					>
+						{db > 0 ? `+${db} dB` : `−${-db} dB`}
+					</span>
+				))}
 				{EQ_BANDS.map((band, index) => {
 					const gain = eq[index] ?? 0;
 					const set = (value: number) => {
@@ -518,7 +525,7 @@ function EqCurve({
 							}}
 						>
 							<span
-								className={`text-caption tabular bg-ink text-bg pointer-events-none absolute bottom-full left-1/2 mb-1.5 -translate-x-1/2 rounded-xs px-1.5 py-0.5 font-mono whitespace-nowrap transition-opacity ${active === index ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100'}`}
+								className={`text-caption tabular bg-ink text-bg pointer-events-none absolute bottom-full left-1/2 mb-1.5 -translate-x-1/2 rounded-xs px-1.5 py-0.5 whitespace-nowrap transition-opacity ${active === index ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100'}`}
 							>
 								{formatDb(gain)}
 							</span>
@@ -526,7 +533,7 @@ function EqCurve({
 					);
 				})}
 			</div>
-			<div className="text-caption text-muted tabular relative h-4 font-mono" aria-hidden="true">
+			<div className="text-caption text-muted tabular relative h-4" aria-hidden="true">
 				{EQ_BANDS.map((band) => (
 					<span
 						key={band.frequency}
@@ -541,6 +548,8 @@ function EqCurve({
 	);
 }
 
+const CUSTOM_EQ = 'custom';
+
 /** Noise reduction and the equalizer: what changes the sound itself rather than its volume. */
 export function SoundPanel() {
 	const doc = useAudioDoc();
@@ -548,6 +557,7 @@ export function SoundPanel() {
 	const preview = useAudioEditor((state) => state.preview);
 	const settle = useAudioEditor((state) => state.settle);
 	const chosen = EQ_PRESET_IDS.find((id) => EQ_PRESETS[id].every((gain, index) => gain === doc.eq[index]));
+	const presetsId = useId();
 	return (
 		<>
 			<PanelTitle
@@ -579,22 +589,23 @@ export function SoundPanel() {
 			</Section>
 
 			<Section title={m.eq_title()}>
-				<div role="radiogroup" aria-label={m.eq_presets()} className="flex flex-wrap gap-1.5">
-					{EQ_PRESET_IDS.map((id) => (
-						<button
-							key={id}
-							type="button"
-							role="radio"
-							aria-checked={chosen === id}
-							onClick={() => {
-								apply((current) => ({ ...current, eq: EQ_PRESETS[id] }));
-							}}
-							className="bg-surface hover:bg-surface-2 aria-checked:bg-ed-soft aria-checked:text-ed-text aria-checked:shadow-[inset_0_0_0_1.5px_var(--ed)] text-ui rounded-full px-3 py-1.5 font-medium transition-colors"
-						>
-							{EQ_PRESET_LABELS[id]()}
-						</button>
-					))}
-				</div>
+				<label htmlFor={presetsId} className="sr-only">
+					{m.eq_presets()}
+				</label>
+				<Dropdown
+					id={presetsId}
+					label={m.eq_presets()}
+					value={chosen ?? CUSTOM_EQ}
+					options={[
+						...EQ_PRESET_IDS.map((id) => ({ value: id, label: EQ_PRESET_LABELS[id]() })),
+						// Bands moved by hand: shown as such until a preset is chosen again.
+						...(chosen ? [] : [{ value: CUSTOM_EQ, label: m.eq_custom() }]),
+					]}
+					onChange={(value) => {
+						const preset = EQ_PRESET_IDS.find((id) => id === value);
+						if (preset) apply((current) => ({ ...current, eq: EQ_PRESETS[preset] }));
+					}}
+				/>
 				<EqCurve
 					eq={doc.eq}
 					onPreview={(band, gain) => {
