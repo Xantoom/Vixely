@@ -31,7 +31,15 @@ export function errorMessage(error: OpenError): string {
  * never has to know in advance which editor to pick.
  */
 /** `prefer` is the editor the zone sits in: files that fit it open there, a video's audio included. */
-export function DropZone({ compact = false, prefer }: { compact?: boolean; prefer?: MediaKind }) {
+export function DropZone({
+	compact = false,
+	large = false,
+	prefer,
+}: {
+	compact?: boolean;
+	large?: boolean;
+	prefer?: MediaKind;
+}) {
 	const open = useSession((state) => state.open);
 	const reading = useSession((state) => state.reading);
 	const error = useSession((state) => state.error);
@@ -76,7 +84,7 @@ export function DropZone({ compact = false, prefer }: { compact?: boolean; prefe
 					}
 				}}
 				className={`group grid w-full place-content-center justify-items-center gap-3 rounded-md border-[1.5px] border-dashed px-5 text-center transition-colors duration-150 ${
-					compact ? 'min-h-56 py-8' : 'min-h-60 py-8'
+					large ? 'min-h-[clamp(20rem,52vh,34rem)] py-12' : compact ? 'min-h-56 py-8' : 'min-h-60 py-8'
 				} border-line-2 bg-surface hover:border-ink-2 hover:bg-bg`}
 			>
 				<span className="flex gap-1.5" aria-hidden="true">

@@ -34,19 +34,13 @@ function SectionHeader({ id, title, lede }: { id: string; title: string; lede?: 
 function Hero() {
 	const copy = homeCopy();
 	return (
-		<section className="grid gap-6 pt-[clamp(1.5rem,4vw,3rem)] max-md:pt-6" aria-labelledby="start">
-			<header className="grid justify-items-center gap-2 text-center">
-				<h1
-					id="start"
-					className="font-display max-w-[20ch] text-[clamp(2rem,4.6vw,3.5rem)] leading-[1.02] font-bold tracking-[-0.025em] text-balance"
-				>
-					<span className="pointer-coarse:hidden">{copy.title}</span>
-					<span className="pointer-fine:hidden">{copy.touchTitle}</span>
-				</h1>
-				<p className="text-ink-2 max-w-[46ch] text-[clamp(1rem,1.4vw,1.1875rem)] leading-snug">{copy.lede}</p>
-			</header>
-			<div className="mx-auto w-full max-w-[44rem]">
-				<DropZone />
+		<section className="grid gap-6 pt-[clamp(1.5rem,3vw,2.5rem)] max-md:pt-4" aria-labelledby="start">
+			<h1 id="start" className="sr-only">
+				<span className="pointer-coarse:hidden">{copy.title}</span>
+				<span className="pointer-fine:hidden">{copy.touchTitle}</span>
+			</h1>
+			<div className="mx-auto w-full max-w-[60rem]">
+				<DropZone large />
 			</div>
 		</section>
 	);
