@@ -60,11 +60,17 @@ export function ZoomStage({
 	width,
 	height,
 	compare = false,
+	margin = 16,
 	children,
 }: {
 	/** Size of the picture shown, in its own pixels. */
 	width: number;
 	height: number;
+	/**
+	 * Room left around the fitted picture on larger screens, in CSS pixels: for the handles of a
+	 * crop frame on its edges. Zoomed in, the picture uses the whole stage whatever this is.
+	 */
+	margin?: number;
 	/** Offers the button showing the original while held. */
 	compare?: boolean;
 	/** Draws the picture at the given scale; it fills a box of the scaled size. */
@@ -77,7 +83,12 @@ export function ZoomStage({
 	const [panning, setPanning] = useState(false);
 	const drag = useRef<{ x: number; y: number; pan: { x: number; y: number } } | null>(null);
 
-	const fit = area.width && area.height && width && height ? Math.min(area.width / width, area.height / height) : 0;
+	// A phone's picture spans the screen's width: no room is left around it there.
+	const room = matchMedia('(min-width: 48rem)').matches ? margin * 2 : 0;
+	const fit =
+		area.width > room && area.height > room && width && height
+			? Math.min((area.width - room) / width, (area.height - room) / height)
+			: 0;
 	const scale = zoom ?? fit;
 	const display = { width: Math.round(width * scale), height: Math.round(height * scale) };
 	const zoomed = zoom !== null && zoom > fit * 1.001;
@@ -148,7 +159,7 @@ export function ZoomStage({
 	return (
 		<div
 			ref={areaRef}
-			className={`relative size-full touch-none [overflow-clip-margin:10px] [overflow:clip] ${zoomed ? (panning ? 'cursor-grabbing' : 'cursor-grab') : ''}`}
+			className={`relative size-full touch-none [overflow:clip] ${zoomed ? (panning ? 'cursor-grabbing' : 'cursor-grab') : ''}`}
 			onPointerDown={(event) => {
 				if (!zoomed || event.button > 1) return;
 				if (event.target instanceof Element && event.target.closest('[data-no-pan]')) return;

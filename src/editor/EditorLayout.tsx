@@ -563,7 +563,9 @@ export function EditorLayout({
 								{/* A box with a definite size, so the media can be contained in it whatever its resolution. */}
 								<div className="relative min-h-0 flex-1">
 									<div
-										className={`absolute flex items-center justify-center md:inset-x-4 md:top-4 ${status ? 'md:bottom-1' : 'md:bottom-4'} max-md:inset-0`}
+										// The whole stage: the picture leaves itself the room it needs, and zoomed in
+										// it reaches every edge.
+										className="absolute inset-0 flex items-center justify-center"
 									>
 										{/* Its pictures wait for the editor to show first. */}
 										{settled && viewer}

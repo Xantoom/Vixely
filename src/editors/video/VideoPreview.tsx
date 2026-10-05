@@ -311,7 +311,7 @@ export function VideoPreview({
 
 	return (
 		<div className="relative size-full min-h-0">
-			<ZoomStage width={region.width} height={region.height} compare={!cropping}>
+			<ZoomStage width={region.width} height={region.height} compare={!cropping} margin={cropping ? 16 : 0}>
 				{(scale) => (
 					<EditedPicture
 						region={region}

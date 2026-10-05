@@ -158,7 +158,7 @@ export function GifViewer({
 	const size = { width: source?.width ?? 1, height: source?.height ?? 1 };
 	const layout = frameLayout(cropping ? croppingDoc(doc, size) : doc, size, null);
 	return (
-		<ZoomStage width={layout.width} height={layout.height} compare={!cropping}>
+		<ZoomStage width={layout.width} height={layout.height} compare={!cropping} margin={cropping ? 16 : 0}>
 			{(scale) => (
 				<GifPicture
 					engine={engine}
