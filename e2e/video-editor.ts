@@ -16,7 +16,8 @@ page.on('console', (m) => {
 mkdirSync('shots', { recursive: true });
 const tools = page.locator('nav[aria-label="Editing tools"]');
 const aside = page.locator('aside');
-const time = async () => (await page.locator('section[aria-label="Preview"] .tabular').first().innerText()).split(' / ')[0];
+// The time shown is the output's: past a removed passage, it runs on from where the cut starts.
+const time = async () => (await page.getByRole('timer', { name: 'Playhead' }).first().innerText()).split(' / ')[0];
 const open = async (path: string) => {
 	await page.goto(`${BASE}/video`);
 	await page.setInputFiles('input[type=file]', path);
@@ -89,7 +90,7 @@ await tools.getByRole('button', { name: 'Crop' }).click();
 await aside.getByRole('radio', { name: /16:9/ }).click();
 await aside.getByLabel('Width').fill('960');
 await aside.getByLabel('Width').press('Enter');
-await page.getByRole('button', { name: 'Open this picture in the image editor' }).click();
+await page.getByRole('button', { name: 'Open in the image editor' }).click();
 await page.waitForURL('**/image**', { timeout: 20000 });
 await page.waitForTimeout(1500);
 await tools.getByRole('button', { name: 'Crop' }).click();
@@ -113,7 +114,7 @@ await page.keyboard.press('Space');
 await page.waitForTimeout(3000);
 console.log('3 s from 0:01 past a 0:03 → 0:08 cut, silent:', await time());
 await page.waitForTimeout(3500);
-console.log('at the end:', await time(), '| still playing:', (await page.getByRole('button', { name: 'Pause' }).count()) > 0);
+console.log('at the end:', await time(), '| still playing:', (await page.getByRole('button', { name: 'Pause', exact: true }).count()) > 0);
 
 // 6. Phone width.
 await page.setViewportSize({ width: 390, height: 844 });

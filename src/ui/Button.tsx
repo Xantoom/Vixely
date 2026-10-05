@@ -32,19 +32,23 @@ export function Button({
 	);
 }
 
-/** Square button for a single icon. The label is announced and shown as a tooltip. */
+/**
+ * Square button for a single icon. The label is announced and shown as a tooltip, unless `tip` is
+ * false: beside words that already say it.
+ */
 export function IconButton({
 	label,
+	tip = true,
 	children,
 	className = '',
 	type = 'button',
 	...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; children: ReactNode }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; tip?: boolean; children: ReactNode }) {
 	return (
 		<button
 			type={type}
 			aria-label={label}
-			title={label}
+			title={tip ? label : undefined}
 			className={`text-muted enabled:hover:bg-surface enabled:hover:text-ink aria-pressed:bg-ed-soft aria-pressed:text-ed-text grid size-10 flex-none place-items-center rounded-sm transition-colors duration-150 disabled:opacity-40 ${className}`}
 			{...props}
 		>

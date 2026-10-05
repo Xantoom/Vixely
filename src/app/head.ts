@@ -19,7 +19,7 @@ function setMeta(selector: string, attribute: 'name' | 'property', key: string, 
 export function usePageHead(title: string | null, description?: string) {
 	const locale = useLocale();
 	useEffect(() => {
-		const full = title ? `${title} — Vixely` : `Vixely — ${m.home_title()}`;
+		const full = title ? `${title} | Vixely` : `Vixely | ${m.home_title()}`;
 		const text = description ?? m.site_description();
 		document.title = full;
 		setMeta('meta[name="description"]', 'name', 'description', text);

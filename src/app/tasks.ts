@@ -125,7 +125,7 @@ export const TASKS: Task[] = [
 	{
 		slug: 'normalize-audio',
 		editor: 'audio',
-		tool: 'volume',
+		tool: 'sound',
 		title: () => m.tool_normalize_audio(),
 		description: () => m.tool_normalize_audio_desc(),
 	},

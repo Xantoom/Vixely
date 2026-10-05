@@ -20,11 +20,12 @@ import { m } from '@/paraglide/messages.js';
 import { getLocale } from '@/paraglide/runtime.js';
 import { PanelTitle } from './EditorLayout';
 
-function Row({ label, value }: { label: string; value: string }) {
+/** A fact of a list: the name quiet and smaller, the value in full ink, told apart at a glance. */
+export function Row({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
-			<dt className="text-muted">{label}</dt>
-			<dd className="tabular font-medium">{value}</dd>
+			<dt className="text-small text-muted">{label}</dt>
+			<dd className="text-ui text-ink tabular text-right font-medium">{value}</dd>
 		</div>
 	);
 }
@@ -39,7 +40,7 @@ function Facts({ title, aside, children }: { title?: string; aside?: ReactNode; 
 					{aside}
 				</div>
 			)}
-			<dl className="text-ui grid gap-2">{children}</dl>
+			<dl className="grid gap-2">{children}</dl>
 		</section>
 	);
 }
@@ -84,8 +85,8 @@ function Playback({ supported }: { supported: boolean }) {
 function TextRow({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] items-baseline gap-3">
-			<dt className="text-muted">{label}</dt>
-			<dd className="text-right font-medium break-words">{value}</dd>
+			<dt className="text-small text-muted">{label}</dt>
+			<dd className="text-ui text-ink text-right font-medium break-words">{value}</dd>
 		</div>
 	);
 }

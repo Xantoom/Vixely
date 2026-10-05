@@ -29,6 +29,10 @@ export interface EditorSearch {
 	tool?: ToolId;
 }
 
+/** Tools merged into others: links to them open the one they joined. */
+const MERGED: Partial<Record<string, ToolId>> = { speed: 'trim', volume: 'sound' };
+
 export function validateEditorSearch(search: Record<string, unknown>): EditorSearch {
-	return isToolId(search.tool) ? { tool: search.tool } : {};
+	const tool = typeof search.tool === 'string' ? (MERGED[search.tool] ?? search.tool) : search.tool;
+	return isToolId(tool) ? { tool } : {};
 }

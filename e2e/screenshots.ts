@@ -84,7 +84,7 @@ export const SHOTS: Record<string, Shot> = {
 	},
 	'audio-volume': async (page) => {
 		await open(page, '/audio', 'sunset.mp3');
-		await tool(page, 'Volume');
+		await tool(page, t('Sound', 'Son'));
 	},
 	'audio-sound': async (page) => {
 		await open(page, '/audio', 'sunset.mp3');

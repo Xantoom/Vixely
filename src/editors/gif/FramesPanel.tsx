@@ -22,10 +22,6 @@ import {
 import type { GifEngine } from './engine';
 import { useGifDoc, useGifEditor } from './store';
 
-/** A row doing something with the frame shown, named in full. */
-const FRAME_ACTION =
-	'text-ui text-ink-2 hover:bg-surface hover:text-ink -mx-2 flex items-center gap-2.5 rounded-sm px-2 py-1.5 text-left font-medium transition-colors';
-
 /** Side of a frame's thumbnail, in CSS pixels. */
 const THUMB = 88;
 
@@ -271,8 +267,8 @@ export function FramesPanel({ engine, fileName }: { engine: GifEngine; fileName:
 					}
 				>
 					{ownFrames && key !== null && (
-						<div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
-							<label className="grid gap-1.5">
+						<div className="flex flex-wrap items-end gap-2">
+							<label className="grid min-w-28 flex-1 gap-1.5">
 								<span className="text-ui text-ink-2">{m.frame_duration()}</span>
 								<NumberField
 									value={Math.round(current.duration * 1000)}
@@ -319,44 +315,46 @@ export function FramesPanel({ engine, fileName }: { engine: GifEngine; fileName:
 								</IconButton>
 							</>
 						)}
-						<IconButton label={m.frame_delete()} onClick={remove} disabled={chosen.length >= keys.length}>
+						{!several && (
+							<>
+								<IconButton
+									label={m.frame_save()}
+									onClick={() => {
+										void framePng(engine, current, index, fileName).then(async (file) => {
+											if (file) await saveFile(file, file.name);
+										});
+									}}
+								>
+									<Download className="size-5" />
+								</IconButton>
+								<IconButton
+									label={m.frame_edit()}
+									onClick={() => {
+										setPlaying(false);
+										void framePng(engine, current, index, fileName).then(async (file) => {
+											if (!file) return;
+											const kind = await open([file], 'image');
+											if (kind) await navigate({ to: EDITORS[kind].path });
+										});
+									}}
+								>
+									<ImageUp className="size-5" />
+								</IconButton>
+							</>
+						)}
+						<IconButton
+							label={m.frame_delete()}
+							onClick={remove}
+							disabled={chosen.length >= keys.length}
+							className="ml-auto"
+						>
 							<Trash2 className="size-5" />
 						</IconButton>
 					</div>
-					{!several && (
-						<div className="grid gap-0.5">
-							<button
-								type="button"
-								onClick={() => {
-									void framePng(engine, current, index, fileName).then(async (file) => {
-										if (file) await saveFile(file, file.name);
-									});
-								}}
-								className={FRAME_ACTION}
-							>
-								<Download className="size-[1.1rem]" aria-hidden="true" />
-								{m.frame_save()}
-							</button>
-							<button
-								type="button"
-								onClick={() => {
-									setPlaying(false);
-									void framePng(engine, current, index, fileName).then(async (file) => {
-										if (!file) return;
-										const kind = await open([file], 'image');
-										if (kind) await navigate({ to: EDITORS[kind].path });
-									});
-								}}
-								className={FRAME_ACTION}
-							>
-								<ImageUp className="size-[1.1rem]" aria-hidden="true" />
-								{m.frame_edit()}
-							</button>
-						</div>
-					)}
 				</Section>
 			)}
-			<div className="grid grid-cols-2 gap-1.5">
+			{/* Side by side while both fit, whatever the language; one under the other otherwise. */}
+			<div className="flex flex-wrap gap-1.5">
 				{frames.length > 1 && (
 					<Button
 						aria-pressed={picking}
@@ -364,7 +362,7 @@ export function FramesPanel({ engine, fileName }: { engine: GifEngine; fileName:
 							setPicking(!picking);
 							if (picking) setSelected([]);
 						}}
-						className="aria-pressed:bg-ed-soft aria-pressed:text-ed-text h-8 px-3 aria-pressed:shadow-[inset_0_0_0_1.5px_var(--ed)]"
+						className="aria-pressed:bg-ed-soft aria-pressed:text-ed-text h-8 flex-1 px-3 whitespace-nowrap aria-pressed:shadow-[inset_0_0_0_1.5px_var(--ed)]"
 					>
 						<ListChecks className="size-4" aria-hidden="true" />
 						{m.frames_select()}
@@ -375,7 +373,7 @@ export function FramesPanel({ engine, fileName }: { engine: GifEngine; fileName:
 						onClick={() => {
 							setSelected(keys);
 						}}
-						className="col-span-2 h-8 px-3"
+						className="h-8 basis-full px-3"
 					>
 						{m.frames_select_all()}
 					</Button>
@@ -385,7 +383,7 @@ export function FramesPanel({ engine, fileName }: { engine: GifEngine; fileName:
 						onClick={() => {
 							apply((doc) => ({ ...doc, removed: [] }));
 						}}
-						className="col-span-2 h-8 px-3"
+						className="h-8 basis-full px-3"
 					>
 						<Undo2 className="size-4" aria-hidden="true" />
 						{m.frames_restore({ count: doc.removed.length })}
@@ -398,7 +396,7 @@ export function FramesPanel({ engine, fileName }: { engine: GifEngine; fileName:
 							onClick={() => {
 								pickerRef.current?.click();
 							}}
-							className="order-first h-8 px-3"
+							className="order-first h-8 flex-1 px-3 whitespace-nowrap"
 						>
 							<ImagePlus className="size-4" aria-hidden="true" />
 							{m.frames_add()}

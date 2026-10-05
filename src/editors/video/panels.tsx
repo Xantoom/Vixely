@@ -89,7 +89,6 @@ export function TrackSummary({ opened }: { opened: OpenedFile }) {
 					);
 				})}
 			</ul>
-			<p className="text-small text-muted">{m.tracks_summary_hint()}</p>
 		</Section>
 	);
 }

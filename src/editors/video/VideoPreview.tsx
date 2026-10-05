@@ -266,6 +266,7 @@ export function VideoPreview({
 	cropping,
 	overlays,
 	onEditText,
+	subtitles,
 }: {
 	opened: OpenedFile;
 	editing: PictureEditing;
@@ -273,18 +274,15 @@ export function VideoPreview({
 	/** Given while the text or sticker tool is open. */
 	overlays?: OverlayEditing;
 	onEditText?: () => void;
+	/** Whether subtitles were turned on or off in the player's bar; null until then. */
+	subtitles: boolean | null;
 }) {
 	const video = usePlayback((state) => state.details?.video ?? null);
 	const projectReady = useSubtitleProject((state) => state.file === opened.file && state.status === 'ready');
 	const fonts = useSubtitleProject((state) => state.fonts);
-	const tracks = useProjectTracks();
-	const current = useSubtitleProject((state) => state.current);
 	const doc = useSubtitleDoc();
-	const [choice, setChoice] = useState<boolean | null>(null);
 	const comparing = useStageZoom((state) => state.comparing);
-	const currentTrack = tracks.find((track) => track.key === current);
-	// Edited subtitles show, and so do tracks the file marks as default, as players do.
-	const shown = choice ?? Boolean(currentTrack && (currentTrack.edited || currentTrack.info?.default));
+	const shown = useSubtitlesShown(subtitles);
 
 	const picture = editing.doc;
 	const upright = video ?? { width: 16, height: 9 };
@@ -311,59 +309,86 @@ export function VideoPreview({
 	);
 
 	return (
-		<div className="flex size-full min-h-0 flex-col gap-3">
-			<div className="relative min-h-0 flex-1">
-				<ZoomStage width={region.width} height={region.height} compare={!cropping}>
-					{(scale) => (
-						<EditedPicture
-							region={region}
-							width={region.width * scale}
-							height={region.height * scale}
-							doc={cropping ? wholePictureDoc(picture, crop, bounds) : picture}
-							original={comparing}
-						>
-							{!cropping && !comparing && picture.overlays.length > 0 && (
-								<OverlayLayer
-									overlays={visible}
-									width={region.width * scale}
-									height={region.height * scale}
-									editing={overlays}
-									onEditText={onEditText}
-								/>
-							)}
-							{shown && projectReady && !cropping && (
-								// Subtitles belong to the whole picture: they lie over it and the crop cuts them,
-								// as when they are burnt in, rather than being squeezed into the crop.
-								<div className="pointer-events-none absolute inset-0 overflow-hidden md:rounded-[3px]">
-									<div className="absolute" style={subtitleBox(picture, crop, upright, scale)}>
-										<PlayingSubtitles
-											doc={doc}
-											title={opened.file.name.replace(/\.[^.]+$/, '')}
-											video={upright}
-											fonts={fonts}
-										/>
-									</div>
+		<div className="relative size-full min-h-0">
+			<ZoomStage width={region.width} height={region.height} compare={!cropping}>
+				{(scale) => (
+					<EditedPicture
+						region={region}
+						width={region.width * scale}
+						height={region.height * scale}
+						doc={cropping ? wholePictureDoc(picture, crop, bounds) : picture}
+						original={comparing}
+					>
+						{!cropping && !comparing && picture.overlays.length > 0 && (
+							<OverlayLayer
+								overlays={visible}
+								width={region.width * scale}
+								height={region.height * scale}
+								editing={overlays}
+								onEditText={onEditText}
+							/>
+						)}
+						{shown && projectReady && !cropping && (
+							// Subtitles belong to the whole picture: they lie over it and the crop cuts them,
+							// as when they are burnt in, rather than being squeezed into the crop.
+							<div className="pointer-events-none absolute inset-0 overflow-hidden md:rounded-[3px]">
+								<div className="absolute" style={subtitleBox(picture, crop, upright, scale)}>
+									<PlayingSubtitles
+										doc={doc}
+										title={opened.file.name.replace(/\.[^.]+$/, '')}
+										video={upright}
+										fonts={fonts}
+									/>
 								</div>
-							)}
-							{!cropping && !comparing && <FadeVeil />}
-							{cropping && <CroppedLayers overlays={visible} crop={crop} scale={scale} />}
-							{cropping && (
-								<VideoCropOverlay editing={editing} crop={crop} scale={scale} bounds={bounds} />
-							)}
-						</EditedPicture>
-					)}
-				</ZoomStage>
-			</div>
-			<PlayerControls seek={false} frameRate={opened.info?.video?.fps ?? 30}>
-				<AudioTrackMenu />
-				{projectReady && <SubtitleMenu shown={shown} onShown={setChoice} />}
-				<CaptureButton file={opened.file} doc={picture} />
-				<span className="bg-line mx-1.5 h-5 w-px max-md:hidden" aria-hidden="true" />
-				{!cropping && <CompareButton className="max-md:hidden" />}
-				<span className="max-md:hidden">
-					<ZoomReset />
-				</span>
-			</PlayerControls>
+							</div>
+						)}
+						{!cropping && !comparing && <FadeVeil />}
+						{cropping && <CroppedLayers overlays={visible} crop={crop} scale={scale} />}
+						{cropping && <VideoCropOverlay editing={editing} crop={crop} scale={scale} bounds={bounds} />}
+					</EditedPicture>
+				)}
+			</ZoomStage>
 		</div>
+	);
+}
+
+/** Edited subtitles show, and so do tracks the file marks as default, as players do, unless turned off. */
+function useSubtitlesShown(choice: boolean | null): boolean {
+	const tracks = useProjectTracks();
+	const current = useSubtitleProject((state) => state.current);
+	const currentTrack = tracks.find((track) => track.key === current);
+	return choice ?? Boolean(currentTrack && (currentTrack.edited || currentTrack.info?.default));
+}
+
+/**
+ * The player's bar of the video editor, over its timeline: the sound and subtitle tracks, a
+ * capture of the picture, the comparison with the original and the zoom.
+ */
+export function VideoPlayerBar({
+	opened,
+	picture,
+	cropping,
+	subtitles,
+	onSubtitles,
+}: {
+	opened: OpenedFile;
+	picture: ImageDoc;
+	cropping: boolean;
+	subtitles: boolean | null;
+	onSubtitles: (shown: boolean) => void;
+}) {
+	const projectReady = useSubtitleProject((state) => state.file === opened.file && state.status === 'ready');
+	const shown = useSubtitlesShown(subtitles);
+	return (
+		<PlayerControls seek={false} frameRate={opened.info?.video?.fps ?? 30}>
+			<AudioTrackMenu />
+			{projectReady && <SubtitleMenu shown={shown} onShown={onSubtitles} />}
+			<CaptureButton file={opened.file} doc={picture} />
+			<span className="bg-line mx-1.5 h-5 w-px max-md:hidden" aria-hidden="true" />
+			{!cropping && <CompareButton className="max-md:hidden" />}
+			<span className="max-md:hidden">
+				<ZoomReset />
+			</span>
+		</PlayerControls>
 	);
 }

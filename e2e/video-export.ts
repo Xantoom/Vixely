@@ -99,10 +99,10 @@ probe(
 // where the copy really starts (the key frame before the trim).
 await open(sample('clip.mkv'));
 await tools.getByRole('button', { name: 'Trim' }).click();
-await aside.getByLabel('Start').fill('0:10.300');
-await aside.getByLabel('Start').press('Enter');
-await aside.getByLabel('End').fill('0:18.000');
-await aside.getByLabel('End').press('Enter');
+await aside.getByLabel('Start', { exact: true }).fill('0:10.300');
+await aside.getByLabel('Start', { exact: true }).press('Enter');
+await aside.getByLabel('End', { exact: true }).fill('0:18.000');
+await aside.getByLabel('End', { exact: true }).press('Enter');
 const copied = await convert('trimmed.mkv', async () => {}, /Original/);
 probe(copied);
 firstLines(copied, '0:s:0');

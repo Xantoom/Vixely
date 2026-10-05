@@ -71,7 +71,7 @@ page.on('console', (m) => {
 });
 const tools = page.locator('nav[aria-label="Editing tools"]');
 const aside = page.locator('aside');
-const finalLength = async () => (await page.locator('main').innerText()).match(/Final length\s+([\d:.]+)/)?.[1];
+const finalLength = async () => (await page.getByRole('timer', { name: 'Playhead' }).first().innerText()).split('/')[1]?.trim();
 
 await page.goto(`${BASE}/audio`);
 await page.setInputFiles('input[type=file]', { name: 'tone.wav', mimeType: 'audio/wav', buffer: toneWav() });
@@ -86,7 +86,7 @@ await remove.click();
 console.log('after removing silences:', await finalLength());
 
 // 2. Speed 1.5×, pitch one octave up.
-await tools.getByRole('button', { name: 'Speed' }).click();
+// Speed is a part of the trim tool, open already.
 await aside.getByRole('radio', { name: '1.5×' }).click();
 const pitch = aside.getByRole('slider', { name: 'Pitch' });
 await pitch.focus();
@@ -94,7 +94,7 @@ await page.keyboard.press('End');
 console.log('speed and pitch:', await aside.getByRole('radio', { name: '1.5×' }).getAttribute('aria-checked'), await pitch.inputValue(), '| final length', await finalLength());
 
 // 3. Podcast loudness, evened out by half.
-await tools.getByRole('button', { name: 'Volume' }).click();
+await tools.getByRole('button', { name: 'Sound' }).click();
 await aside.getByRole('radio', { name: /^Podcast/ }).click();
 const even = aside.getByRole('slider', { name: 'Even out' });
 await even.fill('50');

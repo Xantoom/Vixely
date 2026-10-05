@@ -2,15 +2,12 @@ import { useEffect, useRef } from 'react';
 import { CropOverlay } from '@/editor/CropOverlay';
 import type { OverlayEditing } from '@/editor/overlays/editing';
 import { CroppedLayers, OverlayLayer } from '@/editor/overlays/OverlayLayer';
-import { backingSize, useStageZoom, ZoomStage, ZoomStatus } from '@/editor/ZoomStage';
+import { backingSize, useStageZoom, ZoomStage } from '@/editor/ZoomStage';
 import { effectiveCrop, orientedSize, type Size, wholePictureDoc } from '@/editors/image/document';
 import { cropRatio } from '@/editors/image/store';
-import { formatPreciseTime } from '@/lib/format';
-import { m } from '@/paraglide/messages.js';
 import { FrameComposer } from './compose';
 import { frameAt, type FrameLayout, frameLayout, type GifDoc, NO_FADE } from './document';
 import type { GifEngine } from './engine';
-import { exportLayout } from './export';
 import { useGifDoc, useGifEditor } from './store';
 
 /**
@@ -187,19 +184,4 @@ export function useGifAspect(engine: GifEngine, cropping: boolean): number | und
 		null,
 	);
 	return layout.width / Math.max(1, layout.height);
-}
-
-/** Along the bottom of the preview: zoom, then the size, frame count and length of the output. */
-export function GifStatus({ engine }: { engine: GifEngine }) {
-	const doc = useGifDoc();
-	const settings = useGifEditor((state) => state.exportSettings);
-	const { source, frames } = engine;
-	const { width, height } = exportLayout(doc, { width: source?.width ?? 1, height: source?.height ?? 1 }, settings);
-	const output = { width, height };
-	return (
-		<ZoomStatus size={output}>
-			<span>{m.frames_count({ count: frames.length })}</span>
-			<span>{formatPreciseTime(engine.length)}</span>
-		</ZoomStatus>
-	);
 }

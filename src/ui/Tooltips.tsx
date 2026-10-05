@@ -27,6 +27,17 @@ function tipTarget(node: EventTarget | null): Element | null {
 	return target.getAttribute('data-tip') ? target : null;
 }
 
+/** True when the element already shows the tip's words on screen: the tip would only repeat them. */
+function saysAlready(target: Element, text: string): boolean {
+	return [target, ...target.querySelectorAll('*')].some(
+		(element) =>
+			element instanceof HTMLElement &&
+			element.textContent.trim() === text &&
+			element.offsetWidth > 1 &&
+			element.offsetHeight > 1,
+	);
+}
+
 /**
  * The app's tooltips, in place of the browser's: any element with a `title` or `data-tip` gets one
  * on hover (mouse only) and on keyboard focus, above it, or below when there is no room.
@@ -54,7 +65,7 @@ export function Tooltips() {
 			shownFor.current = target;
 			const open = () => {
 				const text = target.getAttribute('data-tip');
-				if (text && target.isConnected) setTip({ text, target });
+				if (text && target.isConnected && !saysAlready(target, text)) setTip({ text, target });
 			};
 			if (performance.now() - lastShown.current < WARM) open();
 			else timer.current = window.setTimeout(open, DELAY);

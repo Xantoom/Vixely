@@ -42,7 +42,7 @@ export const EDITORS: Record<MediaKind, EditorDefinition> = {
 		path: '/video',
 		label: () => m.media_video(),
 		page: () => m.editor_page_video(),
-		tools: ['info', 'trim', 'speed', 'crop', 'adjust', 'layers', 'tracks'],
+		tools: ['info', 'trim', 'crop', 'adjust', 'layers', 'tracks'],
 		timed: true,
 	},
 	image: {
@@ -58,7 +58,7 @@ export const EDITORS: Record<MediaKind, EditorDefinition> = {
 		path: '/gif',
 		label: () => m.media_gif(),
 		page: () => m.editor_page_gif(),
-		tools: ['info', 'trim', 'crop', 'resize', 'adjust', 'layers', 'speed', 'frames'],
+		tools: ['info', 'trim', 'crop', 'resize', 'adjust', 'layers', 'frames'],
 		timed: true,
 	},
 	audio: {
@@ -66,7 +66,7 @@ export const EDITORS: Record<MediaKind, EditorDefinition> = {
 		path: '/audio',
 		label: () => m.media_audio(),
 		page: () => m.editor_page_audio(),
-		tools: ['info', 'trim', 'volume', 'speed', 'sound'],
+		tools: ['info', 'trim', 'sound'],
 		timed: true,
 	},
 	subtitles: {

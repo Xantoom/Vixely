@@ -23,7 +23,7 @@
 	--track-base: light-dark(#d9dce2, #3a3c43);
 	--ink: light-dark(#111113, #f3f3f5);
 	--ink-2: light-dark(#3a3a40, #c8c8ce);
-	--muted: light-dark(#6c6c74, #9a9aa3);
+	--muted: light-dark(#6c6c74, #8e8e97);
 	--primary: light-dark(#111113, #f3f3f5);
 	--primary-ink: light-dark(#ffffff, #111113);
 	--danger: light-dark(#c4321f, #ff6b57);
@@ -333,6 +333,21 @@
 	from {
 		opacity: 0;
 		transform: translateY(0.6rem) scale(0.98);
+	}
+}
+
+/*
+ * Going from one editor to another: the new one slides in from the side its tab sits on. Only
+ * transform and opacity move, which the compositor draws while the editor is still opening.
+ */
+.editor-enter {
+	animation: editor-enter 260ms var(--ease-out-soft) backwards;
+}
+
+@keyframes editor-enter {
+	from {
+		opacity: 0.4;
+		transform: translateX(calc(var(--editor-side, 1) * 1.25rem));
 	}
 }
 

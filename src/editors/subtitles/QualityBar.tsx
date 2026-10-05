@@ -164,9 +164,7 @@ export function QualityBar() {
 					</button>
 				</>
 			) : (
-				<span className="text-muted min-w-0 flex-1 truncate pl-1" title={m.subs_check_title()}>
-					{m.subs_check_none()}
-				</span>
+				<span className="flex-1" />
 			)}
 			<Menu
 				label={m.subs_advice()}

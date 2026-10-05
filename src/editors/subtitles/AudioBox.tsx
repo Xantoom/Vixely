@@ -10,7 +10,7 @@ import {
 import { clampView, type Range } from '@/document/timemap';
 import { FitButton } from '@/editor/FitButton';
 import { usePlaybackPeaks, Waveform } from '@/editor/PlaybackWaveform';
-import { AudioTrackMenu, PlayerControls } from '@/editor/PlayerControls';
+import { AudioTrackMenu, PlayerControls, PlayTime } from '@/editor/PlayerControls';
 import { TimeRuler } from '@/editor/TimeRuler';
 import { ViewScroll } from '@/editor/ViewScroll';
 import { panDelta, wheelIntent } from '@/editor/wheel';
@@ -59,6 +59,13 @@ function PlayheadLine({ view }: { view: Range }) {
  * waveform and are set by clicking (left for the start, right for the end), dragging an edge, or
  * dragging across a spoken passage. Neighbouring lines show in the background.
  */
+/** Where playback is, over the length of the video or sound, drawn again on its own as it moves. */
+function SubtitleTime() {
+	const time = usePlayback((state) => state.time);
+	const length = usePlaybackLength();
+	return <PlayTime time={time} length={length} />;
+}
+
 export function AudioBox() {
 	const doc = useSubtitleDoc();
 	const { issues } = useLineIssues();
@@ -272,17 +279,15 @@ export function AudioBox() {
 				>
 					<ChevronFirst size={17} />
 				</IconButton>
-				<button
-					type="button"
+				<IconButton
+					label={m.subs_play_line()}
 					disabled={!cue}
 					onClick={() => {
 						if (cue) playRange(cue.start / 1000, cue.end / 1000);
 					}}
-					className="text-small text-ink-2 enabled:hover:bg-surface enabled:hover:text-ink flex h-9 flex-none items-center gap-1.5 rounded-sm px-2.5 font-medium transition-colors disabled:opacity-45"
 				>
-					<Play className="size-4" aria-hidden="true" />
-					<span className="max-xl:sr-only">{m.subs_play_line()}</span>
-				</button>
+					<Play size={17} />
+				</IconButton>
 				<IconButton
 					label={m.subs_play_after()}
 					disabled={!cue}
@@ -294,10 +299,12 @@ export function AudioBox() {
 				</IconButton>
 				<span className="bg-line mx-1 h-5 w-px flex-none max-sm:hidden" aria-hidden="true" />
 				<AudioTrackMenu />
-				<span className="max-sm:hidden">
-					<FitButton zoomed={Math.abs(span - defaultSpan) > 0.01} onFit={fit} />
-				</span>
 			</PlayerControls>
+			<div className="flex h-8 flex-none items-center gap-3">
+				<SubtitleTime />
+				<div className="flex-1" />
+				<FitButton zoomed={Math.abs(span - defaultSpan) > 0.01} onFit={fit} />
+			</div>
 			<TimeRuler view={view} onSeek={seek} />
 			<div
 				ref={areaRef}

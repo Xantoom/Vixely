@@ -122,6 +122,16 @@ export function AudioTrackMenu() {
 	);
 }
 
+/** Where playback is, over how long the result lasts. */
+export function PlayTime({ time, length }: { time: number; length: number }) {
+	return (
+		<span role="timer" aria-label={m.playhead()} className="text-small tabular whitespace-nowrap">
+			<span className="text-ink font-medium">{formatPreciseTime(Math.min(time, length))}</span>
+			<span className="text-muted"> / {formatPreciseTime(length)}</span>
+		</span>
+	);
+}
+
 /** Seconds moved by the arrow keys on the bar; ten times more with Shift. */
 const KEY_STEP = 1;
 
@@ -233,19 +243,16 @@ function SeekBar() {
 }
 
 /** Goes one frame back or forward, paused, as editors do with the comma and period keys. */
-function StepButton({ direction, frameRate }: { direction: -1 | 1; frameRate: number }) {
+function StepButton({ direction, onStep, disabled }: { direction: -1 | 1; onStep: () => void; disabled: boolean }) {
 	const label = direction < 0 ? m.frame_back() : m.frame_forward();
 	return (
 		<button
 			type="button"
 			aria-label={label}
 			data-tip={label}
-			onClick={() => {
-				const playback = usePlayback.getState();
-				playback.pause();
-				playback.seek(Math.max(0, playback.time + direction / frameRate));
-			}}
-			className="text-ink-2 hover:bg-surface hover:text-ink grid size-9 place-items-center rounded-full transition-colors max-sm:size-8"
+			disabled={disabled}
+			onClick={onStep}
+			className="text-ink-2 enabled:hover:bg-surface enabled:hover:text-ink grid size-9 place-items-center rounded-full transition-colors disabled:opacity-45 max-sm:size-8"
 		>
 			{direction < 0 ? (
 				<ChevronFirst className="size-[1.15rem]" aria-hidden="true" />
@@ -257,9 +264,58 @@ function StepButton({ direction, frameRate }: { direction: -1 | 1; frameRate: nu
 }
 
 /**
- * The transport bar under a picture: the time on the left, frame back, play and frame forward in
- * the middle, and what the editor adds on the right (track choices, capture, zoom). A position
- * bar joins it where no timeline below does that job.
+ * The bar of every player, the same in each editor: what concerns listening on the left, frame
+ * back, play and frame forward in the middle, and what the editor adds on the right (tracks,
+ * capture, comparison, zoom). Its icons line up with the edges of the timeline under it.
+ */
+export function PlayerBar({
+	left,
+	playing,
+	onToggle,
+	onStep,
+	disabled = false,
+	children,
+}: {
+	left?: ReactNode;
+	playing: boolean;
+	onToggle: () => void;
+	/** One frame back or forward; left out where there are no frames (sound). */
+	onStep?: (direction: -1 | 1) => void;
+	disabled?: boolean;
+	children?: ReactNode;
+}) {
+	return (
+		<div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 max-sm:gap-1.5">
+			<div className="-ml-2 flex min-w-0 items-center gap-1.5">{left}</div>
+			<div className="flex items-center gap-1.5 max-sm:gap-0.5">
+				{onStep && (
+					<StepButton
+						direction={-1}
+						disabled={disabled}
+						onStep={() => {
+							onStep(-1);
+						}}
+					/>
+				)}
+				<PlayButton playing={playing} onToggle={onToggle} disabled={disabled} />
+				{onStep && (
+					<StepButton
+						direction={1}
+						disabled={disabled}
+						onStep={() => {
+							onStep(1);
+						}}
+					/>
+				)}
+			</div>
+			<div className="-mr-2 flex min-w-0 items-center justify-end gap-0.5">{children}</div>
+		</div>
+	);
+}
+
+/**
+ * The player's bar bound to the shared player, with the volume on the left. A position bar joins
+ * it where no timeline below does that job.
  */
 export function PlayerControls({
 	children,
@@ -267,36 +323,27 @@ export function PlayerControls({
 	frameRate = 30,
 }: {
 	children?: ReactNode;
-	/** Shows the position bar; left out under a timeline, whose playhead already does it. */
+	/** Shows the position bar; left out over a timeline, whose playhead already does it. */
 	seek?: boolean;
 	frameRate?: number;
 }) {
 	const playing = usePlayback((state) => state.playing);
 	const toggle = usePlayback((state) => state.toggle);
-	const time = usePlayback((state) => state.time);
-	const length = usePlaybackLength();
 	return (
-		<div className="grid min-w-0 gap-1 max-md:px-3">
+		<div className="grid min-w-0 gap-1">
 			{seek && <SeekBar />}
-			<div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 max-sm:gap-1.5">
-				<div className="-ml-1.5 flex min-w-0 items-center gap-1.5">
-					<VolumeControl />
-					<span
-						role="timer"
-						aria-label={m.playhead()}
-						className="tabular text-small min-w-0 truncate font-medium whitespace-nowrap"
-					>
-						{formatPreciseTime(time)}
-						<span className="text-muted max-sm:hidden"> / {formatPreciseTime(length)}</span>
-					</span>
-				</div>
-				<div className="flex items-center gap-1.5 max-sm:gap-0.5">
-					<StepButton direction={-1} frameRate={frameRate} />
-					<PlayButton playing={playing} onToggle={toggle} />
-					<StepButton direction={1} frameRate={frameRate} />
-				</div>
-				<div className="-mr-1.5 flex min-w-0 items-center justify-end gap-0.5">{children}</div>
-			</div>
+			<PlayerBar
+				left={<VolumeControl />}
+				playing={playing}
+				onToggle={toggle}
+				onStep={(direction) => {
+					const playback = usePlayback.getState();
+					playback.pause();
+					playback.seek(Math.max(0, playback.time + direction / frameRate));
+				}}
+			>
+				{children}
+			</PlayerBar>
 		</div>
 	);
 }

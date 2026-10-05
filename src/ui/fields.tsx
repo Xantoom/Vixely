@@ -181,10 +181,13 @@ export function Slider({
 	track,
 	hint,
 	resettable = false,
+	hideLabel = false,
 	onChange,
 	onEnd,
 }: {
 	label: string;
+	/** Under a title that already names it: the label is left to assistive tech. */
+	hideLabel?: boolean;
 	value: number;
 	min: number;
 	max: number;
@@ -214,31 +217,32 @@ export function Slider({
 	}, [background]);
 	return (
 		<div className="grid gap-1.5">
-			<div className="flex items-center justify-between gap-3">
-				<label htmlFor={id} className="text-ui text-ink-2 min-w-0 flex-1 truncate">
+			<div className="flex items-center justify-between gap-2">
+				<label htmlFor={id} className={hideLabel ? 'sr-only' : 'text-ui text-ink-2 min-w-0 flex-1 truncate'}>
 					{label}
 				</label>
-				<output
-					className="tabular text-small text-ink flex-none text-right"
-					aria-label={m.slider_value({ label })}
-				>
-					{format(value)}
-				</output>
 				{resettable && (
+					// Before the value, inside the panel; it fades in once the setting has moved.
 					<button
 						type="button"
-						aria-label={m.slider_reset({ label })}
-						title={m.slider_reset({ label })}
+						aria-label={m.reset()}
+						title={m.reset()}
 						disabled={value === defaultValue}
 						onClick={() => {
 							onChange(defaultValue);
 							onEnd();
 						}}
-						className="text-muted enabled:hover:bg-surface enabled:hover:text-ink -my-1 -mr-2 grid size-6 flex-none cursor-pointer place-items-center rounded-xs transition-colors disabled:cursor-default disabled:opacity-0"
+						className="text-muted enabled:hover:bg-surface enabled:hover:text-ink -my-1 ml-auto grid size-6 flex-none cursor-pointer place-items-center rounded-xs transition-[opacity,color,background-color] duration-200 disabled:pointer-events-none disabled:opacity-0"
 					>
 						<RotateCcw className="size-3.5" aria-hidden="true" />
 					</button>
 				)}
+				<output
+					className={`tabular text-small text-ink flex-none text-right ${resettable ? '' : 'ml-auto'}`}
+					aria-label={m.slider_value({ label })}
+				>
+					{format(value)}
+				</output>
 			</div>
 			<input
 				ref={inputRef}

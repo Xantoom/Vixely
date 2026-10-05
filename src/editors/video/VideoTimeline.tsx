@@ -1,11 +1,20 @@
 import { RotateCcw } from 'lucide-react';
-import { type PointerEvent as ReactPointerEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+	type PointerEvent as ReactPointerEvent,
+	type ReactNode,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from 'react';
 import { keptRanges, restoreCut, setTrim } from '@/document/kept';
 import type { Range } from '@/document/timemap';
-import { beyond, totalLength } from '@/document/timemap';
+import { beyond, toOutput, totalLength } from '@/document/timemap';
 import { FitButton } from '@/editor/FitButton';
 import type { OverlayEditing } from '@/editor/overlays/editing';
 import { LayerLanes } from '@/editor/overlays/LayerLanes';
+import { PlayTime } from '@/editor/PlayerControls';
 import { SelectionBar } from '@/editor/SelectionBar';
 import { isVisible, percent, rangeBox, timeAt, zoomView } from '@/editor/timeline-view';
 import { TimeRuler } from '@/editor/TimeRuler';
@@ -17,7 +26,7 @@ import { usePlayback } from '@/media/playback';
 import { sharedThumbnails, type Thumbnails } from '@/media/thumbnails';
 import { m } from '@/paraglide/messages.js';
 import { useBoxSize } from '@/ui/use-box-size';
-import { type VideoDoc, videoLength } from './document';
+import { speedOf, type VideoDoc, videoLength } from './document';
 import { useVideoDoc, useVideoEditor } from './store';
 
 /** Height of the picture lane, in CSS pixels. */
@@ -293,16 +302,15 @@ function VideoFit() {
 	);
 }
 
-function FinalLength() {
+/** Where playback is in the video as it will be exported, over its final length. */
+function VideoTime() {
 	const doc = useVideoDoc();
 	const copied = useVideoEditor((state) => state.copied);
+	const source = usePlayback((state) => state.time);
+	const ranges = useMemo(() => copied ?? keptRanges(doc), [copied, doc]);
+	const speed = copied ? 1 : speedOf(doc);
 	return (
-		<span className="text-small text-muted flex items-baseline gap-2">
-			{m.video_final_length()}
-			<span className="tabular text-ink font-medium">
-				{formatPreciseTime(copied ? totalLength(copied) : videoLength(doc))}
-			</span>
-		</span>
+		<PlayTime time={toOutput(ranges, source) / speed} length={copied ? totalLength(copied) : videoLength(doc)} />
 	);
 }
 
@@ -316,9 +324,12 @@ export function VideoTimeline({
 	layers,
 	onLayer,
 	cutting,
+	controls,
 }: {
 	file: File;
 	aspect: number;
+	/** The player's bar, at the top of the timeline. */
+	controls?: ReactNode;
 	/** Text, stickers and shapes, each on its own row. */
 	layers?: OverlayEditing;
 	/** A layer was pressed on its row. */
@@ -345,9 +356,10 @@ export function VideoTimeline({
 	);
 
 	return (
-		<section aria-label={m.timeline()} className="border-line grid gap-1 border-t px-4 pt-2 pb-3">
-			<div className="flex h-8 items-center gap-3">
-				<FinalLength />
+		<section aria-label={m.timeline()} className="border-line grid gap-1 border-t px-4 pt-2 pb-4">
+			{controls}
+			<div className="mt-1 flex h-8 items-center gap-3">
+				<VideoTime />
 				<div className="flex-1" />
 				<VideoFit />
 			</div>

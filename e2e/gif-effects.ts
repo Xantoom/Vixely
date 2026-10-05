@@ -19,7 +19,8 @@ const analyse = async (bytes: Buffer) => page.evaluate(async (data) => {
 	for (let f = reader.next_frame(); f; f = reader.next_frame()) { frames++; total += f.delay; }
 	return { width: reader.width(), height: reader.height(), frames, ms: Math.round(total) };
 }, Array.from(bytes));
-const status = async () => (await page.locator('div[data-status]').innerText()).replace(/\n/g, ' ');
+// The length of the animation as it will be saved, from the player's time.
+const status = async () => (await page.getByRole('timer', { name: 'Playhead' }).first().innerText()).split('/')[1]?.trim();
 const exportNow = async () => {
 	const [download] = await Promise.all([page.waitForEvent('download', { timeout: 120000 }), page.locator('aside + div').getByRole('button').first().click()]);
 	return { name: download.suggestedFilename(), data: readFileSync(await download.path()) };
@@ -44,8 +45,8 @@ await page.getByRole('button', { name: 'MEME' }).click();
 await page.getByRole('textbox', { name: 'Text' }).fill('SUNSET');
 await page.getByRole('textbox', { name: 'Text' }).blur();
 await tool('Trim');
-await page.getByRole('slider', { name: 'Fade in' }).fill('5');
-await page.getByRole('slider', { name: 'Fade out' }).fill('5');
+await page.getByRole('slider', { name: 'In', exact: true }).fill('5');
+await page.getByRole('slider', { name: 'Out', exact: true }).fill('5');
 await page.locator('aside').getByRole('radio', { name: 'Transparent' }).click();
 await tool('Crop');
 await page.locator('#' + (await page.getByText('Bands to').getAttribute('for'))).click();
@@ -58,7 +59,7 @@ await page.getByRole('listbox', { name: 'Frames' }).getByRole('option').nth(3).c
 await page.locator('aside').getByRole('button', { name: 'Delete' }).click();
 console.log('one frame deleted:', await status());
 await page.screenshot({ path: 'shots/gif-frames.png' });
-await tool('Speed');
+await tool('Trim');
 await page.locator('#' + (await page.getByText('Frames kept').getAttribute('for'))).click();
 await page.getByRole('option', { name: '1 in 2' }).click();
 console.log('1 in 2:', await status());

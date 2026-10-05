@@ -69,7 +69,7 @@ await page.getByLabel('Maximum size').click();
 await page.getByRole('option', { name: 'No limit' }).click();
 
 // 3. A speed change blocks the original.
-await page.locator('nav[aria-label="Editing tools"]').getByRole('button', { name: 'Speed' }).click();
+await page.locator('nav[aria-label="Editing tools"]').getByRole('button', { name: 'Trim' }).click();
 await page.locator('aside').getByRole('radio', { name: 'Reverse' }).click();
 await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 console.log('original disabled after reverse:', await aside.getByRole('radio', { name: /^Original/ }).isDisabled(), (await aside.innerText()).includes('redraw the frames'));

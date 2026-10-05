@@ -38,16 +38,16 @@ const editors = [
 ] as const;
 
 const pages: Page[] = [
-	{ path: '/', title: `Vixely — ${m.home_title()}`, description: m.site_description(), sources: [route('index')] },
+	{ path: '/', title: `Vixely | ${m.home_title()}`, description: m.site_description(), sources: [route('index')] },
 	...editors.map(([path, title, description]) => ({
 		path,
-		title: `${title} — Vixely`,
+		title: `${title} | Vixely`,
 		description,
 		sources: [route(path.slice(1))],
 	})),
 	...TASKS.map((task) => ({
 		path: `/tools/${task.slug}`,
-		title: `${task.title()} — Vixely`,
+		title: `${task.title()} | Vixely`,
 		description: task.description(),
 		sources: [route('tools.$task')],
 	})),
@@ -55,14 +55,14 @@ const pages: Page[] = [
 		const content = PAGES[name]();
 		return {
 			path: `/${name}`,
-			title: `${content.title} — Vixely`,
+			title: `${content.title} | Vixely`,
 			description: content.description,
 			index: name === 'about',
 			sources: [route(name)],
 		};
 	}),
 	// What the browser supports: useful to its reader, of no use to search engines.
-	{ path: '/system', title: `${m.system_title()} — Vixely`, description: m.system_lede(), index: false, sources: [route('system')] },
+	{ path: '/system', title: `${m.system_title()} | Vixely`, description: m.system_lede(), index: false, sources: [route('system')] },
 ];
 
 function escape(text: string): string {

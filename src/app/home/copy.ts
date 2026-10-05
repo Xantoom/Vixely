@@ -239,10 +239,6 @@ const EN: HomeCopy = {
 			'Why won’t my AVI open?',
 			'Browsers can’t read old formats such as AVI, WMV, FLV or MPEG-2. Convert it to MP4 first, with HandBrake for example, then open it here.',
 		],
-		[
-			'What if I close the tab?',
-			'Your unfinished work is kept in your browser. Come back and it is offered again, undo history included.',
-		],
 	],
 	footer: {
 		tagline: 'Media editors in your browser. Nothing is uploaded.',
@@ -448,10 +444,6 @@ const FR: HomeCopy = {
 		[
 			'Pourquoi mon AVI ne s’ouvre pas ?',
 			'Les navigateurs ne savent pas lire les vieux formats comme AVI, WMV, FLV ou MPEG-2. Convertissez-le d’abord en MP4, avec HandBrake par exemple, puis ouvrez-le ici.',
-		],
-		[
-			'Et si je ferme l’onglet ?',
-			'Votre travail en cours est gardé dans votre navigateur. Revenez : il vous est proposé à nouveau, historique d’annulation compris.',
 		],
 	],
 	footer: {

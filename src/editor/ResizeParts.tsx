@@ -1,30 +1,5 @@
-import { ArrowRight } from 'lucide-react';
 import type { Size } from '@/editors/image/document';
 import { m } from '@/paraglide/messages.js';
-
-/** The size before and after, and whether the export shrinks or enlarges. */
-export function SizeSummary({ from, to }: { from: Size; to: Size }) {
-	const change = (to.width * to.height) / (from.width * from.height);
-	return (
-		<div className="bg-surface grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 rounded-md px-4 py-3">
-			<div className="grid">
-				<span className="text-small text-muted">{m.size_original()}</span>
-				<span className="tabular text-ui font-medium">
-					{from.width} × {from.height}
-				</span>
-			</div>
-			<ArrowRight className="text-muted size-4" aria-hidden="true" />
-			<div className="grid">
-				<span className="text-small text-muted">
-					{change > 1.0001 ? m.resize_larger() : change < 0.9999 ? m.resize_smaller() : m.resize_same()}
-				</span>
-				<span className="tabular text-ui font-semibold">
-					{to.width} × {to.height}
-				</span>
-			</div>
-		</div>
-	);
-}
 
 const SMALLER = [25, 50, 75];
 const LARGER = [150, 200, 300, 400];

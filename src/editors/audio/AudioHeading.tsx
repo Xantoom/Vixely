@@ -1,5 +1,6 @@
 import { AudioLines } from 'lucide-react';
 import { useEffect, useRef } from 'react';
+import { AMBIENT_FILTER } from '@/editor/Ambient';
 import type { OpenedFile } from '@/media/session';
 
 /** The cover, filled into a square of `side` pixels. */
@@ -7,10 +8,12 @@ function Cover({
 	bitmap,
 	side = 128,
 	className = 'size-full',
+	filter = 'none',
 }: {
 	bitmap: ImageBitmap;
 	side?: number;
 	className?: string;
+	filter?: string;
 }) {
 	const ref = useRef<HTMLCanvasElement>(null);
 	useEffect(() => {
@@ -22,8 +25,11 @@ function Cover({
 		const scale = Math.max(side / bitmap.width, side / bitmap.height);
 		const width = bitmap.width * scale;
 		const height = bitmap.height * scale;
-		canvas.getContext('2d')?.drawImage(bitmap, (side - width) / 2, (side - height) / 2, width, height);
-	}, [bitmap, side]);
+		const context = canvas.getContext('2d');
+		if (!context) return;
+		context.filter = filter;
+		context.drawImage(bitmap, (side - width) / 2, (side - height) / 2, width, height);
+	}, [bitmap, side, filter]);
 	return <canvas ref={ref} className={className} />;
 }
 
@@ -53,15 +59,14 @@ export function AudioHeading({ opened }: { opened: OpenedFile }) {
  * What is playing, as music players show it: the cover large, the title and artist beside it,
  * the cover's colours blurred behind. Without a cover, a tile in the editor's colour.
  */
-export function AudioStage({ opened, length }: { opened: OpenedFile; length: string }) {
+export function AudioStage({ opened }: { opened: OpenedFile }) {
 	const tags = opened.info?.tags;
 	const poster = opened.poster;
-	const details = [opened.format.toUpperCase(), length].filter(Boolean).join(', ');
 	return (
 		<div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-4 py-4 max-md:flex-none md:px-10 md:py-8">
 			{poster && (
 				<div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-30 dark:opacity-25">
-					<Cover bitmap={poster} side={48} className="size-full scale-125 blur-3xl saturate-150" />
+					<Cover bitmap={poster} side={48} filter={AMBIENT_FILTER} className="size-full scale-150" />
 				</div>
 			)}
 			<div className="relative flex h-full max-h-[28rem] min-h-0 w-full max-w-4xl items-center gap-4 md:gap-10">
@@ -81,7 +86,6 @@ export function AudioStage({ opened, length }: { opened: OpenedFile; length: str
 					</p>
 					{tags?.artist && <p className="text-lead text-ink-2 truncate">{tags.artist}</p>}
 					{tags?.album && <p className="text-ui text-muted truncate">{tags.album}</p>}
-					<p className="text-small text-muted tabular md:mt-2">{details}</p>
 				</div>
 			</div>
 		</div>

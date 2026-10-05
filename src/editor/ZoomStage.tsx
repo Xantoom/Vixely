@@ -217,11 +217,10 @@ export function CompareButton({ className = '', onPicture = false }: { className
 			className={`aria-pressed:bg-ed aria-pressed:text-ed-ink flex items-center gap-2 transition-colors duration-150 select-none ${
 				onPicture
 					? 'size-9 justify-center rounded-full bg-black/55 text-white backdrop-blur-md'
-					: 'text-ui text-ink-2 hover:bg-surface-2 h-9 rounded-sm px-3 font-medium'
+					: 'text-ink-2 hover:bg-surface hover:text-ink size-9 justify-center rounded-sm'
 			} ${className}`}
 		>
 			<Columns2 className="size-[1.1rem]" aria-hidden="true" />
-			{!onPicture && <span aria-hidden="true">{m.compare_original()}</span>}
 		</button>
 	);
 }
@@ -240,7 +239,7 @@ export function ZoomReset() {
 		<button
 			type="button"
 			disabled={!zoomed}
-			title={zoomed ? m.zoom_reset() : m.zoom_hint()}
+			title={zoomed ? m.zoom_reset() : undefined}
 			aria-label={zoomed ? `${m.zoom_reset()} (${percent} %)` : `${percent} %`}
 			onClick={() => {
 				setZoom(null);

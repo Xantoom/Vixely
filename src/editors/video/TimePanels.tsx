@@ -1,5 +1,4 @@
-import { PanelTitle } from '@/editor/EditorLayout';
-import { Group, ResetButton } from '@/editor/panel-parts';
+import { Group } from '@/editor/panel-parts';
 import { decimal } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
 import { getLocale } from '@/paraglide/runtime.js';
@@ -11,8 +10,8 @@ function formatSpeed(speed: number): string {
 	return `${new Intl.NumberFormat(getLocale()).format(speed)}×`;
 }
 
-/** The video faster or slower, its sound at the same pitch. */
-export function VideoSpeedPanel() {
+/** The video faster or slower, its sound at the same pitch: a part of the trim panel. */
+export function VideoSpeed() {
 	const doc = useVideoDoc();
 	const apply = useVideoEditor((state) => state.apply);
 	const preview = useVideoEditor((state) => state.preview);
@@ -20,21 +19,16 @@ export function VideoSpeedPanel() {
 	const speed = speedOf(doc);
 	const index = Math.max(0, VIDEO_SPEEDS.indexOf(speed));
 	return (
-		<>
-			<PanelTitle
-				action={
-					<ResetButton
-						disabled={speed === 1}
-						onClick={() => {
-							apply((current) => ({ ...current, speed: 1 }));
-						}}
-					/>
-				}
-			>
-				{m.tool_speed()}
-			</PanelTitle>
+		<Group
+			title={m.tool_speed()}
+			changed={speed !== 1}
+			onReset={() => {
+				apply((current) => ({ ...current, speed: 1 }));
+			}}
+		>
 			<Slider
 				label={m.speed_label()}
+				hideLabel
 				value={index}
 				min={0}
 				max={VIDEO_SPEEDS.length - 1}
@@ -61,7 +55,7 @@ export function VideoSpeedPanel() {
 					</button>
 				))}
 			</div>
-		</>
+		</Group>
 	);
 }
 

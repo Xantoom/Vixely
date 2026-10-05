@@ -4,7 +4,8 @@ import type { ItemStatus } from '@/editor/BatchList';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { ExportAnnounce } from '@/editor/ExportAnnounce';
 import { FormatGroups } from '@/editor/FormatGroups';
-import { FilePanel } from '@/editor/Inspector';
+import { FilePanel, Row } from '@/editor/Inspector';
+import { TrimRow } from '@/editor/KeptPanel';
 import { Group, ResetButton, Section } from '@/editor/panel-parts';
 import { fitRatio } from '@/editors/image/crop';
 import { orientedSize } from '@/editors/image/document';
@@ -17,9 +18,18 @@ import type { BatchFile, OpenedFile } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { getLocale } from '@/paraglide/runtime.js';
 import { Button } from '@/ui/Button';
-import { FieldRow, OptionList, Select, Slider, Switch, TimeField } from '@/ui/fields';
+import { FieldRow, OptionList, Select, Slider, Switch } from '@/ui/fields';
 import { exportGifBatch } from './batch-export';
-import { type Direction, type FadeColor, FRAME_RATES, frameLayout, NO_FADE, SPEEDS, setTrim } from './document';
+import {
+	type Direction,
+	type FadeColor,
+	FRAME_RATES,
+	frameAt,
+	frameLayout,
+	NO_FADE,
+	SPEEDS,
+	setTrim,
+} from './document';
 import type { GifEngine } from './engine';
 import { browserEncodesWebp, copyBlocker, exportLayout, exportWithinLimit, FORMAT_FILES, videoCodec } from './export';
 import { GIF_PRESET_GROUPS, GIF_PRESETS, type GifPreset } from './presets';
@@ -28,8 +38,8 @@ import { type AnimationFormat, useGifDoc, useGifEditor } from './store';
 export function TrimPanel({ engine }: { engine: GifEngine }) {
 	const doc = useGifDoc();
 	const apply = useGifEditor((state) => state.apply);
-	const startId = useId();
-	const endId = useId();
+	// The source moment of the frame on screen, read when a button is pressed.
+	const playheadSource = () => frameAt(engine.frames, useGifEditor.getState().playhead)?.source ?? 0;
 	return (
 		<>
 			<PanelTitle
@@ -44,30 +54,33 @@ export function TrimPanel({ engine }: { engine: GifEngine }) {
 			>
 				{m.trim_title()}
 			</PanelTitle>
-			<div className="grid gap-3.5">
-				<FieldRow label={m.trim_start()} htmlFor={startId}>
-					<TimeField
-						id={startId}
-						value={doc.trim.start}
-						min={0}
-						max={doc.duration}
-						onCommit={(start) => {
-							apply((current) => setTrim(current, { ...current.trim, start }));
-						}}
-					/>
-				</FieldRow>
-				<FieldRow label={m.trim_end()} htmlFor={endId}>
-					<TimeField
-						id={endId}
-						value={doc.trim.end}
-						min={0}
-						max={doc.duration}
-						onCommit={(end) => {
-							apply((current) => setTrim(current, { ...current.trim, end }));
-						}}
-					/>
-				</FieldRow>
+			<div className="grid gap-3">
+				<TrimRow
+					label={m.trim_start()}
+					value={doc.trim.start}
+					max={doc.duration}
+					hereLabel={m.trim_start_here()}
+					onCommit={(start) => {
+						apply((current) => setTrim(current, { ...current.trim, start }));
+					}}
+					onHere={() => {
+						apply((current) => setTrim(current, { ...current.trim, start: playheadSource() }));
+					}}
+				/>
+				<TrimRow
+					label={m.trim_end()}
+					value={doc.trim.end}
+					max={doc.duration}
+					hereLabel={m.trim_end_here()}
+					onCommit={(end) => {
+						apply((current) => setTrim(current, { ...current.trim, end }));
+					}}
+					onHere={() => {
+						apply((current) => setTrim(current, { ...current.trim, end: playheadSource() }));
+					}}
+				/>
 			</div>
+			<SpeedSection animated={Boolean(engine.source?.timing)} />
 			<FadeSection length={engine.length} />
 		</>
 	);
@@ -203,7 +216,8 @@ function formatSpeed(speed: number): string {
 	return `${new Intl.NumberFormat(getLocale()).format(speed)}×`;
 }
 
-export function SpeedPanel({ animated }: { animated: boolean }) {
+/** Faster or slower, forwards or back, at a frame rate of choice: a part of the trim panel. */
+function SpeedSection({ animated }: { animated: boolean }) {
 	const doc = useGifDoc();
 	const apply = useGifEditor((state) => state.apply);
 	const preview = useGifEditor((state) => state.preview);
@@ -211,85 +225,70 @@ export function SpeedPanel({ animated }: { animated: boolean }) {
 	const rateId = useId();
 	const skipId = useId();
 	const speedIndex = Math.max(0, SPEEDS.indexOf(doc.speed));
+	const changed = doc.speed !== 1 || doc.direction !== 'forward' || doc.skip !== 1 || (animated && doc.fps !== null);
 
 	return (
-		<>
-			<PanelTitle
-				action={
-					<ResetButton
-						disabled={
-							doc.speed === 1 &&
-							doc.direction === 'forward' &&
-							doc.skip === 1 &&
-							(!animated || doc.fps === null)
-						}
-						onClick={() => {
-							apply((current) => ({
-								...current,
-								speed: 1,
-								direction: 'forward',
-								skip: 1,
-								fps: animated ? null : current.fps,
-							}));
-						}}
-					/>
-				}
-			>
-				{m.tool_speed()}
-			</PanelTitle>
-			<div className="grid gap-4">
-				<Slider
-					label={m.speed_label()}
-					value={speedIndex}
-					min={0}
-					max={SPEEDS.length - 1}
-					defaultValue={SPEEDS.indexOf(1)}
-					format={(index) => formatSpeed(SPEEDS[index] ?? 1)}
-					onChange={(index) => {
-						preview((current) => ({ ...current, speed: SPEEDS[index] ?? 1 }));
+		<Group
+			title={m.tool_speed()}
+			changed={changed}
+			onReset={() => {
+				apply((current) => ({
+					...current,
+					speed: 1,
+					direction: 'forward',
+					skip: 1,
+					fps: animated ? null : current.fps,
+				}));
+			}}
+		>
+			<Slider
+				label={m.speed_label()}
+				hideLabel
+				value={speedIndex}
+				min={0}
+				max={SPEEDS.length - 1}
+				defaultValue={SPEEDS.indexOf(1)}
+				format={(index) => formatSpeed(SPEEDS[index] ?? 1)}
+				onChange={(index) => {
+					preview((current) => ({ ...current, speed: SPEEDS[index] ?? 1 }));
+				}}
+				onEnd={settle}
+			/>
+			<OptionList
+				label={m.direction()}
+				value={doc.direction}
+				options={DIRECTIONS.map((direction) => ({ value: direction.value, label: direction.label() }))}
+				onChange={(direction) => {
+					apply((current) => ({ ...current, direction }));
+				}}
+			/>
+			<FieldRow label={m.info_frame_rate()} htmlFor={rateId}>
+				<Select
+					id={rateId}
+					value={doc.fps === null ? 'original' : String(doc.fps)}
+					options={[
+						...(animated ? [{ value: 'original', label: m.fps_original() }] : []),
+						...FRAME_RATES.map((rate) => ({ value: String(rate), label: `${rate} fps` })),
+					]}
+					onChange={(value) => {
+						apply((current) => ({ ...current, fps: value === 'original' ? null : Number(value) }));
 					}}
-					onEnd={settle}
 				/>
-			</div>
-			<Section title={m.direction()}>
-				<OptionList
-					label={m.direction()}
-					value={doc.direction}
-					options={DIRECTIONS.map((direction) => ({ value: direction.value, label: direction.label() }))}
-					onChange={(direction) => {
-						apply((current) => ({ ...current, direction }));
+			</FieldRow>
+			<FieldRow label={m.skip_frames()} htmlFor={skipId}>
+				<Select
+					id={skipId}
+					value={String(doc.skip)}
+					options={SKIPS.map((skip) => ({
+						value: String(skip),
+						label: skip === 1 ? m.skip_none() : m.skip_one_in({ count: skip }),
+					}))}
+					onChange={(value) => {
+						apply((current) => ({ ...current, skip: Number(value) }));
 					}}
 				/>
-			</Section>
-			<div className="grid gap-3.5">
-				<FieldRow label={m.info_frame_rate()} htmlFor={rateId}>
-					<Select
-						id={rateId}
-						value={doc.fps === null ? 'original' : String(doc.fps)}
-						options={[
-							...(animated ? [{ value: 'original', label: m.fps_original() }] : []),
-							...FRAME_RATES.map((rate) => ({ value: String(rate), label: `${rate} fps` })),
-						]}
-						onChange={(value) => {
-							apply((current) => ({ ...current, fps: value === 'original' ? null : Number(value) }));
-						}}
-					/>
-				</FieldRow>
-				<FieldRow label={m.skip_frames()} htmlFor={skipId}>
-					<Select
-						id={skipId}
-						value={String(doc.skip)}
-						options={SKIPS.map((skip) => ({
-							value: String(skip),
-							label: skip === 1 ? m.skip_none() : m.skip_one_in({ count: skip }),
-						}))}
-						onChange={(value) => {
-							apply((current) => ({ ...current, skip: Number(value) }));
-						}}
-					/>
-				</FieldRow>
-			</div>
-		</>
+			</FieldRow>
+		</Group>
 	);
 }
 
@@ -781,12 +780,9 @@ export function GifInfoPanel({ engine, opened }: { engine: GifEngine; opened: Op
 			<FilePanel opened={opened} />
 			{rows.length > 0 && (
 				<Section title={m.analysis_title()}>
-					<dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2">
+					<dl className="grid gap-2">
 						{rows.map(([label, value]) => (
-							<div key={label} className="contents">
-								<dt className="text-ui text-ink-2">{label}</dt>
-								<dd className="text-small tabular text-right">{value}</dd>
-							</div>
+							<Row key={label} label={label} value={value} />
 						))}
 					</dl>
 				</Section>

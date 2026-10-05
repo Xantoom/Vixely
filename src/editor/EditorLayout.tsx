@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { createContext, Fragment, type ReactNode, use, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AppBar, type EditorActions } from '@/app/AppBar';
+import { entranceSide, useEditorEntrance, useShownOnce } from '@/app/editor-motion';
 import { changeLocale, LOCALE_NAMES } from '@/app/locale';
 import { useTask } from '@/app/task-context';
 import { setThemeMode, useTheme } from '@/app/theme';
@@ -92,7 +93,7 @@ function Rail({
 			<div
 				ref={ref}
 				style={{ '--fade-x': fadeMask(edges, 'x'), '--fade-y': fadeMask(edges, 'y') }}
-				className="relative flex min-h-0 min-w-0 flex-1 gap-1 [scrollbar-width:none] max-md:overflow-x-auto max-md:px-1.5 max-md:py-1.5 max-md:[mask-image:var(--fade-x)] md:h-full md:flex-col md:items-stretch md:overflow-y-auto md:px-2 md:py-3 md:[mask-image:var(--fade-y)]"
+				className="relative flex min-h-0 min-w-0 flex-1 gap-1 [scrollbar-width:none] max-md:overflow-x-auto max-md:px-1.5 max-md:py-1.5 max-md:[mask-image:var(--fade-x)] md:h-full md:flex-col md:items-stretch md:overflow-y-auto md:px-1.5 md:py-3 md:[mask-image:var(--fade-y)]"
 			>
 				<span
 					aria-hidden="true"
@@ -131,14 +132,17 @@ function Rail({
 										behavior: 'smooth',
 									});
 								}}
-								className={`group text-caption enabled:hover:bg-surface enabled:hover:text-ink disabled:opacity-40 aria-pressed:text-ed-text relative grid min-w-15 aria-pressed:hover:bg-transparent flex-1 justify-items-center gap-1.5 rounded-md px-1 pt-3 pb-2.5 font-medium text-muted transition-colors duration-200 md:flex-none`}
+								className={`group text-caption enabled:hover:bg-surface enabled:hover:text-ink disabled:opacity-40 aria-pressed:text-ed-text relative grid min-w-[4.5rem] aria-pressed:hover:bg-transparent flex-1 justify-items-center gap-1.5 rounded-md px-1 pt-3 pb-2.5 font-medium text-muted transition-colors duration-200 md:flex-none`}
 							>
 								<Icon
 									strokeWidth={1.75}
 									aria-hidden="true"
 									className="ease-spring size-[1.4rem] transition-transform duration-300 group-hover:-translate-y-px"
 								/>
-								<span>{TOOL_LABELS[tool]()}</span>
+								{/* Any language fits: a long name goes on two lines rather than past the rail. */}
+								<span className="max-w-full text-center leading-tight text-balance">
+									{TOOL_LABELS[tool]()}
+								</span>
 							</button>
 						</Fragment>
 					);
@@ -148,17 +152,16 @@ function Rail({
 			<button
 				type="button"
 				disabled={disabled || !exportable}
-				title={exportable ? undefined : m.export_later()}
 				aria-pressed={open && current === 'export'}
 				onClick={() => {
 					onSelect('export');
 				}}
-				className="group text-caption text-ed-text enabled:hover:bg-ed-soft aria-pressed:bg-ed-soft relative m-1.5 grid min-w-15 flex-none md:mx-2 md:mt-0 md:mb-3 justify-items-center gap-1.5 rounded-md px-1 pt-2.5 pb-2.5 font-semibold transition-colors duration-200 disabled:opacity-40"
+				className="group text-caption text-ed-text enabled:hover:bg-ed-soft aria-pressed:bg-ed-soft relative m-1.5 grid min-w-15 flex-none md:mx-1.5 md:mt-0 md:mb-3 justify-items-center gap-1.5 rounded-md px-1 pt-2.5 pb-2.5 font-semibold transition-colors duration-200 disabled:opacity-40"
 			>
 				<span className="bg-ed text-ed-ink ease-spring grid size-8 place-items-center rounded-sm transition-transform duration-300 group-enabled:group-hover:-translate-y-px">
 					<Download strokeWidth={2} aria-hidden="true" className="size-[1.1rem]" />
 				</span>
-				<span>{TOOL_LABELS.export()}</span>
+				<span className="max-w-full text-center leading-tight text-balance">{TOOL_LABELS.export()}</span>
 			</button>
 		</nav>
 	);
@@ -236,8 +239,6 @@ interface EditorLayoutProps {
 	 * the top, as in a video app, and this sets its height.
 	 */
 	aspect?: number;
-	/** The preview ends with a player's bar (play, time, position), under the picture. */
-	player?: boolean;
 	/** Null before a file is open: there is nothing to show in it yet. */
 	inspector: ReactNode | null;
 	/** Sticks to the bottom of the inspector, for the final action of a panel. */
@@ -266,7 +267,6 @@ export function EditorLayout({
 	workspace,
 	status,
 	aspect,
-	player = false,
 	inspector,
 	inspectorFooter,
 	panelOpenAtStart = true,
@@ -274,6 +274,8 @@ export function EditorLayout({
 }: EditorLayoutProps) {
 	const editor = EDITORS[kind];
 	const task = useTask();
+	const from = useEditorEntrance(kind);
+	const settled = useShownOnce(from !== null);
 	// Open from the start, on a phone too: there it sits under the picture, as a video's details do.
 	const [panelOpen, setOpen] = useState(panelOpenAtStart);
 	const open = panelOpen && inspector !== null;
@@ -487,12 +489,13 @@ export function EditorLayout({
 	return (
 		<div
 			data-media={kind}
-			className="relative flex h-full min-h-0 flex-col overflow-hidden [--panel-w:clamp(19.5rem,23vw,27rem)] [--rail-w:clamp(4.75rem,5vw,5.75rem)]"
+			className="relative flex h-full min-h-0 flex-col overflow-hidden [--panel-w:clamp(19.5rem,23vw,27rem)] [--rail-w:clamp(5.25rem,5.5vw,6rem)]"
 		>
 			<AppBar
 				editor={kind}
 				fileName={fileName}
 				actions={shownActions}
+				from={from}
 				onSearch={() => {
 					setDialog('palette');
 				}}
@@ -514,8 +517,13 @@ export function EditorLayout({
 				/>
 			)}
 			<div
-				style={{ '--stage-h': stageHeight(aspect, player, open) }}
-				className={`ease-out-soft grid min-h-0 flex-1 grid-cols-1 transition-[grid-template-columns] duration-300 md:grid-rows-[minmax(0,1fr)_auto] ${phoneRows} ${open ? 'md:grid-cols-[var(--rail-w)_var(--panel-w)_minmax(0,1fr)]' : 'md:grid-cols-[var(--rail-w)_0px_minmax(0,1fr)]'}`}
+				style={{
+					'--stage-h': stageHeight(aspect, open),
+					'--editor-side': from ? entranceSide(from, kind) : undefined,
+				}}
+				// Coming from another editor, it slides in from that side. The panel opens at once: the
+				// columns sliding would lay the whole editor out again on every frame.
+				className={`grid min-h-0 flex-1 grid-cols-1 ${from ? 'editor-enter' : ''} md:grid-rows-[minmax(0,1fr)_auto] ${phoneRows} ${open ? 'md:grid-cols-[var(--rail-w)_var(--panel-w)_minmax(0,1fr)]' : 'md:grid-cols-[var(--rail-w)_0px_minmax(0,1fr)]'}`}
 			>
 				<div className="z-30 max-md:order-4 md:row-span-2">
 					<Rail
@@ -555,9 +563,10 @@ export function EditorLayout({
 								{/* A box with a definite size, so the media can be contained in it whatever its resolution. */}
 								<div className="relative min-h-0 flex-1">
 									<div
-										className={`absolute flex items-center justify-center md:inset-x-6 md:top-6 ${status || player ? 'md:bottom-3' : 'md:bottom-6'} ${player ? 'max-md:inset-x-0 max-md:top-0 max-md:bottom-2' : 'max-md:inset-0'}`}
+										className={`absolute flex items-center justify-center md:inset-x-4 md:top-4 ${status ? 'md:bottom-1' : 'md:bottom-4'} max-md:inset-0`}
 									>
-										{viewer}
+										{/* Its pictures wait for the editor to show first. */}
+										{settled && viewer}
 									</div>
 								</div>
 								{status && (
@@ -579,12 +588,12 @@ export function EditorLayout({
 }
 
 /**
- * How tall the preview is on a phone: the picture at the full width of the screen, and its
- * player's bar, up to half the screen for tall pictures while a tool is open below it.
+ * How tall the preview is on a phone: the picture at the full width of the screen, up to half
+ * the screen for tall pictures while a tool is open below it.
  */
-function stageHeight(aspect: number | undefined, player: boolean, open: boolean): string {
+function stageHeight(aspect: number | undefined, open: boolean): string {
 	if (!aspect || !Number.isFinite(aspect) || aspect <= 0) return '40svh';
-	return `min(calc(100vw / ${aspect.toFixed(4)}${player ? ' + 5.5rem' : ''}), ${open ? 50 : 70}svh)`;
+	return `min(calc(100vw / ${aspect.toFixed(4)}), ${open ? 50 : 70}svh)`;
 }
 
 /** The panel's heading, with an optional action (reset) and the button closing the panel. */

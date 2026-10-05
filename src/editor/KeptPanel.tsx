@@ -1,10 +1,10 @@
-import { RotateCcw } from 'lucide-react';
+import { LocateFixed, RotateCcw } from 'lucide-react';
 import { type ReactNode, useId } from 'react';
 import { isShortened, type Kept, restoreCut, setTrim } from '@/document/kept';
 import { formatPreciseTime } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
-import { Button, IconButton } from '@/ui/Button';
-import { FieldRow, TimeField } from '@/ui/fields';
+import { IconButton } from '@/ui/Button';
+import { TimeField } from '@/ui/fields';
 import { PanelTitle } from './EditorLayout';
 import { ResetButton } from './panel-parts';
 
@@ -17,11 +17,7 @@ export interface KeptEditing<T extends Kept> {
 	 * button is pressed, so the panel doesn't draw again on every frame of playback.
 	 */
 	playhead: () => number;
-	/** Name of the output's length: `Final length`, as each editor calls it. */
-	lengthLabel: string;
-	/** The output's length when more than the cuts sets it, such as a video played faster. */
-	length?: number;
-	/** More settings under the trim, such as a video's fades. */
+	/** More settings under the trim, such as a video's speed and fades. */
 	extra?: ReactNode;
 }
 
@@ -34,6 +30,36 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 	);
 }
 
+/** The start or the end of what is kept, typed or set where playback is. */
+export function TrimRow({
+	label,
+	value,
+	max,
+	hereLabel,
+	onCommit,
+	onHere,
+}: {
+	label: string;
+	value: number;
+	max: number;
+	hereLabel: string;
+	onCommit: (time: number) => void;
+	onHere: () => void;
+}) {
+	const id = useId();
+	return (
+		<div className="grid grid-cols-[minmax(0,1fr)_9rem_auto] items-center gap-2">
+			<label htmlFor={id} className="text-ui text-ink-2">
+				{label}
+			</label>
+			<TimeField id={id} value={value} min={0} max={max} onCommit={onCommit} />
+			<IconButton label={hereLabel} onClick={onHere} className="-mr-2">
+				<LocateFixed className="size-[1.1rem]" />
+			</IconButton>
+		</div>
+	);
+}
+
 /**
  * Start and end of what is kept, and the passages removed. A passage selected on the timeline is
  * removed or kept alone from the bar above it.
@@ -41,8 +67,6 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
  */
 export function KeptPanel<T extends Kept>({ editing }: { editing: KeptEditing<T> }) {
 	const { doc, apply, playhead } = editing;
-	const startId = useId();
-	const endId = useId();
 	const edited = isShortened(doc);
 
 	return (
@@ -60,47 +84,31 @@ export function KeptPanel<T extends Kept>({ editing }: { editing: KeptEditing<T>
 				{m.trim_title()}
 			</PanelTitle>
 
-			<div className="grid gap-3.5">
-				<FieldRow label={m.trim_start()} htmlFor={startId}>
-					<TimeField
-						id={startId}
-						value={doc.trim.start}
-						min={0}
-						max={doc.duration}
-						onCommit={(start) => {
-							apply((current) => setTrim(current, { ...current.trim, start }));
-						}}
-					/>
-				</FieldRow>
-				<FieldRow label={m.trim_end()} htmlFor={endId}>
-					<TimeField
-						id={endId}
-						value={doc.trim.end}
-						min={0}
-						max={doc.duration}
-						onCommit={(end) => {
-							apply((current) => setTrim(current, { ...current.trim, end }));
-						}}
-					/>
-				</FieldRow>
-				<div className="grid grid-cols-2 gap-2">
-					<Button
-						title="I"
-						onClick={() => {
-							apply((current) => setTrim(current, { ...current.trim, start: playhead() }));
-						}}
-					>
-						{m.trim_start_here()}
-					</Button>
-					<Button
-						title="O"
-						onClick={() => {
-							apply((current) => setTrim(current, { ...current.trim, end: playhead() }));
-						}}
-					>
-						{m.trim_end_here()}
-					</Button>
-				</div>
+			<div className="grid gap-3">
+				<TrimRow
+					label={m.trim_start()}
+					value={doc.trim.start}
+					max={doc.duration}
+					hereLabel={m.trim_start_here()}
+					onCommit={(start) => {
+						apply((current) => setTrim(current, { ...current.trim, start }));
+					}}
+					onHere={() => {
+						apply((current) => setTrim(current, { ...current.trim, start: playhead() }));
+					}}
+				/>
+				<TrimRow
+					label={m.trim_end()}
+					value={doc.trim.end}
+					max={doc.duration}
+					hereLabel={m.trim_end_here()}
+					onCommit={(end) => {
+						apply((current) => setTrim(current, { ...current.trim, end }));
+					}}
+					onHere={() => {
+						apply((current) => setTrim(current, { ...current.trim, end: playhead() }));
+					}}
+				/>
 			</div>
 
 			{doc.cuts.length > 0 && (

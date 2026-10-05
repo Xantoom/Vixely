@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import { MonitorDown, Redo2, RefreshCw, Search, Undo2 } from 'lucide-react';
+import { useLayoutEffect, useRef } from 'react';
 import { EDITOR_ORDER, EDITORS, type MediaKind } from '@/editors/registry';
 import { m } from '@/paraglide/messages.js';
 import { IconButton } from '@/ui/Button';
@@ -27,12 +28,37 @@ interface AppBarProps {
 	actions?: EditorActions;
 	/** Opens the search of actions (Ctrl or ⌘ + K). */
 	onSearch?: () => void;
+	/** The editor just left for this one, if any: the bar shows the move. */
+	from?: MediaKind | null;
 }
 
-/** The five editors side by side, the open one marked in its colour: one click to another. */
-function EditorTabs({ current }: { current: MediaKind }) {
+/**
+ * The five editors side by side, the open one marked in its colour: one click to another. Coming
+ * from another editor, the mark slides over from its tab.
+ */
+function EditorTabs({ current, from }: { current: MediaKind; from: MediaKind | null }) {
+	const nav = useRef<HTMLElement>(null);
+	const mark = useRef<HTMLSpanElement>(null);
+	useLayoutEffect(() => {
+		const highlight = mark.current;
+		const previous = from && nav.current?.querySelector<HTMLElement>(`[data-media="${from}"]`);
+		if (!highlight || !previous || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+		const target = highlight.getBoundingClientRect();
+		const start = previous.getBoundingClientRect();
+		// Moved and stretched, both drawn by the compositor: smooth even while the editor opens.
+		const animation = highlight.animate(
+			[
+				{ transform: `translateX(${start.left - target.left}px) scaleX(${start.width / target.width})` },
+				{ transform: 'none' },
+			],
+			{ duration: 280, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
+		);
+		return () => {
+			animation.cancel();
+		};
+	}, [from]);
 	return (
-		<nav aria-label={m.switch_editor()} className="bg-surface flex gap-0.5 rounded-md p-0.5">
+		<nav ref={nav} aria-label={m.switch_editor()} className="bg-surface flex gap-0.5 rounded-md p-0.5">
 			{EDITOR_ORDER.map((kind) => {
 				const Icon = MEDIA_ICONS[kind];
 				return (
@@ -42,14 +68,22 @@ function EditorTabs({ current }: { current: MediaKind }) {
 						data-media={kind}
 						aria-current={kind === current ? 'page' : undefined}
 						title={EDITORS[kind].label()}
-						className="group text-ui text-muted hover:text-ink aria-[current=page]:bg-bg aria-[current=page]:text-ink flex h-8 items-center gap-2 rounded-[0.45rem] px-3 font-medium transition-[background-color,color,box-shadow] duration-150 aria-[current=page]:shadow-[0_1px_2px_rgb(0_0_0/0.08),0_0_0_1px_var(--line)] max-xl:px-2.5"
+						className="group text-ui text-muted hover:text-ink aria-[current=page]:text-ink relative flex h-8 items-center gap-2 rounded-[0.45rem] px-3 font-medium transition-colors duration-150 max-xl:px-2.5"
 					>
+						{kind === current && (
+							// Under every tab's words, its own and the others' it slides past.
+							<span
+								ref={mark}
+								aria-hidden="true"
+								className="bg-bg absolute inset-0 z-0 origin-left rounded-[0.45rem] shadow-[0_1px_2px_rgb(0_0_0/0.08),0_0_0_1px_var(--line)]"
+							/>
+						)}
 						<Icon
-							className="group-aria-[current=page]:text-ed-text size-4 flex-none"
+							className="group-aria-[current=page]:text-ed-text relative z-1 size-4 flex-none"
 							strokeWidth={2}
 							aria-hidden="true"
 						/>
-						<span className="max-xl:sr-only">{EDITORS[kind].label()}</span>
+						<span className="relative z-1 max-xl:sr-only">{EDITORS[kind].label()}</span>
 					</Link>
 				);
 			})}
@@ -57,7 +91,7 @@ function EditorTabs({ current }: { current: MediaKind }) {
 	);
 }
 
-export function AppBar({ editor, fileName, actions, onSearch }: AppBarProps) {
+export function AppBar({ editor, fileName, actions, onSearch, from = null }: AppBarProps) {
 	const updateReady = usePwa((state) => state.updateReady);
 	const installable = usePwa((state) => state.installable);
 
@@ -88,7 +122,7 @@ export function AppBar({ editor, fileName, actions, onSearch }: AppBarProps) {
 				)}
 			</div>
 
-			<div className="max-md:hidden">{editor && <EditorTabs current={editor} />}</div>
+			<div className="max-md:hidden">{editor && <EditorTabs current={editor} from={from} />}</div>
 
 			<div className="flex items-center justify-end gap-0.5">
 				{editor && (
@@ -103,7 +137,7 @@ export function AppBar({ editor, fileName, actions, onSearch }: AppBarProps) {
 					</>
 				)}
 				{onSearch && (
-					<IconButton label={`${m.command_search()} (Ctrl K)`} onClick={onSearch} className="max-sm:hidden">
+					<IconButton label={`${m.search_list()} (Ctrl K)`} onClick={onSearch} className="max-sm:hidden">
 						<Search className="size-[1.15rem]" />
 					</IconButton>
 				)}

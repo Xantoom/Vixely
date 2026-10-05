@@ -19,8 +19,8 @@ import { frameAt } from './document';
 import { type GifEngine, useGifEngine } from './engine';
 import { FramesPanel } from './FramesPanel';
 import { GifTimeline } from './GifTimeline';
-import { GifStatus, GifViewer, useGifAspect } from './GifViewer';
-import { BandsSection, ExportFooter, ExportPanel, GifInfoPanel, SpeedPanel, TrimPanel } from './panels';
+import { GifViewer, useGifAspect } from './GifViewer';
+import { BandsSection, ExportFooter, ExportPanel, GifInfoPanel, TrimPanel } from './panels';
 import { GifResizePanel } from './ResizePanel';
 import { LONG_GIF, useGifEditor, useGifPictureEditing, useGifUndoState } from './store';
 
@@ -33,8 +33,10 @@ function useGifShortcuts(engine: GifEngine) {
 	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
 			if (event.ctrlKey || event.metaKey || event.altKey || isTyping(event.target)) return;
-			// A focused trim handle moves with the arrows itself.
-			const slider = event.target instanceof HTMLElement && event.target.getAttribute('role') === 'slider';
+			// A focused trim handle or slider moves with the arrows itself.
+			const slider =
+				(event.target instanceof HTMLInputElement && event.target.type === 'range') ||
+				(event.target instanceof HTMLElement && event.target.getAttribute('role') === 'slider');
 			if (slider && event.key !== ' ') return;
 			const shown = frameAt(frames, useGifEditor.getState().playhead);
 			const index = shown ? frames.indexOf(shown) : 0;
@@ -135,7 +137,6 @@ export function GifEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 		if (tool === 'resize') return <GifResizePanel source={source} />;
 		if (tool === 'adjust') return <AdjustPanel editing={editing} />;
 		if (tool === 'layers') return <LayersPanel editing={overlayEditing(editing)} textRef={textRef} />;
-		if (tool === 'speed') return <SpeedPanel animated={source.timing !== null} />;
 		if (tool === 'frames') return <FramesPanel engine={engine} fileName={opened?.file.name ?? 'animation'} />;
 		if (tool === 'export') return <ExportPanel engine={engine} isGif={isGif} />;
 		return <ToolLater kind="gif" tool={tool} />;
@@ -186,7 +187,8 @@ export function GifEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 					exportActive: tool === 'export',
 				}}
 				viewer={viewer()}
-				status={source && !batch ? <GifStatus engine={engine} /> : undefined}
+				// Zoom lives in the player's bar, over the timeline: no bar of its own.
+				status={source && !batch ? null : undefined}
 				aspect={batch ? undefined : aspect}
 				timeline={
 					source ? (

@@ -204,7 +204,6 @@ export function CropPanel({
 				<div className="grid grid-cols-4 gap-2">
 					<ToolButton
 						label={m.rotate_left()}
-						caption={m.rotate_left_short()}
 						icon={<RotateCcw size={18} aria-hidden="true" />}
 						onClick={() => {
 							turn(-1);
@@ -212,7 +211,6 @@ export function CropPanel({
 					/>
 					<ToolButton
 						label={m.rotate_right()}
-						caption={m.rotate_right_short()}
 						icon={<RotateCw size={18} aria-hidden="true" />}
 						onClick={() => {
 							turn(1);
@@ -220,7 +218,6 @@ export function CropPanel({
 					/>
 					<ToolButton
 						label={m.flip_horizontal()}
-						caption={m.flip_horizontal_short()}
 						icon={<FlipHorizontal2 size={18} aria-hidden="true" />}
 						onClick={() => {
 							apply((d) => flip(d, source, 'x'));
@@ -228,7 +225,6 @@ export function CropPanel({
 					/>
 					<ToolButton
 						label={m.flip_vertical()}
-						caption={m.flip_vertical_short()}
 						icon={<FlipVertical2 size={18} aria-hidden="true" />}
 						onClick={() => {
 							apply((d) => flip(d, source, 'y'));
@@ -499,7 +495,6 @@ export function ExportPanel({ source, photo }: { source: ImageBitmap; photo: Pho
 							/>
 						</FieldRow>
 					)}
-					{settings.maxKb !== null && <p className="text-small text-muted">{m.export_limit_hint()}</p>}
 				</div>
 			)}
 			<p className="text-small text-muted">

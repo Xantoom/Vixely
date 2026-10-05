@@ -2,7 +2,7 @@ import { Link2, Unlink2 } from 'lucide-react';
 import { useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { ResetButton, Section } from '@/editor/panel-parts';
-import { ScaleChoices, SizeSummary } from '@/editor/ResizeParts';
+import { ScaleChoices } from '@/editor/ResizeParts';
 import { m } from '@/paraglide/messages.js';
 import { IconButton } from '@/ui/Button';
 import { NumberField, OptionList } from '@/ui/fields';
@@ -65,7 +65,6 @@ export function ResizePanel({ source }: { source: Size }) {
 		: settings.longestSide === null
 			? 'original'
 			: String(settings.longestSide);
-	const change = (current.width * current.height) / (crop.width * crop.height);
 
 	return (
 		<>
@@ -82,8 +81,6 @@ export function ResizePanel({ source }: { source: Size }) {
 				{m.tool_resize()}
 			</PanelTitle>
 
-			<SizeSummary from={crop} to={current} />
-
 			<Section title={m.resize_scale()}>
 				<ScaleChoices
 					from={crop}
@@ -95,7 +92,6 @@ export function ResizePanel({ source }: { source: Size }) {
 						setExport({ exact: null, longestSide: null });
 					}}
 				/>
-				{change > 1.0001 && <p className="text-small text-muted">{m.resize_upscale_note()}</p>}
 			</Section>
 
 			<Section title={m.resize_dimensions()}>
@@ -138,9 +134,7 @@ export function ResizePanel({ source }: { source: Size }) {
 							return {
 								value: step < longest ? String(step) : `${size.width}x${size.height}`,
 								label: `${size.width} × ${size.height}`,
-								detail: [SIZE_NAMES[step], step > longest ? m.resize_larger() : null]
-									.filter(Boolean)
-									.join(', '),
+								detail: SIZE_NAMES[step],
 							};
 						}),
 					]}

@@ -7,7 +7,6 @@ import { m } from '@/paraglide/messages.js';
 import { Button } from '@/ui/Button';
 import { Tile } from '@/ui/Tile';
 import { FetchFileError, fetchFile, fetchSample } from './fetch-file';
-import { ResumeCard } from './ResumeCard';
 
 /** What went wrong downloading a file, for the person who asked. */
 export function fetchMessage(failure: unknown): string {
@@ -71,7 +70,6 @@ export function DropZone({
 
 	return (
 		<div className="grid gap-3">
-			<ResumeCard prefer={prefer} />
 			<div
 				role="button"
 				tabIndex={0}

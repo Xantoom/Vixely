@@ -217,10 +217,7 @@ export function EditBox() {
 			className="bg-bg flex h-full min-h-0 flex-col gap-2.5 rounded-md p-3 shadow-[inset_0_0_0_1px_var(--line)] max-lg:rounded-none max-lg:shadow-none"
 		>
 			<div className="flex flex-wrap items-end gap-x-2 gap-y-2">
-				<p
-					className="text-ui mr-1 grid h-8 items-center font-semibold whitespace-nowrap"
-					title={m.subs_line_number()}
-				>
+				<p className="text-ui mr-1 grid h-8 items-center font-semibold whitespace-nowrap">
 					{index >= 0 ? m.subs_line_title({ number: index + 1 }) : m.subs_line_none()}
 				</p>
 				<div className="flex min-w-0 flex-1 flex-wrap items-end justify-end gap-1.5 max-sm:justify-start">

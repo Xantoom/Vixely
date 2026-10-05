@@ -71,7 +71,7 @@ export function Group({
 				</button>
 				{onReset && <ResetButton disabled={!changed} onClick={onReset} />}
 				{/* A larger target for the mouse; the keyboard and assistive tech use the title. */}
-				<IconButton label={title} aria-hidden="true" tabIndex={-1} onClick={toggle}>
+				<IconButton label={title} tip={false} aria-hidden="true" tabIndex={-1} onClick={toggle}>
 					<ChevronDown
 						className={`ease-out-soft size-[1.15rem] transition-transform duration-300 ${open ? '' : '-rotate-90'}`}
 					/>
@@ -90,28 +90,17 @@ export function Group({
 	);
 }
 
-/** Square button with an icon and a short caption; `label` is the full name for assistive tech. */
-export function ToolButton({
-	label,
-	caption,
-	icon,
-	onClick,
-}: {
-	label: string;
-	caption: string;
-	icon: ReactNode;
-	onClick: () => void;
-}) {
+/** Button showing only an icon; `label` names it in its tooltip and for assistive tech. */
+export function ToolButton({ label, icon, onClick }: { label: string; icon: ReactNode; onClick: () => void }) {
 	return (
 		<button
 			type="button"
 			aria-label={label}
 			title={label}
 			onClick={onClick}
-			className="text-caption text-ink-2 hover:bg-surface hover:text-ink grid justify-items-center gap-1.5 rounded-sm px-1 pt-2.5 pb-2 font-medium shadow-[inset_0_0_0_1px_var(--line-2)] transition-colors"
+			className="text-ink-2 hover:bg-surface hover:text-ink grid h-10 place-items-center rounded-sm shadow-[inset_0_0_0_1px_var(--line-2)] transition-colors"
 		>
 			{icon}
-			<span aria-hidden="true">{caption}</span>
 		</button>
 	);
 }

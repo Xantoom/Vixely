@@ -209,25 +209,25 @@ for (const file of ['ac3.mkv', 'dts.mkv', 'truehd.mkv', 'truehd.m2ts', 'truehd.m
 // start, the tone at the same pitch.
 {
 	await open(sample('clip.mp4'));
-	await tool('Speed');
+	await tool('Trim');
 	await aside.getByRole('radio', { name: /^2/ }).click();
-	// Playback keeps the pace: two seconds of source for every second.
+	// The time shown is the output's: it moves at the pace of the clock while two seconds of the
+	// source play every second.
 	// The time shown under the picture, m:ss.mmm, in seconds.
 	const playhead = async () => {
 		const [minutes = '0', seconds = '0'] = ((await page.getByRole('timer', { name: 'Playhead' }).first().innerText()).split('/')[0] ?? '').trim().split(':');
 		return Number(minutes) * 60 + Number(seconds);
 	};
-	await page.getByRole('button', { name: 'Play' }).first().click();
+	await page.getByRole('button', { name: 'Play', exact: true }).first().click();
 	await page.waitForTimeout(200);
 	const from = await playhead();
 	await page.waitForTimeout(2000);
 	const to = await playhead();
-	await page.getByRole('button', { name: 'Pause' }).first().click();
-	console.log(`  preview pace: ${((to - from) / 2).toFixed(2)}× (asked 2×)`);
-	await tool('Trim');
-	await aside.getByRole('slider', { name: 'Fade in' }).fill('10');
-	await aside.getByRole('slider', { name: 'Fade out' }).fill('10');
-	console.log('final length:', (await page.locator('main').innerText()).match(/Final length\s+([\d:.]+)/)?.[1]);
+	await page.getByRole('button', { name: 'Pause', exact: true }).first().click();
+	console.log(`  preview pace: ${((to - from) / 2).toFixed(2)}× of output time (expected 1×)`);
+	await aside.getByRole('slider', { name: 'In', exact: true }).fill('10');
+	await aside.getByRole('slider', { name: 'Out', exact: true }).fill('10');
+	console.log('final length:', (await page.getByRole('timer', { name: 'Playhead' }).first().innerText()).split('/')[1]?.trim());
 	const path = await exportAs('fast.mp4', /Convert/);
 	console.log('  duration:', run(['-show_entries', 'format=duration', '-of', 'csv=p=0'], path), 's');
 	if (ffmpeg) {

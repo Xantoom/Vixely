@@ -17,7 +17,7 @@ mkdirSync('shots', { recursive: true });
 const tools = page.locator('nav[aria-label="Editing tools"]');
 const aside = page.locator('aside');
 const header = page.locator('header');
-const trimmed = async () => (await page.locator('main').innerText()).match(/Final length\s+([\d:.]+)/)?.[1];
+const trimmed = async () => (await page.getByRole('timer', { name: 'Playhead' }).first().innerText()).split('/')[1]?.trim();
 
 await page.goto(`${BASE}/video`);
 await page.setInputFiles('input[type=file]', sample('h264.mp4'));
@@ -39,7 +39,7 @@ const before = await trimmed();
 console.log('video edited, final length', before);
 
 // A picture captured: the image editor opens it.
-await page.getByRole('button', { name: 'Open this picture in the image editor' }).click();
+await page.getByRole('button', { name: 'Open in the image editor' }).click();
 await page.waitForURL('**/image**', { timeout: 20000 });
 await page.waitForTimeout(1000);
 console.log('image editor:', (await header.innerText()).replace(/\n/g, ' '));

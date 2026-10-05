@@ -525,9 +525,9 @@ function ToGif({ opened }: { opened: OpenedFile }) {
 	const navigate = useNavigate();
 	const openFrom = useSession((state) => state.openFrom);
 	return (
-		<Section title={m.export_to_gif_title()}>
-			<p className="text-small text-muted">{m.export_to_gif_hint()}</p>
+		<section className="border-line border-t pt-4">
 			<Button
+				className="w-full"
 				onClick={() => {
 					carryVideoEdits(opened.file, doc);
 					openFrom('video', 'gif');
@@ -537,7 +537,7 @@ function ToGif({ opened }: { opened: OpenedFile }) {
 				<Film className="size-4.5" aria-hidden="true" />
 				{m.export_to_gif()}
 			</Button>
-		</Section>
+		</section>
 	);
 }
 

@@ -1,20 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 import { clampView, type Range } from '@/document/timemap';
 import { FitButton } from '@/editor/FitButton';
-import { PlayButton } from '@/editor/PlayerControls';
+import { PlayerBar, PlayTime } from '@/editor/PlayerControls';
 import { TimeRuler } from '@/editor/TimeRuler';
 import { TrimHandle } from '@/editor/TrimHandle';
 import { panDelta, wheelIntent } from '@/editor/wheel';
-import { formatPreciseTime } from '@/lib/format';
+import { CompareButton, useStageZoom, ZoomReset } from '@/editor/ZoomStage';
 import { m } from '@/paraglide/messages.js';
 import { useBoxSize } from '@/ui/use-box-size';
 import { frameAt, type OutputFrame, setTrim } from './document';
 import type { GifEngine } from './engine';
+import { exportLayout } from './export';
 import type { FrameSource } from './source';
 import { useGifDoc, useGifEditor } from './store';
 
-/** Height of the filmstrip, in CSS pixels. */
-const STRIP_HEIGHT = 64;
+/** Height of the filmstrip, in CSS pixels: the video editor's. */
+const STRIP_HEIGHT = 48;
 
 /** The output time that shows a source time: the frame whose picture is closest. */
 function outputTimeOf(frames: readonly OutputFrame[], source: number): number {
@@ -75,6 +76,10 @@ export function GifTimeline({ engine }: { engine: GifEngine }) {
 	const view = clampView(zoom ?? { start: 0, end: doc.duration }, doc.duration);
 	const span = view.end - view.start;
 	const shown = frameAt(frames, playhead);
+	const comparable = useStageZoom((state) => state.comparable);
+	const settings = useGifEditor((state) => state.exportSettings);
+	// The size of the animation as it will be saved.
+	const output = exportLayout(doc, { width: source?.width ?? 1, height: source?.height ?? 1 }, settings);
 	const percent = (time: number) => `${((time - view.start) / span) * 100}%`;
 	const length = (time: number) => `${(time / span) * 100}%`;
 	const seekSource = (time: number) => {
@@ -115,23 +120,37 @@ export function GifTimeline({ engine }: { engine: GifEngine }) {
 	});
 
 	return (
-		<section aria-label={m.timeline()} className="border-line grid gap-2 border-t px-4 pt-2.5 pb-3">
-			<div className="flex items-center gap-3">
-				<PlayButton playing={playing} onToggle={engine.togglePlay} disabled={!source} />
-				<span className="tabular text-[15px] font-medium" aria-label={m.playhead()}>
-					{formatPreciseTime(playhead)}
+		<section aria-label={m.timeline()} className="border-line grid gap-1 border-t px-4 pt-2 pb-4">
+			<PlayerBar
+				left={
+					<span className="text-small text-muted tabular pl-2 whitespace-nowrap">
+						{output.width} × {output.height} px
+					</span>
+				}
+				playing={playing}
+				onToggle={engine.togglePlay}
+				disabled={!source}
+				onStep={(direction) => {
+					if (playing) engine.togglePlay();
+					const index = shown ? frames.indexOf(shown) : 0;
+					const frame = frames[Math.min(frames.length - 1, Math.max(0, index + direction))];
+					if (frame) engine.seek(frame.start);
+				}}
+			>
+				{comparable && <CompareButton className="max-md:hidden" />}
+				<span className="max-md:hidden">
+					<ZoomReset />
 				</span>
-				<span className="text-ui text-muted tabular whitespace-nowrap">
-					/ {formatPreciseTime(engine.length)}
-				</span>
-				<div className="ml-auto">
-					<FitButton
-						zoomed={span < doc.duration}
-						onFit={() => {
-							setZoom(null);
-						}}
-					/>
-				</div>
+			</PlayerBar>
+			<div className="mt-1 flex h-8 items-center gap-3">
+				<PlayTime time={playhead} length={engine.length} />
+				<div className="flex-1" />
+				<FitButton
+					zoomed={span < doc.duration}
+					onFit={() => {
+						setZoom(null);
+					}}
+				/>
 			</div>
 			<div className="grid gap-1">
 				<TimeRuler view={view} onSeek={seekSource} />
@@ -141,7 +160,7 @@ export function GifTimeline({ engine }: { engine: GifEngine }) {
 					aria-label={m.filmstrip()}
 					// Focusable, so the keyboard reaches it: the arrows step through the frames.
 					tabIndex={0}
-					className="bg-surface-2 focus-visible:outline-ed-text relative cursor-pointer touch-none overflow-visible rounded-xs select-none"
+					className="focus-visible:outline-ed-text relative cursor-pointer touch-none overflow-visible rounded-sm bg-[color-mix(in_srgb,var(--gif-1)_16%,var(--bg))] select-none"
 					style={{ height: STRIP_HEIGHT }}
 					onPointerDown={(event) => {
 						if (event.button !== 0) return;
@@ -150,7 +169,7 @@ export function GifTimeline({ engine }: { engine: GifEngine }) {
 					}}
 				>
 					{/* Everything drawn to the timeline scale is clipped to the strip when zoomed in. */}
-					<div className="absolute inset-0 overflow-hidden rounded-xs">
+					<div className="absolute inset-0 overflow-hidden rounded-sm">
 						{source && <Filmstrip source={source} width={width} view={view} />}
 						{[
 							{ start: 0, end: doc.trim.start },
@@ -165,7 +184,7 @@ export function GifTimeline({ engine }: { engine: GifEngine }) {
 								/>
 							))}
 						<div
-							className="shadow-[inset_0_0_0_2px_var(--ed)] pointer-events-none absolute inset-y-0 rounded-xs"
+							className="shadow-[inset_0_0_0_2px_var(--ed)] pointer-events-none absolute inset-y-0 rounded-sm"
 							style={{ left: percent(doc.trim.start), width: length(doc.trim.end - doc.trim.start) }}
 						/>
 					</div>
@@ -184,10 +203,12 @@ export function GifTimeline({ engine }: { engine: GifEngine }) {
 					))}
 					{shown && shown.source >= view.start && shown.source <= view.end && (
 						<div
-							className="bg-ink pointer-events-none absolute -inset-y-1 w-0.5 -translate-x-1/2"
+							className="pointer-events-none absolute -top-1 -bottom-1 z-10 w-0.5 -translate-x-1/2 bg-[var(--ed)]"
 							style={{ left: percent(shown.source) }}
 							aria-hidden="true"
-						/>
+						>
+							<span className="absolute -top-0.5 left-1/2 size-2.5 -translate-x-1/2 rotate-45 rounded-[2px] bg-[var(--ed)]" />
+						</div>
 					)}
 				</div>
 			</div>

@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { isSessionOwner, registerRestorable, takeRestore } from '@/app/resume';
 import { peekTaskIntent } from '@/app/tasks';
 import { canRedo, canUndo, commit, createHistory, type History, redo, replace, undo } from '@/document/history';
 import type { ImageDoc, Size } from '@/editors/image/document';
@@ -107,8 +106,6 @@ export const useGifEditor = create<GifEditorState>((set, get) => ({
 			cropAspect: 'original',
 			exportSettings: defaultExport(width, copyable),
 		});
-		const kept = takeRestore<GifKept>('gif');
-		if (kept) set(kept);
 	},
 
 	retarget(doc) {
@@ -158,22 +155,6 @@ export const useGifEditor = create<GifEditorState>((set, get) => ({
 		set({ exportSettings: { ...get().exportSettings, preset: null, ...settings } });
 	},
 }));
-
-/** What a closed tab keeps of the animation being edited. */
-interface GifKept {
-	history: History<GifDoc>;
-	cropAspect: AspectId;
-	exportSettings: GifExportSettings;
-}
-
-registerRestorable('gif', {
-	snapshot: () => {
-		const { owner, history, cropAspect, exportSettings } = useGifEditor.getState();
-		if (!isSessionOwner(owner) || !(canUndo(history) || canRedo(history))) return null;
-		return { history, cropAspect, exportSettings } satisfies GifKept;
-	},
-	subscribe: useGifEditor.subscribe,
-});
 
 export function useGifDoc(): GifDoc {
 	return useGifEditor((state) => state.history.present);

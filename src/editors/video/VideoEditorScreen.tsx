@@ -18,7 +18,7 @@ import { effectiveCrop, orientedSize } from '../image/document';
 import { AdjustPanel, CropPanel } from '../image/panels';
 import { useSubtitleProject } from '../subtitles/project';
 import { VideoBatchFooter } from './BatchFooter';
-import { fadeOf, speedOf, videoLength } from './document';
+import { fadeOf, speedOf } from './document';
 import { resolveAudio } from './export';
 import {
 	useCopiedRanges,
@@ -32,8 +32,8 @@ import { muxContainer, useHeardSounds } from './mux';
 import { MuxFooter } from './MuxPanel';
 import { VideoTracksPanel } from './panels';
 import { useVideoDoc, useVideoEditor, useVideoPictureEditing, useVideoUndoState, videoOverlayEditing } from './store';
-import { VideoFades, VideoSpeedPanel } from './TimePanels';
-import { VideoPreview } from './VideoPreview';
+import { VideoFades, VideoSpeed } from './TimePanels';
+import { VideoPlayerBar, VideoPreview } from './VideoPreview';
 import { VideoTimeline } from './VideoTimeline';
 
 /** Arrow keys move playback by this much, in seconds; with Shift, ten times more. */
@@ -146,9 +146,12 @@ function VideoTrimPanel() {
 				doc,
 				apply,
 				playhead: () => usePlayback.getState().time,
-				lengthLabel: m.video_final_length(),
-				length: videoLength(doc),
-				extra: <VideoFades />,
+				extra: (
+					<>
+						<VideoSpeed />
+						<VideoFades />
+					</>
+				),
 			}}
 		/>
 	);
@@ -188,6 +191,8 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	const editing = useVideoPictureEditing(upright, opened?.poster ?? null);
 	const overlays = videoOverlayEditing(editing, doc.duration);
 	const textRef = useRef<HTMLTextAreaElement>(null);
+	// Subtitles turned on or off in the player's bar, shown over the picture.
+	const [subtitles, setSubtitles] = useState<boolean | null>(null);
 	const playable = Boolean(opened?.info?.video?.decodable);
 	const ready = opened !== null && owner === opened.file && details !== null;
 
@@ -243,7 +248,6 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 		}
 		if (!ready) return <ToolLater kind="video" tool={tool} />;
 		if (tool === 'trim') return <VideoTrimPanel />;
-		if (tool === 'speed') return <VideoSpeedPanel />;
 		if (tool === 'crop') return <CropPanel editing={editing} />;
 		if (tool === 'adjust') return <AdjustPanel editing={editing} />;
 		if (tool === 'layers') return <LayersPanel editing={overlays} textRef={textRef} />;
@@ -279,7 +283,6 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 			// Zoom lives in the player's bar, under the picture: no bar of its own.
 			status={opened && playable && !batch ? null : undefined}
 			aspect={opened && playable && !batch ? aspectOf(shown) : undefined}
-			player={Boolean(opened && playable && !batch)}
 			viewer={
 				opened && playable ? (
 					<VideoPreview
@@ -287,6 +290,7 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 						editing={editing}
 						cropping={tool === 'crop'}
 						overlays={tool === 'layers' ? overlays : undefined}
+						subtitles={subtitles}
 						onEditText={() => {
 							setTool('layers');
 							textRef.current?.focus();
@@ -314,6 +318,17 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 							setTool('layers');
 						}}
 						cutting={tool === 'trim'}
+						controls={
+							playable ? (
+								<VideoPlayerBar
+									opened={opened}
+									picture={editing.doc}
+									cropping={tool === 'crop'}
+									subtitles={subtitles}
+									onSubtitles={setSubtitles}
+								/>
+							) : undefined
+						}
 					/>
 				) : opened ? (
 					<Timeline file={opened.file} info={opened.info} poster={opened.poster} />

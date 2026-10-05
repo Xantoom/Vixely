@@ -17,6 +17,12 @@ declare module '@tanstack/react-router' {
 
 document.documentElement.lang = getLocale();
 startPwa();
+// Work used to be kept across closed tabs, with copies of the files: what is left of it goes.
+try {
+	indexedDB.deleteDatabase('vixely-session');
+} catch {
+	// Storage refused (a private window): there is nothing kept either.
+}
 
 // Counted once the page has its title, which its own effects set.
 router.subscribe('onResolved', ({ toLocation }) => {

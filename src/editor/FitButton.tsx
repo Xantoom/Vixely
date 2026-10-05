@@ -2,7 +2,7 @@ import { Scan } from 'lucide-react';
 import { m } from '@/paraglide/messages.js';
 
 /**
- * Back to the default zoom of a timeline, usable once it is zoomed: zooming itself is the
+ * Back to the default zoom of a timeline, shown only once it is zoomed: zooming itself is the
  * wheel's and the keyboard's.
  */
 export function FitButton({
@@ -14,16 +14,16 @@ export function FitButton({
 	onFit: () => void;
 	label?: string;
 }) {
+	if (!zoomed) return null;
 	return (
 		<button
 			type="button"
-			title={m.zoom_hint()}
-			disabled={!zoomed}
+			aria-label={label}
+			data-tip={label}
 			onClick={onFit}
-			className="text-small text-ink-2 enabled:hover:bg-surface enabled:hover:text-ink disabled:text-muted flex h-8 flex-none items-center gap-1.5 rounded-sm px-2.5 font-medium whitespace-nowrap transition-colors disabled:cursor-default disabled:opacity-50"
+			className="text-ink-2 hover:bg-surface hover:text-ink -mr-1.5 grid size-8 flex-none place-items-center rounded-sm transition-colors"
 		>
 			<Scan className="size-4" aria-hidden="true" />
-			{label}
 		</button>
 	);
 }

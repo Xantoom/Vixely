@@ -1,5 +1,5 @@
 import { Scissors } from 'lucide-react';
-import { type ReactNode, useId, useMemo, useRef, useState } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { KeptPanel } from '@/editor/KeptPanel';
 import { Group, ResetButton } from '@/editor/panel-parts';
@@ -27,15 +27,6 @@ import {
 import type { AudioEngine } from './engine';
 import { useAudioDoc, useAudioEditor } from './store';
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
-	return (
-		<section className="grid gap-3.5">
-			<h3 className="text-ui font-semibold">{title}</h3>
-			{children}
-		</section>
-	);
-}
-
 function ValueRow({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
@@ -54,9 +45,13 @@ export function TrimPanel({ engine }: { engine: AudioEngine }) {
 				doc,
 				apply,
 				playhead: () => useAudioEditor.getState().playhead,
-				lengthLabel: m.audio_final_length(),
-				length: audioLength(doc),
-				extra: <SilenceSection engine={engine} />,
+				extra: (
+					<>
+						<SilenceSection engine={engine} />
+						<AudioSpeed />
+						<AudioFades />
+					</>
+				),
 			}}
 		/>
 	);
@@ -130,14 +125,13 @@ const TARGETS: { value: number; name: () => string }[] = [
 	{ value: -23, name: () => m.level_broadcast() },
 ];
 
-export function VolumePanel({ engine }: { engine: AudioEngine }) {
+/** How loud: a level to reach, or a gain, and the loudness the export will have. */
+function VolumeGroup({ engine }: { engine: AudioEngine }) {
 	const doc = useAudioDoc();
 	const apply = useAudioEditor((state) => state.apply);
 	const preview = useAudioEditor((state) => state.preview);
 	const settle = useAudioEditor((state) => state.settle);
 	const { reading } = engine;
-	const length = audioLength(doc);
-	const fadeMax = Math.max(0.1, Math.min(30, Math.floor(length * 10) / 10));
 	const normalization = doc.normalize !== null && reading ? normalizationGain(doc.normalize, reading) : null;
 	// What the export will measure: the reading taken without gain, moved by the gain applied.
 	const gain = engine.resolved.gain;
@@ -145,84 +139,62 @@ export function VolumePanel({ engine }: { engine: AudioEngine }) {
 	const truePeak = reading && Number.isFinite(reading.truePeak) ? reading.truePeak + gain : null;
 
 	return (
-		<>
-			<PanelTitle
-				action={
-					<ResetButton
-						disabled={
-							doc.gain === 0 &&
-							doc.normalize === null &&
-							compressOf(doc) === 0 &&
-							doc.fadeIn === 0 &&
-							doc.fadeOut === 0
-						}
-						onClick={() => {
-							apply((current) => ({
-								...current,
-								gain: 0,
-								normalize: null,
-								compress: 0,
-								fadeIn: 0,
-								fadeOut: 0,
-							}));
-						}}
-					/>
-				}
-			>
-				{m.volume_title()}
-			</PanelTitle>
-
-			<Section title={m.level_title()}>
-				<OptionList
-					label={m.level_title()}
-					value={doc.normalize === null ? 'off' : String(doc.normalize)}
-					options={[
-						{ value: 'off', label: m.level_as_is() },
-						...TARGETS.map((option) => ({
-							value: String(option.value),
-							label: option.name(),
-							detail: `${signedDb(option.value).replace(/[.,]0$/, '')} LUFS`,
-						})),
-					]}
-					onChange={(value) => {
-						apply((current) => ({ ...current, normalize: value === 'off' ? null : Number(value) }));
-					}}
-				/>
-				{normalization?.limited && integrated !== null && (
-					<p role="status" className="text-small text-ed-text font-medium">
-						{m.normalize_limited({ lufs: signedDb(integrated) })}
-					</p>
-				)}
-				{doc.normalize === null ? (
-					<Slider
-						label={m.volume_gain()}
-						value={doc.gain}
-						min={GAIN_RANGE.min}
-						max={GAIN_RANGE.max}
-						step={0.5}
-						defaultValue={0}
-						format={formatDb}
-						onChange={(value) => {
-							preview((current) => setGain(current, value));
-						}}
-						onEnd={settle}
-					/>
-				) : (
-					<ValueRow label={m.volume_gain()} value={reading ? formatDb(gain) : '–'} />
-				)}
+		<Group
+			title={m.volume_title()}
+			changed={doc.gain !== 0 || doc.normalize !== null || compressOf(doc) !== 0}
+			onReset={() => {
+				apply((current) => ({ ...current, gain: 0, normalize: null, compress: 0 }));
+			}}
+		>
+			<OptionList
+				label={m.level_title()}
+				value={doc.normalize === null ? 'off' : String(doc.normalize)}
+				options={[
+					{ value: 'off', label: m.level_as_is() },
+					...TARGETS.map((option) => ({
+						value: String(option.value),
+						label: option.name(),
+						detail: `${signedDb(option.value).replace(/[.,]0$/, '')} LUFS`,
+					})),
+				]}
+				onChange={(value) => {
+					apply((current) => ({ ...current, normalize: value === 'off' ? null : Number(value) }));
+				}}
+			/>
+			{normalization?.limited && integrated !== null && (
+				<p role="status" className="text-small text-ed-text font-medium">
+					{m.normalize_limited({ lufs: signedDb(integrated) })}
+				</p>
+			)}
+			{doc.normalize === null ? (
 				<Slider
-					label={m.compress_label()}
-					value={Math.round(compressOf(doc) * 100)}
-					min={0}
-					max={100}
+					label={m.volume_gain()}
+					value={doc.gain}
+					min={GAIN_RANGE.min}
+					max={GAIN_RANGE.max}
+					step={0.5}
 					defaultValue={0}
-					format={(value) => (value === 0 ? m.denoise_off() : `${value} %`)}
+					format={formatDb}
 					onChange={(value) => {
-						preview((current) => ({ ...current, compress: value / 100 }));
+						preview((current) => setGain(current, value));
 					}}
 					onEnd={settle}
 				/>
-			</Section>
+			) : (
+				<ValueRow label={m.volume_gain()} value={reading ? formatDb(gain) : '–'} />
+			)}
+			<Slider
+				label={m.compress_label()}
+				value={Math.round(compressOf(doc) * 100)}
+				min={0}
+				max={100}
+				defaultValue={0}
+				format={(value) => (value === 0 ? m.denoise_off() : `${value} %`)}
+				onChange={(value) => {
+					preview((current) => ({ ...current, compress: value / 100 }));
+				}}
+				onEnd={settle}
+			/>
 
 			<div className="grid gap-2">
 				<ValueRow
@@ -251,34 +223,50 @@ export function VolumePanel({ engine }: { engine: AudioEngine }) {
 					</Button>
 				)}
 			</div>
+		</Group>
+	);
+}
 
-			<Group title={m.fades_title()} defaultOpen={false}>
-				<Slider
-					label={m.fade_in()}
-					value={Math.min(doc.fadeIn, fadeMax)}
-					min={0}
-					max={fadeMax}
-					step={0.1}
-					format={(value) => `${decimal(value, 1)} s`}
-					onChange={(fadeIn) => {
-						preview((current) => setFades(current, { fadeIn }));
-					}}
-					onEnd={settle}
-				/>
-				<Slider
-					label={m.fade_out()}
-					value={Math.min(doc.fadeOut, fadeMax)}
-					min={0}
-					max={fadeMax}
-					step={0.1}
-					format={(value) => `${decimal(value, 1)} s`}
-					onChange={(fadeOut) => {
-						preview((current) => setFades(current, { fadeOut }));
-					}}
-					onEnd={settle}
-				/>
-			</Group>
-		</>
+/** The sound rising from silence at the start and falling to it at the end. */
+function AudioFades() {
+	const doc = useAudioDoc();
+	const apply = useAudioEditor((state) => state.apply);
+	const preview = useAudioEditor((state) => state.preview);
+	const settle = useAudioEditor((state) => state.settle);
+	const fadeMax = Math.max(0.1, Math.min(30, Math.floor(audioLength(doc) * 10) / 10));
+	return (
+		<Group
+			title={m.fades_title()}
+			changed={doc.fadeIn > 0 || doc.fadeOut > 0}
+			onReset={() => {
+				apply((current) => setFades(current, { fadeIn: 0, fadeOut: 0 }));
+			}}
+		>
+			<Slider
+				label={m.fade_in()}
+				value={Math.min(doc.fadeIn, fadeMax)}
+				min={0}
+				max={fadeMax}
+				step={0.1}
+				format={(value) => `${decimal(value, 1)} s`}
+				onChange={(fadeIn) => {
+					preview((current) => setFades(current, { fadeIn }));
+				}}
+				onEnd={settle}
+			/>
+			<Slider
+				label={m.fade_out()}
+				value={Math.min(doc.fadeOut, fadeMax)}
+				min={0}
+				max={fadeMax}
+				step={0.1}
+				format={(value) => `${decimal(value, 1)} s`}
+				onChange={(fadeOut) => {
+					preview((current) => setFades(current, { fadeOut }));
+				}}
+				onEnd={settle}
+			/>
+		</Group>
 	);
 }
 
@@ -286,8 +274,8 @@ function formatSpeed(speed: number): string {
 	return `${new Intl.NumberFormat(getLocale()).format(speed)}×`;
 }
 
-/** How fast the sound plays and how high it sounds, each on its own. */
-export function AudioSpeedPanel() {
+/** How fast the sound plays and how high it sounds, each on its own: a part of the trim panel. */
+function AudioSpeed() {
 	const doc = useAudioDoc();
 	const apply = useAudioEditor((state) => state.apply);
 	const preview = useAudioEditor((state) => state.preview);
@@ -296,22 +284,17 @@ export function AudioSpeedPanel() {
 	const pitch = pitchOf(doc);
 	const index = Math.max(0, AUDIO_SPEEDS.indexOf(speed));
 	return (
-		<>
-			<PanelTitle
-				action={
-					<ResetButton
-						disabled={speed === 1 && pitch === 0}
-						onClick={() => {
-							apply((current) => ({ ...current, speed: 1, pitch: 0 }));
-						}}
-					/>
-				}
-			>
-				{m.tool_speed()}
-			</PanelTitle>
+		<Group
+			title={m.tool_speed()}
+			changed={speed !== 1 || pitch !== 0}
+			onReset={() => {
+				apply((current) => ({ ...current, speed: 1, pitch: 0 }));
+			}}
+		>
 			<div className="grid gap-3.5">
 				<Slider
 					label={m.speed_label()}
+					hideLabel
 					value={index}
 					min={0}
 					max={AUDIO_SPEEDS.length - 1}
@@ -351,7 +334,7 @@ export function AudioSpeedPanel() {
 				}}
 				onEnd={settle}
 			/>
-		</>
+		</Group>
 	);
 }
 
@@ -545,7 +528,7 @@ export function EqCurve({
 const CUSTOM_EQ = 'custom';
 
 /** Noise reduction and the equalizer: what changes the sound itself rather than its volume. */
-export function SoundPanel() {
+export function SoundPanel({ engine, fades = false }: { engine: AudioEngine; fades?: boolean }) {
 	const doc = useAudioDoc();
 	const apply = useAudioEditor((state) => state.apply);
 	const preview = useAudioEditor((state) => state.preview);
@@ -557,9 +540,22 @@ export function SoundPanel() {
 			<PanelTitle
 				action={
 					<ResetButton
-						disabled={doc.denoise === 0 && doc.eq.every((gain) => gain === 0)}
+						disabled={
+							doc.denoise === 0 &&
+							doc.eq.every((gain) => gain === 0) &&
+							doc.gain === 0 &&
+							doc.normalize === null &&
+							compressOf(doc) === 0
+						}
 						onClick={() => {
-							apply((current) => ({ ...current, denoise: 0, eq: FLAT_EQ }));
+							apply((current) => ({
+								...current,
+								denoise: 0,
+								eq: FLAT_EQ,
+								gain: 0,
+								normalize: null,
+								compress: 0,
+							}));
 						}}
 					/>
 				}
@@ -567,7 +563,16 @@ export function SoundPanel() {
 				{m.tool_sound()}
 			</PanelTitle>
 
-			<Section title={m.denoise_title()}>
+			<VolumeGroup engine={engine} />
+			{fades && <AudioFades />}
+
+			<Group
+				title={m.denoise_title()}
+				changed={doc.denoise > 0}
+				onReset={() => {
+					apply((current) => ({ ...current, denoise: 0 }));
+				}}
+			>
 				<Slider
 					label={m.denoise_amount()}
 					value={Math.round(doc.denoise * 100)}
@@ -580,9 +585,15 @@ export function SoundPanel() {
 					}}
 					onEnd={settle}
 				/>
-			</Section>
+			</Group>
 
-			<Section title={m.eq_title()}>
+			<Group
+				title={m.eq_title()}
+				changed={doc.eq.some((gain) => gain !== 0)}
+				onReset={() => {
+					apply((current) => ({ ...current, eq: FLAT_EQ }));
+				}}
+			>
 				<label htmlFor={presetsId} className="sr-only">
 					{m.eq_presets()}
 				</label>
@@ -612,7 +623,7 @@ export function SoundPanel() {
 					}}
 					onSettle={settle}
 				/>
-			</Section>
+			</Group>
 		</>
 	);
 }

@@ -3,6 +3,7 @@ import { ArrowDownToLine, ArrowDownWideNarrow, ArrowLeft, Ban, Check, Plus, Tria
 import { useEffect, useId, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { ExportAnnounce } from '@/editor/ExportAnnounce';
+import { Row } from '@/editor/Inspector';
 import { Group, Section } from '@/editor/panel-parts';
 import { saveFile } from '@/editors/image/export';
 import { EDITORS } from '@/editors/registry';
@@ -33,15 +34,6 @@ import { ScriptHeaderSection } from './ScriptHeader';
 import { useSubtitleDoc, useSubtitleEditor } from './store';
 import { projectTrackName } from './tools';
 import { codecLabel, unsupportedReason, type Unsupported } from './tracks';
-
-function Row({ label, value }: { label: string; value: string }) {
-	return (
-		<div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
-			<dt className="text-ink-2">{label}</dt>
-			<dd className="tabular text-small">{value}</dd>
-		</div>
-	);
-}
 
 /** SSA files are read and written like ASS; their header says which one they are. */
 function formatLabel(format: SubtitleFormat, scriptType: string | null | undefined): string {

@@ -2,7 +2,7 @@ import { Link2, Unlink2 } from 'lucide-react';
 import { useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { ResetButton, Section } from '@/editor/panel-parts';
-import { ScaleChoices, SizeSummary } from '@/editor/ResizeParts';
+import { ScaleChoices } from '@/editor/ResizeParts';
 import type { Size } from '@/editors/image/document';
 import { m } from '@/paraglide/messages.js';
 import { IconButton } from '@/ui/Button';
@@ -63,8 +63,6 @@ export function GifResizePanel({ source }: { source: Size }) {
 			>
 				{m.tool_resize()}
 			</PanelTitle>
-
-			<SizeSummary from={natural} to={current} />
 
 			<Section title={m.resize_scale()}>
 				<ScaleChoices

@@ -7,7 +7,6 @@ import { isTyping, useEditorShortcuts } from '@/editor/shortcuts';
 import { zoomView } from '@/editor/timeline-view';
 import { Viewer } from '@/editor/Viewer';
 import type { ToolId } from '@/editors/registry';
-import { formatClock } from '@/lib/format';
 import { useOpened, useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { AudioStage } from './AudioHeading';
@@ -17,7 +16,7 @@ import { cut, setTrim } from './document';
 import { type AudioEngine, useAudioEngine } from './engine';
 import { readSourceFormat, type SourceFormat } from './export';
 import { ExportFooter, ExportPanel } from './ExportPanel';
-import { AudioSpeedPanel, SoundPanel, TrimPanel, VolumePanel } from './panels';
+import { SoundPanel, TrimPanel } from './panels';
 import { useAudioEditor, useAudioUndoState } from './store';
 
 /** Seconds the arrow keys move the playhead; with Shift, ten times more. */
@@ -154,7 +153,7 @@ export function AudioEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	useLeaveGuard(canUndo);
 	const [chosenTool, setTool] = useState<ToolId>(initialTool ?? 'info');
 	// Cutting belongs to one file: a batch shares volume, fades, sound and export settings only.
-	const tools: ToolId[] | undefined = batch ? ['info', 'volume', 'sound'] : undefined;
+	const tools: ToolId[] | undefined = batch ? ['info', 'sound'] : undefined;
 	const tool = batch && chosenTool === 'trim' ? 'info' : chosenTool;
 	const audioTrack = useAudioEditor((state) => state.audioTrack);
 	const engine = useAudioEngine(editable ? opened.file : null, duration, audioTrack);
@@ -184,9 +183,8 @@ export function AudioEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	const inspector = () => {
 		if (tool === 'info' || !editable) return <FilePanel opened={opened} />;
 		if (tool === 'trim') return <TrimPanel engine={engine} />;
-		if (tool === 'volume') return <VolumePanel engine={engine} />;
-		if (tool === 'speed') return <AudioSpeedPanel />;
-		if (tool === 'sound') return <SoundPanel />;
+		// Without the trim panel, a batch finds its fades with the sound.
+		if (tool === 'sound') return <SoundPanel engine={engine} fades={batch !== null} />;
 		if (tool === 'export' && sourceFormat)
 			return (
 				<ExportPanel
@@ -233,7 +231,7 @@ export function AudioEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 								accept="audio/*,video/*,.mka,.mkv,.opus,.flac"
 							/>
 						) : (
-							<AudioStage opened={opened} length={formatClock(duration)} />
+							<AudioStage opened={opened} />
 						)}
 						<AudioTimeline engine={engine} trimmable={!batch} />
 					</div>

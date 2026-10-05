@@ -22,7 +22,7 @@ declare -A groups=(
 	[audio]="audio-sound audio-tools"
 	[subtitles]="subtitles-editor subtitles-tracks subtitles-mux subtitles-batch subtitles-tools subtitles-styles"
 	[video]="video-editor video-export video-complete video-batch"
-	[shell]="site-pages resume editors-roundtrip keyboard layout"
+	[shell]="site-pages editors-roundtrip keyboard layout"
 )
 all="${groups[shell]%% *} ${groups[image]} ${groups[gif]} ${groups[audio]} ${groups[subtitles]} ${groups[video]} ${groups[shell]#* }"
 scenarios=()

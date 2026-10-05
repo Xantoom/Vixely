@@ -18,7 +18,8 @@ const analyse = async (bytes: Buffer) => page.evaluate(async (data) => {
 	for (let f = reader.next_frame(); f; f = reader.next_frame()) { frames++; total += f.delay; }
 	return { width: reader.width(), height: reader.height(), frames, ms: Math.round(total) };
 }, Array.from(bytes));
-const preview = async () => (await page.locator('div[data-status]').innerText()).replace(/\n/g, ' ');
+// The length of the animation as it will be saved, from the player's time.
+const preview = async () => (await page.getByRole('timer', { name: 'Playhead' }).first().innerText()).split('/')[1]?.trim();
 const exportNow = async () => {
 	const [download] = await Promise.all([page.waitForEvent('download', { timeout: 120000 }), page.locator('aside + div').getByRole('button').first().click()]);
 	return { name: download.suggestedFilename(), data: readFileSync(await download.path()) };
@@ -40,8 +41,8 @@ await rail.getByRole('button', { name: 'Trim' }).click();
 await page.getByLabel('Start', { exact: true }).fill('1'); await page.keyboard.press('Enter');
 await page.getByLabel('End', { exact: true }).fill('2.5'); await page.keyboard.press('Enter');
 console.log('trimmed:', await preview());
-await rail.getByRole('button', { name: 'Speed' }).click();
-const speed = page.getByLabel('Speed', { exact: true });
+// Speed is a part of the trim tool, open already.
+const speed = page.getByRole('slider', { name: 'Speed' });
 await speed.focus(); for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight'); await speed.blur();
 await page.locator('aside').getByRole('radio', { name: 'Back and forth' }).click();
 console.log('2× back and forth:', await preview());

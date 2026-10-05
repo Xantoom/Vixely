@@ -20,7 +20,7 @@ export function SiteHeader() {
 		['faq', copy.nav.faq],
 	] as const;
 	return (
-		<header className="border-line sticky top-0 z-30 border-b bg-[color-mix(in_srgb,var(--bg)_86%,transparent)] backdrop-blur-md">
+		<header className="border-line sticky top-0 z-30 border-b bg-bg">
 			<div className="mx-auto flex h-16 w-full max-w-[76rem] items-center gap-6 px-[clamp(1rem,4vw,2.5rem)]">
 				<Link
 					to="/"

@@ -67,7 +67,7 @@ console.log('tracks left:', (await aside.getByRole('radiogroup', { name: 'Tracks
 await page.goto(`${BASE}/subtitles`);
 await page.setInputFiles('input[type=file]', 'samples/sup2.sup');
 await page.waitForSelector('[role=grid]', { timeout: 30000 });
-await tools.getByRole('button', { name: 'Text recognition', exact: true }).click();
+await tools.getByRole('button', { name: 'Read text', exact: true }).click();
 await aside.getByLabel('Language').click();
 await page.getByRole('option', { name: 'English' }).click();
 const t1 = Date.now();

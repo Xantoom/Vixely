@@ -1,9 +1,9 @@
 import { AudioLines, RotateCcw } from 'lucide-react';
 import { ALL_FORMATS, BlobSource, Input } from 'mediabunny';
-import { type PointerEvent as ReactPointerEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { Range } from '@/document/timemap';
+import { type PointerEvent as ReactPointerEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { type Range, toOutput } from '@/document/timemap';
 import { FitButton } from '@/editor/FitButton';
-import { audioTrackDetail, audioTrackLabel, PlayButton, PlayerMenu } from '@/editor/PlayerControls';
+import { audioTrackDetail, audioTrackLabel, PlayerBar, PlayerMenu, PlayTime } from '@/editor/PlayerControls';
 import { SelectionBar } from '@/editor/SelectionBar';
 import { percent, timeAt, zoomView } from '@/editor/timeline-view';
 import { TimeRuler } from '@/editor/TimeRuler';
@@ -17,7 +17,16 @@ import { useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { useCssColors } from '@/ui/css-colors';
 import { useBoxSize } from '@/ui/use-box-size';
-import { type AudioDoc, audioLength, envelope, keptRanges, restoreCut, setTrim, sourceGainAt } from './document';
+import {
+	type AudioDoc,
+	audioLength,
+	envelope,
+	keptRanges,
+	restoreCut,
+	setTrim,
+	sourceGainAt,
+	speedOf,
+} from './document';
 import type { AudioEngine } from './engine';
 import { useAudioDoc, useAudioEditor } from './store';
 
@@ -67,14 +76,12 @@ function AudioTrackPicker() {
 	);
 }
 
-/** Where playback is, drawn again on its own as it moves. */
-function PlayheadTime() {
+/** Where playback is in the sound as it will be exported, over its final length. */
+function AudioTime() {
+	const doc = useAudioDoc();
 	const playhead = useAudioEditor((state) => state.playhead);
-	return (
-		<span className="tabular text-body font-medium" aria-label={m.playhead()}>
-			{formatPreciseTime(playhead)}
-		</span>
-	);
+	const ranges = useMemo(() => keptRanges(doc), [doc]);
+	return <PlayTime time={toOutput(ranges, playhead) / speedOf(doc)} length={audioLength(doc)} />;
 }
 
 function Transport({ engine }: { engine: AudioEngine }) {
@@ -87,31 +94,36 @@ function Transport({ engine }: { engine: AudioEngine }) {
 	const span = view.end - view.start;
 
 	return (
-		<div className="flex items-center gap-3">
-			<PlayButton playing={playing} onToggle={engine.togglePlay} disabled={!engine.player || failed} />
-			<PlayheadTime />
-			<VolumeControl />
-			{failed ? (
-				<span className="text-small text-danger truncate">{m.waveform_failed()}</span>
-			) : (
-				progress < 1 &&
-				peaks && (
-					<span className="text-small text-muted tabular truncate">
-						{m.waveform_reading({ percent: Math.floor(progress * 100) })}
-					</span>
-				)
-			)}
-			<div className="flex-1" />
-			<AudioTrackPicker />
-			<span className="text-ui text-muted max-sm:hidden">{m.audio_final_length()}</span>
-			<span className="tabular text-small max-sm:hidden">{formatPreciseTime(audioLength(doc))}</span>
-			<FitButton
-				zoomed={span < doc.duration}
-				onFit={() => {
-					setView({ start: 0, end: doc.duration });
-				}}
-			/>
-		</div>
+		<>
+			<PlayerBar
+				left={<VolumeControl />}
+				playing={playing}
+				onToggle={engine.togglePlay}
+				disabled={!engine.player || failed}
+			>
+				<AudioTrackPicker />
+			</PlayerBar>
+			<div className="mt-1 flex h-8 items-center gap-3">
+				<AudioTime />
+				{failed ? (
+					<span className="text-small text-danger truncate">{m.waveform_failed()}</span>
+				) : (
+					progress < 1 &&
+					peaks && (
+						<span className="text-small text-muted tabular truncate">
+							{m.waveform_reading({ percent: Math.floor(progress * 100) })}
+						</span>
+					)
+				)}
+				<div className="flex-1" />
+				<FitButton
+					zoomed={span < doc.duration}
+					onFit={() => {
+						setView({ start: 0, end: doc.duration });
+					}}
+				/>
+			</div>
+		</>
 	);
 }
 
@@ -120,10 +132,12 @@ function Playhead({ view }: { view: Range }) {
 	if (playhead < view.start || playhead > view.end) return null;
 	return (
 		<div
-			className="bg-ink pointer-events-none absolute inset-y-0 w-0.5 -translate-x-1/2"
+			className="pointer-events-none absolute inset-y-0 z-10 w-0.5 -translate-x-1/2 bg-[var(--ed)]"
 			style={{ left: percent(playhead, view) }}
 			aria-hidden="true"
-		/>
+		>
+			<span className="absolute -top-0.5 left-1/2 size-2.5 -translate-x-1/2 rotate-45 rounded-[2px] bg-[var(--ed)]" />
+		</div>
 	);
 }
 
@@ -384,8 +398,8 @@ export function AudioTimeline({
 			aria-label={m.timeline()}
 			className={
 				fill
-					? 'flex min-h-0 flex-1 flex-col gap-3 px-4 pt-4 pb-4 md:px-8 md:pt-6 md:pb-7'
-					: 'border-line grid gap-2 border-t px-4 pt-2.5 pb-3'
+					? 'flex min-h-0 flex-1 flex-col gap-1 px-4 pt-4 pb-4 md:px-8 md:pt-6 md:pb-7'
+					: 'border-line grid gap-1 border-t px-4 pt-2 pb-4'
 			}
 		>
 			<Transport engine={engine} />

@@ -99,7 +99,6 @@ function ChooseVideo({ onChoose }: { onChoose: () => void }) {
 				<Film className="size-6" aria-hidden="true" />
 			</span>
 			<span className="text-lead font-semibold">{m.subs_video_load()}</span>
-			<span className="text-small text-muted max-w-[34ch]">{m.subs_video_load_hint()}</span>
 		</button>
 	);
 }

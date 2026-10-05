@@ -925,27 +925,24 @@ export function LayersPanel({
 	return (
 		<>
 			<PanelTitle>{m.tool_layers()}</PanelTitle>
-			<Section
-				title={m.layers_applied()}
-				action={
-					<span className="bg-surface text-small tabular grid h-6 min-w-6 place-items-center rounded-full px-2 font-semibold">
-						{editing.overlays.length}
-					</span>
-				}
-			>
-				{editing.overlays.length > 0 ? (
-					<>
-						<LayerList editing={editing} />
-						{editing.overlays.length > 1 && (
-							<p className="text-small text-muted">{m.layers_order_hint()}</p>
-						)}
-					</>
-				) : (
-					<p className="text-small text-muted">{m.layers_empty()}</p>
-				)}
-			</Section>
+			{editing.overlays.length > 0 && (
+				<Section
+					title={m.layers_applied()}
+					action={
+						<span className="bg-surface text-small tabular grid h-6 min-w-6 place-items-center rounded-full px-2 font-semibold">
+							{editing.overlays.length}
+						</span>
+					}
+				>
+					<LayerList editing={editing} />
+				</Section>
+			)}
 			<Section title={m.layers_add()}>
-				<div role="tablist" aria-label={m.layers_add()} className="grid grid-cols-5 gap-1.5">
+				<div
+					role="tablist"
+					aria-label={m.layers_add()}
+					className="grid grid-cols-[repeat(auto-fit,minmax(4.5rem,1fr))] gap-1.5"
+				>
 					{(['text', 'sticker', 'shape', 'zone', 'draw'] as const).map((kind) => {
 						const Icon = ADD_ICONS[kind];
 						return (
