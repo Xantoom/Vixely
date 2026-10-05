@@ -100,7 +100,7 @@ await page.screenshot({ path: 'shots/subs-playing.png' });
 await grid.getByRole('row').nth(2).click();
 await page.getByLabel('Text', { exact: true }).fill('Edited <b>second</b> line');
 await page.getByLabel('Text', { exact: true }).press('Enter');
-console.log('after Enter, editing', await page.getByTitle('Line number').innerText());
+console.log('after Enter, editing', await page.getByRole('region', { name: 'Selected line' }).getByText(/^Line \d+$/).first().innerText());
 
 // Line 3's start set by clicking on the audio box, its end with a right click.
 const audio = page.getByRole('application', { name: 'Sound of the line' });

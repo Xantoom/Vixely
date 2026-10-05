@@ -127,7 +127,8 @@ export function PlayTime({ time, length }: { time: number; length: number }) {
 	return (
 		<span role="timer" aria-label={m.playhead()} className="text-small tabular whitespace-nowrap">
 			<span className="text-ink font-medium">{formatPreciseTime(Math.min(time, length))}</span>
-			<span className="text-muted"> / {formatPreciseTime(length)}</span>
+			{/* On a phone the bar has room for the time alone. */}
+			<span className="text-muted max-sm:hidden"> / {formatPreciseTime(length)}</span>
 		</span>
 	);
 }
@@ -270,6 +271,8 @@ function StepButton({ direction, onStep, disabled }: { direction: -1 | 1; onStep
  */
 export function PlayerBar({
 	left,
+	time,
+	fit,
 	playing,
 	onToggle,
 	onStep,
@@ -277,6 +280,10 @@ export function PlayerBar({
 	children,
 }: {
 	left?: ReactNode;
+	/** Where playback is over the final length, after what sits on the left. */
+	time?: ReactNode;
+	/** Back to the timeline's default zoom, beside the time while zoomed. */
+	fit?: ReactNode;
 	playing: boolean;
 	onToggle: () => void;
 	/** One frame back or forward; left out where there are no frames (sound). */
@@ -286,7 +293,12 @@ export function PlayerBar({
 }) {
 	return (
 		<div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 max-sm:gap-1.5">
-			<div className="-ml-2 flex min-w-0 items-center gap-1.5">{left}</div>
+			{/* All on one line above the timeline: the time sits with what is on the left. */}
+			<div className="-ml-2 flex min-w-0 items-center gap-1.5">
+				{left}
+				{time && <div className="min-w-0 overflow-hidden pl-1.5">{time}</div>}
+				{fit}
+			</div>
 			<div className="flex items-center gap-1.5 max-sm:gap-0.5">
 				{onStep && (
 					<StepButton
@@ -319,10 +331,14 @@ export function PlayerBar({
  */
 export function PlayerControls({
 	children,
+	time,
+	fit,
 	seek = true,
 	frameRate = 30,
 }: {
 	children?: ReactNode;
+	time?: ReactNode;
+	fit?: ReactNode;
 	/** Shows the position bar; left out over a timeline, whose playhead already does it. */
 	seek?: boolean;
 	frameRate?: number;
@@ -334,6 +350,8 @@ export function PlayerControls({
 			{seek && <SeekBar />}
 			<PlayerBar
 				left={<VolumeControl />}
+				time={time}
+				fit={fit}
 				playing={playing}
 				onToggle={toggle}
 				onStep={(direction) => {

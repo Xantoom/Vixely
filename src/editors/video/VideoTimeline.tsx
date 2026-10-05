@@ -288,7 +288,7 @@ function Lanes({ file, aspect, cutting }: { file: File; aspect: number; cutting:
 }
 
 /** Back to the whole video, shown only once the timeline is zoomed. */
-function VideoFit() {
+export function VideoFit() {
 	const view = useVideoEditor((state) => state.view);
 	const duration = useVideoEditor((state) => state.history.present.duration);
 	const setView = useVideoEditor((state) => state.setView);
@@ -303,7 +303,7 @@ function VideoFit() {
 }
 
 /** Where playback is in the video as it will be exported, over its final length. */
-function VideoTime() {
+export function VideoTime() {
 	const doc = useVideoDoc();
 	const copied = useVideoEditor((state) => state.copied);
 	const source = usePlayback((state) => state.time);
@@ -358,12 +358,7 @@ export function VideoTimeline({
 	return (
 		<section aria-label={m.timeline()} className="border-line grid gap-1 border-t px-4 pt-2 pb-4">
 			{controls}
-			<div className="mt-1 flex h-8 items-center gap-3">
-				<VideoTime />
-				<div className="flex-1" />
-				<VideoFit />
-			</div>
-			<div id="video-timeline" className="grid gap-1">
+			<div id="video-timeline" className="mt-1 grid gap-1">
 				<TimeRuler view={view} onSeek={seek} />
 				<Lanes file={file} aspect={aspect} cutting={cutting} />
 				{layers && <LayerLanes editing={layers} view={view} onSelect={onLayer} />}

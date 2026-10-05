@@ -97,32 +97,35 @@ function Transport({ engine }: { engine: AudioEngine }) {
 		<>
 			<PlayerBar
 				left={<VolumeControl />}
+				time={
+					<span className="flex min-w-0 items-center gap-3">
+						<AudioTime />
+						{failed ? (
+							<span className="text-small text-danger truncate">{m.waveform_failed()}</span>
+						) : (
+							progress < 1 &&
+							peaks && (
+								<span className="text-small text-muted tabular truncate">
+									{m.waveform_reading({ percent: Math.floor(progress * 100) })}
+								</span>
+							)
+						)}
+					</span>
+				}
+				fit={
+					<FitButton
+						zoomed={span < doc.duration}
+						onFit={() => {
+							setView({ start: 0, end: doc.duration });
+						}}
+					/>
+				}
 				playing={playing}
 				onToggle={engine.togglePlay}
 				disabled={!engine.player || failed}
 			>
 				<AudioTrackPicker />
 			</PlayerBar>
-			<div className="mt-1 flex h-8 items-center gap-3">
-				<AudioTime />
-				{failed ? (
-					<span className="text-small text-danger truncate">{m.waveform_failed()}</span>
-				) : (
-					progress < 1 &&
-					peaks && (
-						<span className="text-small text-muted tabular truncate">
-							{m.waveform_reading({ percent: Math.floor(progress * 100) })}
-						</span>
-					)
-				)}
-				<div className="flex-1" />
-				<FitButton
-					zoomed={span < doc.duration}
-					onFit={() => {
-						setView({ start: 0, end: doc.duration });
-					}}
-				/>
-			</div>
 		</>
 	);
 }

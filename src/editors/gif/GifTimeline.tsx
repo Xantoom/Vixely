@@ -122,10 +122,21 @@ export function GifTimeline({ engine }: { engine: GifEngine }) {
 	return (
 		<section aria-label={m.timeline()} className="border-line grid gap-1 border-t px-4 pt-2 pb-4">
 			<PlayerBar
-				left={
-					<span className="text-small text-muted tabular pl-2 whitespace-nowrap">
-						{output.width} × {output.height} px
+				time={
+					<span className="flex items-center gap-3 whitespace-nowrap">
+						<PlayTime time={playhead} length={engine.length} />
+						<span className="text-small text-muted tabular max-lg:hidden">
+							{output.width} × {output.height} px
+						</span>
 					</span>
+				}
+				fit={
+					<FitButton
+						zoomed={span < doc.duration}
+						onFit={() => {
+							setZoom(null);
+						}}
+					/>
 				}
 				playing={playing}
 				onToggle={engine.togglePlay}
@@ -142,17 +153,7 @@ export function GifTimeline({ engine }: { engine: GifEngine }) {
 					<ZoomReset />
 				</span>
 			</PlayerBar>
-			<div className="mt-1 flex h-8 items-center gap-3">
-				<PlayTime time={playhead} length={engine.length} />
-				<div className="flex-1" />
-				<FitButton
-					zoomed={span < doc.duration}
-					onFit={() => {
-						setZoom(null);
-					}}
-				/>
-			</div>
-			<div className="grid gap-1">
+			<div className="mt-1 grid gap-1">
 				<TimeRuler view={view} onSeek={seekSource} />
 				<div
 					ref={stripRef}

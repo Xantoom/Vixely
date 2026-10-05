@@ -34,6 +34,7 @@ import { SubtitleLayer } from '../subtitles/SubtitleViewer';
 import { capturePicture, carryEdits } from './capture';
 import { fadeLevel, fadeOf, speedOf, videoLength } from './document';
 import { useVideoDoc } from './store';
+import { VideoFit, VideoTime } from './VideoTimeline';
 
 const OFF = 'off';
 
@@ -380,7 +381,7 @@ export function VideoPlayerBar({
 	const projectReady = useSubtitleProject((state) => state.file === opened.file && state.status === 'ready');
 	const shown = useSubtitlesShown(subtitles);
 	return (
-		<PlayerControls seek={false} frameRate={opened.info?.video?.fps ?? 30}>
+		<PlayerControls seek={false} frameRate={opened.info?.video?.fps ?? 30} time={<VideoTime />} fit={<VideoFit />}>
 			<AudioTrackMenu />
 			{projectReady && <SubtitleMenu shown={shown} onShown={onSubtitles} />}
 			<CaptureButton file={opened.file} doc={picture} />
