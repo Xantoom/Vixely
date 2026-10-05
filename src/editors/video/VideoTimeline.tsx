@@ -30,7 +30,7 @@ import { speedOf, type VideoDoc, videoLength } from './document';
 import { useVideoDoc, useVideoEditor } from './store';
 
 /** Height of the picture lane, in CSS pixels. */
-const STRIP_HEIGHT = 48;
+const STRIP_HEIGHT = 72;
 
 /** Pictures along the visible part of the video, one per slot, each the key frame before it. */
 function Filmstrip({
@@ -356,7 +356,7 @@ export function VideoTimeline({
 	);
 
 	return (
-		<section aria-label={m.timeline()} className="border-line grid gap-1 border-t px-4 pt-2 pb-4">
+		<section aria-label={m.timeline()} className="border-line grid gap-1 border-t px-4 pt-2 pb-2">
 			{controls}
 			<div id="video-timeline" className="mt-1 grid gap-1">
 				<TimeRuler view={view} onSeek={seek} />

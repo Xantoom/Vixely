@@ -15,7 +15,7 @@ import type { FrameSource } from './source';
 import { useGifDoc, useGifEditor } from './store';
 
 /** Height of the filmstrip, in CSS pixels: the video editor's. */
-const STRIP_HEIGHT = 48;
+const STRIP_HEIGHT = 72;
 
 /** The output time that shows a source time: the frame whose picture is closest. */
 function outputTimeOf(frames: readonly OutputFrame[], source: number): number {
@@ -120,7 +120,7 @@ export function GifTimeline({ engine }: { engine: GifEngine }) {
 	});
 
 	return (
-		<section aria-label={m.timeline()} className="border-line grid gap-1 border-t px-4 pt-2 pb-4">
+		<section aria-label={m.timeline()} className="border-line grid gap-1 border-t px-4 pt-2 pb-2">
 			<PlayerBar
 				time={
 					<span className="flex items-center gap-3 whitespace-nowrap">
