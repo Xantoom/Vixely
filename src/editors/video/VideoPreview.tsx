@@ -17,6 +17,7 @@ import type { OverlayEditing } from '@/editor/overlays/editing';
 import { shownAt } from '@/editor/overlays/model';
 import { CroppedLayers, OverlayLayer } from '@/editor/overlays/OverlayLayer';
 import { AudioTrackMenu, PlayerControls, PlayerMenu } from '@/editor/PlayerControls';
+import { VolumeControl } from '@/editor/VolumeControl';
 import { backingSize, CompareButton, useStageZoom, ZoomReset, ZoomStage } from '@/editor/ZoomStage';
 import { EDITORS } from '@/editors/registry';
 import { trackName } from '@/lib/language';
@@ -382,6 +383,7 @@ export function VideoPlayerBar({
 	const shown = useSubtitlesShown(subtitles);
 	return (
 		<PlayerControls seek={false} frameRate={opened.info?.video?.fps ?? 30} time={<VideoTime />} fit={<VideoFit />}>
+			<VolumeControl />
 			<AudioTrackMenu />
 			{projectReady && <SubtitleMenu shown={shown} onShown={onSubtitles} />}
 			<CaptureButton file={opened.file} doc={picture} />

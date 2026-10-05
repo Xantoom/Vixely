@@ -27,7 +27,7 @@ await page.waitForTimeout(1200);
 // Edits: a 1:1 crop and a passage removed.
 await tools.getByRole('button', { name: 'Crop' }).click();
 await aside.getByRole('radio', { name: /1:1/ }).click();
-await tools.getByRole('button', { name: 'Trim' }).click();
+await tools.getByRole('button', { name: 'Edit', exact: true }).click();
 const lanes = (await page.getByRole('group', { name: 'Tracks' }).boundingBox())!;
 const x = (t: number) => lanes.x + (t / 12.012) * lanes.width;
 await page.mouse.move(x(3), lanes.y + 20);

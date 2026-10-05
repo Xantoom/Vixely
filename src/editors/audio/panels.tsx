@@ -502,7 +502,7 @@ export function EqCurve({
 							}}
 						>
 							<span
-								className={`text-caption tabular bg-ink text-bg pointer-events-none absolute bottom-full left-1/2 mb-1.5 -translate-x-1/2 rounded-xs px-1.5 py-0.5 whitespace-nowrap transition-opacity ${active === index ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100'}`}
+								className={`text-caption tabular bg-tip text-tip-ink pointer-events-none absolute bottom-full left-1/2 mb-1.5 -translate-x-1/2 rounded-xs px-1.5 py-0.5 whitespace-nowrap transition-opacity ${active === index ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100'}`}
 							>
 								{formatDb(gain)}
 							</span>

@@ -1,7 +1,8 @@
 import { Columns2, Scan } from 'lucide-react';
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { create } from 'zustand';
 import { m } from '@/paraglide/messages.js';
+import { isLayoutMoving } from '@/ui/layout-motion';
 import { useBoxSize } from '@/ui/use-box-size';
 import { wheelIntent } from './wheel';
 
@@ -51,6 +52,15 @@ export function backingSize(display: number, source: number): number {
 	return Math.max(1, Math.round(Math.min(display * ratio, source, 8192)));
 }
 
+/** The scale fitting a picture in `area`, leaving `margin` around it on larger screens. */
+function fitIn(area: { width: number; height: number }, width: number, height: number, margin: number): number {
+	// A phone's picture spans the screen's width: no room is left around it there.
+	const room = matchMedia('(min-width: 48rem)').matches ? margin * 2 : 0;
+	return area.width > room && area.height > room && width && height
+		? Math.min((area.width - room) / width, (area.height - room) / height)
+		: 0;
+}
+
 /**
  * The preview area of the image, GIF and video editors: the picture fitted, or zoomed and moved
  * around. The wheel zooms around the pointer; once zoomed in, Shift + wheel and a drag move it.
@@ -83,14 +93,36 @@ export function ZoomStage({
 	const [panning, setPanning] = useState(false);
 	const drag = useRef<{ x: number; y: number; pan: { x: number; y: number } } | null>(null);
 
-	// A phone's picture spans the screen's width: no room is left around it there.
-	const room = matchMedia('(min-width: 48rem)').matches ? margin * 2 : 0;
-	const fit =
-		area.width > room && area.height > room && width && height
-			? Math.min((area.width - room) / width, (area.height - room) / height)
-			: 0;
+	const fit = fitIn(area, width, height, margin);
 	const scale = zoom ?? fit;
 	const display = { width: Math.round(width * scale), height: Math.round(height * scale) };
+
+	// While the editor's columns slide, the stage's size waits for them to settle; meanwhile the
+	// fitted picture follows the stage by a scale alone, drawn by the compositor.
+	const boxRef = useRef<HTMLDivElement>(null);
+	const fitRef = useRef(fit);
+	fitRef.current = fit;
+	useLayoutEffect(() => {
+		const element = areaRef.current;
+		if (!element) return;
+		const observer = new ResizeObserver(([entry]) => {
+			const box = boxRef.current;
+			if (!entry || !box || !isLayoutMoving() || useStageZoom.getState().zoom !== null || fitRef.current <= 0)
+				return;
+			box.style.setProperty(
+				'--live-scale',
+				String(fitIn(entry.contentRect, width, height, margin) / fitRef.current),
+			);
+		});
+		observer.observe(element);
+		return () => {
+			observer.disconnect();
+		};
+	}, [width, height, margin]);
+	// Measured again, the picture is drawn at its size: no scale left.
+	useLayoutEffect(() => {
+		boxRef.current?.style.removeProperty('--live-scale');
+	}, [fit]);
 	const zoomed = zoom !== null && zoom > fit * 1.001;
 
 	useEffect(() => {
@@ -181,11 +213,12 @@ export function ZoomStage({
 		>
 			{scale > 0 && (
 				<div
+					ref={boxRef}
 					className="absolute top-1/2 left-1/2 will-change-transform"
 					style={{
 						width: display.width,
 						height: display.height,
-						transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
+						transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px)) scale(var(--live-scale, 1))`,
 					}}
 				>
 					{children(scale)}

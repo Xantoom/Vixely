@@ -38,7 +38,7 @@ const inspect = async (data: Buffer, kind: string) => page.evaluate(async ([byte
 }, [Array.from(data), kind] as const);
 
 // 1. Original: trim 1 s – 2.5 s, loop once; frames copied as they are.
-await page.locator('nav[aria-label="Editing tools"]').getByRole('button', { name: 'Trim' }).click();
+await page.locator('nav[aria-label="Editing tools"]').getByRole('button', { name: 'Edit', exact: true }).click();
 await page.getByLabel('Start', { exact: true }).fill('1'); await page.keyboard.press('Enter');
 await page.getByLabel('End', { exact: true }).fill('2.5'); await page.keyboard.press('Enter');
 await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
@@ -69,7 +69,7 @@ await page.getByLabel('Maximum size').click();
 await page.getByRole('option', { name: 'No limit' }).click();
 
 // 3. A speed change blocks the original.
-await page.locator('nav[aria-label="Editing tools"]').getByRole('button', { name: 'Trim' }).click();
+await page.locator('nav[aria-label="Editing tools"]').getByRole('button', { name: 'Edit', exact: true }).click();
 await page.locator('aside').getByRole('radio', { name: 'Reverse' }).click();
 await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 console.log('original disabled after reverse:', await aside.getByRole('radio', { name: /^Original/ }).isDisabled(), (await aside.innerText()).includes('redraw the frames'));

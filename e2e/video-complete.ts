@@ -173,7 +173,7 @@ for (const file of ['ac3.mkv', 'dts.mkv', 'truehd.mkv', 'truehd.m2ts', 'truehd.m
 // the source's, byte for byte.
 {
 	await open(sample('clip.mp4'));
-	await tool('Trim');
+	await tool('Edit');
 	const lanes = (await page.getByRole('group', { name: 'Tracks' }).boundingBox())!;
 	await page.mouse.move(lanes.x + lanes.width * 0.3, lanes.y + 20);
 	await page.mouse.down();
@@ -209,7 +209,7 @@ for (const file of ['ac3.mkv', 'dts.mkv', 'truehd.mkv', 'truehd.m2ts', 'truehd.m
 // start, the tone at the same pitch.
 {
 	await open(sample('clip.mp4'));
-	await tool('Trim');
+	await tool('Edit');
 	await aside.getByRole('radio', { name: /^2/ }).click();
 	// The time shown is the output's: it moves at the pace of the clock while two seconds of the
 	// source play every second.

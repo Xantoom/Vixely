@@ -75,11 +75,11 @@ const finalLength = async () => (await page.getByRole('timer', { name: 'Playhead
 
 await page.goto(`${BASE}/audio`);
 await page.setInputFiles('input[type=file]', { name: 'tone.wav', mimeType: 'audio/wav', buffer: toneWav() });
-await tools.getByRole('button', { name: 'Trim' }).waitFor({ timeout: 30000 });
+await tools.getByRole('button', { name: 'Edit', exact: true }).waitFor({ timeout: 30000 });
 await page.waitForTimeout(2500);
 
 // 1. The silence in the middle, found and cut.
-await tools.getByRole('button', { name: 'Trim' }).click();
+await tools.getByRole('button', { name: 'Edit', exact: true }).click();
 const remove = aside.getByRole('button', { name: /^Remove silences|^No silence found$/ });
 console.log('silence button:', await remove.innerText());
 await remove.click();

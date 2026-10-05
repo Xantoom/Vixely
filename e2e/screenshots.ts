@@ -55,7 +55,7 @@ export const SHOTS: Record<string, Shot> = {
 	},
 	'video-trim': async (page) => {
 		await open(page, '/video', 'sunset.mkv', tracks());
-		await tool(page, t('Trim', 'Couper'));
+		await tool(page, t('Edit', 'Édition'));
 	},
 	'video-export': async (page) => {
 		await open(page, '/video', 'sunset.mkv', tracks());

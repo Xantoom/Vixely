@@ -96,7 +96,6 @@ function Transport({ engine }: { engine: AudioEngine }) {
 	return (
 		<>
 			<PlayerBar
-				left={<VolumeControl />}
 				time={
 					<span className="flex min-w-0 items-center gap-3">
 						<AudioTime />
@@ -124,6 +123,7 @@ function Transport({ engine }: { engine: AudioEngine }) {
 				onToggle={engine.togglePlay}
 				disabled={!engine.player || failed}
 			>
+				<VolumeControl />
 				<AudioTrackPicker />
 			</PlayerBar>
 		</>

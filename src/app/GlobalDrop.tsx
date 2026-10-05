@@ -151,7 +151,7 @@ export function GlobalDrop() {
 		return (
 			<div
 				role="alert"
-				className="bg-ink text-bg text-ui fixed bottom-6 left-1/2 z-50 flex max-w-[min(36rem,calc(100%-2rem))] -translate-x-1/2 items-center gap-3 rounded-md px-4 py-3 shadow-lg"
+				className="bg-tip text-tip-ink text-ui fixed bottom-6 left-1/2 z-50 flex max-w-[min(36rem,calc(100%-2rem))] -translate-x-1/2 items-center gap-3 rounded-md px-4 py-3 shadow-lg"
 			>
 				<span className="flex-1">{pasteError}</span>
 				<button

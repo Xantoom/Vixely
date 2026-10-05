@@ -29,7 +29,7 @@ const open = async (path: string) => {
 	await page.waitForTimeout(1500);
 };
 const removePassage = async (from: number, to: number, duration: number) => {
-	await tools.getByRole('button', { name: 'Trim' }).click();
+	await tools.getByRole('button', { name: 'Edit', exact: true }).click();
 	const lanes = (await page.getByRole('group', { name: 'Tracks' }).boundingBox())!;
 	const x = (t: number) => lanes.x + (t / duration) * lanes.width;
 	await page.mouse.move(x(from), lanes.y + 20);
@@ -98,7 +98,7 @@ probe(
 // 4. MKV trimmed and copied: nothing encoded again, subtitles and fonts kept, lines moved to
 // where the copy really starts (the key frame before the trim).
 await open(sample('clip.mkv'));
-await tools.getByRole('button', { name: 'Trim' }).click();
+await tools.getByRole('button', { name: 'Edit', exact: true }).click();
 await aside.getByLabel('Start', { exact: true }).fill('0:10.300');
 await aside.getByLabel('Start', { exact: true }).press('Enter');
 await aside.getByLabel('End', { exact: true }).fill('0:18.000');

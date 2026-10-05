@@ -144,7 +144,7 @@ export function Tooltips() {
 			ref={ref}
 			role="tooltip"
 			data-below={place?.below ?? false}
-			className="tooltip-in bg-ink text-bg text-caption pointer-events-none fixed z-[60] max-w-72 rounded-xs px-2.5 py-1.5 font-medium shadow-[0_8px_24px_-8px_rgb(0_0_0/0.4)]"
+			className="tooltip-in bg-tip text-tip-ink text-caption pointer-events-none fixed z-[60] max-w-72 rounded-xs px-2.5 py-1.5 font-medium shadow-[0_0_0_1px_var(--tip-line),0_8px_24px_-8px_rgb(0_0_0/0.5)]"
 			style={place ? { left: place.left, top: place.top } : { left: 0, top: 0, visibility: 'hidden' }}
 		>
 			{tip.text}

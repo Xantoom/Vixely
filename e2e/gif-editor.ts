@@ -37,7 +37,7 @@ console.log('playing at', await page.locator('[aria-label="Playhead"]').innerTex
 await page.keyboard.press('Space');
 
 const rail = page.locator('nav[aria-label="Editing tools"]');
-await rail.getByRole('button', { name: 'Trim' }).click();
+await rail.getByRole('button', { name: 'Edit', exact: true }).click();
 await page.getByLabel('Start', { exact: true }).fill('1'); await page.keyboard.press('Enter');
 await page.getByLabel('End', { exact: true }).fill('2.5'); await page.keyboard.press('Enter');
 console.log('trimmed:', await preview());

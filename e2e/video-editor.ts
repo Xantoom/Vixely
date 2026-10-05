@@ -70,7 +70,7 @@ await page.waitForTimeout(400);
 console.log('after two undos:', await picture());
 
 // 2. A passage removed on the timeline, skipped while playing.
-await tools.getByRole('button', { name: 'Trim' }).click();
+await tools.getByRole('button', { name: 'Edit', exact: true }).click();
 const lanes = (await page.getByRole('group', { name: 'Tracks' }).boundingBox())!;
 const x = (t: number, duration: number) => lanes.x + (t / duration) * lanes.width;
 await page.mouse.move(x(3, 12.012), lanes.y + 20);

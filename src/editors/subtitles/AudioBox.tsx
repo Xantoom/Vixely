@@ -13,6 +13,7 @@ import { usePlaybackPeaks, Waveform } from '@/editor/PlaybackWaveform';
 import { AudioTrackMenu, PlayerControls, PlayTime } from '@/editor/PlayerControls';
 import { TimeRuler } from '@/editor/TimeRuler';
 import { ViewScroll } from '@/editor/ViewScroll';
+import { VolumeControl } from '@/editor/VolumeControl';
 import { panDelta, wheelIntent } from '@/editor/wheel';
 import { usePlayback, usePlaybackLength } from '@/media/playback';
 import { m } from '@/paraglide/messages.js';
@@ -302,6 +303,7 @@ export function AudioBox() {
 					<ChevronLast size={17} />
 				</IconButton>
 				<span className="bg-line mx-1 h-5 w-px flex-none max-sm:hidden" aria-hidden="true" />
+				<VolumeControl />
 				<AudioTrackMenu />
 			</PlayerControls>
 			<TimeRuler view={view} onSeek={seek} />

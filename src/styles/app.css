@@ -28,6 +28,10 @@
 	--primary-ink: light-dark(#ffffff, #111113);
 	--danger: light-dark(#c4321f, #ff6b57);
 	--focus: light-dark(#2f6bff, #7197ff);
+	/* Tooltips: dark in both themes, lifted off the page in the dark one. */
+	--tip-bg: light-dark(#1d1d20, #2c2c31);
+	--tip-ink: light-dark(#f3f3f5, #f3f3f5);
+	--tip-line: light-dark(transparent, #3e3e45);
 	--scroll-thumb: light-dark(rgb(17 17 19 / 0.2), rgb(243 243 245 / 0.2));
 	--scroll-thumb-hover: light-dark(rgb(17 17 19 / 0.42), rgb(243 243 245 / 0.42));
 
@@ -150,6 +154,8 @@
 	--color-primary: var(--primary);
 	--color-primary-ink: var(--primary-ink);
 	--color-danger: var(--danger);
+	--color-tip: var(--tip-bg);
+	--color-tip-ink: var(--tip-ink);
 	--color-ed: var(--ed);
 	--color-ed-ink: var(--ed-ink);
 	--color-ed-text: var(--ed-text);
@@ -321,12 +327,13 @@
 @keyframes panel-in {
 	from {
 		opacity: 0;
-		transform: translateX(-8px);
+		transform: translateY(10px);
 	}
 }
 
+/* Another tool's settings come up into the panel. */
 .panel-in {
-	animation: panel-in 180ms var(--ease-out-soft);
+	animation: panel-in 220ms var(--ease-out-soft);
 }
 
 @keyframes pop {

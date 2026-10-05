@@ -13,7 +13,6 @@ import type { AudioTrackInfo } from '@/media/audio-tracks';
 import { usePlayback, usePlaybackLength } from '@/media/playback';
 import { m } from '@/paraglide/messages.js';
 import { Menu, type MenuItem } from '@/ui/Menu';
-import { VolumeControl } from './VolumeControl';
 
 /**
  * The play button of every player: round, in the editor's colours, the icon swapping with a
@@ -233,7 +232,7 @@ function SeekBar() {
 			</div>
 			{hover !== null && length > 0 && (
 				<span
-					className="bg-ink text-bg tabular pointer-events-none absolute bottom-full mb-1 -translate-x-1/2 rounded-xs px-1.5 py-0.5 text-caption font-medium whitespace-nowrap"
+					className="bg-tip text-tip-ink tabular pointer-events-none absolute bottom-full mb-1 -translate-x-1/2 rounded-xs px-1.5 py-0.5 text-caption font-medium whitespace-nowrap"
 					style={{ left: `${(hover / length) * 100}%` }}
 				>
 					{formatPreciseTime(hover)}
@@ -265,12 +264,11 @@ function StepButton({ direction, onStep, disabled }: { direction: -1 | 1; onStep
 }
 
 /**
- * The bar of every player, the same in each editor: what concerns listening on the left, frame
- * back, play and frame forward in the middle, and what the editor adds on the right (tracks,
+ * The bar of every player, the same in each editor: where playback is on the left, frame
+ * back, play and frame forward in the middle, and what the editor adds on the right (volume, tracks,
  * capture, comparison, zoom). Its icons line up with the edges of the timeline under it.
  */
 export function PlayerBar({
-	left,
 	time,
 	fit,
 	playing,
@@ -279,8 +277,7 @@ export function PlayerBar({
 	disabled = false,
 	children,
 }: {
-	left?: ReactNode;
-	/** Where playback is over the final length, after what sits on the left. */
+	/** Where playback is over the final length, on the left. */
 	time?: ReactNode;
 	/** Back to the timeline's default zoom, beside the time while zoomed. */
 	fit?: ReactNode;
@@ -293,10 +290,9 @@ export function PlayerBar({
 }) {
 	return (
 		<div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 max-sm:gap-1.5">
-			{/* All on one line above the timeline: the time sits with what is on the left. */}
-			<div className="-ml-2 flex min-w-0 items-center gap-1.5">
-				{left}
-				{time && <div className="min-w-0 overflow-hidden pl-1.5">{time}</div>}
+			{/* All on one line above the timeline, the time lined up with its start. */}
+			<div className="flex min-w-0 items-center gap-1.5">
+				{time && <div className="min-w-0 overflow-hidden">{time}</div>}
 				{fit}
 			</div>
 			<div className="flex items-center gap-1.5 max-sm:gap-0.5">
@@ -349,7 +345,6 @@ export function PlayerControls({
 		<div className="grid min-w-0 gap-1">
 			{seek && <SeekBar />}
 			<PlayerBar
-				left={<VolumeControl />}
 				time={time}
 				fit={fit}
 				playing={playing}

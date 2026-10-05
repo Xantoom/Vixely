@@ -14,7 +14,17 @@ import {
 	ZoomIn,
 	ZoomOut,
 } from 'lucide-react';
-import { createContext, Fragment, type ReactNode, use, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+	createContext,
+	Fragment,
+	type ReactNode,
+	use,
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from 'react';
 import { AppBar, type EditorActions } from '@/app/AppBar';
 import { entranceSide, useEditorEntrance, useShownOnce } from '@/app/editor-motion';
 import { changeLocale, LOCALE_NAMES } from '@/app/locale';
@@ -25,11 +35,15 @@ import { m } from '@/paraglide/messages.js';
 import { getLocale, locales } from '@/paraglide/runtime.js';
 import { IconButton } from '@/ui/Button';
 import { MEDIA_ICONS, TOOL_ICONS } from '@/ui/icons';
+import { holdLayout } from '@/ui/layout-motion';
 import { fadeMask, useOverflowEdges } from '@/ui/use-overflow-edges';
 import { Ambient } from './Ambient';
 import { type Command, CommandPalette, type ShortcutGroup, ShortcutHelp } from './CommandPalette';
 import { isTyping } from './shortcuts';
 import { useStageZoom } from './ZoomStage';
+
+/** Milliseconds the panel's column takes to open or close, as `duration-240` on the grid. */
+const PANEL_MS = 240;
 
 /** Lets the panel's own title close the panel. */
 const PanelContext = createContext<(() => void) | null>(null);
@@ -277,7 +291,14 @@ export function EditorLayout({
 	const from = useEditorEntrance(kind);
 	const settled = useShownOnce(from !== null);
 	// Open from the start, on a phone too: there it sits under the picture, as a video's details do.
-	const [panelOpen, setOpen] = useState(panelOpenAtStart);
+	const [panelOpen, setPanelOpen] = useState(panelOpenAtStart);
+	// The columns slide open or shut; meanwhile what measures itself waits for them to settle.
+	const setOpen = useCallback((next: boolean) => {
+		setPanelOpen((current) => {
+			if (current !== next) holdLayout(PANEL_MS + 40);
+			return next;
+		});
+	}, []);
 	const open = panelOpen && inspector !== null;
 	const close = () => {
 		setOpen(false);
@@ -288,7 +309,7 @@ export function EditorLayout({
 		if (shownTool.current === tool) return;
 		shownTool.current = tool;
 		setOpen(true);
-	}, [tool]);
+	}, [tool, setOpen]);
 	// Choosing a tool opens its panel; choosing the open one again closes it.
 	const select = (next: ToolId) => {
 		if (open && next === tool) {
@@ -521,9 +542,9 @@ export function EditorLayout({
 					'--stage-h': stageHeight(aspect, open),
 					'--editor-side': from ? entranceSide(from, kind) : undefined,
 				}}
-				// Coming from another editor, it slides in from that side. The panel opens at once: the
-				// columns sliding would lay the whole editor out again on every frame.
-				className={`grid min-h-0 flex-1 grid-cols-1 ${from ? 'editor-enter' : ''} md:grid-rows-[minmax(0,1fr)_auto] ${phoneRows} ${open ? 'md:grid-cols-[var(--rail-w)_var(--panel-w)_minmax(0,1fr)]' : 'md:grid-cols-[var(--rail-w)_0px_minmax(0,1fr)]'}`}
+				// Coming from another editor, it slides in from that side. The panel's column slides open
+				// and shut, the stage following it (sizes measured in JavaScript wait meanwhile).
+				className={`ease-out-soft grid min-h-0 flex-1 grid-cols-1 transition-[grid-template-columns] duration-240 ${from ? 'editor-enter' : ''} md:grid-rows-[minmax(0,1fr)_auto] ${phoneRows} ${open ? 'md:grid-cols-[var(--rail-w)_var(--panel-w)_minmax(0,1fr)]' : 'md:grid-cols-[var(--rail-w)_0px_minmax(0,1fr)]'}`}
 			>
 				<div className="z-30 max-md:order-4 md:row-span-2">
 					<Rail
