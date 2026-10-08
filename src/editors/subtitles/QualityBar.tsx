@@ -24,7 +24,7 @@ function storedMode(): AdviceMode {
 }
 
 /** The advice chosen, kept between visits. */
-export const useAdvice = create<{ mode: AdviceMode; setMode: (mode: AdviceMode) => void }>()((set) => ({
+const useAdvice = create<{ mode: AdviceMode; setMode: (mode: AdviceMode) => void }>()((set) => ({
 	mode: storedMode(),
 	setMode(mode) {
 		set({ mode });

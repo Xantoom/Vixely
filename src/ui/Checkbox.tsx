@@ -1,15 +1,16 @@
-import type { InputHTMLAttributes } from 'react';
+import type { ComponentProps } from 'react';
 
 /**
  * A checkbox drawn by the app: a rounded box that fills with the editor's colour, its tick drawing
- * itself in. The real input stays underneath for the keyboard and assistive technologies.
+ * itself in, or a dash when it stands for a list partly checked (`indeterminate`, set on the
+ * input through `ref`). The real input stays underneath for the keyboard and assistive technologies.
  */
-export function Checkbox({ className = '', ...props }: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>) {
+export function Checkbox({ className = '', ...props }: Omit<ComponentProps<'input'>, 'type'>) {
 	return (
 		<span className={`relative grid size-[1.15rem] flex-none place-items-center ${className}`}>
 			<input
 				type="checkbox"
-				className="peer border-line-2 bg-bg enabled:hover:border-muted checked:border-ed checked:bg-ed focus-visible:outline-ed-text ease-spring size-full appearance-none rounded-[0.35rem] border-[1.5px] transition-[background-color,border-color,transform] duration-150 enabled:active:scale-90 disabled:cursor-not-allowed disabled:opacity-50"
+				className="peer border-line-2 bg-bg enabled:hover:border-muted checked:border-ed checked:bg-ed indeterminate:border-ed indeterminate:bg-ed focus-visible:outline-ed-text ease-spring size-full appearance-none rounded-[0.35rem] border-[1.5px] transition-[background-color,border-color,transform] duration-150 enabled:active:scale-90 disabled:cursor-not-allowed disabled:opacity-50"
 				{...props}
 			/>
 			<svg
@@ -26,6 +27,11 @@ export function Checkbox({ className = '', ...props }: Omit<InputHTMLAttributes<
 					strokeLinejoin="round"
 				/>
 			</svg>
+			{/* Some, not all: a dash, as for a whole list partly kept. */}
+			<span
+				aria-hidden="true"
+				className="bg-ed-ink pointer-events-none absolute hidden h-[2px] w-2 rounded-full peer-indeterminate:block"
+			/>
 		</span>
 	);
 }

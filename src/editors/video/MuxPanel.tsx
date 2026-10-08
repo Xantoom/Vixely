@@ -1,4 +1,4 @@
-import { AudioLines, Captions, Check, ChevronDown, Film, Flag, Pencil, Plus, Star, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, Flag, Pencil, Plus, Stamp, Star, Trash2 } from 'lucide-react';
 import { ALL_FORMATS, type AudioCodec, BlobSource, Input } from 'mediabunny';
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { useDropHandler } from '@/app/GlobalDrop';
@@ -18,7 +18,7 @@ import { m } from '@/paraglide/messages.js';
 import { Button } from '@/ui/Button';
 import { Checkbox } from '@/ui/Checkbox';
 import { Dropdown } from '@/ui/Dropdown';
-import { Slider, Switch } from '@/ui/fields';
+import { Slider } from '@/ui/fields';
 import { Segmented } from '@/ui/Segmented';
 import { EQ_PRESET_LABELS } from '../audio/panels';
 import { whenRead, isAdded, useSubtitleProject } from '../subtitles/project';
@@ -34,6 +34,7 @@ import {
 	type VideoExportSettings,
 } from './export';
 import {
+	audioId,
 	exportConverted,
 	audioCodecName,
 	exportVideo,
@@ -46,7 +47,6 @@ import {
 } from './mux';
 import { useVideoEditor } from './store';
 
-const KIND_ICONS: Record<MuxKind, typeof Film> = { video: Film, audio: AudioLines, subtitle: Captions };
 /** Each kind in the colour of its editor, as everywhere in the app. */
 const KIND_MEDIA: Record<MuxKind, string> = { video: 'video', audio: 'audio', subtitle: 'subtitles' };
 
@@ -91,8 +91,11 @@ const CHANNEL_NAMES: Record<number, () => string> = {
 
 /** What a track is, in a few words: its codec, its channels and bitrate for sound, its lines for subtitles. */
 function useTrackFacts(file: File, track: MuxTrack): string[] {
+	const id = track.kind === 'audio' ? audioId(track.key) : null;
 	const audio = usePlayback((state) =>
-		state.file === file ? state.details?.audioTracks.find((entry) => entry.id === track.number) : undefined,
+		state.file === file
+			? [...(state.details?.audioTracks ?? []), ...state.addedAudio].find((entry) => entry.id === id)
+			: undefined,
 	);
 	const bitrate = useAudioBitrate(file, track.kind === 'audio' && track.added === null ? track.number : null);
 	const lines = useSubtitleProject((state) =>
@@ -158,20 +161,47 @@ function changesOf(track: MuxTrack): string[] {
 	return changes;
 }
 
+/** The flags shown as columns, by kind: sound has only a default track, subtitles more. */
+type FlagColumn = 'default' | 'forced' | 'burn';
+
+const FLAG_ICONS: Record<FlagColumn, typeof Star> = { default: Star, forced: Flag, burn: Stamp };
+const FLAG_LABELS: Record<FlagColumn, () => string> = {
+	default: () => m.tracks_col_default(),
+	forced: () => m.tracks_col_forced(),
+	burn: () => m.tracks_col_burn(),
+};
+
+const AUDIO_FLAGS: readonly FlagColumn[] = ['default'];
+const SUBTITLE_FLAGS: readonly FlagColumn[] = ['default', 'forced'];
+
+/** The grid of the table: keep, track, a column per flag. */
+function tableColumns(flags: readonly FlagColumn[]): string {
+	return `auto minmax(0,1fr) ${flags.map(() => '1.75rem').join(' ')}`;
+}
+
 /**
- * One track, as HandBrake and MKVToolNix list them: whether it goes in, what it is, and its
- * flags at a glance. It unfolds to change its name, language and flags, the encoding and sound of
- * a sound track, and what becomes of a subtitle track.
+ * One track as a line of the table, as HandBrake lists them: whether it goes in, its number, what
+ * it is, and its flags in their columns. It unfolds under the line to change its name and
+ * language, the encoding and sound of a sound track, or open a subtitle track's lines.
  */
 function TrackRow({
 	file,
 	track,
+	flags,
 	target,
+	open,
+	onToggle,
+	onDefault,
 	onEditLines,
 }: {
 	file: File;
 	track: MuxTrack;
+	flags: readonly FlagColumn[];
 	target: VideoContainer | null;
+	open: boolean;
+	onToggle: () => void;
+	/** Makes it the default track of its kind, the others no longer, or none. */
+	onDefault: (value: boolean) => void;
 	/** Opens a subtitle track's lines in the subtitle editor. */
 	onEditLines?: (track: MuxTrack) => void;
 }) {
@@ -181,8 +211,6 @@ function TrackRow({
 	const setAudioTrack = usePlayback((state) => state.setAudioTrack);
 	const exportSettings = useVideoEditor((state) => state.exportSettings);
 	const setExport = useVideoEditor((state) => state.setExport);
-	const [open, setOpen] = useState(false);
-	const Icon = KIND_ICONS[track.kind];
 	const facts = useTrackFacts(file, track);
 	const changes = changesOf(track);
 	const detailsId = useId();
@@ -197,16 +225,23 @@ function TrackRow({
 	const eq = EQ_PRESET_IDS.find((id) => EQ_PRESETS[id].every((gain, index) => gain === track.eq[index]));
 	const removable = track.added !== null || isAdded(track.subtitle);
 	const burned = exportSettings?.burn === track.key;
+	const label = trackLabel(track);
+	const flagged: Record<FlagColumn, boolean> = { default: track.default, forced: track.forced, burn: burned };
+	const setFlag = (flag: FlagColumn, value: boolean) => {
+		if (flag === 'default') onDefault(value);
+		else if (flag === 'forced') change({ forced: value });
+		else setExport(value ? { burn: track.key, mode: 'encode' } : { burn: null });
+	};
 	const field =
 		'border-line-2 bg-bg text-ui hover:border-muted h-9 w-full min-w-0 rounded-xs border px-2.5 transition-colors';
 	return (
-		<li
-			data-media={KIND_MEDIA[track.kind]}
-			className={`rounded-md transition-shadow ${open ? 'shadow-[inset_0_0_0_1px_var(--line-2)]' : 'shadow-[inset_0_0_0_1px_var(--line)]'}`}
-		>
-			<div className="flex min-w-0 items-center gap-2.5 py-2 pr-1.5 pl-3">
+		<li data-media={KIND_MEDIA[track.kind]} className="border-line border-t first:border-t-0">
+			<div
+				className={`grid min-h-13 items-center gap-x-2.5 py-1.5 pr-2 pl-3 transition-colors ${open ? 'bg-surface' : 'hover:bg-surface/60'}`}
+				style={{ gridTemplateColumns: tableColumns(flags) }}
+			>
 				<Checkbox
-					aria-label={m.tracks_include_one({ name: trackLabel(track) })}
+					aria-label={m.tracks_include_one({ name: label })}
 					checked={track.include}
 					disabled={track.blocked !== null && track.blocked !== 'burned'}
 					title={blockedReason}
@@ -219,39 +254,41 @@ function TrackRow({
 					aria-expanded={open}
 					aria-controls={detailsId}
 					onClick={() => {
-						setOpen(!open);
+						onToggle();
 						// The sound track unfolded is the one heard.
-						if (!open && track.kind === 'audio' && track.number !== null) setAudioTrack(track.number);
+						const heard = track.kind === 'audio' ? audioId(track.key) : null;
+						if (!open && heard !== null) setAudioTrack(heard);
 					}}
-					className={`grid min-w-0 flex-1 cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2.5 text-left ${track.include ? '' : 'opacity-55'}`}
+					className={`grid min-w-0 cursor-pointer gap-0.5 py-1 text-left ${track.include ? '' : 'opacity-55'}`}
 				>
-					<Icon size={16} className="text-ed row-span-2 flex-none" aria-hidden="true" />
-					<span className="text-body min-w-0 truncate font-medium">{trackLabel(track)}</span>
-					<span className="row-span-2 flex items-center gap-1 self-center">
-						{track.default && (
-							<span title={m.subs_track_default()} className="text-ed-text">
-								<Star size={13} fill="currentColor" aria-label={m.subs_track_default()} />
-							</span>
-						)}
-						{track.forced && (
-							<span title={m.subs_track_forced()} className="text-ed-text">
-								<Flag size={13} fill="currentColor" aria-label={m.subs_track_forced()} />
-							</span>
-						)}
+					<span className="flex min-w-0 items-center gap-1">
+						<span className="text-ui text-ink min-w-0 truncate font-medium">{label}</span>
 						<ChevronDown
-							size={17}
-							className={`text-muted ml-1 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+							size={14}
 							aria-hidden="true"
+							className={`text-muted flex-none transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
 						/>
 					</span>
-					<span className="text-small text-muted min-w-0 truncate">
+					<span className="text-small text-muted min-w-0 truncate tabular">
 						{blockedReason ?? facts.join(', ')}
 						{changes.length > 0 && <span className="text-ed-text"> → {changes.join(', ')}</span>}
 					</span>
 				</button>
+				{flags.map((flag) => (
+					<span key={flag} className="grid place-items-center">
+						<Checkbox
+							aria-label={`${FLAG_LABELS[flag]()}: ${label}`}
+							checked={flagged[flag]}
+							disabled={!track.include && !flagged[flag]}
+							onChange={(event) => {
+								setFlag(flag, event.target.checked);
+							}}
+						/>
+					</span>
+				))}
 			</div>
 			{open && (
-				<div id={detailsId} className="border-line grid gap-3.5 border-t px-3 pt-3 pb-3.5">
+				<div id={detailsId} className="bg-surface grid gap-3.5 px-3 pt-1 pb-3.5">
 					<div className="grid grid-cols-2 gap-2 max-sm:grid-cols-1">
 						<label className="grid gap-1">
 							<span className="text-small text-muted">{m.mux_track_name()}</span>
@@ -285,22 +322,6 @@ function TrackRow({
 								}}
 							/>
 						</div>
-					</div>
-					<div className="grid gap-0.5">
-						<Switch
-							label={m.subs_track_default()}
-							checked={track.default}
-							onChange={(value) => {
-								change({ default: value });
-							}}
-						/>
-						<Switch
-							label={m.subs_track_forced()}
-							checked={track.forced}
-							onChange={(value) => {
-								change({ forced: value });
-							}}
-						/>
 					</div>
 					{track.kind === 'audio' && (
 						<>
@@ -405,18 +426,7 @@ function TrackRow({
 							</div>
 						</>
 					)}
-					{track.kind === 'subtitle' && exportSettings && target !== 'webm' && (
-						<div className="grid gap-1">
-							<Switch
-								label={m.tracks_burn()}
-								checked={burned}
-								onChange={(value) => {
-									setExport(value ? { burn: track.key, mode: 'encode' } : { burn: null });
-								}}
-							/>
-							{burned && <p className="text-small text-muted">{m.tracks_burn_hint()}</p>}
-						</div>
-					)}
+					{burned && <p className="text-small text-muted">{m.tracks_burn_hint()}</p>}
 					{(onEditLines && track.kind === 'subtitle') || removable ? (
 						<div className="flex flex-wrap gap-2">
 							{onEditLines && track.kind === 'subtitle' && (
@@ -451,6 +461,105 @@ function TrackRow({
 }
 
 /**
+ * The tracks of one kind as a table, as HandBrake lays them out: a header naming the columns, with
+ * a box keeping or leaving out every track at once, then a line per track. One line unfolds at a
+ * time. The default track is one per kind: checking it unchecks the others.
+ */
+function TrackTable({
+	file,
+	tracks,
+	flags,
+	target,
+	onEditLines,
+}: {
+	file: File;
+	tracks: readonly MuxTrack[];
+	flags: readonly FlagColumn[];
+	target: VideoContainer | null;
+	onEditLines?: (track: MuxTrack) => void;
+}) {
+	const set = useMuxSettings((state) => state.set);
+	const [openKey, setOpenKey] = useState<string | null>(null);
+	const keepable = tracks.filter((track) => track.blocked === null || track.blocked === 'burned');
+	const kept = keepable.filter((track) => track.include).length;
+	const all = keepable.length > 0 && kept === keepable.length;
+	const some = kept > 0 && !all;
+	return (
+		<div className="shadow-[inset_0_0_0_1px_var(--line)] overflow-hidden rounded-md">
+			<div
+				className="border-line text-small text-muted grid h-9 items-center gap-x-2.5 border-b pr-2 pl-3"
+				style={{ gridTemplateColumns: tableColumns(flags) }}
+			>
+				<Checkbox
+					aria-label={m.tracks_keep_all()}
+					checked={all}
+					ref={(input: HTMLInputElement | null) => {
+						if (input) input.indeterminate = some;
+					}}
+					disabled={keepable.length === 0}
+					onChange={() => {
+						for (const track of keepable) set(file, track.key, { include: !all });
+					}}
+				/>
+				<span className="truncate">{m.tracks_col_track()}</span>
+				{flags.map((flag) => {
+					const Icon = FLAG_ICONS[flag];
+					return (
+						<span
+							key={flag}
+							role="img"
+							aria-label={FLAG_LABELS[flag]()}
+							data-tip={FLAG_LABELS[flag]()}
+							className="grid place-items-center"
+						>
+							<Icon size={14} aria-hidden="true" />
+						</span>
+					);
+				})}
+			</div>
+			<ul>
+				{tracks.map((track) => (
+					<TrackRow
+						key={track.key}
+						file={file}
+						track={track}
+						flags={flags}
+						target={target}
+						open={openKey === track.key}
+						onToggle={() => {
+							setOpenKey(openKey === track.key ? null : track.key);
+						}}
+						onDefault={(value) => {
+							for (const other of tracks) {
+								if (other.key === track.key) set(file, other.key, { default: value });
+								else if (value && other.default) set(file, other.key, { default: false });
+							}
+						}}
+						onEditLines={onEditLines}
+					/>
+				))}
+			</ul>
+		</div>
+	);
+}
+
+/** How many tracks of a list go into the file, and the button adding more. */
+function TableActions({ tracks, onAdd }: { tracks: readonly MuxTrack[]; onAdd: () => void }) {
+	const kept = tracks.filter((track) => track.include).length;
+	return (
+		<>
+			{tracks.length > 0 && (
+				<span className="text-small text-muted tabular">{m.tracks_kept({ kept, count: tracks.length })}</span>
+			)}
+			<Button className="h-8 px-2.5" onClick={onAdd}>
+				<Plus size={15} aria-hidden="true" />
+				{m.tracks_add()}
+			</Button>
+		</>
+	);
+}
+
+/**
  * The sound tracks of the video, as in MKVToolNix: every one of the file and those added from
  * other files, each kept or left out, with its level, language, name and flags.
  */
@@ -474,7 +583,11 @@ export function AudioTrackList({
 		const read = await Promise.all(files.map(async (file) => ({ file, sound: await readSound(file) })));
 		const taken = read.filter(({ sound }) => sound !== null && !(soundOnly && sound.video));
 		if (soundOnly && taken.length === 0) return false;
-		for (const { file, sound } of taken) if (sound) addAudio(opened.file, { file, codec: sound.codec });
+		let last: string | null = null;
+		for (const { file, sound } of taken) if (sound) last = addAudio(opened.file, { file, codec: sound.codec });
+		// The sound just added is heard at once, as if chosen in the player.
+		const heard = last === null ? null : audioId(last);
+		if (heard !== null) usePlayback.getState().setAudioTrack(heard);
 		setRefused(read.find(({ sound }) => sound === null)?.file.name ?? null);
 		return true;
 	};
@@ -483,15 +596,11 @@ export function AudioTrackList({
 
 	if (!tracks) return <p className="text-ui text-muted">{m.subs_reading_track({ percent: 0 })}</p>;
 	return (
-		<Section title={title}>
+		<Section title={title} action={<TableActions tracks={tracks} onAdd={() => picker.current?.click()} />}>
 			{tracks.length === 0 ? (
 				<p className="text-ui text-muted">{m.audio_no_tracks()}</p>
 			) : (
-				<ul className="grid gap-2">
-					{tracks.map((track) => (
-						<TrackRow key={track.key} file={opened.file} track={track} target={target} />
-					))}
-				</ul>
+				<TrackTable file={opened.file} tracks={tracks} flags={AUDIO_FLAGS} target={target} />
 			)}
 			<input
 				ref={picker}
@@ -505,12 +614,8 @@ export function AudioTrackList({
 					void add(files, false);
 				}}
 			/>
-			<Button className="mt-3 w-full" onClick={() => picker.current?.click()}>
-				<Plus size={16} aria-hidden="true" />
-				{m.mux_add_audio()}
-			</Button>
 			{refused && (
-				<p role="alert" className="text-small text-danger mt-2">
+				<p role="alert" className="text-small text-danger">
 					{m.mux_no_sound({ name: refused })}
 				</p>
 			)}
@@ -528,6 +633,7 @@ export function SubtitleTrackList({
 	burned = null,
 	title = m.mux_tracks(),
 	onEditLines,
+	onAdded,
 	children,
 }: {
 	opened: OpenedFile;
@@ -535,6 +641,8 @@ export function SubtitleTrackList({
 	burned?: string | null;
 	title?: string;
 	onEditLines?: (track: MuxTrack) => void;
+	/** Subtitle files were added: the first one now shows over the video. */
+	onAdded?: () => void;
 	/** More ways to add a track, under the file button. */
 	children?: ReactNode;
 }) {
@@ -542,11 +650,15 @@ export function SubtitleTrackList({
 		(track) => track.kind === 'subtitle',
 	);
 	const addFiles = useSubtitleProject((state) => state.addFiles);
+	// Burning in is an export setting, offered where the video is exported, and not into WebM.
+	const burnable = useVideoEditor((state) => state.exportSettings !== null) && target !== 'webm';
 	const [refused, setRefused] = useState<string | null>(null);
 	const picker = useRef<HTMLInputElement>(null);
 
 	const add = async (files: File[]) => {
+		const before = useSubtitleProject.getState().tracks.length;
 		setRefused(await addFiles(files));
+		if (useSubtitleProject.getState().tracks.length > before) onAdded?.();
 	};
 	// Subtitle files dropped on the page become tracks of the video.
 	useDropHandler(async (files) => {
@@ -558,21 +670,17 @@ export function SubtitleTrackList({
 
 	if (!tracks) return <p className="text-ui text-muted">{m.subs_reading_track({ percent: 0 })}</p>;
 	return (
-		<Section title={title}>
+		<Section title={title} action={<TableActions tracks={tracks} onAdd={() => picker.current?.click()} />}>
 			{tracks.length === 0 ? (
 				<p className="text-ui text-muted">{m.subs_no_tracks()}</p>
 			) : (
-				<ul className="grid gap-2">
-					{tracks.map((track) => (
-						<TrackRow
-							key={track.key}
-							file={opened.file}
-							track={track}
-							target={target}
-							onEditLines={onEditLines}
-						/>
-					))}
-				</ul>
+				<TrackTable
+					file={opened.file}
+					tracks={tracks}
+					flags={burnable ? [...SUBTITLE_FLAGS, 'burn'] : SUBTITLE_FLAGS}
+					target={target}
+					onEditLines={onEditLines}
+				/>
 			)}
 			<input
 				ref={picker}
@@ -586,15 +694,9 @@ export function SubtitleTrackList({
 					void add(files);
 				}}
 			/>
-			<div className="mt-3 grid gap-2">
-				<Button onClick={() => picker.current?.click()}>
-					<Plus size={16} aria-hidden="true" />
-					{m.mux_add_subtitles()}
-				</Button>
-				{children}
-			</div>
+			{children}
 			{refused && (
-				<p role="alert" className="text-small text-danger mt-2">
+				<p role="alert" className="text-small text-danger">
 					{m.mux_unreadable_subtitles({ name: refused })}
 				</p>
 			)}

@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { clampView, type Range } from '@/document/timemap';
 import { FitButton } from '@/editor/FitButton';
 import { PlayerBar, PlayTime } from '@/editor/PlayerControls';
+import { Playhead } from '@/editor/Playhead';
 import { TimeRuler } from '@/editor/TimeRuler';
 import { TrimHandle } from '@/editor/TrimHandle';
 import { panDelta, wheelIntent } from '@/editor/wheel';
-import { CompareButton, useStageZoom, ZoomReset } from '@/editor/ZoomStage';
+import { CompareButtons, useStageZoom } from '@/editor/ZoomStage';
 import { m } from '@/paraglide/messages.js';
 import { useBoxSize } from '@/ui/use-box-size';
 import { frameAt, type OutputFrame, setTrim } from './document';
@@ -59,6 +60,12 @@ function Filmstrip({ source, width, view }: { source: FrameSource; width: number
 	return <canvas ref={canvasRef} className="absolute inset-0 size-full" aria-hidden="true" />;
 }
 
+/** Where playback is, drawn again on its own as it moves. */
+function GifTime({ length }: { length: number }) {
+	const playhead = useGifEditor((state) => state.playhead);
+	return <PlayTime time={playhead} length={length} />;
+}
+
 /**
  * Timeline of the GIF editor: the whole source as a filmstrip, the kept part between two handles,
  * and a playhead following the frame on screen.
@@ -66,7 +73,6 @@ function Filmstrip({ source, width, view }: { source: FrameSource; width: number
 export function GifTimeline({ engine }: { engine: GifEngine }) {
 	const doc = useGifDoc();
 	const playing = useGifEditor((state) => state.playing);
-	const playhead = useGifEditor((state) => state.playhead);
 	const preview = useGifEditor((state) => state.preview);
 	const settle = useGifEditor((state) => state.settle);
 	const stripRef = useRef<HTMLDivElement>(null);
@@ -75,7 +81,8 @@ export function GifTimeline({ engine }: { engine: GifEngine }) {
 	const [zoom, setZoom] = useState<Range | null>(null);
 	const view = clampView(zoom ?? { start: 0, end: doc.duration }, doc.duration);
 	const span = view.end - view.start;
-	const shown = frameAt(frames, playhead);
+	// The frame on screen: the timeline draws again when it changes, not at every moment of playback.
+	const shown = useGifEditor((state) => frameAt(frames, state.playhead));
 	const comparable = useStageZoom((state) => state.comparable);
 	const settings = useGifEditor((state) => state.exportSettings);
 	// The size of the animation as it will be saved.
@@ -120,11 +127,11 @@ export function GifTimeline({ engine }: { engine: GifEngine }) {
 	});
 
 	return (
-		<section aria-label={m.timeline()} className="border-line grid gap-1 border-t px-4 pt-2 pb-2">
+		<section aria-label={m.timeline()} className="border-line grid gap-1 border-t px-4 pt-2 pb-1">
 			<PlayerBar
 				time={
 					<span className="flex items-center gap-3 whitespace-nowrap">
-						<PlayTime time={playhead} length={engine.length} />
+						<GifTime length={engine.length} />
 						<span className="text-small text-muted tabular max-lg:hidden">
 							{output.width} × {output.height} px
 						</span>
@@ -148,10 +155,7 @@ export function GifTimeline({ engine }: { engine: GifEngine }) {
 					if (frame) engine.seek(frame.start);
 				}}
 			>
-				{comparable && <CompareButton className="max-md:hidden" />}
-				<span className="max-md:hidden">
-					<ZoomReset />
-				</span>
+				{comparable && <CompareButtons className="max-md:hidden" />}
 			</PlayerBar>
 			<div className="mt-1 grid gap-1">
 				<TimeRuler view={view} onSeek={seekSource} />
@@ -202,14 +206,14 @@ export function GifTimeline({ engine }: { engine: GifEngine }) {
 							onEnd={settle}
 						/>
 					))}
-					{shown && shown.source >= view.start && shown.source <= view.end && (
-						<div
-							className="pointer-events-none absolute -top-1 -bottom-1 z-10 w-0.5 -translate-x-1/2 bg-[var(--ed)]"
-							style={{ left: percent(shown.source) }}
-							aria-hidden="true"
-						>
-							<span className="absolute -top-0.5 left-1/2 size-2.5 -translate-x-1/2 rotate-45 rounded-[2px] bg-[var(--ed)]" />
-						</div>
+					{shown && (
+						<Playhead
+							time={shown.source}
+							view={view}
+							duration={doc.duration}
+							onSeek={seekSource}
+							className="-top-1 -bottom-1"
+						/>
 					)}
 				</div>
 			</div>

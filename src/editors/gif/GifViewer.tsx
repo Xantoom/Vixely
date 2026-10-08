@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { CropOverlay } from '@/editor/CropOverlay';
 import type { OverlayEditing } from '@/editor/overlays/editing';
 import { CroppedLayers, OverlayLayer } from '@/editor/overlays/OverlayLayer';
-import { backingSize, useStageZoom, ZoomStage } from '@/editor/ZoomStage';
+import { backingSize, OriginalPicture, useShowsOriginal, ZoomStage } from '@/editor/ZoomStage';
 import { effectiveCrop, orientedSize, type Size, wholePictureDoc } from '@/editors/image/document';
 import { cropRatio } from '@/editors/image/store';
 import { FrameComposer } from './compose';
@@ -41,7 +41,8 @@ function GifPicture({
 	const aspect = useGifEditor((state) => state.cropAspect);
 	const preview = useGifEditor((state) => state.preview);
 	const settle = useGifEditor((state) => state.settle);
-	const comparing = useStageZoom((state) => state.comparing);
+	const comparing = useShowsOriginal() && !cropping;
+	const originalRef = useRef<HTMLCanvasElement>(null);
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const composer = useRef<FrameComposer | null>(null);
 	const { source, frames, length } = engine;
@@ -83,12 +84,19 @@ function GifPicture({
 				)
 			)
 				return;
-			composer.current?.draw(context, picture, size, shown, layout, {
-				time: frame.start,
-				length,
-				original: comparing,
-				overlays: !overlays,
-			});
+			const options = { time: frame.start, length, overlays: !overlays };
+			const original = originalRef.current;
+			if (comparing && original) {
+				if (original.width !== canvas.width) original.width = canvas.width;
+				if (original.height !== canvas.height) original.height = canvas.height;
+				const originalContext = original.getContext('2d');
+				if (originalContext)
+					composer.current?.draw(originalContext, picture, size, shown, layout, {
+						...options,
+						original: true,
+					});
+			}
+			composer.current?.draw(context, picture, size, shown, layout, options);
 		};
 		const ready = source.peek(frame.source);
 		if (ready) {
@@ -111,7 +119,7 @@ function GifPicture({
 				ref={canvasRef}
 				className={`block size-full stage-picture bg-[conic-gradient(var(--surface-2)_25%,var(--bg)_0_50%,var(--surface-2)_0_75%,var(--bg)_0)] bg-size-[16px_16px] ${scale > 1.5 ? '[image-rendering:pixelated]' : ''}`}
 			/>
-			{!cropping && !comparing && overlays && (
+			{!cropping && overlays && (
 				<OverlayLayer
 					overlays={doc.picture.overlays}
 					width={layout.width * scale}
@@ -120,6 +128,7 @@ function GifPicture({
 					onEditText={onEditText}
 				/>
 			)}
+			{comparing && <OriginalPicture ref={originalRef} />}
 			{cropping && source && <CroppedLayers overlays={doc.picture.overlays} crop={crop} scale={scale} />}
 			{cropping && source && (
 				<CropOverlay
@@ -158,7 +167,7 @@ export function GifViewer({
 	const size = { width: source?.width ?? 1, height: source?.height ?? 1 };
 	const layout = frameLayout(cropping ? croppingDoc(doc, size) : doc, size, null);
 	return (
-		<ZoomStage width={layout.width} height={layout.height} compare={!cropping} margin={cropping ? 16 : 0}>
+		<ZoomStage width={layout.width} height={layout.height} compare={!cropping} margin={8}>
 			{(scale) => (
 				<GifPicture
 					engine={engine}

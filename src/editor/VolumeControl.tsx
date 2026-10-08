@@ -1,10 +1,11 @@
 import { Volume1, Volume2, VolumeX } from 'lucide-react';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { isTyping } from '@/editor/shortcuts';
 import { listeningGain, useListening } from '@/media/listening';
 import { m } from '@/paraglide/messages.js';
 import { layerOf } from '@/ui/layer';
+import { usePopover } from '@/ui/use-popover';
 
 /** Volume moved by one notch of the wheel over the button. */
 const WHEEL_STEP = 0.05;
@@ -28,62 +29,25 @@ export function VolumeControl() {
 	const shown = muted ? 0 : volume;
 	const percent = Math.round(shown * 100);
 
-	const [open, setOpen] = useState(false);
-	const [place, setPlace] = useState<{ top: number; left: number; down: boolean } | null>(null);
-	const [media, setMedia] = useState<string | null>(null);
-	const buttonRef = useRef<HTMLButtonElement>(null);
-	const bubbleRef = useRef<HTMLDivElement>(null);
-	const sliderRef = useRef<HTMLInputElement>(null);
-
-	const close = useCallback((focus: boolean) => {
-		setOpen(false);
-		setPlace(null);
-		if (focus) buttonRef.current?.focus();
-	}, []);
-
 	// Above the speaker, centred on it like a tooltip; under it only when there is no room above.
-	const reposition = useCallback(() => {
-		const button = buttonRef.current;
-		const bubble = bubbleRef.current;
-		if (!button || !bubble) return;
+	const { open, place, media, buttonRef, popoverRef, show, close } = usePopover((button, bubble) => {
 		const rect = button.getBoundingClientRect();
 		const width = bubble.offsetWidth;
 		const height = bubble.offsetHeight;
 		const up = rect.top - GAP - height >= EDGE;
-		setPlace({
+		return {
 			top: up ? rect.top - GAP - height : rect.bottom + GAP,
 			left: Math.max(EDGE, Math.min(rect.left + rect.width / 2 - width / 2, window.innerWidth - EDGE - width)),
 			down: !up,
-		});
-	}, []);
-
-	useLayoutEffect(() => {
-		if (open) reposition();
-	}, [open, reposition]);
+		};
+	});
+	const sliderRef = useRef<HTMLInputElement>(null);
 
 	// Once placed (hidden until then, it can't take the focus), the slider has the keyboard.
 	const placed = place !== null;
 	useEffect(() => {
 		if (placed) sliderRef.current?.focus({ preventScroll: true });
 	}, [placed]);
-
-	useEffect(() => {
-		if (!open) return;
-		const onPointerDown = (event: PointerEvent) => {
-			const { target } = event;
-			if (!(target instanceof Node)) return;
-			if (bubbleRef.current?.contains(target) || buttonRef.current?.contains(target)) return;
-			close(false);
-		};
-		document.addEventListener('pointerdown', onPointerDown, true);
-		window.addEventListener('resize', reposition);
-		window.addEventListener('scroll', reposition, true);
-		return () => {
-			document.removeEventListener('pointerdown', onPointerDown, true);
-			window.removeEventListener('resize', reposition);
-			window.removeEventListener('scroll', reposition, true);
-		};
-	}, [open, close, reposition]);
 
 	// M mutes and brings the sound back, as in video players.
 	useEffect(() => {
@@ -129,8 +93,7 @@ export function VolumeControl() {
 						close(false);
 						return;
 					}
-					setMedia(buttonRef.current?.closest('[data-media]')?.getAttribute('data-media') ?? null);
-					setOpen(true);
+					show();
 				}}
 				className="text-muted hover:bg-surface hover:text-ink aria-expanded:bg-surface aria-expanded:text-ink grid size-10 flex-none place-items-center rounded-sm transition-colors duration-150"
 			>
@@ -139,7 +102,7 @@ export function VolumeControl() {
 			{open &&
 				createPortal(
 					<div
-						ref={bubbleRef}
+						ref={popoverRef}
 						role="dialog"
 						aria-label={m.volume_listening()}
 						data-media={media ?? undefined}

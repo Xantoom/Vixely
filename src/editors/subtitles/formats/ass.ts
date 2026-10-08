@@ -266,6 +266,6 @@ export function withScriptInfo(header: AssHeader, entries: readonly ScriptEntry[
 }
 
 /** The head as the editor gives it: made by Vixely, this version, its other fields untouched. */
-export function stampGenerator(head: string, generator: string): string {
+function stampGenerator(head: string, generator: string): string {
 	return writeScriptInfo(head, readScriptInfo(head), generator);
 }

@@ -149,7 +149,7 @@ export function SubtitleInfoPanel({ opened }: { opened: OpenedFile }) {
 	const fromVideo = source === 'video';
 	return (
 		<>
-			<PanelTitle>{m.info_file()}</PanelTitle>
+			<PanelTitle>{m.info_panel()}</PanelTitle>
 			{fromVideo && <BackToVideo />}
 			<dl className="grid gap-3.5">
 				<Row

@@ -311,7 +311,7 @@ export function ToolLater({ kind, tool }: { kind: MediaKind; tool: ToolId }) {
 export function FilePanel({ opened }: { opened: OpenedFile | null }) {
 	return (
 		<>
-			<PanelTitle>{m.info_file()}</PanelTitle>
+			<PanelTitle>{m.info_panel()}</PanelTitle>
 			<InfoPanel opened={opened} />
 		</>
 	);

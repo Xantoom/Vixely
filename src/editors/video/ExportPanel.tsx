@@ -168,7 +168,7 @@ function useChangeExport() {
  * pictures to it from the middle; the size then follows from the crop.
  */
 /** The pictures as a preset leaves them: cropped from the middle to its frame, if it has one. */
-export function presetPicture(picture: ImageDoc, upright: Size, id: PresetId): ImageDoc {
+function presetPicture(picture: ImageDoc, upright: Size, id: PresetId): ImageDoc {
 	const { aspect } = PRESETS[id];
 	if (!aspect) return picture;
 	const [width = 1, height = 1] = aspect.split(':').map(Number);
@@ -176,7 +176,7 @@ export function presetPicture(picture: ImageDoc, upright: Size, id: PresetId): I
 	return { ...picture, crop: fitRatio({ x: 0, y: 0, ...bounds }, width / height) };
 }
 
-export function useChoosePreset(upright: Size) {
+function useChoosePreset(upright: Size) {
 	const exportSource = useVideoEditor((state) => state.exportSource);
 	const set = useVideoEditor((state) => state.setExport);
 	const apply = useVideoEditor((state) => state.apply);

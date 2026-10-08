@@ -85,7 +85,7 @@ export function sameRanges(a: readonly Range[], b: readonly Range[]): boolean {
 }
 
 /** Shortest span a timeline zooms to, in seconds. */
-export const MIN_VIEW = 1;
+const MIN_VIEW = 1;
 
 /** Keeps a timeline view within the source and at least MIN_VIEW long, preserving its length when possible. */
 export function clampView(view: Range, duration: number): Range {

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Range } from '@/document/timemap';
+import { type AudioTrackInfo, describeAudioFile } from './audio-tracks';
 import type { MediaDetails, MediaPlayer } from './media-player';
 import type { HeardSound } from './sound';
 
@@ -93,7 +94,42 @@ interface PlaybackState {
 	/** How each audio track is heard, by ID: the video editor's level, equalizer and compressor. */
 	sounds: ReadonlyMap<number, HeardSound>;
 	setSounds: (sounds: ReadonlyMap<number, HeardSound>) => void;
+	/** The files of the sound tracks added, by ID. */
+	addedFiles: ReadonlyMap<number, File>;
+	/** Sound tracks added from other files, listed with the file's own ones. */
+	addedAudio: AudioTrackInfo[];
+	/** Offers sound from other files as tracks of the video, by negative ID. */
+	setAddedAudio: (tracks: readonly AddedAudio[]) => void;
+	/** Audio tracks left out of the video, by ID: not offered, and not heard. */
+	hiddenAudio: ReadonlySet<number>;
+	setHiddenAudio: (ids: ReadonlySet<number>) => void;
 }
+
+/** Sound from another file, offered as a track of the video. */
+interface AddedAudio {
+	/** Negative, so it never meets the file's own track IDs. */
+	id: number;
+	file: File;
+	language: string;
+	name: string;
+}
+
+/** What each added file's sound is, read once. */
+const described = new WeakMap<File, Promise<AudioTrackInfo | null>>();
+
+async function describeAdded(track: AddedAudio): Promise<AudioTrackInfo | null> {
+	let info = described.get(track.file);
+	if (!info) {
+		info = describeAudioFile(track.file, track.id);
+		described.set(track.file, info);
+	}
+	return info.then(
+		(found) => found && { ...found, id: track.id, language: track.language, name: track.name, default: false },
+	);
+}
+
+/** Bumped on every new list of added tracks: an older one still being read is dropped. */
+let addedRun = 0;
 
 export interface Shaping {
 	speed: number;
@@ -128,6 +164,19 @@ export const usePlayback = create<PlaybackState>((set, get) => {
 	};
 	clock.onTime = onTime;
 	clock.onStateChange = onStateChange;
+	/**
+	 * A track left out stops being heard: the next one offered plays instead, or none. Silent for
+	 * want of tracks, the first one put back is heard.
+	 */
+	const leaveHidden = () => {
+		const { player, details, audioTrack, hiddenAudio, addedAudio } = get();
+		if (!player || !details || (audioTrack !== null && !hiddenAudio.has(audioTrack))) return;
+		const offered = [...details.audioTracks, ...addedAudio].filter(
+			(track) => track.playable && !hiddenAudio.has(track.id),
+		);
+		const next = offered.find((track) => track.default && !track.commentary) ?? offered[0] ?? null;
+		if ((next?.id ?? null) !== audioTrack) void player.setAudioTrack(next?.id ?? null);
+	};
 	const source = () => {
 		const { player, failed } = get();
 		return player && !failed ? player : clock;
@@ -145,6 +194,9 @@ export const usePlayback = create<PlaybackState>((set, get) => {
 		ranges: null,
 		shaping: NO_SHAPING,
 		sounds: new Map(),
+		addedAudio: [],
+		addedFiles: new Map(),
+		hiddenAudio: new Set(),
 
 		load(file) {
 			if (file === get().file) return;
@@ -161,7 +213,9 @@ export const usePlayback = create<PlaybackState>((set, get) => {
 				player.onTime = onTime;
 				player.onStateChange = onStateChange;
 				player.onAudioTrack = (audioTrack) => {
-					if (get().player === player) set({ audioTrack });
+					if (get().player !== player) return;
+					set({ audioTrack });
+					leaveHidden();
 				};
 				set({ player });
 				player.ready.then(
@@ -171,6 +225,7 @@ export const usePlayback = create<PlaybackState>((set, get) => {
 						player.setRanges(get().ranges);
 						player.setShaping(get().shaping.speed, get().shaping.fade);
 						player.setSounds(get().sounds);
+						void player.setAddedAudio(get().addedFiles);
 						player.seek(get().time);
 					},
 					() => {
@@ -228,6 +283,22 @@ export const usePlayback = create<PlaybackState>((set, get) => {
 		setSounds(sounds) {
 			set({ sounds });
 			get().player?.setSounds(sounds);
+		},
+
+		setAddedAudio(tracks) {
+			const files = new Map(tracks.map((track) => [track.id, track.file]));
+			set({ addedFiles: files });
+			void get().player?.setAddedAudio(files);
+			addedRun += 1;
+			const run = addedRun;
+			void Promise.all(tracks.map(describeAdded)).then((infos) => {
+				if (run === addedRun) set({ addedAudio: infos.filter((info) => info !== null) });
+			});
+		},
+
+		setHiddenAudio(ids) {
+			set({ hiddenAudio: ids });
+			leaveHidden();
 		},
 
 		setClockLength(length) {

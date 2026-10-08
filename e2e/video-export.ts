@@ -60,24 +60,24 @@ const probe = (path: string) => {
 	console.log(' ', run(['-show_entries', 'format=duration', '-of', 'csv=p=0']), 's');
 	console.log(' ', run(['-show_entries', 'stream=index,codec_type,codec_name,width,height:stream_tags=language,filename', '-of', 'compact']).replace(/\n/g, '\n  '));
 };
-const firstLines = (path: string, stream: string) => {
+const firstLines = (path: string, stream: string, from = 3) => {
 	if (!ffprobe) return;
 	const ffmpeg = ffprobe.replace(/ffprobe$/, 'ffmpeg');
 	const srt = spawnSync(ffmpeg, ['-v', 'error', '-i', path, '-map', stream, '-f', 'srt', '-'], { encoding: 'utf8' }).stdout;
-	console.log('  lines:', srt.split('\n\n').slice(3, 6).map((cue) => cue.split('\n').slice(1).join(' ')).join(' | '));
+	console.log('  lines:', srt.split('\n\n').slice(from, from + 3).map((cue) => cue.split('\n').slice(1).join(' ')).join(' | '));
 };
 
 // 1. MKV: 0:04 → 0:08 removed, colours changed, subtitles and fonts carried over.
-await open(sample('clip.mkv'));
-await removePassage(4, 8, 24);
+await open(sample('short.mkv'));
+await removePassage(4, 8, 12);
 await tools.getByRole('button', { name: 'Adjust' }).click();
 await aside.getByRole('slider', { name: 'Saturation' }).focus();
 for (let i = 0; i < 30; i++) await page.keyboard.press('ArrowLeft');
 const mkv = await convert('converted.mkv');
 probe(mkv);
 if (ffprobe) console.log('  source lines:');
-firstLines(sample('clip.mkv'), '0:s:0');
-firstLines(mkv, '0:s:0');
+firstLines(sample('short.mkv'), '0:s:0', 0);
+firstLines(mkv, '0:s:0', 0);
 
 // 2. MP4 with timed text, kept as MP4.
 await open(sample('clip.mp4'));
@@ -188,29 +188,30 @@ const frames = (path: string, times: number[], name: string) => {
 };
 
 // 9. MKV converted to MP4 with its styled English subtitles burned in.
-await open(sample('clip.mkv'));
+await open(sample('short.mkv'));
 await tools.getByRole('button', { name: 'Tracks' }).click();
-await aside.locator('li[data-media=subtitles]', { hasText: /styled/ }).locator('button[aria-expanded]').click();
-await aside.getByRole('switch', { name: 'Burn into the picture' }).click();
+await aside.getByRole('checkbox', { name: /^Burned in: .*styled/ }).check();
 await aside.screenshot({ path: 'shots/subtitles-tool.png' });
 const burned = await convert('burned.mp4', async () => {
 	await aside.getByLabel('Container').click();
 	await page.getByRole('option', { name: 'MP4' }).click();
 });
 probe(burned);
-frames(burned, [12.5, 20.5], 'burned');
+frames(burned, [7.5, 10.5], 'burned');
 
-// 10. PGS burned in.
+// 10. PGS burned in, over the first 6 s.
 await open(sample('sample.mkv'));
+await tools.getByRole('button', { name: 'Edit', exact: true }).click();
+await aside.getByLabel('End', { exact: true }).fill('0:06.000');
+await aside.getByLabel('End', { exact: true }).press('Enter');
 await tools.getByRole('button', { name: 'Tracks' }).click();
-await aside.locator('li[data-media=subtitles] button[aria-expanded]').first().click();
-await aside.getByRole('switch', { name: 'Burn into the picture' }).click();
+await aside.getByRole('checkbox', { name: /^Burned in: / }).first().check();
 const pgs = await convert('burned-pgs.mp4', async () => {
 	await aside.getByLabel('Container').click();
 	await page.getByRole('option', { name: 'MP4' }).click();
 });
 probe(pgs);
-frames(pgs, [1, 3, 5, 7], 'burned-pgs');
+frames(pgs, [1, 3, 5], 'burned-pgs');
 
 console.log(errors.length ? `errors: ${errors.join(' | ')}` : 'no errors');
 await browser.close();

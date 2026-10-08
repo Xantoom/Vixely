@@ -26,9 +26,16 @@ function useTarget() {
 /**
  * The Tracks tool, as in HandBrake: every sound and subtitle track of the video with what it is,
  * each kept or left out, unfolding to change its name, language, flags, encoding and sound.
- * Tracks come from other files too, and subtitles open in the subtitle editor to be written.
+ * Tracks come from other files too, and subtitle tracks open in the subtitle editor to be edited.
  */
-export function VideoTracksPanel({ opened }: { opened: OpenedFile }) {
+export function VideoTracksPanel({
+	opened,
+	onSubtitlesAdded,
+}: {
+	opened: OpenedFile;
+	/** Subtitle files were added: they show over the video at once. */
+	onSubtitlesAdded?: () => void;
+}) {
 	const { target, burned } = useTarget();
 	const navigate = useNavigate();
 	const openFrom = useSession((state) => state.openFrom);
@@ -40,27 +47,18 @@ export function VideoTracksPanel({ opened }: { opened: OpenedFile }) {
 	return (
 		<>
 			<PanelTitle>{m.tool_tracks()}</PanelTitle>
-			<AudioTrackList opened={opened} target={target} title={m.mux_audio_tracks()} />
+			<AudioTrackList opened={opened} target={target} title={m.mux_audio()} />
 			<SubtitleTrackList
 				opened={opened}
 				target={target}
 				burned={burned}
-				title={m.mux_subtitle_tracks()}
+				title={m.player_subtitles()}
+				onAdded={onSubtitlesAdded}
 				onEditLines={(track) => {
 					if (track.subtitle !== null) choose(track.subtitle);
 					toSubtitles();
 				}}
-			>
-				<Button
-					onClick={() => {
-						choose('new');
-						toSubtitles();
-					}}
-				>
-					<Captions size={16} aria-hidden="true" />
-					{m.subs_write_new()}
-				</Button>
-			</SubtitleTrackList>
+			/>
 		</>
 	);
 }

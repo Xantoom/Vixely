@@ -103,7 +103,7 @@ streams(taggedMp4);
 console.log('  tags:', run(['-show_entries', 'format_tags', '-of', 'compact'], taggedMp4));
 
 // 3. A title for the first two seconds only, encoded at constant quality.
-await open(sample('clip.mp4'));
+await open(sample('short.mp4'));
 await tool('Layers');
 await aside.getByRole('button', { name: /^Title/ }).click();
 await aside.getByRole('switch', { name: 'During the whole video' }).click();
@@ -142,7 +142,7 @@ await page.waitForTimeout(300);
 await page.locator('section[aria-label="Preview"]').screenshot({ path: 'shots/crop-with-layers.png' });
 
 // 4. TikTok: cropped to 9:16 from the middle.
-await open(sample('clip.mp4'));
+await open(sample('short.mp4'));
 await tool('Crop');
 await aside.getByRole('radio', { name: 'Social networks' }).click();
 await aside.getByRole('radio', { name: /^TikTok/ }).click();
@@ -208,7 +208,7 @@ for (const file of ['ac3.mkv', 'dts.mkv', 'truehd.mkv', 'truehd.m2ts', 'truehd.m
 // 5c. Twice as fast with a second of fade at each end: half as long, black and silent at the
 // start, the tone at the same pitch.
 {
-	await open(sample('clip.mp4'));
+	await open(sample('short.mp4'));
 	await tool('Edit');
 	await aside.getByRole('radio', { name: /^2/ }).click();
 	// The time shown is the output's: it moves at the pace of the clock while two seconds of the
@@ -235,8 +235,8 @@ for (const file of ['ac3.mkv', 'dts.mkv', 'truehd.mkv', 'truehd.m2ts', 'truehd.m
 			/YAVG=([\d.]+)/.exec(
 				spawnSync(ffmpeg, ['-v', 'info', '-ss', String(time), '-i', path, '-frames:v', '1', '-vf', 'signalstats,metadata=print:key=lavfi.signalstats.YAVG', '-f', 'null', '-'], { encoding: 'utf8' }).stderr,
 			)?.[1];
-		console.log('  brightness at 0 s, 0.5 s, 5 s:', luma(0), luma(0.5), luma(5));
-		const pcm = spawnSync(ffmpeg, ['-v', 'error', '-ss', '4', '-t', '4', '-i', path, '-ac', '1', '-ar', '48000', '-f', 'f32le', '-'], { maxBuffer: 1 << 26 }).stdout;
+		console.log('  brightness at 0 s, 0.5 s, 3 s:', luma(0), luma(0.5), luma(3));
+		const pcm = spawnSync(ffmpeg, ['-v', 'error', '-ss', '1.5', '-t', '3', '-i', path, '-ac', '1', '-ar', '48000', '-f', 'f32le', '-'], { maxBuffer: 1 << 26 }).stdout;
 		const wave = new Float32Array(pcm.buffer, pcm.byteOffset, Math.floor(pcm.length / 4));
 		let crossings = 0;
 		for (let n = 1; n < wave.length; n++) if ((wave[n - 1] ?? 0) < 0 && (wave[n] ?? 0) >= 0) crossings += 1;

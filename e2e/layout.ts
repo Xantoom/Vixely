@@ -36,6 +36,34 @@ async function check(page: Page, where: string) {
 	if (out.length) console.log(`${where}:\n  ${out.join('\n  ')}`);
 }
 
+/**
+ * Waits until the page stops changing: nothing added, removed or altered for `quiet` ms, or
+ * `limit` ms at most. A file opened reads its details, thumbnails and panels in turn. What playback
+ * moves on its own, the time shown and the playhead's place, doesn't count: a GIF never stops.
+ */
+async function settle(page: Page, quiet = 300, limit = 6000) {
+	await page.evaluate(
+		([quiet, limit]) =>
+			new Promise<void>((resolve) => {
+				let timer = setTimeout(done, quiet);
+				const cap = setTimeout(done, limit);
+				const observer = new MutationObserver((records) => {
+					if (records.every((record) => record.type === 'characterData' || record.attributeName === 'style')) return;
+					clearTimeout(timer);
+					timer = setTimeout(done, quiet);
+				});
+				observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
+				function done() {
+					observer.disconnect();
+					clearTimeout(timer);
+					clearTimeout(cap);
+					resolve();
+				}
+			}),
+		[quiet, limit],
+	);
+}
+
 const EDITORS: [string, string][] = [
 	['/video', sample('film.mkv')],
 	['/image', 'samples/photo.heic'],
@@ -52,28 +80,29 @@ for (const [name, options] of [
 	const page = await (await browser.newContext({ ...options, locale: 'fr-FR' })).newPage();
 	for (const path of ['/', '/about', '/legal', '/system', '/tools/compress-video-for-discord']) {
 		await page.goto(`${BASE}${path}`);
-		await page.waitForTimeout(800);
+		await settle(page);
 		await check(page, `${name} ${path}`);
 	}
 	for (const [path, file] of EDITORS) {
 		await page.goto(`${BASE}${path}`);
-		await page.waitForTimeout(500);
+		await settle(page);
 		await check(page, `${name} ${path} empty`);
 		await page.setInputFiles('input[type=file]', file);
-		await page.waitForTimeout(6000);
+		await page.locator('nav[aria-label] button[aria-pressed]').first().waitFor();
+		await settle(page, 600);
 		const tools = page.locator('nav[aria-label] button[aria-pressed]');
 		for (let i = 0; i < (await tools.count()); i++) {
 			const tool = tools.nth(i);
 			if (await tool.isDisabled()) continue;
 			const label = await tool.innerText();
 			await tool.click();
-			await page.waitForTimeout(500);
+			await settle(page);
 			await check(page, `${name} ${path} ${label}`);
 		}
 		const exp = page.getByRole('navigation').getByRole('button', { name: 'Exporter', exact: true });
 		if (await exp.isVisible()) {
 			await exp.click();
-			await page.waitForTimeout(800);
+			await settle(page);
 			await check(page, `${name} ${path} export`);
 		} else console.log(`${name} ${path}: no visible Export button`);
 		await page.screenshot({ path: `shots/${name}-${path.slice(1)}.png`, fullPage: true });

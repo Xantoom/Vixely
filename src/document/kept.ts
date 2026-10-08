@@ -19,7 +19,7 @@ export interface Kept {
 }
 
 /** Shortest output allowed: a trim or a cut never leaves less than this. */
-export const MIN_OUTPUT = 0.05;
+const MIN_OUTPUT = 0.05;
 
 /** The source ranges in the output, in order. */
 export function keptRanges(doc: Kept): Range[] {

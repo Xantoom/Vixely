@@ -47,8 +47,6 @@ const PANEL_MS = 240;
 
 /** Lets the panel's own title close the panel. */
 const PanelContext = createContext<(() => void) | null>(null);
-/** False where a panel shows under a heading of its own, such as a tab: its title is left out. */
-export const PanelTitles = createContext(true);
 
 function Rail({
 	tools,
@@ -542,9 +540,10 @@ export function EditorLayout({
 					'--stage-h': stageHeight(aspect, open),
 					'--editor-side': from ? entranceSide(from, kind) : undefined,
 				}}
-				// Coming from another editor, it slides in from that side. The panel's column slides open
-				// and shut, the stage following it (sizes measured in JavaScript wait meanwhile).
-				className={`ease-out-soft grid min-h-0 flex-1 grid-cols-1 transition-[grid-template-columns] duration-240 ${from ? 'editor-enter' : ''} md:grid-rows-[minmax(0,1fr)_auto] ${phoneRows} ${open ? 'md:grid-cols-[var(--rail-w)_var(--panel-w)_minmax(0,1fr)]' : 'md:grid-cols-[var(--rail-w)_0px_minmax(0,1fr)]'}`}
+				// The panel's column slides open and shut, the stage following it (sizes measured in
+				// JavaScript wait meanwhile). Coming from another editor, the frame stays put: only what
+				// it shows comes in, from that editor's side.
+				className={`ease-out-soft grid min-h-0 flex-1 grid-cols-1 transition-[grid-template-columns] duration-240 md:grid-rows-[minmax(0,1fr)_auto] ${phoneRows} ${open ? 'md:grid-cols-[var(--rail-w)_var(--panel-w)_minmax(0,1fr)]' : 'md:grid-cols-[var(--rail-w)_0px_minmax(0,1fr)]'}`}
 			>
 				<div className="z-30 max-md:order-4 md:row-span-2">
 					<Rail
@@ -580,13 +579,13 @@ export function EditorLayout({
 								aria-label={m.preview()}
 								className={`bg-canvas relative flex min-h-0 min-w-0 flex-col overflow-hidden max-md:order-1 ${open || sized ? 'max-md:h-(--stage-h)' : ''}`}
 							>
-								{ambient && <Ambient bitmap={ambient} />}
+								{ambient && <Ambient bitmap={ambient} className={from ? 'glow-in' : ''} />}
 								{/* A box with a definite size, so the media can be contained in it whatever its resolution. */}
 								<div className="relative min-h-0 flex-1">
 									<div
 										// The whole stage: the picture leaves itself the room it needs, and zoomed in
 										// it reaches every edge.
-										className="absolute inset-0 flex items-center justify-center"
+										className={`absolute inset-0 flex items-center justify-center ${from ? 'stage-in' : ''}`}
 									>
 										{/* Its pictures wait for the editor to show first. */}
 										{settled && viewer}
@@ -622,7 +621,6 @@ function stageHeight(aspect: number | undefined, open: boolean): string {
 /** The panel's heading, with an optional action (reset) and the button closing the panel. */
 export function PanelTitle({ children, action }: { children: string; action?: ReactNode }) {
 	const close = use(PanelContext);
-	if (!use(PanelTitles)) return null;
 	return (
 		<div
 			data-panel-title

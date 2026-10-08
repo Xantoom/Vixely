@@ -181,6 +181,8 @@ export function AudioEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	useAudioShortcuts(engine, !batch);
 
 	const inspector = () => {
+		// Without a file there is nothing to show: the panel stays shut and the tools wait.
+		if (!opened && !batch) return null;
 		if (tool === 'info' || !editable) return <FilePanel opened={opened} />;
 		if (tool === 'trim') return <TrimPanel engine={engine} />;
 		// Without the trim panel, a batch finds its fades with the sound.

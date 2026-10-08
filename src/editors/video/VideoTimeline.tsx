@@ -15,8 +15,9 @@ import { FitButton } from '@/editor/FitButton';
 import type { OverlayEditing } from '@/editor/overlays/editing';
 import { LayerLanes } from '@/editor/overlays/LayerLanes';
 import { PlayTime } from '@/editor/PlayerControls';
+import { Playhead } from '@/editor/Playhead';
 import { SelectionBar } from '@/editor/SelectionBar';
-import { isVisible, percent, rangeBox, timeAt, zoomView } from '@/editor/timeline-view';
+import { isVisible, rangeBox, timeAt, zoomView } from '@/editor/timeline-view';
 import { TimeRuler } from '@/editor/TimeRuler';
 import { TrimHandle } from '@/editor/TrimHandle';
 import { ViewScroll } from '@/editor/ViewScroll';
@@ -89,18 +90,11 @@ function Filmstrip({
 	return <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 size-full" aria-hidden="true" />;
 }
 
-function Playhead({ view }: { view: Range }) {
+/** The playhead of the video playing, which can be dragged to scrub. */
+function VideoPlayhead({ view, duration }: { view: Range; duration: number }) {
 	const time = usePlayback((state) => state.time);
-	if (time < view.start || time > view.end) return null;
-	return (
-		<div
-			className="pointer-events-none absolute -top-1 -bottom-1 z-10 w-0.5 -translate-x-1/2 bg-[var(--ed)]"
-			style={{ left: percent(time, view) }}
-			aria-hidden="true"
-		>
-			<span className="absolute -top-0.5 left-1/2 size-2.5 -translate-x-1/2 rotate-45 rounded-[2px] bg-[var(--ed)]" />
-		</div>
-	);
+	const seek = usePlayback((state) => state.seek);
+	return <Playhead time={time} view={view} duration={duration} onSeek={seek} className="-top-1 -bottom-1" />;
 }
 
 /** Handle at one end of the kept video, bound to the video document. */
@@ -282,7 +276,7 @@ function Lanes({ file, aspect, cutting }: { file: File; aspect: number; cutting:
 			)}
 			{cutting && <VideoTrimHandle side="start" doc={doc} view={view} />}
 			{cutting && <VideoTrimHandle side="end" doc={doc} view={view} />}
-			<Playhead view={view} />
+			<VideoPlayhead view={view} duration={doc.duration} />
 		</div>
 	);
 }
@@ -356,7 +350,7 @@ export function VideoTimeline({
 	);
 
 	return (
-		<section aria-label={m.timeline()} className="border-line grid gap-1 border-t px-4 pt-2 pb-2">
+		<section aria-label={m.timeline()} className="border-line grid gap-1 border-t px-4 pt-2 pb-1">
 			{controls}
 			<div id="video-timeline" className="mt-1 grid gap-1">
 				<TimeRuler view={view} onSeek={seek} />

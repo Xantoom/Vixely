@@ -120,8 +120,8 @@ interface ProjectState {
 	choose: (key: TrackKey) => void;
 	setEncoding: (encoding: EncodingId) => void;
 	/**
-	 * Adds subtitle files to the open video as new tracks. Resolves with the name of a file that
-	 * couldn't be read, or null.
+	 * Adds subtitle files to the open video as new tracks, the first one shown. Resolves with the
+	 * name of a file that couldn't be read, or null.
 	 */
 	addFiles: (files: readonly File[]) => Promise<string | null>;
 	/** Takes an added track out again. */
@@ -480,6 +480,8 @@ export const useSubtitleProject = create<ProjectState>((set, get) => {
 					: [],
 			);
 			insert(added);
+			const first = added[0];
+			if (first) get().choose(first.key);
 			return read.find(({ doc }) => doc === null)?.file.name ?? null;
 		},
 

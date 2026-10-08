@@ -13,7 +13,7 @@ export const AMBIENT_FILTER = 'blur(3px) saturate(1.5)';
  * The colours of a picture, blurred behind it, as music players show a cover and video apps
  * their ambient light: the stage takes the tone of the file rather than a flat colour.
  */
-export function Ambient({ bitmap }: { bitmap: ImageBitmap }) {
+export function Ambient({ bitmap, className = '' }: { bitmap: ImageBitmap; className?: string }) {
 	const ref = useRef<HTMLCanvasElement>(null);
 	useEffect(() => {
 		const canvas = ref.current;
@@ -31,7 +31,7 @@ export function Ambient({ bitmap }: { bitmap: ImageBitmap }) {
 	return (
 		<div
 			aria-hidden="true"
-			className="pointer-events-none absolute inset-0 overflow-hidden opacity-45 dark:opacity-40"
+			className={`pointer-events-none absolute inset-0 overflow-hidden opacity-45 dark:opacity-40 ${className}`}
 		>
 			<canvas ref={ref} className="size-full scale-150" />
 		</div>

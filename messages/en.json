@@ -182,6 +182,7 @@
 	"no_preview": "No preview for {format}.",
 	"no_decoder": "This browser can't decode {codec} video.",
 	"info_file": "File",
+	"info_panel": "Information",
 	"info_format": "Format",
 	"info_size": "Size",
 	"info_images": "Images",
@@ -263,6 +264,10 @@
 	"look_dramatic": "Dramatic",
 	"look_bw": "B&W",
 	"look_noir": "Noir",
+	"compare_split": "Line between the original and the result",
+	"compare_original": "Original",
+	"compare_result": "Result",
+	"compare_side": "Compare side by side",
 	"compare_hold": "Hold to compare with the original",
 	"export_image_title": "Export the image",
 	"export_format": "Format",
@@ -416,7 +421,6 @@
 	"waveform": "Waveform",
 	"waveform_reading": "Reading the waveform {percent} %",
 	"waveform_failed": "This browser can't decode this audio track.",
-	"audio_final_length": "Final length",
 	"trim_title": "Edit",
 	"trim_start": "Start",
 	"trim_end": "End",
@@ -536,21 +540,6 @@
 		}
 	],
 	"gif_failed": "This animation couldn't be read.",
-	"frames_count": [
-		{
-			"declarations": [
-				"input count",
-				"local countPlural = count: plural"
-			],
-			"selectors": [
-				"countPlural"
-			],
-			"match": {
-				"countPlural=one": "{count} frame",
-				"countPlural=other": "{count} frames"
-			}
-		}
-	],
 	"filmstrip": "Frames",
 	"speed_label": "Speed",
 	"direction": "Direction",
@@ -756,7 +745,6 @@
 	"subs_tracks": "Subtitle tracks",
 	"subs_tracks_failed": "The subtitle tracks of this file couldn't be read. You can still write new subtitles.",
 	"subs_new_track": "New subtitles",
-	"subs_write_new": "Write subtitles",
 	"subs_track_default": "Default",
 	"subs_track_forced": "Forced",
 	"subs_language_unknown": "Unknown language",
@@ -803,10 +791,8 @@
 	"mux_audio": "Audio",
 	"mux_volume": "Volume",
 	"mux_remove_track": "Remove this track",
-	"mux_add_audio": "Add a sound track",
 	"mux_subtitle_tracks": "Subtitle tracks",
 	"mux_audio_tracks": "Sound tracks",
-	"mux_add_subtitles": "Add a subtitle file",
 	"mux_unreadable_subtitles": "{name} could not be read as subtitles.",
 	"audio_no_tracks": "This video has no sound.",
 	"subs_no_tracks": "This video has no subtitles.",
@@ -905,9 +891,14 @@
 	],
 	"subs_first_line": "First line",
 	"subs_batch_title": "Batch",
-	"capture_picture": "Open in the image editor",
+	"capture_which": "Picture",
+	"capture_shown": "As shown",
+	"capture_original": "Original",
+	"capture_action_download": "Download as PNG",
+	"capture_action_edit": "Open in the image editor",
+	"captured_subtitles": "Show the video’s subtitles",
+	"capture_menu": "This picture",
 	"timeline_tracks": "Tracks",
-	"video_final_length": "Final length",
 	"copy_keyframe_kept": "Kept: the copy starts on a key frame",
 	"copy_blocked_picture": "Crop, turns and colours need the video encoded again",
 	"copy_blocked_time": "Speed and fades need the video encoded again",
@@ -1030,7 +1021,6 @@
 	"social_reels": "Reels, Stories",
 	"frame_back": "Previous frame",
 	"frame_forward": "Next frame",
-	"zoom_reset": "Back to fit",
 	"timeline_default_zoom": "Back to default zoom",
 	"layers_all": "All layers ({count})",
 	"layers_edit": "Edit this layer",
@@ -1122,10 +1112,16 @@
 	"tracks_codec": "Codec",
 	"tracks_bitrate": "Bitrate",
 	"eq_custom": "Custom",
-	"tracks_burn": "Burn into the picture",
 	"tracks_burn_hint": "The video is then encoded again, always showing these subtitles.",
 	"tracks_edit_lines": "Edit the lines",
 	"tracks_include_one": "Keep {name} in the file",
+	"tracks_keep_all": "Keep every track",
+	"tracks_col_track": "Track",
+	"tracks_col_default": "Default",
+	"tracks_col_forced": "Forced",
+	"tracks_col_burn": "Burned in",
+	"tracks_add": "Add",
+	"tracks_kept": "{kept} of {count}",
 	"tracks_channels": [
 		{
 			"declarations": [

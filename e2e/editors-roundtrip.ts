@@ -39,7 +39,9 @@ const before = await trimmed();
 console.log('video edited, final length', before);
 
 // A picture captured: the image editor opens it.
-await page.getByRole('button', { name: 'Open in the image editor' }).click();
+await page.getByRole('button', { name: 'This picture', exact: true }).click();
+await page.getByRole('radio', { name: 'Original', exact: true }).click();
+await page.getByRole('dialog', { name: 'This picture' }).getByRole('button', { name: 'Open in the image editor' }).click();
 await page.waitForURL('**/image**', { timeout: 20000 });
 await page.waitForTimeout(1000);
 console.log('image editor:', (await header.innerText()).replace(/\n/g, ' '));

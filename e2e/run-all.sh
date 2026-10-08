@@ -21,17 +21,30 @@ declare -A groups=(
 	[gif]="gif-editor gif-formats gif-effects gif-batch gif-images"
 	[audio]="audio-sound audio-tools"
 	[subtitles]="subtitles-editor subtitles-tracks subtitles-mux subtitles-batch subtitles-tools subtitles-styles"
-	[video]="video-editor video-export video-complete video-batch"
-	[shell]="site-pages editors-roundtrip keyboard layout"
+	[video]="video-editor video-added video-tracks video-export video-complete video-batch"
+	[shell]="site-pages editors-roundtrip compare keyboard layout"
 )
 all="${groups[shell]%% *} ${groups[image]} ${groups[gif]} ${groups[audio]} ${groups[subtitles]} ${groups[video]} ${groups[shell]#* }"
 scenarios=()
 for name in ${@:-$all}; do scenarios+=(${groups[$name]:-$name}); done
-for scenario in "${scenarios[@]}"; do
-	out="$root/runs/$browser-$scenario.txt"
-	start=$(date +%s)
+# Several run at once (JOBS, the cores over two by default), the longest first so they don't end
+# alone; each line is printed as its scenario ends.
+jobs=${JOBS:-$(( $(nproc) / 2 ))}
+longest="video-export video-complete layout image-editor keyboard subtitles-tools video-editor"
+ordered=()
+for scenario in $longest; do [[ " ${scenarios[*]} " == *" $scenario "* ]] && ordered+=("$scenario"); done
+for scenario in "${scenarios[@]}"; do [[ " $longest " == *" $scenario "* ]] || ordered+=("$scenario"); done
+run() {
+	local scenario=$1 out="$root/runs/$browser-$1.txt" start=$(date +%s) status last
 	timeout 900 bun "$root/$scenario.ts" > "$out" 2>&1
 	status=$?
 	last=$(grep -E "^(no errors|errors:)" "$out" | tail -1 | cut -c1-160)
 	echo "$scenario [$status, $(( $(date +%s) - start )) s] ${last:-$(grep -E 'Error|error' "$out" | grep -v '^\s*[0-9]* |' | head -1 | cut -c1-160)}"
+}
+began=$(date +%s)
+for scenario in "${ordered[@]}"; do
+	while (( $(jobs -rp | wc -l) >= jobs )); do wait -n; done
+	run "$scenario" &
 done
+wait
+echo "all done in $(( $(date +%s) - began )) s"

@@ -90,7 +90,31 @@ await tools.getByRole('button', { name: 'Crop' }).click();
 await aside.getByRole('radio', { name: /16:9/ }).click();
 await aside.getByLabel('Width').fill('960');
 await aside.getByLabel('Width').press('Enter');
-await page.getByRole('button', { name: 'Open in the image editor' }).click();
+// The picture on screen, downloaded as the video has it.
+await page.getByRole('button', { name: 'This picture', exact: true }).click();
+await page.getByRole('radio', { name: 'Original', exact: true }).click();
+const [shot] = await Promise.all([
+	page.waitForEvent('download'),
+	page.getByRole('dialog', { name: 'This picture' }).getByRole('button', { name: 'Download' }).click(),
+]);
+console.log('downloaded picture:', shot.suggestedFilename());
+// The picture as the preview shows it: cropped, at the crop's size.
+await page.getByRole('button', { name: 'This picture', exact: true }).click();
+// The choice stays: back to the picture as shown.
+await page.getByRole('radio', { name: 'As shown', exact: true }).click();
+await page.waitForTimeout(200);
+await page.screenshot({ path: 'shots/capture-panel.png' });
+const [seen] = await Promise.all([
+	page.waitForEvent('download'),
+	page.getByRole('dialog', { name: 'This picture' }).getByRole('button', { name: 'Download' }).click(),
+]);
+const seenSize = await page.evaluate(async (url) => {
+	const bitmap = await createImageBitmap(await (await fetch(url)).blob());
+	return `${bitmap.width}×${bitmap.height}`;
+}, `data:image/png;base64,${(await Bun.file((await seen.path())!).bytes()).toBase64()}`);
+console.log('picture as shown:', seen.suggestedFilename(), seenSize);
+await page.getByRole('button', { name: 'This picture', exact: true }).click();
+await page.getByRole('dialog', { name: 'This picture' }).getByRole('button', { name: 'Open in the image editor' }).click();
 await page.waitForURL('**/image**', { timeout: 20000 });
 await page.waitForTimeout(1500);
 await tools.getByRole('button', { name: 'Crop' }).click();

@@ -182,6 +182,7 @@
 	"no_preview": "Pas d’aperçu pour le format {format}.",
 	"no_decoder": "Ce navigateur ne sait pas décoder la vidéo {codec}.",
 	"info_file": "Fichier",
+	"info_panel": "Informations",
 	"info_format": "Format",
 	"info_size": "Poids",
 	"info_images": "Images",
@@ -263,6 +264,10 @@
 	"look_dramatic": "Dramatique",
 	"look_bw": "N&B",
 	"look_noir": "Noir",
+	"compare_split": "Séparation entre l’original et le résultat",
+	"compare_original": "Original",
+	"compare_result": "Résultat",
+	"compare_side": "Comparer côte à côte",
 	"compare_hold": "Maintenir pour comparer à l’original",
 	"export_image_title": "Exporter l’image",
 	"export_format": "Format",
@@ -416,7 +421,6 @@
 	"waveform": "Forme d’onde",
 	"waveform_reading": "Lecture de la forme d’onde {percent} %",
 	"waveform_failed": "Ce navigateur ne sait pas décoder cette piste audio.",
-	"audio_final_length": "Durée finale",
 	"trim_title": "Édition",
 	"trim_start": "Début",
 	"trim_end": "Fin",
@@ -536,21 +540,6 @@
 		}
 	],
 	"gif_failed": "Cette animation n’a pas pu être lue.",
-	"frames_count": [
-		{
-			"declarations": [
-				"input count",
-				"local countPlural = count: plural"
-			],
-			"selectors": [
-				"countPlural"
-			],
-			"match": {
-				"countPlural=one": "{count} image",
-				"countPlural=other": "{count} images"
-			}
-		}
-	],
 	"filmstrip": "Images",
 	"speed_label": "Vitesse",
 	"direction": "Sens",
@@ -801,7 +790,6 @@
 	"subs_tracks": "Pistes de sous-titres",
 	"subs_tracks_failed": "Les pistes de sous-titres de ce fichier n’ont pas pu être lues. Vous pouvez quand même écrire de nouveaux sous-titres.",
 	"subs_new_track": "Nouveaux sous-titres",
-	"subs_write_new": "Écrire des sous-titres",
 	"subs_track_default": "Par défaut",
 	"subs_track_forced": "Forcés",
 	"subs_language_unknown": "Langue inconnue",
@@ -848,10 +836,8 @@
 	"mux_audio": "Audio",
 	"mux_volume": "Volume",
 	"mux_remove_track": "Retirer cette piste",
-	"mux_add_audio": "Ajouter une piste son",
 	"mux_subtitle_tracks": "Pistes de sous-titres",
 	"mux_audio_tracks": "Pistes audio",
-	"mux_add_subtitles": "Ajouter un fichier de sous-titres",
 	"mux_unreadable_subtitles": "{name} n’a pas pu être lu comme des sous-titres.",
 	"audio_no_tracks": "Cette vidéo n’a pas de son.",
 	"subs_no_tracks": "Cette vidéo n’a pas de sous-titres.",
@@ -950,9 +936,14 @@
 	],
 	"subs_first_line": "Première réplique",
 	"subs_batch_title": "Traitement par lot",
-	"capture_picture": "Ouvrir dans l’éditeur d’images",
+	"capture_which": "Image",
+	"capture_shown": "Affichée",
+	"capture_original": "Originale",
+	"capture_action_download": "Télécharger en PNG",
+	"capture_action_edit": "Ouvrir dans l’éditeur d’images",
+	"captured_subtitles": "Afficher les sous-titres de la vidéo",
+	"capture_menu": "Cette image",
 	"timeline_tracks": "Pistes",
-	"video_final_length": "Durée finale",
 	"copy_keyframe_kept": "Gardé : la copie commence sur une image clé",
 	"copy_blocked_picture": "Le recadrage, la rotation et les couleurs demandent de réencoder la vidéo",
 	"copy_blocked_time": "La vitesse et les fondus demandent de réencoder la vidéo",
@@ -1075,7 +1066,6 @@
 	"social_reels": "Reels, Stories",
 	"frame_back": "Image précédente",
 	"frame_forward": "Image suivante",
-	"zoom_reset": "Revenir à l'ajustement",
 	"timeline_default_zoom": "Revenir au zoom par défaut",
 	"layers_all": "Tous les calques ({count})",
 	"layers_edit": "Modifier ce calque",
@@ -1167,10 +1157,16 @@
 	"tracks_codec": "Codec",
 	"tracks_bitrate": "Débit",
 	"eq_custom": "Personnalisé",
-	"tracks_burn": "Incruster dans l’image",
 	"tracks_burn_hint": "La vidéo est alors réencodée, avec ces sous-titres toujours visibles.",
 	"tracks_edit_lines": "Modifier les lignes",
 	"tracks_include_one": "Garder {name} dans le fichier",
+	"tracks_keep_all": "Garder toutes les pistes",
+	"tracks_col_track": "Piste",
+	"tracks_col_default": "Défaut",
+	"tracks_col_forced": "Forcés",
+	"tracks_col_burn": "Incrustés",
+	"tracks_add": "Ajouter",
+	"tracks_kept": "{kept} sur {count}",
 	"tracks_channels": [
 		{
 			"declarations": [

@@ -106,6 +106,8 @@ function SingleSubtitleScreen({ initialTool }: { initialTool?: ToolId }) {
 	});
 
 	const inspector = () => {
+		// Without a file there is nothing to show: the panel stays shut and the tools wait.
+		if (!opened) return null;
 		if (!opened || !ready) return <FilePanel opened={opened} />;
 		if (tool === 'timing') return <TimingPanel />;
 		if (tool === 'find') return <FindPanel />;

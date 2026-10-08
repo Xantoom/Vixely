@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { CropOverlay } from '@/editor/CropOverlay';
 import type { OverlayEditing } from '@/editor/overlays/editing';
 import { CroppedLayers, OverlayLayer } from '@/editor/overlays/OverlayLayer';
-import { backingSize, useStageZoom, ZoomStage } from '@/editor/ZoomStage';
+import { backingSize, copyPicture, OriginalPicture, useShowsOriginal, ZoomStage } from '@/editor/ZoomStage';
 import { effectiveCrop, orientedSize, type Rect, type Size, wholePictureDoc } from './document';
 import { ImageRenderer } from './renderer';
 import { cropRatio, useImageDoc, useImageEditor } from './store';
@@ -44,7 +44,8 @@ function Picture({
 }) {
 	const doc = useImageDoc();
 	const sampling = useImageEditor((state) => state.exportSettings.sampling);
-	const comparing = useStageZoom((state) => state.comparing);
+	const comparing = useShowsOriginal() && !cropping;
+	const originalRef = useRef<HTMLCanvasElement>(null);
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const rendererRef = useRef<ImageRenderer | null>(null);
 	const bounds = orientedSize(source, doc.rotation);
@@ -68,7 +69,12 @@ function Picture({
 		if (!canvas || !renderer) return;
 		canvas.width = backingSize(region.width * scale, region.width);
 		canvas.height = backingSize(region.height * scale, region.height);
-		renderer.render(cropping ? wholePictureDoc(doc, crop, bounds) : doc, { region, original: comparing, sampling });
+		const shown = cropping ? wholePictureDoc(doc, crop, bounds) : doc;
+		if (comparing) {
+			renderer.render(shown, { region, original: true, sampling });
+			copyPicture(canvas, originalRef.current);
+		}
+		renderer.render(shown, { region, sampling });
 	});
 
 	return (
@@ -79,7 +85,7 @@ function Picture({
 				className={`block size-full stage-picture bg-[conic-gradient(var(--surface-2)_25%,var(--bg)_0_50%,var(--surface-2)_0_75%,var(--bg)_0)] bg-size-[16px_16px] ${scale > 1.5 ? '[image-rendering:pixelated]' : ''}`}
 			/>
 			{/* Text and stickers belong to the cropped output: in the crop frame while cropping. */}
-			{!cropping && !comparing && doc.overlays.length + (overlays ? 1 : 0) > 0 && (
+			{!cropping && doc.overlays.length + (overlays ? 1 : 0) > 0 && (
 				<OverlayLayer
 					overlays={doc.overlays}
 					width={region.width * scale}
@@ -88,6 +94,7 @@ function Picture({
 					onEditText={onEditText}
 				/>
 			)}
+			{comparing && <OriginalPicture ref={originalRef} />}
 			{cropping && <CroppedLayers overlays={doc.overlays} crop={crop} scale={scale} />}
 			{cropping && <ImageCropOverlay crop={crop} scale={scale} bounds={bounds} />}
 		</>

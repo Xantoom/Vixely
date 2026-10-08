@@ -10,13 +10,17 @@ import { spawnSync } from 'node:child_process';
  *   and an embedded font; live.mkv has no cues; film.mp4 carries the SRT as timed text. Made with
  *   FFmpeg when the FFMPEG variable points to it (a static build is enough).
  * - clip.mkv, clip.mp4: the first 24 s of film.mkv and film.mp4, copied, for the scenarios that
- *   encode whole videos (key frames at 0, 10 and 20 s).
+ *   cut and copy them (key frames at 0, 10 and 20 s); short.mkv, short.mp4: the first 12 s, for
+ *   those that encode them again, which takes as long as the video.
  * - h264.mp4: 12 s of 1080p H.264 with B-frames and two audio tracks (English, French commentary).
  * - rotated.mp4: the same, stored turned as phones do (a display matrix of 90°); silent.mp4: the
  *   same without sound.
  * - ac3.mkv, dts.mkv: 8 s of test pattern with Dolby Digital 5.1 and DTS sound, which browsers
  *   don't decode; truehd.mkv, truehd.m2ts, truehd.mp4: the same with Dolby TrueHD 5.1, as on Blu-ray; vfr.mp4: 6 s whose pictures come at irregular times, as phones record them;
  *   extra.fr.srt: a subtitle file to add to a video; noisy.wav: a voice-like buzz in white noise.
+ * - many-tracks.mkv: speech.mp4's pictures with seven sound tracks (AAC, AC-3, Opus, E-AC-3,
+ *   FLAC) and nine subtitle tracks (SRT, ASS) in several languages, one of each kind default and
+ *   one forced, as on a disc rip.
  * - samples/open/: every video above with its H.264 pictures as VP9 and its AAC sound as Opus, the
  *   rest copied as it is, for browsers built without patented codecs (Playwright's Firefox).
  */
@@ -227,10 +231,32 @@ if (!existsSync('samples/film.mkv') && ffmpeg) {
 } else if (!existsSync('samples/film.mkv')) {
 	console.log('film.mkv: set FFMPEG to an ffmpeg binary to make the subtitle samples');
 }
-for (const ext of ['mkv', 'mp4']) {
-	if (!ffmpeg || existsSync(`samples/clip.${ext}`) || !existsSync(`samples/film.${ext}`)) continue;
-	spawnSync(ffmpeg, ['-v', 'error', '-y', '-i', `samples/film.${ext}`, '-map', '0', '-t', '24', '-c', 'copy', `samples/clip.${ext}`], { stdio: 'inherit' });
-	console.log(`samples/clip.${ext}`);
+for (const [name, length, ext] of [
+	['clip', 24, 'mkv'],
+	['clip', 24, 'mp4'],
+	['short', 12, 'mkv'],
+	['short', 12, 'mp4'],
+] as const) {
+	if (!ffmpeg || existsSync(`samples/${name}.${ext}`) || !existsSync(`samples/film.${ext}`)) continue;
+	spawnSync(
+		ffmpeg,
+		[
+			'-v',
+			'error',
+			'-y',
+			'-i',
+			`samples/film.${ext}`,
+			'-map',
+			'0',
+			'-t',
+			String(length),
+			'-c',
+			'copy',
+			`samples/${name}.${ext}`,
+		],
+		{ stdio: 'inherit' },
+	);
+	console.log(`samples/${name}.${ext}`);
 }
 
 if (!existsSync('samples/h264.mp4') && ffmpeg) {
@@ -265,9 +291,24 @@ if (!existsSync('samples/h264.mp4') && ffmpeg) {
 if (existsSync('samples/h264.mp4') && ffmpeg) {
 	// Phones store portrait video turned, with a rotation for players to apply.
 	if (!existsSync('samples/rotated.mp4')) {
-		spawnSync(ffmpeg, ['-v', 'error', '-y', '-display_rotation:v:0', '90', '-i', 'samples/h264.mp4', '-map', '0', '-c', 'copy', 'samples/rotated.mp4'], {
-			stdio: 'inherit',
-		});
+		spawnSync(
+			ffmpeg,
+			[
+				'-v',
+				'error',
+				'-y',
+				'-display_rotation:v:0',
+				'90',
+				'-i',
+				'samples/h264.mp4',
+				'-map',
+				'0',
+				'-c',
+				'copy',
+				'samples/rotated.mp4',
+			],
+			{ stdio: 'inherit' },
+		);
 		console.log('samples/rotated.mp4');
 	}
 	if (!existsSync('samples/silent.mp4')) {
@@ -301,13 +342,103 @@ if (ffmpeg) {
 		'-c:a',
 		'pcm_s16le',
 	]);
-	make('ac3.mkv', [...pattern, '-f', 'lavfi', '-i', 'sine=f=440:d=8', ...h264, '-c:a', 'ac3', '-ac', '6', '-b:a', '384k']);
-	make('dts.mkv', [...pattern, '-f', 'lavfi', '-i', 'sine=f=330:d=8', ...h264, '-c:a', 'dca', '-strict', '-2', '-ac', '2']);
+	make('ac3.mkv', [
+		...pattern,
+		'-f',
+		'lavfi',
+		'-i',
+		'sine=f=440:d=8',
+		...h264,
+		'-c:a',
+		'ac3',
+		'-ac',
+		'6',
+		'-b:a',
+		'384k',
+	]);
+	make('dts.mkv', [
+		...pattern,
+		'-f',
+		'lavfi',
+		'-i',
+		'sine=f=330:d=8',
+		...h264,
+		'-c:a',
+		'dca',
+		'-strict',
+		'-2',
+		'-ac',
+		'2',
+	]);
 	const truehd = ['-c:a', 'truehd', '-strict', '-2', '-ac', '6'];
 	make('truehd.mkv', [...pattern, '-f', 'lavfi', '-i', 'sine=f=550:d=8', ...h264, ...truehd]);
-	make('truehd.m2ts', [...pattern, '-f', 'lavfi', '-i', 'sine=f=550:d=8', ...h264, ...truehd, '-mpegts_m2ts_mode', '1']);
+	make('truehd.m2ts', [
+		...pattern,
+		'-f',
+		'lavfi',
+		'-i',
+		'sine=f=550:d=8',
+		...h264,
+		...truehd,
+		'-mpegts_m2ts_mode',
+		'1',
+	]);
 	// FFmpeg only writes TrueHD into MP4 when copying it.
 	make('truehd.mp4', ['-i', 'samples/truehd.mkv', '-c', 'copy', '-strict', '-2']);
+	// Seven sound and nine subtitle tracks in several languages, as a disc rip has them.
+	if (!existsSync('samples/many-tracks.mkv') && existsSync('samples/speech.mp4')) {
+		writeFileSync('samples/many-tracks.srt', '1\n00:00:01,000 --> 00:00:03,000\nLine\n');
+		const audio = [
+			['copy', 'fre', 'VFF'],
+			['ac3', 'fre', 'VFQ'],
+			['libopus', 'eng', ''],
+			['copy', 'eng', 'Commentary'],
+			['eac3', 'jpn', ''],
+			['flac', 'ger', ''],
+			['copy', 'spa', 'Audio description'],
+		];
+		const subtitles = [
+			['srt', 'fre', 'Forced'],
+			['srt', 'fre', 'Full'],
+			['srt', 'fre', 'SDH'],
+			['ass', 'eng', ''],
+			['srt', 'eng', 'SDH'],
+			['srt', 'jpn', ''],
+			['srt', 'ger', ''],
+			['ass', 'spa', ''],
+			['srt', 'ita', ''],
+		];
+		make('many-tracks.mkv', [
+			'-i',
+			'samples/speech.mp4',
+			'-i',
+			'samples/many-tracks.srt',
+			'-map',
+			'0:v',
+			...audio.flatMap(() => ['-map', '0:a']),
+			...subtitles.flatMap(() => ['-map', '1']),
+			'-c:v',
+			'copy',
+			...audio.flatMap(([codec, language, title], n) => [
+				`-c:a:${n}`,
+				codec,
+				`-metadata:s:a:${n}`,
+				`language=${language}`,
+				...(title ? [`-metadata:s:a:${n}`, `title=${title}`] : []),
+				`-disposition:a:${n}`,
+				n === 0 ? 'default' : '0',
+			]),
+			...subtitles.flatMap(([codec, language, title], n) => [
+				`-c:s:${n}`,
+				codec,
+				`-metadata:s:s:${n}`,
+				`language=${language}`,
+				...(title ? [`-metadata:s:s:${n}`, `title=${title}`] : []),
+				`-disposition:s:${n}`,
+				n === 0 ? 'forced' : n === 1 ? 'default' : '0',
+			]),
+		]);
+	}
 	// Pictures 17 to 50 ms apart, off any regular lattice.
 	make('vfr.mp4', [
 		'-f',
@@ -337,16 +468,64 @@ if (!existsSync('samples/extra.fr.srt')) {
 if (ffmpeg) {
 	mkdirSync('samples/open', { recursive: true });
 	const probe = ffmpeg.replace(/ffmpeg$/, 'ffprobe');
-	for (const name of ['film.mp4', 'film.mkv', 'clip.mp4', 'clip.mkv', 'live.mkv', 'h264.mp4', 'rotated.mp4', 'silent.mp4', 'vfr.mp4', 'ac3.mkv', 'dts.mkv', 'truehd.mkv', 'truehd.m2ts', 'truehd.mp4', 'sample.mkv']) {
+	for (const name of [
+		'film.mp4',
+		'film.mkv',
+		'clip.mp4',
+		'clip.mkv',
+		'live.mkv',
+		'h264.mp4',
+		'rotated.mp4',
+		'silent.mp4',
+		'vfr.mp4',
+		'ac3.mkv',
+		'dts.mkv',
+		'truehd.mkv',
+		'truehd.m2ts',
+		'truehd.mp4',
+		'sample.mkv',
+	]) {
 		const target = `samples/open/${name}`;
 		if (existsSync(target) || !existsSync(`samples/${name}`)) continue;
-		const audio = spawnSync(probe, ['-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=codec_name', '-of', 'csv=p=0', `samples/${name}`], { encoding: 'utf8' }).stdout;
+		const audio = spawnSync(
+			probe,
+			[
+				'-v',
+				'error',
+				'-select_streams',
+				'a',
+				'-show_entries',
+				'stream=codec_name',
+				'-of',
+				'csv=p=0',
+				`samples/${name}`,
+			],
+			{ encoding: 'utf8' },
+		).stdout;
 		const aac = audio.includes('aac');
 		spawnSync(
 			ffmpeg,
 			[
-				'-v', 'error', '-y', '-noautorotate', '-i', `samples/${name}`, '-map', '0', '-fps_mode', 'passthrough',
-				'-c', 'copy', '-c:v', 'libvpx-vp9', '-deadline', 'realtime', '-cpu-used', '8', '-b:v', '2M',
+				'-v',
+				'error',
+				'-y',
+				'-noautorotate',
+				'-i',
+				`samples/${name}`,
+				'-map',
+				'0',
+				'-fps_mode',
+				'passthrough',
+				'-c',
+				'copy',
+				'-c:v',
+				'libvpx-vp9',
+				'-deadline',
+				'realtime',
+				'-cpu-used',
+				'8',
+				'-b:v',
+				'2M',
 				...(aac ? ['-c:a', 'libopus', '-b:a', '128k'] : []),
 				// TrueHD in MP4 is still experimental to FFmpeg.
 				...(audio.includes('truehd') ? ['-strict', '-2'] : []),

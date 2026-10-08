@@ -33,7 +33,7 @@ const ascii = (bytes: Uint8Array, start: number, length: number) =>
 	String.fromCharCode(...bytes.subarray(start, start + length));
 
 /** The description of an ICC profile: its `desc` tag, version 2 or 4. */
-export function iccName(icc: Uint8Array): string | null {
+function iccName(icc: Uint8Array): string | null {
 	if (icc.length < 132) return null;
 	const view = new DataView(icc.buffer, icc.byteOffset, icc.byteLength);
 	const count = view.getUint32(128);
@@ -70,7 +70,7 @@ const LUMINANCE = [
 ];
 
 /** The libjpeg quality whose luminance table comes nearest the one found, by their sums. */
-export function estimateJpegQuality(table: readonly number[]): number {
+function estimateJpegQuality(table: readonly number[]): number {
 	const sum = table.reduce((total, value) => total + value, 0);
 	let best = 1;
 	let bestGap = Infinity;

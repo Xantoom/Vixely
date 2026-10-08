@@ -1,19 +1,11 @@
 import { Check, Lock, type LucideIcon, Search } from 'lucide-react';
-import {
-	type KeyboardEvent,
-	type ReactNode,
-	useCallback,
-	useEffect,
-	useId,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from 'react';
+import { type KeyboardEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { m } from '@/paraglide/messages.js';
 import { layerOf } from './layer';
-import { type Place, placeList } from './place';
+import { placeList } from './place';
 import { searchable } from './SearchField';
+import { usePopover } from './use-popover';
 
 /** Lists this long get a search field at their top. */
 const SEARCH_FROM = 12;
@@ -61,12 +53,11 @@ export function Dropdown<T extends string>({
 	className?: string;
 	disabled?: boolean;
 }) {
-	const [open, setOpen] = useState(false);
 	const [active, setActive] = useState(-1);
-	const [place, setPlace] = useState<Place | null>(null);
-	const [media, setMedia] = useState<string | null>(null);
-	const buttonRef = useRef<HTMLButtonElement>(null);
-	const listRef = useRef<HTMLDivElement>(null);
+	const popover = usePopover((button, list) =>
+		placeList(button.getBoundingClientRect(), { width: list.scrollWidth, height: list.scrollHeight }),
+	);
+	const { open, place, media, buttonRef, popoverRef: listRef, close } = popover;
 	const listId = useId();
 	const typed = useRef({ text: '', at: 0 });
 	const searchRef = useRef<HTMLInputElement>(null);
@@ -85,33 +76,12 @@ export function Dropdown<T extends string>({
 			return words.every((word) => text.includes(word));
 		});
 
-	const close = useCallback((focus: boolean) => {
-		setOpen(false);
-		setPlace(null);
-		if (focus) buttonRef.current?.focus();
-	}, []);
-
 	const show = () => {
 		if (disabled) return;
-		// The list is drawn outside the editor, so it takes the editor's colour along.
-		setMedia(buttonRef.current?.closest('[data-media]')?.getAttribute('data-media') ?? null);
 		setActive(selected >= 0 ? selected : options.findIndex((option) => !option.disabled));
 		setQuery('');
-		setOpen(true);
+		popover.show();
 	};
-
-	const reposition = useCallback(() => {
-		const button = buttonRef.current;
-		const list = listRef.current;
-		if (!button || !list) return;
-		setPlace(placeList(button.getBoundingClientRect(), { width: list.scrollWidth, height: list.scrollHeight }));
-	}, []);
-
-	// Measured before painting, so the list never shows in the wrong place first.
-	useLayoutEffect(() => {
-		if (!open) return;
-		reposition();
-	}, [open, reposition]);
 
 	// Hidden while measured, the list can take the focus only once placed.
 	const placed = place !== null;
@@ -120,29 +90,6 @@ export function Dropdown<T extends string>({
 		if (searchRef.current) searchRef.current.focus({ preventScroll: true });
 		else listRef.current?.focus({ preventScroll: true });
 	}, [placed]);
-
-	useEffect(() => {
-		if (!open) return;
-		const onPointerDown = (event: PointerEvent) => {
-			const { target } = event;
-			if (!(target instanceof Node)) return;
-			if (listRef.current?.contains(target) || buttonRef.current?.contains(target)) return;
-			close(false);
-		};
-		// Scrolling the page moves the button: the list follows it, unless it is the list scrolling.
-		const onScroll = (event: Event) => {
-			if (event.target instanceof Node && listRef.current?.contains(event.target)) return;
-			reposition();
-		};
-		document.addEventListener('pointerdown', onPointerDown, true);
-		window.addEventListener('resize', reposition);
-		window.addEventListener('scroll', onScroll, true);
-		return () => {
-			document.removeEventListener('pointerdown', onPointerDown, true);
-			window.removeEventListener('resize', reposition);
-			window.removeEventListener('scroll', onScroll, true);
-		};
-	}, [open, close, reposition]);
 
 	// The active option stays in view while moving with the keyboard.
 	useEffect(() => {

@@ -18,7 +18,7 @@ export function ViewScroll({
 	const grab = useRef<{ x: number; start: number } | null>(null);
 	const span = view.end - view.start;
 	// The row is always there, so zooming never changes the height of the timeline.
-	if (span >= duration) return <div className="h-3" aria-hidden="true" />;
+	if (span >= duration) return <div className="h-2.5" aria-hidden="true" />;
 
 	const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
 		if (event.button !== 0) return;
@@ -52,7 +52,7 @@ export function ViewScroll({
 			onPointerUp={() => {
 				grab.current = null;
 			}}
-			className="group relative h-3 cursor-grab touch-none active:cursor-grabbing"
+			className="group relative h-2.5 cursor-grab touch-none active:cursor-grabbing"
 		>
 			<div className="ease-out-soft absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-(--track-base) opacity-60 transition-[height] duration-150 group-hover:h-1.5" />
 			<div

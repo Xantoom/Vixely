@@ -45,7 +45,7 @@ export const PROFILES = {
 export type ProfileId = keyof typeof PROFILES;
 
 /** Film and series rules, the default. */
-export const RULES: Rules = PROFILES.film;
+const RULES: Rules = PROFILES.film;
 
 export type IssueId = 'empty' | 'lines' | 'length' | 'speed' | 'short' | 'long' | 'gap' | 'stack';
 

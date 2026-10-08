@@ -29,9 +29,9 @@
 	--danger: light-dark(#c4321f, #ff6b57);
 	--focus: light-dark(#2f6bff, #7197ff);
 	/* Tooltips: dark in both themes, lifted off the page in the dark one. */
-	--tip-bg: light-dark(#1d1d20, #2c2c31);
+	--tip-bg: light-dark(#1d1d20, #0b0b0c);
 	--tip-ink: light-dark(#f3f3f5, #f3f3f5);
-	--tip-line: light-dark(transparent, #3e3e45);
+	--tip-line: light-dark(transparent, #34343a);
 	--scroll-thumb: light-dark(rgb(17 17 19 / 0.2), rgb(243 243 245 / 0.2));
 	--scroll-thumb-hover: light-dark(rgb(17 17 19 / 0.42), rgb(243 243 245 / 0.42));
 
@@ -344,17 +344,29 @@
 }
 
 /*
- * Going from one editor to another: the new one slides in from the side its tab sits on. Only
- * transform and opacity move, which the compositor draws while the editor is still opening.
+ * Going from one editor to another: the frame (bars, rail, panel) stays put, and what the stage
+ * shows comes in from the side the editor's tab sits on, fading in as it mounts a moment after
+ * the editor. Only transform and opacity move, which the compositor draws while it opens.
  */
-.editor-enter {
-	animation: editor-enter 260ms var(--ease-out-soft) backwards;
+.stage-in {
+	animation:
+		editor-slide 420ms var(--ease-out-soft) backwards,
+		editor-fade 300ms ease-out backwards;
 }
 
-@keyframes editor-enter {
+.glow-in {
+	animation: editor-fade 420ms ease-out backwards;
+}
+
+@keyframes editor-slide {
 	from {
-		opacity: 0.4;
-		transform: translateX(calc(var(--editor-side, 1) * 1.25rem));
+		transform: translateX(calc(var(--editor-side, 1) * 1.5rem));
+	}
+}
+
+@keyframes editor-fade {
+	from {
+		opacity: 0;
 	}
 }
 

@@ -377,7 +377,7 @@ function snapDb(db: number): number {
  * The equalizer as a curve across the audible range, with a point on each band: dragged up or
  * down, or moved with the arrows once focused (Page keys by 3 dB, Home back to 0).
  */
-export function EqCurve({
+function EqCurve({
 	eq,
 	onPreview,
 	onSettle,
@@ -502,7 +502,7 @@ export function EqCurve({
 							}}
 						>
 							<span
-								className={`text-caption tabular bg-tip text-tip-ink pointer-events-none absolute bottom-full left-1/2 mb-1.5 -translate-x-1/2 rounded-xs px-1.5 py-0.5 whitespace-nowrap transition-opacity ${active === index ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100'}`}
+								className={`text-caption tabular bg-tip text-tip-ink pointer-events-none absolute bottom-full left-1/2 mb-1.5 -translate-x-1/2 rounded-xs px-1.5 py-0.5 whitespace-nowrap shadow-[0_0_0_1px_var(--tip-line)] transition-opacity ${active === index ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100'}`}
 							>
 								{formatDb(gain)}
 							</span>

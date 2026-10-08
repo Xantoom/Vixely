@@ -12,7 +12,7 @@ export interface ImagePreset {
 	quality: number;
 }
 
-export interface PresetGroup {
+interface PresetGroup {
 	/** A platform's own name, or a generic heading. */
 	title: () => string;
 	logo: LogoId;
@@ -39,7 +39,7 @@ const sharp = (id: string, label: () => string, width: number, height: number): 
 });
 
 /** Sizes each platform asks for, as they publish them. */
-export const PRESET_GROUPS: PresetGroup[] = [
+const PRESET_GROUPS: PresetGroup[] = [
 	{
 		title: () => 'Instagram',
 		logo: 'instagram',

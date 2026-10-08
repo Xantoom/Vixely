@@ -2,6 +2,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { ChevronDown, File as FileIcon, FolderOpen, TriangleAlert, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { EDITORS, type MediaKind } from '@/editors/registry';
+import { formatBytes } from '@/lib/format';
 import { usePlayback } from '@/media/playback';
 import { useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
@@ -26,6 +27,7 @@ export function FileMenu({
 	/** Edits that would be lost. */
 	unsaved: boolean;
 }) {
+	const opened = useSession((state) => state.opened[editor]);
 	const open = useSession((state) => state.open);
 	const close = useSession((state) => state.close);
 	const navigate = useNavigate();
@@ -50,6 +52,19 @@ export function FileMenu({
 				label={m.file_menu()}
 				value={null}
 				align="start"
+				header={
+					fileName && (
+						<div className="grid max-w-80 gap-0.5">
+							{/* The whole name, which the bar cuts short: long names wrap anywhere. */}
+							<span className="text-ui text-ink font-medium [overflow-wrap:anywhere]">{fileName}</span>
+							{opened && (
+								<span className="text-small text-muted tabular">
+									{opened.format.toUpperCase()}, {formatBytes(opened.file.size)}
+								</span>
+							)}
+						</div>
+					)
+				}
 				items={[
 					{ value: 'open', label: m.file_open_other(), leading: <FolderOpen className="size-4" /> },
 					{ value: 'close', label: m.file_close(), leading: <X className="size-4" /> },
@@ -62,9 +77,7 @@ export function FileMenu({
 				buttonClassName="text-ui flex! h-9! min-w-0! max-w-full items-center gap-1.5 px-2 font-medium"
 			>
 				<FileIcon className="size-4 flex-none md:hidden" aria-hidden="true" />
-				<span className="min-w-0 truncate max-md:sr-only" title={fileName}>
-					{fileName ?? m.file_menu()}
-				</span>
+				<span className="relative top-px min-w-0 truncate max-md:sr-only">{fileName ?? m.file_menu()}</span>
 				<ChevronDown className="text-muted size-4 flex-none" aria-hidden="true" />
 			</Menu>
 			<input

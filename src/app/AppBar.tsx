@@ -100,14 +100,17 @@ export function AppBar({ editor, fileName, actions, onSearch, from = null }: App
 			className={`border-line bg-bg relative grid h-13 flex-none grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] max-md:grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b px-3 ${editor ? 'z-30' : ''}`}
 		>
 			<div className="flex min-w-0 items-center gap-1">
-				<Link
-					to="/"
-					aria-label={m.app_home()}
-					title={m.app_home()}
-					className="hover:bg-surface grid size-9 flex-none place-items-center rounded-sm transition-colors"
-				>
-					<LogoMark size={26} />
-				</Link>
+				{/* In an editor the mark sits over the tools' rail, centred on it, as large as Export's icon. */}
+				<span className={editor ? 'grid flex-none place-items-center md:-ml-3 md:w-(--rail-w)' : 'contents'}>
+					<Link
+						to="/"
+						aria-label={m.app_home()}
+						title={m.app_home()}
+						className={`hover:bg-surface grid size-9 flex-none place-items-center rounded-sm transition-colors ${editor ? 'md:size-10' : ''}`}
+					>
+						<LogoMark size={26} className={editor ? 'md:size-8' : undefined} />
+					</Link>
+				</span>
 				{editor && (
 					<>
 						<span className="md:hidden">

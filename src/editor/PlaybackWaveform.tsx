@@ -12,21 +12,23 @@ export function usePlaybackPeaks(): { peaks: Peaks | null; version: number } {
 	const file = usePlayback((state) => state.file);
 	const duration = usePlayback((state) => state.details?.duration ?? null);
 	const track = usePlayback((state) => state.audioTrack);
+	// Sound added from another file is read from that file, over the video's length.
+	const added = usePlayback((state) => (track === null ? undefined : state.addedFiles.get(track)));
 	const [version, setVersion] = useState(0);
 	const [peaks, setPeaks] = useState<Peaks | null>(null);
 
 	useEffect(() => {
-		if (!file || duration === null || track === null) {
+		if (!file || duration === null || track === null || (track < 0 && !added)) {
 			setPeaks(null);
 			return;
 		}
 		// Read once per file and track, and kept when the editor is left and reopened.
-		const { reader, release } = sharedPeaks(file, duration, track, () => {
+		const { reader, release } = sharedPeaks(added ?? file, duration, added ? null : track, () => {
 			setVersion((value) => value + 1);
 		});
 		setPeaks(reader.peaks);
 		return release;
-	}, [file, duration, track]);
+	}, [file, duration, track, added]);
 
 	return { peaks, version };
 }

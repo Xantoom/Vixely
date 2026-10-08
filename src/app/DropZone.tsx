@@ -18,7 +18,7 @@ export function fetchMessage(failure: unknown): string {
 	return m.error_unknown();
 }
 
-export function errorMessage(error: OpenError): string {
+function errorMessage(error: OpenError): string {
 	if (error.reason === 'skipped') return m.batch_skipped({ count: error.count });
 	if (error.reason === 'legacy') return m.error_legacy({ format: error.format ?? '' });
 	if (error.reason === 'read') return m.error_read();

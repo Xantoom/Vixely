@@ -6,6 +6,8 @@ import { useBoxSize } from '@/ui/use-box-size';
 const STEPS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200];
 /** Room each label needs, in CSS pixels. */
 const LABEL_SPACING = 76;
+/** Rough width of a label: its padding, then each character in the ruler's small tabular digits. */
+const labelWidth = (text: string) => 6 + text.length * 7.5;
 
 /** The smallest round step that leaves room for every label. */
 function rulerStep(span: number, width: number): number {
@@ -31,7 +33,11 @@ export function TimeRuler({ view, onSeek }: { view: Range; onSeek?: (time: numbe
 	const ticks: number[] = [];
 	if (step > 0) {
 		// Counted in steps rather than added up, so 0.1 steps don't drift to 0.30000000000000004.
-		for (let i = Math.ceil(view.start / step); i * step < view.end; i++) ticks.push(i * step);
+		for (let i = Math.ceil(view.start / step); i * step < view.end; i++) {
+			const t = i * step;
+			// A label that would be cut by the end of the ruler is left out, its line with it.
+			if (((view.end - t) / span) * width >= labelWidth(label(t, step))) ticks.push(t);
+		}
 	}
 
 	const seekAt = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -57,7 +63,7 @@ export function TimeRuler({ view, onSeek }: { view: Range; onSeek?: (time: numbe
 			{ticks.map((t) => (
 				<span
 					key={t}
-					className="border-line-2 absolute top-0 h-full border-l pl-1 leading-none"
+					className="border-line-2 absolute top-0 h-full border-l pl-1 leading-none whitespace-nowrap"
 					style={{ left: `${((t - view.start) / span) * 100}%` }}
 				>
 					{label(t, step)}

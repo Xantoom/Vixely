@@ -44,6 +44,10 @@ describe('format', () => {
 	it('formats and reads millisecond times', () => {
 		expect(formatPreciseTime(4.25)).toBe('0:04.250');
 		expect(formatPreciseTime(59.9996)).toBe('1:00.000');
+		// Beside a length, as long as it: the time keeps its width while playing.
+		expect(formatPreciseTime(268.393, 1347.243)).toBe('04:28.393');
+		expect(formatPreciseTime(268.393, 3700)).toBe('0:04:28.393');
+		expect(formatPreciseTime(4.25, 30)).toBe('0:04.250');
 		expect(formatPreciseTime(3730.5)).toBe('1:02:10.500');
 		expect(parseTime('1:04.25')).toBe(64.25);
 		expect(parseTime('64,5')).toBe(64.5);

@@ -838,10 +838,13 @@ const ADD_ICONS: Record<AddKind, typeof Type> = {
 export function LayersPanel({
 	editing,
 	textRef,
+	before,
 }: {
 	editing: OverlayEditing;
 	/** The text field, focused by a double-click on the picture. */
 	textRef: RefObject<HTMLTextAreaElement | null>;
+	/** Shown above the layers, such as what came with the picture. */
+	before?: ReactNode;
 }) {
 	const selectedId = useOverlaySelection((state) => state.selected);
 	const select = useOverlaySelection((state) => state.select);
@@ -925,6 +928,7 @@ export function LayersPanel({
 	return (
 		<>
 			<PanelTitle>{m.tool_layers()}</PanelTitle>
+			{before}
 			{editing.overlays.length > 0 && (
 				<Section
 					title={m.layers_applied()}

@@ -1,9 +1,10 @@
 import { useNavigate } from '@tanstack/react-router';
-import { Camera, Captions } from 'lucide-react';
+import { Captions } from 'lucide-react';
 import {
 	type ComponentProps,
 	type CSSProperties,
 	type ReactNode,
+	type RefObject,
 	useEffect,
 	useLayoutEffect,
 	useMemo,
@@ -18,34 +19,58 @@ import { shownAt } from '@/editor/overlays/model';
 import { CroppedLayers, OverlayLayer } from '@/editor/overlays/OverlayLayer';
 import { AudioTrackMenu, PlayerControls, PlayerMenu } from '@/editor/PlayerControls';
 import { VolumeControl } from '@/editor/VolumeControl';
-import { backingSize, CompareButton, useStageZoom, ZoomReset, ZoomStage } from '@/editor/ZoomStage';
+import {
+	backingSize,
+	CompareButtons,
+	copyPicture,
+	OriginalPicture,
+	useShowsOriginal,
+	ZoomStage,
+} from '@/editor/ZoomStage';
 import { EDITORS } from '@/editors/registry';
 import { trackName } from '@/lib/language';
 import { usePlayback } from '@/media/playback';
+import { download } from '@/media/save';
 import { type OpenedFile, useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
-import { IconButton } from '@/ui/Button';
+import { useCapturedSubtitles } from '../image/captured';
 import { effectiveCrop, type ImageDoc, orientedSize, type Rect, type Size, wholePictureDoc } from '../image/document';
 import type { PictureEditing } from '../image/editing';
 import { ImageRenderer } from '../image/renderer';
 import { cropRatio } from '../image/store';
-import { isAdded, useProjectTracks, useSubtitleProject } from '../subtitles/project';
+import { isAdded, type TrackKey, type TrackState, useProjectTracks, useSubtitleProject } from '../subtitles/project';
 import { useSubtitleDoc } from '../subtitles/store';
 import { SubtitleLayer } from '../subtitles/SubtitleViewer';
-import { capturePicture, carryEdits } from './capture';
+import { codecLabel } from '../subtitles/tracks';
+import { capturePicture, captureShown, carryEdits, withSubtitles } from './capture';
+import { type CaptureAction, CapturePopover, type CaptureSource } from './CapturePopover';
 import { fadeLevel, fadeOf, speedOf, videoLength } from './document';
+import { useLeftOut } from './mux';
 import { useVideoDoc } from './store';
 import { VideoFit, VideoTime } from './VideoTimeline';
 
 const OFF = 'off';
 
+/** What a subtitle track is written in, as players name it: SRT, ASS, PGS. */
+function subtitleType(track: TrackState): string | undefined {
+	if (track.doc && (track.edited || !track.info))
+		return SUBTITLE_TYPES[track.doc.format] ?? track.doc.format.toUpperCase();
+	return track.info ? codecLabel(track.info) : undefined;
+}
+
+const SUBTITLE_TYPES: Record<string, string> = { srt: 'SRT', ass: 'ASS', vtt: 'WebVTT', pgs: 'PGS' };
+
 /** Which subtitle track shows over the video: the one edited in the subtitle editor, marked so. */
-function SubtitleMenu({ shown, onShown }: { shown: boolean; onShown: (shown: boolean) => void }) {
+function SubtitleMenu({ file, shown, onShown }: { file: File; shown: boolean; onShown: (shown: boolean) => void }) {
 	const tracks = useProjectTracks();
-	const current = useSubtitleProject((state) => state.current);
+	const current = useOfferedSubtitles(file);
 	const choose = useSubtitleProject((state) => state.choose);
+	const leftOut = useLeftOut(file);
 	const options = tracks.filter(
-		(track) => (track.original || track.reading) && (track.key !== 'new' || track.edited),
+		(track) =>
+			(track.original || track.reading) &&
+			(track.key !== 'new' || track.edited) &&
+			!leftOut.has(`subtitle-${track.key}`),
 	);
 	if (options.length === 0) return null;
 	return (
@@ -55,11 +80,11 @@ function SubtitleMenu({ shown, onShown }: { shown: boolean; onShown: (shown: boo
 			active={shown && current !== null}
 			value={shown && current !== null ? String(current) : OFF}
 			items={[
-				{ value: OFF, label: m.player_subtitles_off() },
+				{ value: OFF, label: m.player_subtitles_off(), divider: true },
 				...options.map((track) => ({
 					value: String(track.key),
 					label: `${track.info ? trackName(track.info.language, track.info.name) : m.subs_new_track()}${track.edited && !isAdded(track.key) ? ` (${m.subs_track_edited()})` : ''}`,
-					detail: track.info?.codec,
+					description: subtitleType(track),
 				})),
 			]}
 			onChange={(value) => {
@@ -73,6 +98,24 @@ function SubtitleMenu({ shown, onShown }: { shown: boolean; onShown: (shown: boo
 			}}
 		/>
 	);
+}
+
+/**
+ * Draws a picture of the video as edited, after the original when comparing. The grain moves with
+ * the pictures, as in the export.
+ */
+function draw(
+	renderer: ImageRenderer,
+	canvas: HTMLCanvasElement,
+	{ doc, region, original }: { doc: ImageDoc; region: Rect; original: RefObject<HTMLCanvasElement | null> | null },
+	time: number | undefined,
+) {
+	const seed = (time ?? 0) * 97;
+	if (original) {
+		renderer.render(doc, { region, original: true, seed, time });
+		copyPicture(canvas, original.current);
+	}
+	renderer.render(doc, { region, seed, time });
 }
 
 /**
@@ -92,8 +135,8 @@ function EditedPicture({
 	width: number;
 	height: number;
 	doc: ImageDoc;
-	/** Shows the picture as it comes, to compare. */
-	original: boolean;
+	/** Where the picture as it comes is drawn too, to compare; null when not comparing. */
+	original: RefObject<HTMLCanvasElement | null> | null;
 	children?: ReactNode;
 }) {
 	const player = usePlayback((state) => state.player);
@@ -122,13 +165,7 @@ function EditedPicture({
 				sample.rotation,
 			);
 			frameTime.current = sample.timestamp;
-			renderer.render(shown.current.doc, {
-				region: shown.current.region,
-				original: shown.current.original,
-				// The grain moves with the pictures, as in the export.
-				seed: sample.timestamp * 97,
-				time: sample.timestamp,
-			});
+			draw(renderer, canvas, shown.current, sample.timestamp);
 		});
 		return () => {
 			detach();
@@ -145,8 +182,7 @@ function EditedPicture({
 		const pixels = { width: backingSize(width, region.width), height: backingSize(height, region.height) };
 		if (canvas.width !== pixels.width) canvas.width = pixels.width;
 		if (canvas.height !== pixels.height) canvas.height = pixels.height;
-		const time = frameTime.current;
-		if (renderer?.ready) renderer.render(doc, { region, original, seed: (time ?? 0) * 97, time });
+		if (renderer?.ready) draw(renderer, canvas, { doc, region, original }, frameTime.current);
 	}, [width, height, doc, region, original]);
 
 	return (
@@ -183,34 +219,71 @@ function VideoCropOverlay({
 	);
 }
 
-/** Opens the picture on screen in the image editor, with the video's crop, turns and colours. */
-function CaptureButton({ file, doc }: { file: File; doc: ImageDoc }) {
+/**
+ * The picture on screen, from a menu by the time: downloaded or opened in the image editor, as
+ * the preview shows it (edits, text, subtitles drawn in) or as the video has it.
+ */
+function CaptureMenu({
+	file,
+	doc,
+	subtitles,
+}: {
+	file: File;
+	doc: ImageDoc;
+	/** Whether the video has subtitles to offer, and whether they show. */
+	subtitles: { offered: boolean; shown: boolean };
+}) {
+	const setCaptured = useCapturedSubtitles((state) => state.setCaptured);
+	const video = useVideoDoc();
+	const subtitleDoc = useSubtitleDoc();
+	const fonts = useSubtitleProject((state) => state.fonts);
+	const upright = usePlayback((state) => state.details?.video ?? null);
 	const navigate = useNavigate();
 	const open = useSession((state) => state.open);
 	const [busy, setBusy] = useState(false);
-	return (
-		<IconButton
-			label={m.capture_picture()}
-			disabled={busy}
-			onClick={() => {
-				setBusy(true);
-				const time = usePlayback.getState().time;
-				usePlayback.getState().pause();
-				void capturePicture(file, time)
-					.then(async (picture) => {
-						carryEdits(picture, doc, time);
-						const kind = await open([picture], 'image');
-						if (kind) await navigate({ to: EDITORS[kind].path });
-					})
-					.catch(() => undefined)
-					.finally(() => {
-						setBusy(false);
-					});
-			}}
-		>
-			<Camera size={17} />
-		</IconButton>
-	);
+	const run = (source: CaptureSource, action: CaptureAction) => {
+		setBusy(true);
+		const time = usePlayback.getState().time;
+		usePlayback.getState().pause();
+		const job = subtitles.offered ? { doc: subtitleDoc, title: file.name.replace(/\.[^.]+$/, ''), fonts } : null;
+		const burn = subtitles.shown ? job : null;
+		// As shown: the picture as the preview draws it, subtitles and fade included.
+		const shown = async () => {
+			if (!upright) throw new Error('No picture');
+			const fade = fadeOf(video);
+			const level =
+				fade.in <= 0 && fade.out <= 0
+					? 1
+					: fadeLevel(fade, toOutput(keptRanges(video), time) / speedOf(video), videoLength(video));
+			return captureShown(file, time, { picture: doc, upright, subtitles: burn, level });
+		};
+		// Opened in the image editor, the picture as shown keeps the edits adjustable: the video's
+		// picture goes with the edits as the editor's own, and its subtitles beside it.
+		const taken = source === 'shown' && action === 'download' ? shown() : capturePicture(file, time);
+		void taken
+			.then(async (picture) => {
+				if (action === 'download') {
+					download(picture, picture.name);
+					return;
+				}
+				if (source === 'shown') {
+					carryEdits(picture, doc, time);
+					// The video's subtitles go along, to be turned on or off in the image editor.
+					setCaptured(
+						job
+							? { picture, subtitled: await withSubtitles(picture, job, time), shown: subtitles.shown }
+							: null,
+					);
+				} else setCaptured(null);
+				const kind = await open([picture], 'image');
+				if (kind) await navigate({ to: EDITORS[kind].path });
+			})
+			.catch(() => undefined)
+			.finally(() => {
+				setBusy(false);
+			});
+	};
+	return <CapturePopover busy={busy} onRun={run} />;
 }
 
 /**
@@ -283,8 +356,9 @@ export function VideoPreview({
 	const projectReady = useSubtitleProject((state) => state.file === opened.file && state.status === 'ready');
 	const fonts = useSubtitleProject((state) => state.fonts);
 	const doc = useSubtitleDoc();
-	const comparing = useStageZoom((state) => state.comparing);
-	const shown = useSubtitlesShown(subtitles);
+	const comparing = useShowsOriginal();
+	const originalRef = useRef<HTMLCanvasElement>(null);
+	const shown = useSubtitlesShown(opened.file, subtitles);
 
 	const picture = editing.doc;
 	const upright = video ?? { width: 16, height: 9 };
@@ -312,16 +386,16 @@ export function VideoPreview({
 
 	return (
 		<div className="relative size-full min-h-0">
-			<ZoomStage width={region.width} height={region.height} compare={!cropping} margin={cropping ? 16 : 0}>
+			<ZoomStage width={region.width} height={region.height} compare={!cropping} margin={8}>
 				{(scale) => (
 					<EditedPicture
 						region={region}
 						width={region.width * scale}
 						height={region.height * scale}
 						doc={cropping ? wholePictureDoc(picture, crop, bounds) : picture}
-						original={comparing}
+						original={comparing ? originalRef : null}
 					>
-						{!cropping && !comparing && picture.overlays.length > 0 && (
+						{!cropping && picture.overlays.length > 0 && (
 							<OverlayLayer
 								overlays={visible}
 								width={region.width * scale}
@@ -330,11 +404,22 @@ export function VideoPreview({
 								onEditText={onEditText}
 							/>
 						)}
-						{shown && projectReady && !cropping && (
+						{!cropping && <FadeVeil />}
+						{comparing && <OriginalPicture ref={originalRef} />}
+						{shown && projectReady && (
 							// Subtitles belong to the whole picture: they lie over it and the crop cuts them,
-							// as when they are burnt in, rather than being squeezed into the crop.
+							// as when they are burnt in, rather than being squeezed into the crop. While
+							// cropping, the whole picture shows, and they lie on it under the frame.
 							<div className="pointer-events-none absolute inset-0 overflow-hidden md:rounded-[3px]">
-								<div className="absolute" style={subtitleBox(picture, crop, upright, scale)}>
+								<div
+									className="absolute"
+									style={subtitleBox(
+										picture,
+										cropping ? { x: 0, y: 0, ...upright } : crop,
+										upright,
+										scale,
+									)}
+								>
 									<PlayingSubtitles
 										doc={doc}
 										title={opened.file.name.replace(/\.[^.]+$/, '')}
@@ -344,7 +429,6 @@ export function VideoPreview({
 								</div>
 							</div>
 						)}
-						{!cropping && !comparing && <FadeVeil />}
 						{cropping && <CroppedLayers overlays={visible} crop={crop} scale={scale} />}
 						{cropping && <VideoCropOverlay editing={editing} crop={crop} scale={scale} bounds={bounds} />}
 					</EditedPicture>
@@ -354,10 +438,21 @@ export function VideoPreview({
 	);
 }
 
-/** Edited subtitles show, and so do tracks the file marks as default, as players do, unless turned off. */
-function useSubtitlesShown(choice: boolean | null): boolean {
-	const tracks = useProjectTracks();
+/** The subtitle track the player can show: the current one, unless it was left out of the video. */
+function useOfferedSubtitles(file: File): TrackKey | null {
 	const current = useSubtitleProject((state) => state.current);
+	const leftOut = useLeftOut(file);
+	return current !== null && leftOut.has(`subtitle-${current}`) ? null : current;
+}
+
+/**
+ * Edited subtitles show, and so do tracks the file marks as default, as players do, unless turned
+ * off or left out of the video.
+ */
+function useSubtitlesShown(file: File, choice: boolean | null): boolean {
+	const tracks = useProjectTracks();
+	const current = useOfferedSubtitles(file);
+	if (current === null) return false;
 	const currentTrack = tracks.find((track) => track.key === current);
 	return choice ?? Boolean(currentTrack && (currentTrack.edited || currentTrack.info?.default));
 }
@@ -380,18 +475,30 @@ export function VideoPlayerBar({
 	onSubtitles: (shown: boolean) => void;
 }) {
 	const projectReady = useSubtitleProject((state) => state.file === opened.file && state.status === 'ready');
-	const shown = useSubtitlesShown(subtitles);
+	const shown = useSubtitlesShown(opened.file, subtitles);
+	const offered = useOfferedSubtitles(opened.file);
 	return (
-		<PlayerControls seek={false} frameRate={opened.info?.video?.fps ?? 30} time={<VideoTime />} fit={<VideoFit />}>
+		<PlayerControls
+			seek={false}
+			frameRate={opened.info?.video?.fps ?? 30}
+			time={
+				<>
+					<VideoTime />
+					<span className="bg-line ml-1.5 h-5 w-px flex-none max-md:hidden" aria-hidden="true" />
+					<CaptureMenu
+						file={opened.file}
+						doc={picture}
+						subtitles={{ offered: projectReady && offered !== null, shown: shown && projectReady }}
+					/>
+				</>
+			}
+			fit={<VideoFit />}
+		>
 			<VolumeControl />
 			<AudioTrackMenu />
-			{projectReady && <SubtitleMenu shown={shown} onShown={onSubtitles} />}
-			<CaptureButton file={opened.file} doc={picture} />
+			{projectReady && <SubtitleMenu file={opened.file} shown={shown} onShown={onSubtitles} />}
 			<span className="bg-line mx-1.5 h-5 w-px max-md:hidden" aria-hidden="true" />
-			{!cropping && <CompareButton className="max-md:hidden" />}
-			<span className="max-md:hidden">
-				<ZoomReset />
-			</span>
+			{!cropping && <CompareButtons className="max-md:hidden" />}
 		</PlayerControls>
 	);
 }

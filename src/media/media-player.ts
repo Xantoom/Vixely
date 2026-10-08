@@ -54,6 +54,12 @@ export class MediaPlayer {
 	private firstPicture = 0;
 	private audio: AudioPlayer | null = null;
 	private audioTrackId: number | null = null;
+	/** The file's own audio tracks. */
+	private ownTracks: AudioTrackInfo[] = [];
+	/** Sound from other files heard over the pictures, by negative ID, as tracks of the video. */
+	private added: ReadonlyMap<number, File> = new Map();
+	/** A track from another file asked for before it was given. */
+	private wanted: number | null = null;
 	private canvas: HTMLCanvasElement | null = null;
 	private duration = 0;
 	/** Parts of the file played, in order; the whole file unless an editor removed passages. */
@@ -104,6 +110,7 @@ export class MediaPlayer {
 			size = { width, height };
 			this.firstPicture = Math.max(0, first);
 		}
+		this.ownTracks = audioTracks;
 		const first = firstAudioTrack(audioTracks);
 		if (first) await this.useAudio(first.id);
 		return { duration, video: size, audioTracks };
@@ -129,7 +136,8 @@ export class MediaPlayer {
 	/** Plays another audio track from the same moment, or none (null). */
 	async setAudioTrack(id: number | null) {
 		await this.ready;
-		if (this.disposed || id === this.audioTrackId) return;
+		this.wanted = id !== null && id < 0 && !this.added.has(id) ? id : null;
+		if (this.disposed || id === this.audioTrackId || this.wanted !== null) return;
 		const wasPlaying = this.playing;
 		const time = this.time();
 		if (wasPlaying) this.pause();
@@ -139,12 +147,26 @@ export class MediaPlayer {
 		if (wasPlaying) await this.play();
 	}
 
+	/**
+	 * Sound from other files, by negative ID, offered as tracks of the video: they play from its
+	 * start, over the same passages. One no longer given gives way to the file's own sound.
+	 */
+	async setAddedAudio(files: ReadonlyMap<number, File>) {
+		this.added = files;
+		await this.ready;
+		const current = this.audioTrackId;
+		if (this.wanted !== null && files.has(this.wanted)) await this.setAudioTrack(this.wanted);
+		else if (current !== null && current < 0 && !files.has(current))
+			await this.setAudioTrack(firstAudioTrack(this.ownTracks)?.id ?? null);
+	}
+
 	private async useAudio(id: number | null) {
 		this.audio?.dispose();
 		this.audio = null;
 		this.audioTrackId = null;
-		if (id !== null) {
-			const audio = new AudioPlayer(this.file, id);
+		const added = id !== null && id < 0 ? this.added.get(id) : undefined;
+		if (id !== null && (id >= 0 || added)) {
+			const audio = added ? new AudioPlayer(added) : new AudioPlayer(this.file, id);
 			if (await audio.playable()) {
 				audio.setPlan(this.plan(id));
 				audio.onTime = (time) => {

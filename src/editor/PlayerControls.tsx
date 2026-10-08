@@ -13,12 +13,13 @@ import type { AudioTrackInfo } from '@/media/audio-tracks';
 import { usePlayback, usePlaybackLength } from '@/media/playback';
 import { m } from '@/paraglide/messages.js';
 import { Menu, type MenuItem } from '@/ui/Menu';
+import { useAudioBitrates } from './use-audio-bitrates';
 
 /**
  * The play button of every player: round, in the editor's colours, the icon swapping with a
  * short turn.
  */
-export function PlayButton({
+function PlayButton({
 	playing,
 	onToggle,
 	disabled = false,
@@ -76,7 +77,15 @@ export function PlayerMenu<T extends string>({
 	active?: boolean;
 }) {
 	return (
-		<Menu label={label} title={label} value={value} items={items} onChange={onChange} buttonClassName="text-muted">
+		<Menu
+			label={label}
+			title={label}
+			value={value}
+			items={items}
+			onChange={onChange}
+			rows={4}
+			buttonClassName="text-muted"
+		>
 			<span className="relative grid place-items-center">
 				<Icon size={18} aria-hidden="true" />
 				{active && (
@@ -92,17 +101,35 @@ export function audioTrackLabel(track: AudioTrackInfo): string {
 	return trackName(track.language, track.name);
 }
 
-/** `AAC 5.1`. */
-export function audioTrackDetail(track: AudioTrackInfo): string {
-	return [track.codec ? codecName(track.codec) : null, channelLayout(track.channels)].filter(Boolean).join(' ');
+/** `AAC, 5.1, 192 kb/s`: the bitrate once measured. */
+export function audioTrackDetail(track: AudioTrackInfo, bitrate?: number): string {
+	return [
+		track.codec ? codecName(track.codec) : null,
+		channelLayout(track.channels),
+		bitrate ? `${bitrate} kb/s` : null,
+	]
+		.filter(Boolean)
+		.join(', ');
 }
 
 /** Which audio track plays. Always offered, even for one track, so the user sees what they hear. */
 export function AudioTrackMenu() {
-	const tracks = usePlayback((state) => state.details?.audioTracks ?? null);
+	const own = usePlayback((state) => state.details?.audioTracks ?? null);
+	const added = usePlayback((state) => state.addedAudio);
+	const hidden = usePlayback((state) => state.hiddenAudio);
+	const file = usePlayback((state) => state.file);
+	const addedFiles = usePlayback((state) => state.addedFiles);
 	const current = usePlayback((state) => state.audioTrack);
 	const setAudioTrack = usePlayback((state) => state.setAudioTrack);
-	if (!tracks || tracks.length === 0) return null;
+	const tracks = own ? [...own, ...added].filter((track) => !hidden.has(track.id)) : [];
+	// Sound added from another file is that file's main track.
+	const bitrates = useAudioBitrates(
+		tracks.flatMap((track) => {
+			const from = track.id < 0 ? addedFiles.get(track.id) : file;
+			return from ? [{ key: track.id, file: from, id: track.id < 0 ? null : track.id }] : [];
+		}),
+	);
+	if (tracks.length === 0) return null;
 	return (
 		<PlayerMenu
 			icon={AudioLines}
@@ -111,7 +138,7 @@ export function AudioTrackMenu() {
 			items={tracks.map((track) => ({
 				value: String(track.id),
 				label: audioTrackLabel(track),
-				detail: audioTrackDetail(track),
+				description: audioTrackDetail(track, bitrates.get(track.id)),
 				disabled: !track.playable,
 			}))}
 			onChange={(value) => {
@@ -124,8 +151,12 @@ export function AudioTrackMenu() {
 /** Where playback is, over how long the result lasts. */
 export function PlayTime({ time, length }: { time: number; length: number }) {
 	return (
-		<span role="timer" aria-label={m.playhead()} className="text-small tabular whitespace-nowrap">
-			<span className="text-ink font-medium">{formatPreciseTime(Math.min(time, length))}</span>
+		<span
+			role="timer"
+			aria-label={m.playhead()}
+			className="text-small tabular whitespace-nowrap [text-box:trim-both_cap_alphabetic]"
+		>
+			<span className="text-ink font-medium">{formatPreciseTime(Math.min(time, length), length)}</span>
 			{/* On a phone the bar has room for the time alone. */}
 			<span className="text-muted max-sm:hidden"> / {formatPreciseTime(length)}</span>
 		</span>
@@ -232,7 +263,7 @@ function SeekBar() {
 			</div>
 			{hover !== null && length > 0 && (
 				<span
-					className="bg-tip text-tip-ink tabular pointer-events-none absolute bottom-full mb-1 -translate-x-1/2 rounded-xs px-1.5 py-0.5 text-caption font-medium whitespace-nowrap"
+					className="bg-tip text-tip-ink tabular pointer-events-none absolute bottom-full mb-1 -translate-x-1/2 rounded-xs px-1.5 py-0.5 text-caption shadow-[0_0_0_1px_var(--tip-line)] font-medium whitespace-nowrap"
 					style={{ left: `${(hover / length) * 100}%` }}
 				>
 					{formatPreciseTime(hover)}
@@ -292,7 +323,7 @@ export function PlayerBar({
 		<div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 max-sm:gap-1.5">
 			{/* All on one line above the timeline, the time lined up with its start. */}
 			<div className="flex min-w-0 items-center gap-1.5">
-				{time && <div className="min-w-0 overflow-hidden">{time}</div>}
+				{time && <div className="flex min-w-0 items-center gap-2 overflow-hidden">{time}</div>}
 				{fit}
 			</div>
 			<div className="flex items-center gap-1.5 max-sm:gap-0.5">

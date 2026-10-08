@@ -6,8 +6,6 @@ import { AUDIO_FORMATS, type AudioExportSettings, settingsFromSource, type Sourc
 
 export type AudioTags = NonNullable<AudioExportSettings['tags']>;
 
-export { MIN_VIEW } from '@/document/timemap';
-
 interface AudioEditorState {
 	/** The file the history belongs to. Another file starts a fresh history. */
 	owner: object | null;

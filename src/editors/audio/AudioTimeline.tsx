@@ -4,10 +4,12 @@ import { type PointerEvent as ReactPointerEvent, useEffect, useLayoutEffect, use
 import { type Range, toOutput } from '@/document/timemap';
 import { FitButton } from '@/editor/FitButton';
 import { audioTrackDetail, audioTrackLabel, PlayerBar, PlayerMenu, PlayTime } from '@/editor/PlayerControls';
+import { Playhead } from '@/editor/Playhead';
 import { SelectionBar } from '@/editor/SelectionBar';
 import { percent, timeAt, zoomView } from '@/editor/timeline-view';
 import { TimeRuler } from '@/editor/TimeRuler';
 import { TrimHandle } from '@/editor/TrimHandle';
+import { useAudioBitrates } from '@/editor/use-audio-bitrates';
 import { ViewScroll } from '@/editor/ViewScroll';
 import { VolumeControl } from '@/editor/VolumeControl';
 import { panDelta, wheelIntent } from '@/editor/wheel';
@@ -57,20 +59,24 @@ function AudioTrackPicker() {
 		};
 	}, [file]);
 
-	if (!found || found.file !== file || found.tracks.length < 2) return null;
+	const shown = found && found.file === file ? found : null;
+	const bitrates = useAudioBitrates(
+		shown ? shown.tracks.map((option) => ({ key: option.id, file: shown.file, id: option.id })) : [],
+	);
+	if (!shown || shown.tracks.length < 2) return null;
 	return (
 		<PlayerMenu
 			icon={AudioLines}
 			label={m.player_audio_track()}
-			value={String(track ?? found.primary ?? '')}
-			items={found.tracks.map((option) => ({
+			value={String(track ?? shown.primary ?? '')}
+			items={shown.tracks.map((option) => ({
 				value: String(option.id),
 				label: audioTrackLabel(option),
-				detail: audioTrackDetail(option),
+				description: audioTrackDetail(option, bitrates.get(option.id)),
 				disabled: !option.playable,
 			}))}
 			onChange={(value) => {
-				setAudioTrack(Number(value) === found.primary ? null : Number(value));
+				setAudioTrack(Number(value) === shown.primary ? null : Number(value));
 			}}
 		/>
 	);
@@ -130,18 +136,10 @@ function Transport({ engine }: { engine: AudioEngine }) {
 	);
 }
 
-function Playhead({ view }: { view: Range }) {
+/** The playhead of the sound playing, which can be dragged to scrub. */
+function AudioPlayhead({ engine, view, duration }: { engine: AudioEngine; view: Range; duration: number }) {
 	const playhead = useAudioEditor((state) => state.playhead);
-	if (playhead < view.start || playhead > view.end) return null;
-	return (
-		<div
-			className="pointer-events-none absolute inset-y-0 z-10 w-0.5 -translate-x-1/2 bg-[var(--ed)]"
-			style={{ left: percent(playhead, view) }}
-			aria-hidden="true"
-		>
-			<span className="absolute -top-0.5 left-1/2 size-2.5 -translate-x-1/2 rotate-45 rounded-[2px] bg-[var(--ed)]" />
-		</div>
-	);
+	return <Playhead time={playhead} view={view} duration={duration} onSeek={engine.seek} />;
 }
 
 /** Handle at one end of the kept audio, bound to the audio document. */
@@ -355,7 +353,7 @@ function WaveArea({ engine, trimmable, fill }: { engine: AudioEngine; trimmable:
 			)}
 			{trimmable && <AudioTrimHandle side="start" doc={doc} view={view} />}
 			{trimmable && <AudioTrimHandle side="end" doc={doc} view={view} />}
-			<Playhead view={view} />
+			<AudioPlayhead engine={engine} view={view} duration={doc.duration} />
 		</div>
 	);
 }

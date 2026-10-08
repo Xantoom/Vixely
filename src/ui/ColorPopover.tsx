@@ -2,16 +2,15 @@ import {
 	type KeyboardEvent as ReactKeyboardEvent,
 	type PointerEvent as ReactPointerEvent,
 	type ReactNode,
-	useCallback,
 	useEffect,
-	useLayoutEffect,
 	useRef,
 	useState,
 } from 'react';
 import { createPortal } from 'react-dom';
 import { m } from '@/paraglide/messages.js';
 import { layerOf } from './layer';
-import { type Place, placeList } from './place';
+import { placeList } from './place';
+import { usePopover } from './use-popover';
 
 interface Hsv {
 	h: number;
@@ -191,44 +190,9 @@ export function ColorPopover({
 	children: ReactNode;
 	className?: string;
 }) {
-	const [open, setOpen] = useState(false);
-	const [place, setPlace] = useState<Place | null>(null);
-	const [media, setMedia] = useState<string | null>(null);
-	const buttonRef = useRef<HTMLButtonElement>(null);
-	const panelRef = useRef<HTMLDivElement>(null);
-
-	const close = useCallback((focus: boolean) => {
-		setOpen(false);
-		setPlace(null);
-		if (focus) buttonRef.current?.focus();
-	}, []);
-
-	const reposition = useCallback(() => {
-		const button = buttonRef.current;
-		const panel = panelRef.current;
-		if (!button || !panel) return;
-		setPlace(placeList(button.getBoundingClientRect(), { width: panel.offsetWidth, height: panel.offsetHeight }));
-	}, []);
-
-	useLayoutEffect(() => {
-		if (open) reposition();
-	}, [open, reposition]);
-
-	useEffect(() => {
-		if (!open) return;
-		const onPointerDown = (event: PointerEvent) => {
-			const { target } = event;
-			if (!(target instanceof Node)) return;
-			if (panelRef.current?.contains(target) || buttonRef.current?.contains(target)) return;
-			close(false);
-		};
-		document.addEventListener('pointerdown', onPointerDown, true);
-		window.addEventListener('resize', reposition);
-		return () => {
-			document.removeEventListener('pointerdown', onPointerDown, true);
-			window.removeEventListener('resize', reposition);
-		};
-	}, [open, close, reposition]);
+	const { open, place, media, buttonRef, popoverRef, show, close } = usePopover((button, panel) =>
+		placeList(button.getBoundingClientRect(), { width: panel.offsetWidth, height: panel.offsetHeight }),
+	);
 
 	return (
 		<>
@@ -244,8 +208,7 @@ export function ColorPopover({
 						close(false);
 						return;
 					}
-					setMedia(buttonRef.current?.closest('[data-media]')?.getAttribute('data-media') ?? null);
-					setOpen(true);
+					show();
 				}}
 				className={className}
 			>
@@ -254,7 +217,7 @@ export function ColorPopover({
 			{open &&
 				createPortal(
 					<div
-						ref={panelRef}
+						ref={popoverRef}
 						role="dialog"
 						aria-label={label}
 						data-media={media ?? undefined}

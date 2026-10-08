@@ -235,6 +235,8 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	useEditorShortcuts({ undo, redo });
 
 	const inspector = () => {
+		// Without a file there is nothing to show: the panel stays shut and the tools wait.
+		if (!opened && !batch) return null;
 		if (opened && tool === 'export') {
 			if (batch && ready) return <VideoBatchPanel upright={upright} />;
 			return ready ? (
@@ -251,7 +253,15 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 		if (tool === 'crop') return <CropPanel editing={editing} />;
 		if (tool === 'adjust') return <AdjustPanel editing={editing} />;
 		if (tool === 'layers') return <LayersPanel editing={overlays} textRef={textRef} />;
-		if (tool === 'tracks') return <VideoTracksPanel opened={opened} />;
+		if (tool === 'tracks')
+			return (
+				<VideoTracksPanel
+					opened={opened}
+					onSubtitlesAdded={() => {
+						setSubtitles(true);
+					}}
+				/>
+			);
 		return <ToolLater kind="video" tool={tool} />;
 	};
 

@@ -399,7 +399,7 @@ export type PresetId =
 	| 'uhd'
 	| 'web';
 
-export type PresetGroupId = 'messages' | 'vertical' | 'social' | 'video' | 'general';
+type PresetGroupId = 'messages' | 'vertical' | 'social' | 'video' | 'general';
 
 export interface Preset {
 	label: string;
@@ -732,8 +732,6 @@ export const PRESETS: Record<PresetId, Preset> = {
 	},
 };
 
-export const PRESET_GROUP_ORDER: PresetGroupId[] = ['messages', 'vertical', 'social', 'video', 'general'];
-
 /** Presets in the order they are listed: by group, the free version of a service first. */
 export const PRESET_ORDER: PresetId[] = [
 	'discord',
@@ -844,7 +842,7 @@ export const FRAME_RATES = [60, 50, 30, 25, 24];
  * Where the whole picture lies on the exported one, for burned subtitles: offset and scaled by
  * the crop, as the preview lays them. Once turned or mirrored, they simply cover the picture.
  */
-function burnBox(picture: ImageDoc, upright: Size, size: Size): Box {
+export function burnBox(picture: ImageDoc, upright: Size, size: Size): Box {
 	if (picture.rotation !== 0 || picture.flipX || picture.flipY || picture.angle) return { x: 0, y: 0, ...size };
 	const crop = effectiveCrop(picture, upright);
 	const scale = size.width / crop.width;
@@ -855,7 +853,7 @@ function burnBox(picture: ImageDoc, upright: Size, size: Size): Box {
  * Draws each picture with the edits at the output size, as the preview does: the picture, the
  * text and stickers shown at its time, then the subtitles on top.
  */
-class PictureProcessor {
+export class PictureProcessor {
 	private readonly canvas: OffscreenCanvas;
 	private readonly renderer: ImageRenderer;
 	/** Where text, stickers and subtitles are drawn over the picture, when there are some. */
@@ -963,7 +961,7 @@ export interface TrackEncode {
 export const SOUND_AS_IS: TrackSound = { decibels: 0, sound: null };
 
 /** Whether a sound track changes, and so is decoded and encoded again. */
-export function soundChanges(track: TrackSound): boolean {
+function soundChanges(track: TrackSound): boolean {
 	return track.decibels !== 0 || (track.sound !== null && changesSound(track.sound)) || Boolean(track.encode);
 }
 

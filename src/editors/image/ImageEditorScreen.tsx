@@ -3,13 +3,17 @@ import { useLeaveGuard } from '@/app/leave-guard';
 import { EditorLayout } from '@/editor/EditorLayout';
 import { FilePanel, ToolLater } from '@/editor/Inspector';
 import { LayersPanel } from '@/editor/overlays/panels';
+import { Section } from '@/editor/panel-parts';
 import { useEditorShortcuts } from '@/editor/shortcuts';
 import { Viewer } from '@/editor/Viewer';
 import { ZoomStatus } from '@/editor/ZoomStage';
 import type { ToolId } from '@/editors/registry';
 import { useOpened, useSession } from '@/media/session';
+import { m } from '@/paraglide/messages.js';
+import { Switch } from '@/ui/fields';
 import type { ItemStatus } from './batch-export';
 import { BatchStrip } from './BatchStrip';
+import { useCapturedSubtitles, useSubtitlesOf } from './captured';
 import { effectiveCrop, orientedSize, type Size } from './document';
 import { overlayEditing, useImagePictureEditing } from './editing';
 import { outputSize, sourceExportSettings } from './export';
@@ -24,7 +28,9 @@ export function ImageEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	const batch = useSession((state) => (state.batchKind === 'image' ? state.batch : null));
 	const batchKey = useSession((state) => (state.batchKind === 'image' ? state.batchKey : null));
 	const opened = useOpened('image');
-	const source = opened?.poster ?? null;
+	// A picture taken from a video with its subtitles is edited with them while they are on.
+	const subtitles = useSubtitlesOf(opened?.file);
+	const source = (subtitles?.shown ? subtitles.subtitled : opened?.poster) ?? null;
 	const load = useImageEditor((state) => state.load);
 	const retarget = useImageEditor((state) => state.retarget);
 	const adoptSource = useImageEditor((state) => state.adoptSource);
@@ -74,6 +80,8 @@ export function ImageEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	const shown = source ? (tool === 'crop' ? orientedSize(source, doc.rotation) : effectiveCrop(doc, source)) : null;
 
 	const inspector = () => {
+		// Without a file there is nothing to show: the panel stays shut and the tools wait.
+		if (!opened && !batch) return null;
 		if (tool === 'info' || !opened) return <FilePanel opened={opened} />;
 		if (!source) return <ToolLater kind="image" tool={tool} />;
 		if (tool === 'crop')
@@ -92,7 +100,14 @@ export function ImageEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 			);
 		if (tool === 'resize') return <ResizePanel source={source} />;
 		if (tool === 'adjust') return <AdjustPanel editing={editing} />;
-		if (tool === 'layers') return <LayersPanel editing={overlayEditing(editing)} textRef={textRef} />;
+		if (tool === 'layers')
+			return (
+				<LayersPanel
+					editing={overlayEditing(editing)}
+					textRef={textRef}
+					before={subtitles && <SubtitlesSwitch shown={subtitles.shown} />}
+				/>
+			);
 		if (tool === 'export') return <ExportPanel source={source} photo={opened.info?.photo ?? null} />;
 		return <ToolLater kind="image" tool={tool} />;
 	};
@@ -157,5 +172,15 @@ export function ImageEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 				) : undefined
 			}
 		/>
+	);
+}
+
+/** The subtitles of the video the picture was taken from, turned on or off. */
+function SubtitlesSwitch({ shown }: { shown: boolean }) {
+	const setShown = useCapturedSubtitles((state) => state.setShown);
+	return (
+		<Section title={m.player_subtitles()}>
+			<Switch label={m.captured_subtitles()} checked={shown} onChange={setShown} />
+		</Section>
 	);
 }

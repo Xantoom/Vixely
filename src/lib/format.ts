@@ -52,13 +52,16 @@ export function formatClock(seconds: number): string {
  * Millisecond time, for audio where there are no frames: `0:04.250`, `12:30.000`, `1:02:10.500`.
  * Rounded to the millisecond first, so 59.9996 reads `1:00.000` rather than `0:60.000`.
  */
-export function formatPreciseTime(seconds: number): string {
+export function formatPreciseTime(seconds: number, like?: number): string {
 	const ms = Math.round(Math.max(0, seconds) * 1000);
 	const whole = Math.floor(ms / 1000);
 	const h = Math.floor(whole / 3600);
 	const mm = Math.floor(whole / 60) % 60;
 	const ss = `${String(whole % 60).padStart(2, '0')}.${String(ms % 1000).padStart(3, '0')}`;
-	return h > 0 ? `${h}:${String(mm).padStart(2, '0')}:${ss}` : `${mm}:${ss}`;
+	// Written as long as `like` would be, so a time shown beside a length keeps its width.
+	const longest = like === undefined ? 0 : Math.round(Math.max(0, like) * 1000);
+	if (h > 0 || longest >= 3_600_000) return `${h}:${String(mm).padStart(2, '0')}:${ss}`;
+	return `${String(mm).padStart(longest >= 600_000 ? 2 : 1, '0')}:${ss}`;
 }
 
 /**

@@ -1,5 +1,5 @@
 import type { AudioCodec } from 'mediabunny';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { create } from 'zustand';
 import { isShortened, keptRanges } from '@/document/kept';
 import { type Range, toOutput } from '@/document/timemap';
@@ -67,7 +67,7 @@ type Override = Partial<
 >;
 
 /** The equalizer and compressor of a sound track, as the processors take them. */
-export function trackSound(track: Pick<MuxTrack, 'eq' | 'compress'>): SoundChanges {
+function trackSound(track: Pick<MuxTrack, 'eq' | 'compress'>): SoundChanges {
 	return {
 		eq: track.eq,
 		denoise: 0,
@@ -76,49 +76,103 @@ export function trackSound(track: Pick<MuxTrack, 'eq' | 'compress'>): SoundChang
 }
 
 /** Whether a sound track is heard otherwise than in the source: its level, equalizer or compressor. */
-export function soundEdited(track: Pick<MuxTrack, 'decibels' | 'eq' | 'compress'>): boolean {
+function soundEdited(track: Pick<MuxTrack, 'decibels' | 'eq' | 'compress'>): boolean {
 	return track.decibels !== 0 || track.eq.some((gain) => gain !== 0) || track.compress > 0;
 }
 
 /** A sound track's level, equalizer and compressor. */
-export type SoundEdit = Pick<MuxTrack, 'decibels' | 'eq' | 'compress'>;
+type SoundEdit = Pick<MuxTrack, 'decibels' | 'eq' | 'compress'>;
 
 /**
  * How the video's own sound tracks are heard, by ID, with the changes made to them; `drafts`
  * stand in for changes being tried out, by track key.
  */
-export function heardSounds(
+function heardSounds(
 	overrides: Readonly<Record<string, Override>> | null,
 	drafts: ReadonlyMap<string, SoundEdit> = new Map(),
 ): Map<number, HeardSound> {
 	const sounds = new Map<number, HeardSound>();
 	const keys = new Set([...Object.keys(overrides ?? {}), ...drafts.keys()]);
 	for (const key of keys) {
-		const match = /^audio-(\d+)$/.exec(key);
-		if (!match) continue;
+		const id = audioId(key);
+		if (id === null) continue;
 		const change = overrides?.[key] ?? {};
 		const edit = drafts.get(key) ?? {
 			decibels: change.decibels ?? 0,
 			eq: change.eq ?? FLAT_EQ,
 			compress: change.compress ?? 0,
 		};
-		if (soundEdited(edit)) sounds.set(Number(match[1]), { gain: gainOf(edit.decibels), sound: trackSound(edit) });
+		if (soundEdited(edit)) sounds.set(id, { gain: gainOf(edit.decibels), sound: trackSound(edit) });
 	}
 	return sounds;
 }
 
-/** Plays the video's sound as it will be written: each track with its level, equalizer and compressor. */
+/**
+ * The player's ID of a sound track, by its key here: the file's own ID, or a negative one for
+ * sound added from another file. Null for other tracks.
+ */
+export function audioId(key: string): number | null {
+	const own = /^audio-(\d+)$/.exec(key);
+	if (own) return Number(own[1]);
+	const added = /^added-(\d+)$/.exec(key);
+	return added ? -Number(added[1]) : null;
+}
+
+/**
+ * Plays the video's sound as it will be written: each track with its level, equalizer and
+ * compressor, and the sound added from other files among the tracks to choose from.
+ */
 export function useHeardSounds(file: File | null) {
 	const overrides = useMuxSettings((state) => (state.file === file ? state.overrides : null));
+	const added = useMuxSettings((state) => (state.file === file ? state.added : null));
 	useEffect(() => {
 		usePlayback.getState().setSounds(heardSounds(overrides));
 	}, [overrides]);
+	useEffect(() => {
+		const hidden = Object.entries(overrides ?? {}).flatMap(([key, change]) => {
+			const id = change.include === false ? audioId(key) : null;
+			return id === null ? [] : [id];
+		});
+		usePlayback.getState().setHiddenAudio(new Set(hidden));
+	}, [overrides]);
+	useEffect(() => {
+		usePlayback.getState().setAddedAudio(
+			(added ?? []).map((audio) => {
+				const change = overrides?.[audio.key] ?? {};
+				return {
+					id: audioId(audio.key) ?? 0,
+					file: audio.file,
+					language: change.language ?? 'und',
+					name: change.name ?? addedName(audio.file),
+				};
+			}),
+		);
+	}, [added, overrides]);
 	useEffect(
 		() => () => {
 			usePlayback.getState().setSounds(new Map());
+			usePlayback.getState().setAddedAudio([]);
+			usePlayback.getState().setHiddenAudio(new Set());
 		},
 		[],
 	);
+}
+
+/** Keys of the tracks the user left out of the video, which players no longer offer. */
+export function useLeftOut(file: File | null): ReadonlySet<string> {
+	const overrides = useMuxSettings((state) => (state.file === file ? state.overrides : null));
+	return useMemo(
+		() =>
+			new Set(
+				Object.entries(overrides ?? {}).flatMap(([key, change]) => (change.include === false ? [key] : [])),
+			),
+		[overrides],
+	);
+}
+
+/** The name a sound track added from a file starts with: the file's. */
+function addedName(file: File): string {
+	return file.name.replace(/\.[^.]+$/, '');
 }
 
 /** How a sound track changes, for the export. */
@@ -139,7 +193,8 @@ interface MuxSettingsState {
 	overrides: Record<string, Override>;
 	added: AddedAudio[];
 	set: (file: File, key: string, change: Override) => void;
-	addAudio: (file: File, audio: Omit<AddedAudio, 'key'>) => void;
+	/** Adds sound from another file; returns its track's key. */
+	addAudio: (file: File, audio: Omit<AddedAudio, 'key'>) => string;
 	removeAudio: (file: File, key: string) => void;
 }
 
@@ -161,7 +216,9 @@ export const useMuxSettings = create<MuxSettingsState>((set, get) => {
 		addAudio(file, audio) {
 			const { overrides, added } = of(file);
 			addedCount += 1;
-			set({ file, overrides, added: [...added, { ...audio, key: `added-${addedCount}` }] });
+			const key = `added-${addedCount}`;
+			set({ file, overrides, added: [...added, { ...audio, key }] });
+			return key;
 		},
 		removeAudio(file, key) {
 			const { overrides, added } = of(file);
@@ -305,7 +362,7 @@ export function useMuxTracks(
 			subtitle: null,
 			codec: audioCodecName(audio.codec),
 			language: 'und',
-			name: audio.file.name.replace(/\.[^.]+$/, ''),
+			name: addedName(audio.file),
 			default: false,
 			forced: false,
 			include: true,

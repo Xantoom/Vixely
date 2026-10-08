@@ -7,7 +7,7 @@ import { effectiveCrop, fitWithin, type ImageDoc, type Size } from './document';
 import { ImageRenderer, type Sampling } from './renderer';
 import type { ExportSettings, ImageFormat } from './store';
 
-export const FORMAT_INFO: Record<ImageFormat, { mime: string; extension: string; alpha: boolean }> = {
+const FORMAT_INFO: Record<ImageFormat, { mime: string; extension: string; alpha: boolean }> = {
 	jpeg: { mime: 'image/jpeg', extension: 'jpg', alpha: false },
 	png: { mime: 'image/png', extension: 'png', alpha: true },
 	webp: { mime: 'image/webp', extension: 'webp', alpha: true },

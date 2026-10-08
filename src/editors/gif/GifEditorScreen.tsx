@@ -125,6 +125,8 @@ export function GifEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	});
 
 	const inspector = () => {
+		// Without a file there is nothing to show: the panel stays shut and the tools wait.
+		if (!opened && !batch) return null;
 		if (tool === 'info' || !source) return <GifInfoPanel engine={engine} opened={opened} />;
 		if (tool === 'trim') return <TrimPanel engine={engine} />;
 		if (tool === 'crop')
