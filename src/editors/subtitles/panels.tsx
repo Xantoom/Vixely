@@ -3,7 +3,7 @@ import { ArrowDownToLine, ArrowDownWideNarrow, ArrowLeft, Ban, Check, Plus, Tria
 import { useEffect, useId, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { ExportAnnounce } from '@/editor/ExportAnnounce';
-import { Row } from '@/editor/Inspector';
+import { Row } from '@/editor/facts';
 import { Group, Section } from '@/editor/panel-parts';
 import { saveFile } from '@/editors/image/export';
 import { EDITORS } from '@/editors/registry';

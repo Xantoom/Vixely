@@ -27,6 +27,8 @@ export function formatBytes(bytes: number): string {
 		value /= 1000;
 		unit += 1;
 	}
+	// From gigabytes on, two decimals: 4.37 GB, the precision a film's size is told with.
+	if (unit >= 2) return `${decimal(value, 2)} ${units[unit]}`;
 	return `${value >= 100 ? Math.round(value) : decimal(value, 1)} ${units[unit]}`;
 }
 
@@ -37,6 +39,23 @@ export function formatTimecode(seconds: number, fps = 30): string {
 	const whole = Math.floor(safe);
 	const parts = [Math.floor(whole / 3600), Math.floor(whole / 60) % 60, whole % 60, frames];
 	return parts.map((part) => String(part).padStart(2, '0')).join(':');
+}
+
+/** Bits per second: kilobits up to 10,000, then megabits with two decimals. */
+export function formatBitrate(bits: number): string {
+	const kilobits = bits / 1000;
+	return kilobits < 10_000 ? `${groupDigits(kilobits)} kb/s` : `${decimal(kilobits / 1000, 2)} Mb/s`;
+}
+
+/** A length in hours, minutes and seconds: `1 h 58 min 32 s`, `4 min 02 s`, `12 s`. */
+export function formatLength(seconds: number): string {
+	const whole = Math.round(Math.max(0, seconds));
+	const h = Math.floor(whole / 3600);
+	const m = Math.floor(whole / 60) % 60;
+	const s = String(whole % 60).padStart(2, '0');
+	if (h > 0) return `${h} h ${String(m).padStart(2, '0')} min ${s} s`;
+	if (m > 0) return `${m} min ${s} s`;
+	return `${whole} s`;
 }
 
 /** Ruler labels: `0:40`, `1:04`, `1:02:10`. */

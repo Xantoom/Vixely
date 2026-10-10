@@ -21,10 +21,14 @@ import { spawnSync } from 'node:child_process';
  * - many-tracks.mkv: speech.mp4's pictures with seven sound tracks (AAC, AC-3, Opus, E-AC-3,
  *   FLAC) and nine subtitle tracks (SRT, ASS) in several languages, one of each kind default and
  *   one forced, as on a disc rip.
+ * - hdr10.mkv, hdr10.mp4, hdr10plus.mkv, hlg.mp4: 4 s of 10-bit HEVC (a key frame a second) with
+ *   HDR10 static metadata in its SEI, HDR10+ dynamic metadata, or the HLG curve; dv81.mp4,
+ *   dv81.mkv: hdr10.mp4 with a Dolby Vision 8.1 configuration, mastering display and light level
+ *   boxes added, as streaming services deliver it (FFmpeg can't make Dolby Vision itself).
  * - samples/open/: every video above with its H.264 pictures as VP9 and its AAC sound as Opus, the
  *   rest copied as it is, for browsers built without patented codecs (Playwright's Firefox).
  */
-import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { chromium } from 'playwright-core';
 
 mkdirSync('samples', { recursive: true });
@@ -462,6 +466,125 @@ if (!existsSync('samples/extra.fr.srt')) {
 		'1\n00:00:01,000 --> 00:00:03,000\nAdded line one\n\n2\n00:00:04,000 --> 00:00:06,000\nAdded line two\n',
 	);
 	console.log('samples/extra.fr.srt');
+}
+
+// HDR: HEVC Main 10 with its metadata, which copies must keep.
+if (ffmpeg) {
+	const source = [
+		...['-f', 'lavfi', '-i', 'testsrc2=size=1280x720:rate=25:duration=4'],
+		...['-f', 'lavfi', '-i', 'sine=frequency=440:duration=4'],
+	];
+	const colour = ['-color_primaries', 'bt2020', '-colorspace', 'bt2020nc'];
+	const x265 = (transfer: string, extra = '') =>
+		`colorprim=bt2020:transfer=${transfer}:colormatrix=bt2020nc:keyint=25:min-keyint=25:log-level=error${extra}`;
+	const hdr10 =
+		':master-display=G(13250,34500)B(7500,3000)R(34000,16000)WP(15635,16450)L(10000000,50):max-cll=1000,400:hdr10=1:repeat-headers=1';
+	writeFileSync(
+		'samples/hdr10plus.json',
+		JSON.stringify({
+			JSONInfo: { HDR10plusProfile: 'A', Version: '1.0' },
+			SceneInfo: Array.from({ length: 100 }, (_, frame) => ({
+				BezierCurveData: { Anchors: [256, 512, 768, 1023, 1023, 1023, 1023, 1023, 1023], KneePointX: 0, KneePointY: 0 },
+				LuminanceParameters: {
+					AverageRGB: 100,
+					LuminanceDistributions: {
+						DistributionIndex: [1, 5, 10, 25, 50, 75, 90, 95, 99],
+						DistributionValues: [0, 1, 10, 50, 100, 200, 400, 800, 1000],
+					},
+					MaxScl: [1000, 1000, 1000],
+				},
+				NumberOfWindows: 1,
+				TargetedSystemDisplayMaximumLuminance: 400,
+				SceneFrameIndex: frame,
+				SceneId: 0,
+				SequenceFrameIndex: frame,
+			})),
+			SceneInfoSummary: { SceneFirstFrameIndex: [0], SceneFrameNumbers: [100] },
+			ToolInfo: { Tool: 'vixely', Version: '1' },
+		}),
+	);
+	const hevc = (name: string, transfer: string, ffTransfer: string, extra: string, audio: string[], tag: string[]) => {
+		if (existsSync(`samples/${name}`)) return;
+		spawnSync(
+			ffmpeg,
+			[
+				...['-v', 'error', '-y', ...source],
+				...['-c:v', 'libx265', ...tag, '-pix_fmt', 'yuv420p10le', '-x265-params', x265(transfer, extra)],
+				...colour,
+				...['-color_trc', ffTransfer, ...audio, `samples/${name}`],
+			],
+			{ stdio: 'inherit' },
+		);
+		console.log(`samples/${name}`);
+	};
+	hevc('hdr10.mkv', 'smpte2084', 'smpte2084', hdr10, ['-c:a', 'eac3', '-ac', '6'], []);
+	hevc('hdr10.mp4', 'smpte2084', 'smpte2084', hdr10, ['-c:a', 'aac'], ['-tag:v', 'hvc1']);
+	hevc('hdr10plus.mkv', 'smpte2084', 'smpte2084', `${hdr10}:dhdr10-info=samples/hdr10plus.json`, ['-c:a', 'flac'], []);
+	hevc('hlg.mp4', 'arib-std-b67', 'arib-std-b67', '', ['-c:a', 'aac'], ['-tag:v', 'hvc1']);
+	if (!existsSync('samples/dv81.mp4') && existsSync('samples/hdr10.mp4')) {
+		writeFileSync('samples/dv81.mp4', withDolbyVision(readFileSync('samples/hdr10.mp4')));
+		console.log('samples/dv81.mp4');
+	}
+	if (!existsSync('samples/dv81.mkv') && existsSync('samples/dv81.mp4')) {
+		spawnSync(ffmpeg, ['-v', 'error', '-y', '-i', 'samples/dv81.mp4', '-c', 'copy', 'samples/dv81.mkv'], {
+			stdio: 'inherit',
+		});
+		console.log('samples/dv81.mkv');
+	}
+}
+
+/**
+ * An MP4 whose `moov` comes last (FFmpeg's default), with Dolby Vision 8.1 (level 6, base layer
+ * and RPU, HDR10 fallback), mastering display and light level boxes added to its HEVC entry.
+ */
+function withDolbyVision(mp4: Buffer): Buffer {
+	const data = Buffer.from(mp4);
+	type Found = { type: string; start: number; end: number };
+	const children = (from: number, to: number): Found[] => {
+		const found: Found[] = [];
+		for (let at = from; at + 8 <= to; ) {
+			const size = data.readUInt32BE(at);
+			found.push({ type: data.toString('latin1', at + 4, at + 8), start: at, end: at + size });
+			at += size;
+		}
+		return found;
+	};
+	const child = (parent: Found, type: string, skip = 8) => {
+		const found = children(parent.start + skip, parent.end).find((box) => box.type === type);
+		if (!found) throw new Error(`No ${type} box`);
+		return found;
+	};
+	const box = (type: string, content: number[]) => {
+		const out = Buffer.alloc(8 + content.length);
+		out.writeUInt32BE(out.length);
+		out.write(type, 4, 'latin1');
+		Buffer.from(content).copy(out, 8);
+		return out;
+	};
+	const u16 = (value: number) => [value >> 8, value & 0xff];
+	const u32 = (value: number) => [...u16(Math.floor(value / 65536)), ...u16(value % 65536)];
+	const moov = children(0, data.length).find((found) => found.type === 'moov');
+	if (!moov) throw new Error('No moov box');
+	for (const trak of children(moov.start + 8, moov.end).filter((found) => found.type === 'trak')) {
+		const stsd = child(child(child(child(trak, 'mdia'), 'minf'), 'stbl'), 'stsd');
+		const entry = children(stsd.start + 16, stsd.end)[0];
+		if (entry?.type !== 'hvc1') continue;
+		const added = Buffer.concat([
+			box('dvcC', [1, 0, 8 << 1, (6 << 3) | 0b101, 1 << 4, ...Array<number>(19).fill(0)]),
+			box('mdcv', [
+				...[13250, 34500, 7500, 3000, 34000, 16000, 15635, 16450].flatMap(u16),
+				...u32(10_000_000),
+				...u32(50),
+			]),
+			box('clli', [...u16(1000), ...u16(400)]),
+		]);
+		// Every box around the entry grows by what is added; the pictures, before moov, stay put.
+		for (const around of [moov, trak, child(trak, 'mdia'), child(child(trak, 'mdia'), 'minf'), child(child(child(trak, 'mdia'), 'minf'), 'stbl'), stsd, entry]) {
+			data.writeUInt32BE(data.readUInt32BE(around.start) + added.length, around.start);
+		}
+		return Buffer.concat([data.subarray(0, entry.end), added, data.subarray(entry.end)]);
+	}
+	throw new Error('No HEVC track');
 }
 
 // The same videos in codecs every browser decodes: VP9 pictures, Opus sound, the rest copied.

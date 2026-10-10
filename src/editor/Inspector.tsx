@@ -1,16 +1,12 @@
 import { X } from 'lucide-react';
-import { type ReactNode, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { EDITORS, type MediaKind, TOOL_LABELS, type ToolId } from '@/editors/registry';
 import {
-	codecName,
 	formatAperture,
 	formatBytes,
 	formatCoordinates,
 	formatExifDate,
 	formatFocalLength,
-	formatFrameRate,
-	formatSampleRate,
-	formatPreciseTime,
 	formatShutter,
 } from '@/lib/format';
 import { type ImageDetails, readImageDetails } from '@/lib/image-details';
@@ -19,56 +15,8 @@ import type { OpenedFile } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { getLocale } from '@/paraglide/runtime.js';
 import { PanelTitle } from './EditorLayout';
-
-/** A fact of a list: the name quiet and smaller, the value in full ink, told apart at a glance. */
-export function Row({ label, value }: { label: string; value: string }) {
-	return (
-		<div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
-			<dt className="text-small text-muted">{label}</dt>
-			<dd className="text-ui text-ink tabular text-right font-medium">{value}</dd>
-		</div>
-	);
-}
-
-/** A few facts under a heading of their own, set off from the others by a line. */
-function Facts({ title, aside, children }: { title?: string; aside?: ReactNode; children: ReactNode }) {
-	return (
-		<section className="border-line grid gap-2.5 border-t pt-4">
-			{title && (
-				<div className="flex items-center justify-between gap-3">
-					<h3 className="text-ui font-semibold">{title}</h3>
-					{aside}
-				</div>
-			)}
-			<dl className="grid gap-2">{children}</dl>
-		</section>
-	);
-}
-
-/** When the file was last changed, small, under the figures: its name is already in the bar. */
-function Modified({ file }: { file: File }) {
-	if (file.lastModified <= 0) return null;
-	const date = new Intl.DateTimeFormat(getLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(
-		file.lastModified,
-	);
-	return <p className="text-small text-muted -mt-1">{m.info_modified_on({ date })}</p>;
-}
-
-/** The few figures one looks for first, large, side by side. */
-function Summary({ items }: { items: [string, string][] }) {
-	return (
-		<dl className="grid grid-cols-2 gap-x-4 gap-y-3.5">
-			{items.map(([label, value]) => (
-				<div key={label} className="grid content-start gap-0.5">
-					<dd className="text-lead tabular leading-tight font-semibold tracking-[-0.01em] whitespace-nowrap">
-						{value}
-					</dd>
-					<dt className="text-caption text-muted order-first">{label}</dt>
-				</div>
-			))}
-		</dl>
-	);
-}
+import { Facts, Row, TextRow } from './facts';
+import { AudioFacts, aspectName, FileFacts, ReportExtras, useMediaReport, VideoFacts } from './MediaReport';
 
 /** Beside a stream's heading when this browser can't play it; playing is what is expected. */
 function Playback({ supported }: { supported: boolean }) {
@@ -79,45 +27,6 @@ function Playback({ supported }: { supported: boolean }) {
 			{m.info_plays_not()}
 		</span>
 	);
-}
-
-/** Free text such as a title: proportional font, allowed to wrap. */
-function TextRow({ label, value }: { label: string; value: string }) {
-	return (
-		<div className="grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] items-baseline gap-3">
-			<dt className="text-small text-muted">{label}</dt>
-			<dd className="text-ui text-ink text-right font-medium break-words">{value}</dd>
-		</div>
-	);
-}
-
-/** Bits per second, as players show it. */
-function formatBitrate(bits: number): string {
-	const locale = getLocale();
-	return bits >= 1_000_000
-		? `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(bits / 1_000_000)} Mb/s`
-		: `${Math.round(bits / 1000)} kb/s`;
-}
-
-function gcd(a: number, b: number): number {
-	return b === 0 ? a : gcd(b, a % b);
-}
-
-/** `16:9`, or the ratio to one when the sides share no small divisor. */
-function aspectName(width: number, height: number): string {
-	const divisor = gcd(width, height);
-	const w = width / divisor;
-	const h = height / divisor;
-	if (w <= 32 && h <= 32) return `${w}:${h}`;
-	return `${new Intl.NumberFormat(getLocale(), { maximumFractionDigits: 2 }).format(width / height)}:1`;
-}
-
-function channelName(channels: number): string {
-	if (channels === 1) return m.channels_mono();
-	if (channels === 2) return m.channels_stereo();
-	if (channels === 6) return '5.1';
-	if (channels === 8) return '7.1';
-	return String(channels);
 }
 
 /** The picture's own facts: shape, pixels, depth, transparency, colours, quality. */
@@ -140,6 +49,7 @@ function ImageFacts({ file, size }: { file: File; size: { width: number; height:
 	const yesNo = (value: boolean) => (value ? m.supported() : m.not_supported());
 	return (
 		<Facts title={m.info_picture_section()}>
+			<Row label={m.info_resolution()} value={`${size.width} × ${size.height}`} />
 			<Row label={m.info_aspect()} value={aspectName(size.width, size.height)} />
 			<Row
 				label={m.info_megapixels()}
@@ -210,6 +120,14 @@ function sameFormat(format: string, extension: string | undefined): boolean {
 }
 
 function InfoPanel({ opened }: { opened: OpenedFile | null }) {
+	const info = opened?.info ?? null;
+	// Videos and sound files get the full report; stills and animations keep their own facts.
+	const timed =
+		info !== null &&
+		info.kind !== 'image' &&
+		info.duration !== null &&
+		(info.video !== null || info.audio !== null);
+	const report = useMediaReport(timed && !opened?.images ? (opened?.file ?? null) : null);
 	if (!opened) return null;
 	// An animation made from images: all of them, not only the first.
 	if (opened.images) {
@@ -225,31 +143,27 @@ function InfoPanel({ opened }: { opened: OpenedFile | null }) {
 			</Facts>
 		);
 	}
-	const info = opened.info;
-	if (!info) {
+	if (!info)
 		return (
-			<Facts>
-				<Row label={m.info_format()} value={opened.format.toUpperCase()} />
-				<Row label={m.info_size()} value={formatBytes(opened.file.size)} />
-			</Facts>
+			<FileFacts name={opened.file.name} format={null} size={opened.file.size} duration={null} report={null} />
 		);
-	}
 	const video = info.video;
 	const audio = info.audio;
-	const dimensions = info.dimensions ?? (video ? { width: video.width, height: video.height } : null);
-	const summary: [string, string][] = [];
-	if (info.duration !== null) summary.push([m.info_duration(), formatPreciseTime(info.duration)]);
-	if (dimensions) summary.push([m.info_resolution(), `${dimensions.width} × ${dimensions.height}`]);
-	if (info.cues) summary.push([m.info_cues(), String(info.cues.length)]);
 	// The format is the name's extension, shown in the bar, unless the file is named otherwise.
 	const extension = /\.([^.]+)$/.exec(opened.file.name)?.[1]?.toLowerCase();
-	if (!sameFormat(info.format, extension)) summary.push([m.info_format(), info.format]);
-	summary.push([m.info_size(), formatBytes(info.size)]);
+	const format = sameFormat(info.format, extension) ? null : info.format;
+
+	const several = (count: number, number: number, alone: string, numbered: (number: number) => string) =>
+		count > 1 ? numbered(number) : alone;
+	const videoTracks = report?.video ?? [];
+	const audioTracks = report?.audio ?? [];
+	const duration = timed ? info.duration : null;
 
 	return (
 		<>
-			<Summary items={summary} />
-			<Modified file={opened.file} />
+			<FileFacts name={opened.file.name} format={format} size={info.size} duration={duration} report={report}>
+				{info.cues && <Row label={m.info_cues()} value={String(info.cues.length)} />}
+			</FileFacts>
 
 			{info.tags && (info.tags.title || info.tags.artist || info.tags.album) && (
 				<Facts title={m.info_tags_section()}>
@@ -259,41 +173,46 @@ function InfoPanel({ opened }: { opened: OpenedFile | null }) {
 				</Facts>
 			)}
 
-			{info.kind === 'image' && dimensions && <ImageFacts file={opened.file} size={dimensions} />}
-
+			{info.kind === 'image' && info.dimensions && <ImageFacts file={opened.file} size={info.dimensions} />}
+			{/* An animation the report can't read: its size at least. */}
+			{info.kind !== 'image' && !video && info.dimensions && (
+				<Facts title={m.info_picture_section()}>
+					<Row
+						label={m.info_resolution()}
+						value={`${info.dimensions.width} × ${info.dimensions.height} (${aspectName(info.dimensions.width, info.dimensions.height)})`}
+					/>
+				</Facts>
+			)}
 			{info.photo && <CameraSection photo={info.photo} />}
 
-			{video && (
-				<Facts title={m.info_video_section()} aside={<Playback supported={video.decodable} />}>
-					<Row label={m.info_codec()} value={video.codec ? codecName(video.codec) : '–'} />
-					<Row label={m.info_resolution()} value={`${video.width} × ${video.height}`} />
-					<Row label={m.info_aspect()} value={aspectName(video.width, video.height)} />
-					{video.fps !== null && (
-						<Row
-							label={m.info_frame_rate()}
-							value={
-								video.variable
-									? m.info_frame_rate_variable({
-											low: Math.round(video.variable.min),
-											high: Math.round(video.variable.max),
-										})
-									: formatFrameRate(video.fps)
-							}
-						/>
-					)}
-					{info.duration !== null && info.duration > 0 && (
-						<Row label={m.info_bitrate()} value={formatBitrate((info.size * 8) / info.duration)} />
-					)}
-				</Facts>
-			)}
-
-			{audio && (
-				<Facts title={m.info_audio_section()} aside={<Playback supported={audio.decodable} />}>
-					<Row label={m.info_codec()} value={audio.codec ? codecName(audio.codec) : '–'} />
-					<Row label={m.info_sample_rate()} value={formatSampleRate(audio.sampleRate)} />
-					<Row label={m.info_channels()} value={channelName(audio.channels)} />
-				</Facts>
-			)}
+			{video &&
+				info.kind !== 'image' &&
+				(videoTracks.length > 0 ? videoTracks : [null]).map((track, index) => (
+					<VideoFacts
+						key={track?.id ?? 'probed'}
+						video={track}
+						info={index === 0 ? video : null}
+						duration={duration}
+						title={several(videoTracks.length, index + 1, m.info_video_section(), (number) =>
+							m.info_video_track({ number }),
+						)}
+						aside={index === 0 ? <Playback supported={video.decodable} /> : undefined}
+					/>
+				))}
+			{audio &&
+				(audioTracks.length > 0 ? audioTracks : report ? [] : [null]).map((track, index) => (
+					<AudioFacts
+						key={track?.id ?? 'probed'}
+						audio={track}
+						probed={index === 0 ? audio : null}
+						duration={duration}
+						title={several(audioTracks.length, index + 1, m.info_audio_section(), (number) =>
+							m.info_audio_track({ number }),
+						)}
+						aside={index === 0 ? <Playback supported={audio.decodable} /> : undefined}
+					/>
+				))}
+			{report && <ReportExtras report={report} />}
 		</>
 	);
 }

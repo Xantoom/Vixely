@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
 	codecName,
 	formatAperture,
+	formatBitrate,
 	formatBytes,
+	formatLength,
 	formatClock,
 	formatCoordinates,
 	formatExifDate,
@@ -26,7 +28,8 @@ describe('format', () => {
 		expect(formatBytes(512)).toBe('512 B');
 		expect(formatBytes(11_917_000)).toBe('11.9 MB');
 		expect(formatBytes(245_000_000)).toBe('245 MB');
-		expect(formatBytes(4_300_000_000)).toBe('4.3 GB');
+		expect(formatBytes(4_300_000_000)).toBe('4.30 GB');
+		expect(formatBytes(4_372_000_000)).toBe('4.37 GB');
 	});
 
 	it('formats timecodes with frames', () => {
@@ -82,5 +85,14 @@ describe('format', () => {
 		expect(formatExifDate('2026:07:14 18:32:05', 'en-GB')).toBe('14 Jul 2026, 18:32');
 		expect(formatExifDate('not a date', 'en-GB')).toBe('not a date');
 		expect(formatCoordinates(48.85821, -2.29449)).toBe('48.8582° N, 2.2945° W');
+	});
+
+	it('writes bitrates and lengths', () => {
+		expect(formatBitrate(640_000)).toBe('640 kb/s');
+		expect(formatBitrate(9_800_000)).toBe('9\u2009800 kb/s');
+		expect(formatBitrate(18_524_000)).toBe('18.52 Mb/s');
+		expect(formatLength(7112)).toBe('1 h 58 min 32 s');
+		expect(formatLength(242)).toBe('4 min 02 s');
+		expect(formatLength(12.4)).toBe('12 s');
 	});
 });

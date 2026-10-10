@@ -187,7 +187,10 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 	const mode = useExportMode();
 	const exportSettings = useVideoEditor((state) => state.exportSettings);
 	const exportSource = useVideoEditor((state) => state.exportSource);
-	const upright = details?.video ?? { width: 16, height: 9 };
+	// A video this browser can't decode has no player picture: its size comes from the file.
+	const probed = opened?.info?.video;
+	const size = details?.video ?? (probed ? { width: probed.width, height: probed.height } : null);
+	const upright = size ?? { width: 16, height: 9 };
 	const editing = useVideoPictureEditing(upright, opened?.poster ?? null);
 	const overlays = videoOverlayEditing(editing, doc.duration);
 	const textRef = useRef<HTMLTextAreaElement>(null);
@@ -228,7 +231,7 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 		[],
 	);
 
-	useExportSource(ready ? opened : null, details?.video ?? null);
+	useExportSource(ready ? opened : null, size);
 	useHeardSounds(ready ? opened.file : null);
 	useCopiedRanges(ready ? opened.file : null, tool === 'export' && !batch);
 	useVideoShortcuts();

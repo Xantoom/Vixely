@@ -1,8 +1,3 @@
-/**
- * Converting a video: its pictures encoded again with the editor's cuts, crop, turns and colours,
- * its sound copied or encoded again, through Mediabunny's Conversion. The pictures are drawn by
- * the same WebGL renderer as the preview, so the file looks like what was on screen.
- */
 import {
 	ALL_FORMATS,
 	AttachedFile,
@@ -30,6 +25,12 @@ import {
 import { isShortened, keptRanges } from '@/document/kept';
 import { isKept, toOutput, totalLength } from '@/document/timemap';
 import { drawOverlays, loadOverlayAssets } from '@/editor/overlays/draw';
+/**
+ * Converting a video: its pictures encoded again with the editor's cuts, crop, turns and colours,
+ * its sound copied or encoded again, through Mediabunny's Conversion. The pictures are drawn by
+ * the same WebGL renderer as the preview, so the file looks like what was on screen.
+ */
+import { containerHdr } from '@/media/report/container';
 import { changesSound, type SoundChanges } from '@/media/sound';
 import type { LogoId } from '@/ui/BrandLogo';
 import { ensureEncoder } from '../audio/export';
@@ -1106,13 +1107,19 @@ export async function convertVideo(
 		// hiding the pictures before. Turns and mirrors are written for players to apply.
 		const turn = change === 'turn' ? editTurn(doc.picture) : null;
 		const copy = (track: InputAudioTrack) => (job.audioTracks.has(track.id) ? {} : { discard: true });
+		// The pictures are copied as they are: so is what the container says of their HDR.
+		const hdr = await containerHdr(job.file).catch(() => undefined);
 		try {
 			const conversion = await Conversion.init({
 				input,
 				output,
 				trim: isShortened(doc) ? { start: doc.trim.start, end: doc.trim.end } : undefined,
 				video: (track) =>
-					track.number > 1 ? { discard: true } : turn ? { rotate: turn.rotation, flip: turn.flip } : {},
+					track.number > 1
+						? { discard: true }
+						: turn
+							? { rotate: turn.rotation, flip: turn.flip, hdr }
+							: { hdr },
 				audio: copy,
 				tags: conversionTags(doc.meta),
 				copy: { mode: 'forced', shiftTolerance: Number.POSITIVE_INFINITY },

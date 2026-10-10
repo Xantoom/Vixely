@@ -21,7 +21,7 @@ declare -A groups=(
 	[gif]="gif-editor gif-formats gif-effects gif-batch gif-images"
 	[audio]="audio-sound audio-tools"
 	[subtitles]="subtitles-editor subtitles-tracks subtitles-mux subtitles-batch subtitles-tools subtitles-styles"
-	[video]="video-editor video-added video-tracks video-export video-complete video-batch"
+	[video]="video-editor video-added video-tracks video-hdr video-export video-complete video-batch"
 	[shell]="site-pages editors-roundtrip compare keyboard layout"
 )
 all="${groups[shell]%% *} ${groups[image]} ${groups[gif]} ${groups[audio]} ${groups[subtitles]} ${groups[video]} ${groups[shell]#* }"

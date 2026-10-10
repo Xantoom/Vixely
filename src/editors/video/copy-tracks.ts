@@ -1,11 +1,3 @@
-/**
- * Writing the video without encoding its pictures again: their packets are copied as they are.
- * To remove passages, pictures can only be copied from a key frame, so each kept part starts on
- * the key frame at or before where it was asked to start, and so keeps a little of the passage
- * removed before it. It ends on the last picture that can be shown without the ones after it.
- * The sound is copied the same way, or decoded and encoded again when its level changes; sound
- * from other files can be added.
- */
 import {
 	ALL_FORMATS,
 	type AudioCodec,
@@ -23,6 +15,15 @@ import {
 	type Target,
 } from 'mediabunny';
 import type { Range } from '@/document/timemap';
+/**
+ * Writing the video without encoding its pictures again: their packets are copied as they are.
+ * To remove passages, pictures can only be copied from a key frame, so each kept part starts on
+ * the key frame at or before where it was asked to start, and so keeps a little of the passage
+ * removed before it. It ends on the last picture that can be shown without the ones after it.
+ * The sound is copied the same way, or decoded and encoded again when its level changes; sound
+ * from other files can be added.
+ */
+import { containerHdr } from '@/media/report/container';
 import { changesSound, type SoundChanges } from '@/media/sound';
 import { ensureEncoder } from '../audio/export';
 import { gainOf, PieceSound, type Placed, placeAudio, placeRanges } from './audio-pieces';
@@ -267,10 +268,12 @@ export async function copyTracks(
 		const videoCodec = await video.getCodec();
 		if (!videoCodec) throw new Error('Unknown video codec');
 		const videoSource = new EncodedVideoPacketSource(videoCodec);
-		const [rotation, flip, tags] = await Promise.all([
+		const [rotation, flip, tags, hdr] = await Promise.all([
 			video.getRotation(),
 			video.getFlip(),
 			input.getMetadataTags().catch(() => ({})),
+			// The pictures are copied as they are: so is what the container says of their HDR.
+			containerHdr(job.file).catch(() => undefined),
 		]);
 		const turn = composeTurn({ rotation, flip }, job.turn ?? { rotation: 0, flip: false });
 		output.setMetadataTags(writeMeta(tags, job.meta ?? null));
@@ -280,6 +283,7 @@ export async function copyTracks(
 			languageCode: await video.getLanguageCode(),
 			name: (await video.getName()) ?? undefined,
 			disposition: await video.getDisposition(),
+			hdr,
 		});
 		const pumps: (() => Promise<void>)[] = [
 			async () =>
