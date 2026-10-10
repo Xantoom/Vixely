@@ -373,6 +373,8 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 											mode === 'encode'
 												? {
 														...exportSettings,
+														// Converting may be forced by the edits while the setting still says copy.
+														mode: 'encode',
 														audio: resolveAudio(exportSettings, exportSource.source),
 													}
 												: {

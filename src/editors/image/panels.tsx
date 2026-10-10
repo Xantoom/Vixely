@@ -1,4 +1,9 @@
-import { FlipHorizontal2, FlipVertical2, RotateCcw, RotateCw } from 'lucide-react';
+import {
+	RotateCcw,
+	RotateCw,
+	TrianglesCenterlineDashedHorizontal,
+	TrianglesCenterlineDashedVertical,
+} from 'lucide-react';
 import { useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { ASPECT_LABELS, Group, ResetButton, Section, ToolButton } from '@/editor/panel-parts';
@@ -218,14 +223,14 @@ export function CropPanel({
 					/>
 					<ToolButton
 						label={m.flip_horizontal()}
-						icon={<FlipHorizontal2 size={18} aria-hidden="true" />}
+						icon={<TrianglesCenterlineDashedVertical size={18} aria-hidden="true" />}
 						onClick={() => {
 							apply((d) => flip(d, source, 'x'));
 						}}
 					/>
 					<ToolButton
 						label={m.flip_vertical()}
-						icon={<FlipVertical2 size={18} aria-hidden="true" />}
+						icon={<TrianglesCenterlineDashedHorizontal size={18} aria-hidden="true" />}
 						onClick={() => {
 							apply((d) => flip(d, source, 'y'));
 						}}
@@ -238,6 +243,7 @@ export function CropPanel({
 					max={MAX_ANGLE}
 					step={0.1}
 					defaultValue={0}
+					resettable
 					format={(value) => `${value > 0 ? '+' : ''}${decimal(value, 1)}°`}
 					onChange={(angle) => {
 						preview((d) => ({ ...d, angle }));

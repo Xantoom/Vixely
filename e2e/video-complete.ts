@@ -120,6 +120,29 @@ streams(titled);
 frame(titled, 1, 'titled-1s');
 frame(titled, 4, 'titled-4s');
 
+// 3a. Edits and a cut, exported without choosing how: converting is forced, the pictures carry
+// the title. Copying would keep the source's packets as they are.
+await open(sample('short.mp4'));
+await tool('Layers');
+await aside.getByRole('button', { name: /^Title/ }).click();
+await tool('Edit');
+await aside.getByLabel('Start', { exact: true }).fill('0:01.000');
+await aside.getByLabel('Start', { exact: true }).press('Enter');
+await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
+await page.waitForTimeout(500);
+{
+	const [download] = await Promise.all([
+		page.waitForEvent('download', { timeout: 300000 }),
+		page.locator('aside + div').getByRole('button').first().click(),
+	]);
+	writeFileSync('shots/unchosen.mp4', readFileSync(await download.path()));
+	const sizes = (path: string) =>
+		run(['-select_streams', 'v', '-show_entries', 'packet=size', '-read_intervals', '%+#3', '-of', 'csv=p=0'], path);
+	console.log('edits exported without choosing:', sizes('shots/unchosen.mp4').replace(/\n/g, ' '));
+	if (ffprobe && sizes('shots/unchosen.mp4') === sizes(sample('short.mp4')))
+		errors.push('edits exported without choosing a mode: the video was copied, its edits lost');
+}
+
 // 3b. The layers stay on the timeline in every tool; a bar dragged up a row comes forward.
 await tool('Layers');
 { const back = aside.getByRole('button', { name: /^All layers/ }); if (await back.isVisible()) await back.click(); }
