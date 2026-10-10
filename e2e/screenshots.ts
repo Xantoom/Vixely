@@ -6,6 +6,7 @@
 import type { Page } from 'playwright-core';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { engine } from './engine';
+import { useSystemFont } from './system-font';
 
 const BASE = process.env.BASE ?? 'http://localhost:5173';
 const OUT = '../public/shots';
@@ -148,6 +149,7 @@ for (const [language, theme] of (['en', 'fr'] as const).flatMap((language) =>
 		locale: french ? 'fr-FR' : 'en-US',
 		colorScheme: theme,
 	});
+	await useSystemFont(context);
 	await context.addInitScript(
 		({ theme, language }) => {
 			localStorage.setItem('vixely:theme', theme);

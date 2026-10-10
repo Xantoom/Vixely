@@ -11,6 +11,11 @@ import { TASKS } from '../src/app/tasks';
 import { m } from '../src/paraglide/messages.js';
 
 const SITE = 'https://vixely.app';
+/**
+ * Where this build is served, for link previews: a preview deployment shows its own picture, not
+ * the site's. Railway gives the address to the Docker build (see Dockerfile).
+ */
+const HERE = process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : SITE;
 const DIST = 'dist';
 
 interface Page {
@@ -83,7 +88,7 @@ function head(page: Page): string {
 		`<meta property="og:url" content="${url}" />`,
 		`<meta property="og:title" content="${title}" />`,
 		`<meta property="og:description" content="${description}" />`,
-		`<meta property="og:image" content="${SITE}/og-image.png" />`,
+		`<meta property="og:image" content="${HERE}/og-image.png" />`,
 		'<meta property="og:image:width" content="1200" />',
 		'<meta property="og:image:height" content="630" />',
 		'<meta name="twitter:card" content="summary_large_image" />',

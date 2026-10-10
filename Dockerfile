@@ -21,6 +21,9 @@ COPY . .
 # GoatCounter code for counting visits (see src/app/analytics.ts); empty leaves it off.
 ARG VITE_GOATCOUNTER=""
 ENV VITE_GOATCOUNTER=${VITE_GOATCOUNTER}
+# The address Railway serves this deployment at: link previews point to its own picture.
+ARG RAILWAY_PUBLIC_DOMAIN=""
+ENV RAILWAY_PUBLIC_DOMAIN=${RAILWAY_PUBLIC_DOMAIN}
 RUN bun run build
 
 # ── Stage 2: serve ──
