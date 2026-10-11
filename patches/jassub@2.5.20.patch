@@ -1,5 +1,5 @@
 diff --git a/dist/worker/renderers/2d-renderer.js b/dist/worker/renderers/2d-renderer.js
-index ef5925fb03103f6ad280e72c2f9b71c19c98504c..0cfbcf112aae4d27673f22d6be1fdef1275519d9 100644
+index 8b3e10ebdc9ee2c38e089a3eda53d6a41bbf28b5..db1a4de6114c0d558f2134cccd5524f0091df4ee 100644
 --- a/dist/worker/renderers/2d-renderer.js
 +++ b/dist/worker/renderers/2d-renderer.js
 @@ -8,7 +8,7 @@ export class Canvas2DRenderer {
@@ -21,7 +21,7 @@ index ef5925fb03103f6ad280e72c2f9b71c19c98504c..0cfbcf112aae4d27673f22d6be1fdef1
          });
          if (!this.ctx)
 diff --git a/dist/worker/renderers/webgl1-renderer.js b/dist/worker/renderers/webgl1-renderer.js
-index 2a8934191c5648e7f39a937b08432ecbf2633778..7ae4caacb3ee236d404cc407280587ede56d03c6 100644
+index a4a8007b8af7a29856bfd5d6a2631438234eb7da..a3258da27341c2c02614597d717e57682e10bdf6 100644
 --- a/dist/worker/renderers/webgl1-renderer.js
 +++ b/dist/worker/renderers/webgl1-renderer.js
 @@ -133,7 +133,7 @@ export class WebGL1Renderer {
@@ -30,19 +30,19 @@ index 2a8934191c5648e7f39a937b08432ecbf2633778..7ae4caacb3ee236d404cc407280587ed
              stencil: false,
 -            desynchronized: true,
 +            desynchronized: false,
-             powerPreference: 'high-performance'
+             powerPreference: 'default'
          });
          if (!this.gl) {
 diff --git a/dist/worker/renderers/webgl2-renderer.js b/dist/worker/renderers/webgl2-renderer.js
-index 54b1ba10c81debc3230fb42f52481714a78130b0..e7a7393ad87aef36d502d17879d0b9290399caf1 100644
+index a703ab490680d5686a92690b9494ae6e9a5b77ba..432c771938d4b3b5b6e276a5d8eb905f100ee62e 100644
 --- a/dist/worker/renderers/webgl2-renderer.js
 +++ b/dist/worker/renderers/webgl2-renderer.js
-@@ -143,7 +143,7 @@ export class WebGL2Renderer {
+@@ -142,7 +142,7 @@ export class WebGL2Renderer {
              depth: false,
              preserveDrawingBuffer: false,
              stencil: false,
 -            desynchronized: true,
 +            desynchronized: false,
-             powerPreference: 'high-performance'
+             powerPreference: 'default'
          });
          if (!this.gl) {

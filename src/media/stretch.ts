@@ -176,7 +176,7 @@ export class TimeStretcher {
  * Plays audio `factor` times faster by reading it at another pace, as a stream: pitch and speed
  * move together, as with a tape. Four-point cubic interpolation between the samples.
  */
-export class Resampler {
+class Resampler {
 	/** The last three input frames of each channel, then the new ones. */
 	private tail: Float32Array[];
 	/** Where the next output frame reads, in input frames from the start of `tail`: the first real one. */

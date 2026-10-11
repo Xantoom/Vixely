@@ -52,7 +52,7 @@ export interface TrackFacts {
 	described: boolean;
 }
 
-export const NO_CONTAINER_FACTS: ContainerFacts = {
+const NO_CONTAINER_FACTS: ContainerFacts = {
 	dolbyVision: null,
 	dolbyVisionRecord: null,
 	mastering: null,
@@ -64,7 +64,7 @@ export const NO_CONTAINER_FACTS: ContainerFacts = {
 	tracks: new Map(),
 };
 
-export function readDolbyVision(record: Uint8Array): DolbyVision | null {
+function readDolbyVision(record: Uint8Array): DolbyVision | null {
 	if (record.length < 5) return null;
 	const [, , b2 = 0, b3 = 0, b4 = 0] = record;
 	return {

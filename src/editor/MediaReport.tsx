@@ -53,7 +53,7 @@ export function aspectName(width: number, height: number): string {
 	return `${ratio.format(width / height)}:1`;
 }
 
-export function channelName(channels: number): string {
+function channelName(channels: number): string {
 	if (channels === 1) return m.channels_mono();
 	if (channels === 2) return m.channels_stereo();
 	if (channels === 3) return '2.1';

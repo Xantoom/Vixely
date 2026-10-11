@@ -77,7 +77,7 @@ export function readContentLight(data: Uint8Array): ContentLight | null {
 /** ITU-T T.35 header of HDR10+: United States, Samsung, its oriented code, application 4. */
 const HDR10_PLUS = [0xb5, 0x00, 0x3c, 0x00, 0x01, 0x04];
 
-export function isHdr10Plus(t35: Uint8Array): boolean {
+function isHdr10Plus(t35: Uint8Array): boolean {
 	return HDR10_PLUS.every((byte, index) => t35[index] === byte);
 }
 
@@ -120,7 +120,7 @@ function readNal(nal: Uint8Array, codec: 'hevc' | 'avc', found: StreamHdr) {
 }
 
 /** The NAL units of a packet: length-prefixed as in MP4 and Matroska, or Annex B as in MPEG-TS. */
-export function splitNals(packet: Uint8Array, lengthSize = 4): Uint8Array[] {
+function splitNals(packet: Uint8Array, lengthSize = 4): Uint8Array[] {
 	const annexB =
 		(packet[0] === 0 && packet[1] === 0 && packet[2] === 1) ||
 		(packet[0] === 0 && packet[1] === 0 && packet[2] === 0 && packet[3] === 1);
