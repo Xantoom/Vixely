@@ -4,7 +4,7 @@
  * A release build takes minutes, so a crate is only rebuilt when its sources, the workspace
  * manifest or the lockfile are newer than its output. `--force` rebuilds everything (CI, Docker).
  */
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -22,6 +22,8 @@ interface Crate {
 	watch?: string[];
 	/** Built with WebAssembly threads and these Cargo features. */
 	threads?: string[];
+	/** Built in its own target folder, beside the others: for a slow crate with few dependencies. */
+	alone?: boolean;
 }
 
 const CRATES: Crate[] = [
@@ -31,7 +33,8 @@ const CRATES: Crate[] = [
 	{ dir: 'vixely-audio', out: 'src/wasm/vixely-audio', name: 'vixely_audio' },
 	{ dir: 'vixely-gif', out: 'src/wasm/vixely-gif', name: 'vixely_gif', watch: ['vendor/gifski'] },
 	{ dir: 'vixely-subs', out: 'src/wasm/vixely-subs', name: 'vixely_subs' },
-	{ dir: 'vixely-truehd', out: 'src/wasm/vixely-truehd', name: 'vixely_truehd' },
+	// The truehd crate alone takes rustc four minutes (borrow checking, not optimisation).
+	{ dir: 'vixely-truehd', out: 'src/wasm/vixely-truehd', name: 'vixely_truehd', alone: true },
 ];
 const force = process.argv.includes('--force') || process.env.CI === 'true';
 
@@ -50,7 +53,13 @@ if (!ar || !cc) {
 	console.error('clang and llvm-ar are required to build vixely-image (sudo apt-get install clang llvm).');
 	process.exit(1);
 }
-const env = { ...process.env, CC_wasm32_unknown_unknown: cc, AR_wasm32_unknown_unknown: ar };
+// Without node_modules/.bin: the `binaryen` package there (pulled in by Paraglide) is wasm-opt
+// compiled to JavaScript, minutes slower than the native one wasm-pack fetches and keeps.
+const path = (process.env.PATH ?? '')
+	.split(':')
+	.filter((dir) => !dir.includes('node_modules'))
+	.join(':');
+const env = { ...process.env, PATH: path, CC_wasm32_unknown_unknown: cc, AR_wasm32_unknown_unknown: ar };
 
 function newest(path: string): number {
 	const stat = statSync(path);
@@ -58,7 +67,7 @@ function newest(path: string): number {
 	return Math.max(stat.mtimeMs, ...readdirSync(path).map((entry) => newest(join(path, entry))));
 }
 
-for (const crate of CRATES) {
+async function build(crate: Crate): Promise<void> {
 	const output = join(crate.out, `${crate.name}_bg.wasm`);
 	const inputs = Math.max(
 		newest(crate.dir),
@@ -69,7 +78,7 @@ for (const crate of CRATES) {
 	);
 	if (!force && existsSync(output) && statSync(output).mtimeMs > inputs) {
 		console.log(`${crate.out}: up to date`);
-		continue;
+		return;
 	}
 	console.log(`${crate.out}: building…`);
 	const args = ['build', crate.dir, '--target', 'web', '--release', '--out-dir', `../${crate.out}`, '--out-name', crate.name, '--no-pack'];
@@ -98,12 +107,14 @@ for (const crate of CRATES) {
 					CARGO_TARGET_DIR: join(process.cwd(), 'target', 'threads'),
 				},
 			}
-		: { args: [], env: {} };
-	const result = spawnSync('wasm-pack', [...args, ...threaded.args], {
-		stdio: 'inherit',
-		env: { ...env, ...threaded.env },
+		: { args: [], env: crate.alone ? { CARGO_TARGET_DIR: join(process.cwd(), 'target', crate.dir) } : {} };
+	const status = await new Promise<number | null>((resolve) => {
+		spawn('wasm-pack', [...args, ...threaded.args], { stdio: 'inherit', env: { ...env, ...threaded.env } }).on(
+			'close',
+			resolve,
+		);
 	});
-	if (result.status !== 0) process.exit(result.status ?? 1);
+	if (status !== 0) process.exit(status ?? 1);
 	// The thread pool's workers import the package by its folder: it needs a manifest.
 	if (crate.threads) {
 		writeFileSync(
@@ -112,3 +123,14 @@ for (const crate of CRATES) {
 		);
 	}
 }
+
+// Lanes at once: the threaded build and the crates built alone have their own target folders, so
+// they run beside the others, which share theirs and go one after another.
+const lane = async (crates: Crate[]) => {
+	for (const crate of crates) {
+		// oxlint-disable-next-line no-await-in-loop -- these share a target folder
+		await build(crate);
+	}
+};
+const separate = (crate: Crate) => crate.threads || crate.alone;
+await Promise.all([lane(CRATES.filter((crate) => !separate(crate))), ...CRATES.filter(separate).map((crate) => lane([crate]))]);

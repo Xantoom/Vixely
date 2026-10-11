@@ -7,8 +7,9 @@
 	"type": "module",
 	"scripts": {
 		"dev": "bun run build:wasm && vite",
-		"build": "bun run build:wasm && vite build && bun scripts/prerender.ts && bun scripts/service-worker.ts",
+		"build": "bun run build:wasm && bun run build:site",
 		"build:wasm": "bun scripts/build-wasm.ts",
+		"build:site": "vite build && bun scripts/prerender.ts && bun scripts/service-worker.ts",
 		"preview": "vite preview",
 		"typecheck": "tsc --noEmit",
 		"lint": "oxlint src --type-aware --type-check",

@@ -10,6 +10,8 @@ concurrency:
     group: ${{ github.workflow }}-${{ github.ref }}
     cancel-in-progress: true
 
+# The Rust is built and tested again only when what it is made from changes: most changes are to
+# the app alone, and the WebAssembly takes minutes to compile and optimize.
 jobs:
     check:
         name: Build, lint and test
@@ -19,33 +21,46 @@ jobs:
 
             - uses: oven-sh/setup-bun@v2
               with:
-                  bun-version: latest
+                  bun-version: 1.4.3
+
+            # The crates' WebAssembly, as built last for these very sources.
+            - name: Restore the WebAssembly
+              id: wasm
+              uses: actions/cache@v4
+              with:
+                  path: src/wasm/vixely-*
+                  key: wasm-${{ hashFiles('Cargo.toml', 'Cargo.lock', '.cargo/**', 'vendor/**', 'vixely-*/**', 'scripts/build-wasm.ts') }}
 
             - name: Install Rust toolchain
+              if: steps.wasm.outputs.cache-hit != 'true'
               uses: dtolnay/rust-toolchain@stable
               with:
                   targets: wasm32-unknown-unknown
 
             # The multithreaded image codecs rebuild the standard library (see scripts/build-wasm.ts).
             - name: Install the pinned nightly toolchain
+              if: steps.wasm.outputs.cache-hit != 'true'
               run: rustup toolchain install nightly-2026-09-20 --profile minimal --component rust-src --target wasm32-unknown-unknown
 
-            # The image codecs take minutes to compile; cache the Rust build between runs.
             - uses: Swatinem/rust-cache@v2
+              if: steps.wasm.outputs.cache-hit != 'true'
 
-            - name: Install clang and llvm
-              run: sudo apt-get update && sudo apt-get install -y clang llvm
-
-            - name: Install wasm-pack
-              run: curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
+            - name: Install clang, llvm and wasm-pack
+              if: steps.wasm.outputs.cache-hit != 'true'
+              run: |
+                  sudo apt-get update && sudo apt-get install -y clang llvm
+                  curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
 
             - name: Install dependencies
               run: bun install --frozen-lockfile
 
-            # The build generates the route tree, the translations and the WASM module that the
-            # checks below rely on.
-            - name: Build
-              run: bun run build
+            - name: Build the WebAssembly
+              if: steps.wasm.outputs.cache-hit != 'true'
+              run: bun scripts/build-wasm.ts --force
+
+            # The site build generates the route tree and the translations the checks below rely on.
+            - name: Build the site
+              run: bun run build:site
 
             - name: Type check
               run: bun run typecheck
@@ -59,5 +74,35 @@ jobs:
             - name: Test
               run: bun run test
 
-            - name: Test Rust
-              run: bun run test:rust
+    rust:
+        name: Test Rust
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            # A mark left once these sources passed: found, there is nothing to test again.
+            - name: Look for a passed run
+              id: tested
+              uses: actions/cache/restore@v4
+              with:
+                  path: .rust-tested
+                  key: rust-tested-${{ hashFiles('Cargo.toml', 'Cargo.lock', '.cargo/**', 'vendor/**', 'vixely-*/**') }}
+                  lookup-only: true
+
+            - name: Install Rust toolchain
+              if: steps.tested.outputs.cache-hit != 'true'
+              uses: dtolnay/rust-toolchain@stable
+
+            - uses: Swatinem/rust-cache@v2
+              if: steps.tested.outputs.cache-hit != 'true'
+
+            - name: Test
+              if: steps.tested.outputs.cache-hit != 'true'
+              run: cargo test --workspace --release && touch .rust-tested
+
+            - name: Remember the passed run
+              if: steps.tested.outputs.cache-hit != 'true'
+              uses: actions/cache/save@v4
+              with:
+                  path: .rust-tested
+                  key: ${{ steps.tested.outputs.cache-primary-key }}

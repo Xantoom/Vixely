@@ -8,3 +8,7 @@ e2e
 src/paraglide
 src/routeTree.gen.ts
 src/wasm/vixely-*
+# Not part of the site: the Rust build keeps its own cache, the README is for GitHub.
+.claude
+*.md
+!vendor/**/*.md
