@@ -1,5 +1,14 @@
 import { Check, Lock, type LucideIcon, Search } from 'lucide-react';
-import { type KeyboardEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react';
+import {
+	type CSSProperties,
+	Fragment,
+	type KeyboardEvent,
+	type ReactNode,
+	useEffect,
+	useId,
+	useRef,
+	useState,
+} from 'react';
 import { createPortal } from 'react-dom';
 import { m } from '@/paraglide/messages.js';
 import { layerOf } from './layer';
@@ -20,6 +29,10 @@ export interface DropdownOption<T extends string> {
 	disabled?: boolean;
 	/** Why the option can't be picked: a tooltip on its lock. */
 	reason?: string;
+	/** Heading of the options it starts, when it differs from the option before. */
+	group?: string;
+	/** Style of the label, such as a font to show it in. */
+	labelStyle?: CSSProperties;
 }
 
 /**
@@ -260,44 +273,66 @@ export function Dropdown<T extends string>({
 						{visible.length === 0 && (
 							<p className="text-small text-muted px-2 py-1.5">{m.search_nothing()}</p>
 						)}
-						{options.map((option, index) =>
-							!visible.includes(index) ? null : (
-								<div
-									key={option.value}
-									id={`${listId}-${index}`}
-									data-index={index}
-									role="option"
-									aria-selected={index === selected}
-									aria-disabled={option.disabled || undefined}
-									title={option.disabled ? option.reason : undefined}
-									onPointerMove={() => {
-										if (!option.disabled && index !== active) setActive(index);
-									}}
-									onClick={() => {
-										pick(index);
-									}}
-									className={`text-ui flex min-h-8 items-center gap-2 rounded-xs py-1.5 pr-2.5 pl-2 whitespace-nowrap ${
-										option.disabled ? 'text-muted cursor-not-allowed opacity-60' : 'cursor-pointer'
-									} ${index === active && !option.disabled ? 'bg-surface-2' : ''}`}
-								>
-									<span className="grid w-4 flex-none place-items-center">
-										{index === selected ? (
-											<Check
-												size={14}
-												strokeWidth={2.6}
-												className="text-ed-text"
-												aria-hidden="true"
-											/>
-										) : option.disabled && option.reason ? (
-											<Lock size={12} aria-hidden="true" />
-										) : null}
-									</span>
-									{option.leading}
-									<span className={index === selected ? 'font-medium' : ''}>{option.label}</span>
-									{option.detail && <span className="text-muted ml-auto pl-4">{option.detail}</span>}
-								</div>
-							),
-						)}
+						{visible.map((index, position) => {
+							const option = options[index];
+							if (!option) return null;
+							const before = options[visible[position - 1] ?? -1];
+							const heading = option.group && option.group !== before?.group ? option.group : null;
+							return (
+								<Fragment key={option.value}>
+									{heading && (
+										<div
+											role="presentation"
+											className="text-caption text-muted px-2 pt-2 pb-1 font-medium first:pt-1"
+										>
+											{heading}
+										</div>
+									)}
+									<div
+										id={`${listId}-${index}`}
+										data-index={index}
+										role="option"
+										aria-selected={index === selected}
+										aria-disabled={option.disabled || undefined}
+										title={option.disabled ? option.reason : undefined}
+										onPointerMove={() => {
+											if (!option.disabled && index !== active) setActive(index);
+										}}
+										onClick={() => {
+											pick(index);
+										}}
+										className={`text-ui flex min-h-8 items-center gap-2 rounded-xs py-1.5 pr-2.5 pl-2 whitespace-nowrap ${
+											option.disabled
+												? 'text-muted cursor-not-allowed opacity-60'
+												: 'cursor-pointer'
+										} ${index === active && !option.disabled ? 'bg-surface-2' : ''}`}
+									>
+										<span className="grid w-4 flex-none place-items-center">
+											{index === selected ? (
+												<Check
+													size={14}
+													strokeWidth={2.6}
+													className="text-ed-text"
+													aria-hidden="true"
+												/>
+											) : option.disabled && option.reason ? (
+												<Lock size={12} aria-hidden="true" />
+											) : null}
+										</span>
+										{option.leading}
+										<span
+											className={index === selected ? 'font-medium' : ''}
+											style={option.labelStyle}
+										>
+											{option.label}
+										</span>
+										{option.detail && (
+											<span className="text-muted ml-auto pl-4">{option.detail}</span>
+										)}
+									</div>
+								</Fragment>
+							);
+						})}
 					</div>,
 					layerOf(buttonRef.current),
 				)}

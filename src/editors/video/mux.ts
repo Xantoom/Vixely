@@ -11,6 +11,8 @@ import { openScratchFile, type SaveTarget, type ScratchFile } from '@/media/save
 import { FLAT_EQ, type HeardSound, type SoundChanges } from '@/media/sound';
 import { TYPICAL_LOUDNESS } from '../audio/document';
 import type { SubtitleDoc } from '../subtitles/document';
+import { fontAttachments, scriptFamilies } from '../subtitles/font-sources';
+import { toAssScript } from '../subtitles/formats';
 import { matroskaStream, timedTextStream, trackCodec } from '../subtitles/mux-streams';
 import { type TrackKey, type TrackState, useProjectTracks, useSubtitleProject } from '../subtitles/project';
 import { codecLabel } from '../subtitles/tracks';
@@ -463,6 +465,12 @@ export async function exportVideo(
 	const streams: StreamData[] = [];
 	const choices: TrackChoice[] = [];
 	const added: AddedTrack[] = [];
+	// Fonts named by the ASS subtitles written, which go with them.
+	const families = new Set<string>();
+	const written = (doc: SubtitleDoc) => {
+		if (!mp4 && doc.format === 'ass')
+			for (const family of scriptFamilies(toAssScript(doc, job.title))) families.add(family);
+	};
 	for (const track of job.tracks) {
 		const original = originals.find((candidate) => candidate.key === track.key);
 		const details = { language: track.language, name: track.name, default: track.default, forced: track.forced };
@@ -471,6 +479,7 @@ export async function exportVideo(
 			if (!track.include || !doc) continue;
 			// oxlint-disable-next-line no-await-in-loop -- one track at a time keeps memory low
 			streams.push(await streamOf(doc));
+			written(doc);
 			added.push({ stream: streams.length - 1, ...details });
 			continue;
 		}
@@ -479,6 +488,7 @@ export async function exportVideo(
 			if (doc) {
 				// oxlint-disable-next-line no-await-in-loop -- one track at a time keeps memory low
 				streams.push(await streamOf(doc));
+				written(doc);
 				// The track is written anew: it takes all its details from here.
 				choices.push({ number: track.number, keep: true, stream: streams.length - 1, ...details });
 				continue;
@@ -489,7 +499,8 @@ export async function exportVideo(
 			choices.push({ number: track.number, keep: track.include, ...change });
 		}
 	}
-	await remux({ file: job.file, choices, added, streams }, save, onProgress, signal);
+	const fonts = await fontAttachments([...families], job.fonts ?? useSubtitleProject.getState().fonts);
+	await remux({ file: job.file, choices, added, streams, fonts }, save, onProgress, signal);
 }
 
 /**

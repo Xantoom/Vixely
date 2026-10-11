@@ -1203,5 +1203,16 @@
 	"info_codec_id": "Codec ID",
 	"info_video_track": "Video {number}",
 	"info_subtitle_track": "Subtitles {number}",
-	"info_codec_profile": "Profile"
+	"info_codec_profile": "Profile",
+	"fonts_group_video": "In the video",
+	"fonts_group_added": "Added",
+	"fonts_group_common": "Common fonts",
+	"fonts_group_vixely": "Vixely fonts",
+	"fonts_group_system": "On this computer",
+	"fonts_group_missing": "Not found",
+	"fonts_add": "Add a font",
+	"fonts_system": "Use this computer's fonts",
+	"fonts_system_denied": "Access to this computer's fonts was refused. Allow it in the site settings of your browser.",
+	"fonts_replaced": "Shown with {font}, a free font that looks like it.",
+	"fonts_missing": "{font} isn't here: a fallback font shows it."
 }

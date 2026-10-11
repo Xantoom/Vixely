@@ -3,6 +3,7 @@
  * which only a worker can do, and the new file goes back to the page chunk by chunk, each one
  * asked for once the previous one is written. See `src/media/remux.ts`.
  */
+import { attachmentsElement } from '@/media/font-attach';
 import type { RemuxJob, RemuxRequest, RemuxResponse } from '@/media/remux';
 import { loadSubs } from '@/wasm/subs';
 
@@ -40,10 +41,12 @@ async function start(job: RemuxJob) {
 	const reader = new FileReaderSync();
 	const reading = (file: File) => (offset: number, length: number) =>
 		new Uint8Array(reader.readAsArrayBuffer(file.slice(offset, offset + length)));
-	if (job.attachmentsFrom) {
-		const element = subs.attachments_element(reading(job.attachmentsFrom), job.attachmentsFrom.size);
-		if (element) plan.set_attachments(element);
-	}
+	const fonts = job.fonts ?? [];
+	// The fonts given join the attachments the new file would have, from the source or elsewhere.
+	const from = job.attachmentsFrom ?? (fonts.length > 0 ? job.file : undefined);
+	let attachments = from ? subs.attachments_element(reading(from), from.size) : undefined;
+	if (fonts.length > 0) attachments = attachmentsElement(attachments ?? null, fonts);
+	if (attachments) plan.set_attachments(attachments);
 	if (job.title !== undefined) plan.set_title(job.title);
 	const { file } = job;
 	const read = reading(file);

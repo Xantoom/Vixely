@@ -6,6 +6,7 @@ import { usePlayback } from '@/media/playback';
 import { m } from '@/paraglide/messages.js';
 import { useBoxSize } from '@/ui/use-box-size';
 import type { SubtitleDoc } from './document';
+import { useScriptFonts } from './font-sources';
 import { toAssScript } from './formats';
 import { PgsOverlay } from './PgsOverlay';
 import { useSubtitleProject } from './project';
@@ -50,18 +51,20 @@ export function SubtitleLayer({
 		() => (pictures ? '' : toAssScript(doc, title, video ?? undefined)),
 		[doc, title, video, pictures],
 	);
+	const ready = useScriptFonts(script, fonts);
 	if (pictures) return <PgsOverlay doc={doc} time={time} />;
+	if (!ready) return null;
 	return (
 		<AssOverlay
 			// Fonts are loaded as the renderer starts: new ones start a new renderer.
-			key={fonts.length}
-			script={script}
+			key={ready.key}
+			script={ready.script}
 			// ASS times are in hundredths, rounded: a line at 1.007 s is written 1.01. The time drawn is
 			// rounded the same way, or the start of such a line (where picking it goes) shows nothing.
 			time={Math.round(time * 100) / 100}
 			width={frame.width}
 			height={frame.height}
-			fonts={fonts}
+			fonts={ready.fonts}
 			onFailed={onFailed}
 		/>
 	);

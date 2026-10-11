@@ -8,6 +8,7 @@ import { Group, Section } from '@/editor/panel-parts';
 import { saveFile } from '@/editors/image/export';
 import { EDITORS } from '@/editors/registry';
 import { decimal, formatBytes, formatPreciseTime } from '@/lib/format';
+import { withAssFonts } from '@/media/font-attach';
 import { usePlayback } from '@/media/playback';
 import { type OpenedFile, useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
@@ -25,6 +26,7 @@ import {
 	type SubtitleFormat,
 	syncPoints,
 } from './document';
+import { fontAttachments, scriptFamilies } from './font-sources';
 import { droppedCues, exportFormats, FORMAT_FILES, writeSubtitles } from './formats';
 import { ENCODINGS, type EncodingId } from './formats/encoding';
 import { cueLabel } from './labels';
@@ -512,7 +514,20 @@ function SubtitleFileFooter() {
 				blob = new Blob([bytes.slice()], { type: mime });
 			} else {
 				const title = name.replace(/\.[^.]+$/, '');
-				const text = writeSubtitles(whole, format, title, usePlayback.getState().details?.video ?? undefined);
+				const written = writeSubtitles(
+					whole,
+					format,
+					title,
+					usePlayback.getState().details?.video ?? undefined,
+				);
+				// The fonts added, and Vixely's, go with an ASS script, so players draw it as the preview does.
+				const text =
+					format === 'ass'
+						? withAssFonts(
+								written,
+								await fontAttachments(scriptFamilies(written), useSubtitleProject.getState().fonts),
+							)
+						: written;
 				// A byte order mark tells older players and Windows programs the file is UTF-8.
 				const bom = format === 'vtt' ? '' : '\ufeff';
 				blob = new Blob([bom + text], { type: mime });

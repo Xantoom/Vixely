@@ -20,8 +20,12 @@ const files = walk(DIST)
 	.filter((path) => !['/sw.js', '/robots.txt', '/sitemap.xml', '/og-image.png'].includes(path) && !path.startsWith('/.vite/'))
 	.toSorted();
 
-// Text recognition: tens of megabytes most visitors never use.
-const lazy = files.filter((path) => /tesseract-core|ocr\.worker/.test(path));
+// Text recognition: tens of megabytes most visitors never use. And the fonts of subtitles, each
+// fetched once a script names it: the faces only subtitles use (the others are the image editor's
+// too) and the WOFF copies turned into fonts attached to exports.
+const SUBTITLE_FONTS =
+	/\/(arimo|tinos|cousine|gelasio|comic-neue|carlito|geist|geist-mono|oswald|playfair-display|caveat)-latin(-ext)?-(400|700)-(normal|italic)-[^/]+\.woff2$/;
+const lazy = files.filter((path) => /tesseract-core|ocr\.worker/.test(path) || SUBTITLE_FONTS.test(path) || path.endsWith('.woff'));
 // The pages, what the first page loads, and the app's icons.
 const index = readFileSync(join(DIST, 'index.html'), 'utf8');
 const linked = new Set([...index.matchAll(/(?:src|href)="(\/[^"]+)"/g)].map((match) => match[1]));

@@ -12,6 +12,7 @@ import { useOpened, useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { lastEnd } from './document';
 import { FindPanel } from './FindPanel';
+import { isFontFile, useAddedFonts } from './font-sources';
 import { SubtitleExportFooter, SubtitleExportPanel, SubtitleInfoPanel, TimingPanel } from './panels';
 import { isPictures, useProjectReady, useSubtitleProject } from './project';
 import { useSubtitleDoc, useSubtitleEditor, useSubtitleUndoState } from './store';
@@ -97,6 +98,11 @@ function SingleSubtitleScreen({ initialTool }: { initialTool?: ToolId }) {
 
 	// A video dropped on subtitles opened from a file plays under them, as in Aegisub.
 	useDropHandler(async (files) => {
+		// Font files dropped are added to those the subtitles can use.
+		if (ready && files.length > 0 && files.every(isFontFile)) {
+			await useAddedFonts.getState().add(files);
+			return true;
+		}
 		const [file] = files;
 		if (!ready || files.length !== 1 || !file || source === 'video') return false;
 		const result = await identify(file);

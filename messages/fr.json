@@ -1248,5 +1248,16 @@
 	"info_codec_id": "Identifiant du codec",
 	"info_video_track": "Vidéo {number}",
 	"info_subtitle_track": "Sous-titres {number}",
-	"info_codec_profile": "Profil"
+	"info_codec_profile": "Profil",
+	"fonts_group_video": "Dans la vidéo",
+	"fonts_group_added": "Ajoutées",
+	"fonts_group_common": "Polices courantes",
+	"fonts_group_vixely": "Polices Vixely",
+	"fonts_group_system": "Sur cet ordinateur",
+	"fonts_group_missing": "Introuvables",
+	"fonts_add": "Ajouter une police",
+	"fonts_system": "Utiliser les polices de l'ordinateur",
+	"fonts_system_denied": "L'accès aux polices de l'ordinateur a été refusé. Autorisez-le dans les paramètres du site de votre navigateur.",
+	"fonts_replaced": "Affichée avec {font}, une police libre qui lui ressemble.",
+	"fonts_missing": "{font} n'est pas disponible : une police de remplacement l'affiche."
 }

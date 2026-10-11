@@ -8,6 +8,7 @@ import wasm from 'jassub/dist/wasm/jassub-worker.wasm?url';
 import type { BurnRequest, BurnResponse } from '@/media/burn-protocol';
 import type { Size } from '../image/document';
 import { cuesAt, type SubtitleDoc } from '../subtitles/document';
+import { scriptFonts } from '../subtitles/font-sources';
 import { toAssScript } from '../subtitles/formats';
 import { pictureBitmap } from '../subtitles/pgs';
 
@@ -35,7 +36,9 @@ export interface BurnJob {
 
 export async function createBurner(job: BurnJob, video: Size, box: Box): Promise<SubtitleBurner> {
 	if (job.doc.format === 'pgs') return pgsBurner(job.doc, box);
-	return textBurner(toAssScript(job.doc, job.title, video), job.fonts, box);
+	// The fonts the preview draws with, found the same way.
+	const { script, fonts } = await scriptFonts(toAssScript(job.doc, job.title, video), job.fonts);
+	return textBurner(script, fonts, box);
 }
 
 function pgsBurner(doc: SubtitleDoc, box: Box): SubtitleBurner {
@@ -62,7 +65,7 @@ function pgsBurner(doc: SubtitleDoc, box: Box): SubtitleBurner {
 	};
 }
 
-async function textBurner(script: string, fonts: readonly Uint8Array[], box: Box): Promise<SubtitleBurner> {
+async function textBurner(script: string, fonts: readonly (Uint8Array | string)[], box: Box): Promise<SubtitleBurner> {
 	const { default: JASSUB } = await import('jassub');
 	JASSUB._test();
 	const worker = new Worker(new URL('../../workers/burn.worker.ts', import.meta.url), {

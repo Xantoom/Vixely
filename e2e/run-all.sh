@@ -20,7 +20,7 @@ declare -A groups=(
 	[image]="image-editor image-overlays"
 	[gif]="gif-editor gif-formats gif-effects gif-batch gif-images"
 	[audio]="audio-sound audio-tools"
-	[subtitles]="subtitles-editor subtitles-tracks subtitles-mux subtitles-batch subtitles-tools subtitles-styles"
+	[subtitles]="subtitles-editor subtitles-tracks subtitles-mux subtitles-batch subtitles-tools subtitles-styles subtitles-fonts"
 	[video]="video-editor video-added video-tracks video-hdr video-export video-complete video-batch"
 	[shell]="site-pages editors-roundtrip compare keyboard layout"
 )

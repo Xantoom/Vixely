@@ -7,7 +7,8 @@ import { usePlayback } from '@/media/playback';
 import { m } from '@/paraglide/messages.js';
 import { Button, IconButton } from '@/ui/Button';
 import { ColorPopover } from '@/ui/ColorPopover';
-import { NumberField, Select, Slider } from '@/ui/fields';
+import { NumberField, Slider } from '@/ui/fields';
+import { FontField } from './FontField';
 import { applyWhole } from './project';
 import { useSubtitleDoc, useSubtitleEditor } from './store';
 import {
@@ -22,20 +23,6 @@ import {
 	toAssDoc,
 	updateStyle,
 } from './styles';
-
-/** Fonts every system has, or nearly: what styles are usually written with. */
-const COMMON_FONTS = [
-	'Arial',
-	'Arial Black',
-	'Verdana',
-	'Tahoma',
-	'Trebuchet MS',
-	'Georgia',
-	'Times New Roman',
-	'Courier New',
-	'Impact',
-	'Comic Sans MS',
-];
 
 /** Positions on the picture, as the numeric keypad lays them out: 7 8 9 on top, 1 2 3 below. */
 const POSITIONS = [7, 8, 9, 4, 5, 6, 1, 2, 3] as const;
@@ -125,7 +112,6 @@ export function StylesPanel({ title }: { title: string }) {
 	const set = (change: Record<string, string>) => {
 		applyWhole((before) => updateStyle(before, index, change));
 	};
-	const fonts = [...new Set([...COMMON_FONTS, ...styles.map((item) => item.fontname ?? '')])].filter(Boolean);
 	const flag = (field: string) => assFlag(style?.[field]);
 	const toggle = (field: string) => {
 		set({ [field]: flag(field) ? '0' : '-1' });
@@ -194,32 +180,26 @@ export function StylesPanel({ title }: { title: string }) {
 								className="border-line-2 bg-bg text-ui text-ink hover:border-muted h-8 w-full rounded-xs border px-2.5 transition-colors"
 							/>
 						</label>
-						<div className="grid grid-cols-[minmax(0,1fr)_6rem] items-end gap-2">
-							<div className="grid gap-1.5">
-								<span className="text-ui text-ink-2" aria-hidden="true">
-									{m.style_font()}
-								</span>
-								<Select
-									label={m.style_font()}
-									value={style.fontname ?? 'Arial'}
-									options={fonts.map((font) => ({ value: font, label: font }))}
-									onChange={(fontname) => {
-										set({ fontname });
-									}}
-								/>
-							</div>
-							<label className="grid gap-1.5">
-								<span className="text-ui text-ink-2">{m.style_size()}</span>
-								<NumberField
-									value={Math.round(Number(style.fontsize) || 0)}
-									min={1}
-									max={999}
-									onCommit={(size) => {
-										set({ fontsize: String(size) });
-									}}
-								/>
-							</label>
-						</div>
+						<FontField
+							value={style.fontname ?? 'Arial'}
+							used={styles.map((item) => item.fontname ?? '')}
+							onChange={(fontname) => {
+								set({ fontname });
+							}}
+							beside={
+								<label className="grid gap-1.5">
+									<span className="text-ui text-ink-2">{m.style_size()}</span>
+									<NumberField
+										value={Math.round(Number(style.fontsize) || 0)}
+										min={1}
+										max={999}
+										onCommit={(size) => {
+											set({ fontsize: String(size) });
+										}}
+									/>
+								</label>
+							}
+						/>
 						<div className="flex gap-0.5">
 							{(
 								[

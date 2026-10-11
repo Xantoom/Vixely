@@ -1,3 +1,4 @@
+import type { FontAttachment } from './font-attach';
 /**
  * Rewrites a Matroska or MP4 file with other subtitle tracks (vixely-subs), in a worker that reads
  * the source in place and hands the new file over a few megabytes at a time: every other track,
@@ -44,6 +45,8 @@ export interface RemuxJob {
 	streams: StreamData[];
 	/** A Matroska file whose attachments (fonts) go into the new file, as they are. */
 	attachmentsFrom?: File;
+	/** Fonts attached to the new file, besides those it has. */
+	fonts?: FontAttachment[];
 	/** The Matroska segment's title, as players show it; empty removes it. */
 	title?: string;
 }

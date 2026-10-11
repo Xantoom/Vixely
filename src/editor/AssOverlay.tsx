@@ -21,8 +21,8 @@ export function AssOverlay({
 	time: number;
 	width: number;
 	height: number;
-	/** Font files the script uses, such as those embedded in a video. Read when the renderer starts: give the overlay a new key when they change. */
-	fonts?: readonly Uint8Array[];
+	/** Font files the script uses, or their addresses. Read when the renderer starts: give the overlay a new key when they change. */
+	fonts?: readonly (Uint8Array | string)[];
 	onFailed?: () => void;
 }) {
 	const hostRef = useRef<HTMLDivElement>(null);
