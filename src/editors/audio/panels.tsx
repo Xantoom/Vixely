@@ -471,7 +471,7 @@ function EqCurve({
 							onPointerMove={(event) => {
 								if (active === index) set(dbAt(event.clientY));
 							}}
-							onPointerUp={() => {
+							onLostPointerCapture={() => {
 								setActive(null);
 								onSettle();
 							}}

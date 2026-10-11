@@ -1,5 +1,4 @@
 @import 'tailwindcss';
-@import '@fontsource-variable/geist';
 
 /*
  * Design tokens.
@@ -20,6 +19,8 @@
 	--surface-2: light-dark(#ececef, #26262a);
 	--line: light-dark(#e6e6ea, #262629);
 	--line-2: light-dark(#d3d3d9, #36363c);
+	/* The edge of what takes input (fields, checkboxes, radios): 3:1 against the page, so it can be found. */
+	--field-line: light-dark(#8a8a92, #6c6c74);
 	--track-base: light-dark(#d9dce2, #3a3c43);
 	--ink: light-dark(#111113, #f3f3f5);
 	--ink-2: light-dark(#3a3a40, #c8c8ce);
@@ -148,6 +149,7 @@
 	--color-surface-2: var(--surface-2);
 	--color-line: var(--line);
 	--color-line-2: var(--line-2);
+	--color-field: var(--field-line);
 	--color-ink: var(--ink);
 	--color-ink-2: var(--ink-2);
 	--color-muted: var(--muted);
@@ -370,12 +372,24 @@
 	}
 }
 
+/*
+ * Reduced motion: nothing travels or scales. Menus, tooltips and panels still fade in, briefly, so
+ * what opened stays legible; the editor's sideways slide becomes the fade alone.
+ */
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,
 	*::after {
 		transition-duration: 0.01ms !important;
 		animation-duration: 0.01ms !important;
+	}
+
+	.menu-in,
+	.tooltip-in,
+	.panel-in,
+	.stage-in,
+	.glow-in {
+		animation: editor-fade 120ms ease-out backwards !important;
 	}
 }
 
@@ -410,7 +424,7 @@
 	box-shadow:
 		0 0 0 1px rgb(0 0 0 / 0.14),
 		0 2px 6px rgb(0 0 0 / 0.25);
-	transition: transform 0.18s var(--ease-spring);
+	transition: transform 0.18s var(--ease-out-soft);
 }
 
 .slider::-moz-range-thumb {

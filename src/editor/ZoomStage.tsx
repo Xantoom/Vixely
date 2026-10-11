@@ -291,7 +291,7 @@ export function ZoomStage({
 					pan: clampPan({ x: from.pan.x + event.clientX - from.x, y: from.pan.y + event.clientY - from.y }),
 				});
 			}}
-			onPointerUp={() => {
+			onLostPointerCapture={() => {
 				drag.current = null;
 				setPanning(false);
 			}}
@@ -345,6 +345,9 @@ function HoldButton({ className = '', onPicture = false }: { className?: string;
 				if (event.key === ' ' || event.key === 'Enter') setHolding(true);
 			}}
 			onKeyUp={() => {
+				setHolding(false);
+			}}
+			onBlur={() => {
 				setHolding(false);
 			}}
 			className={`aria-pressed:bg-ed aria-pressed:text-ed-ink grid size-9 place-items-center transition-colors duration-150 select-none disabled:cursor-default disabled:opacity-35 ${

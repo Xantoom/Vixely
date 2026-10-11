@@ -83,7 +83,7 @@ function CommitText({
 					if (event.key === 'Enter') commit();
 					if (event.key === 'Escape') setDraft(null);
 				}}
-				className="border-line-2 bg-bg text-ui text-ink hover:border-muted placeholder:text-muted h-8 w-full min-w-0 cursor-text rounded-xs border px-2.5 transition-colors"
+				className="border-field bg-bg text-ui text-ink hover:border-muted placeholder:text-muted h-8 w-full min-w-0 cursor-text rounded-xs border px-2.5 transition-colors"
 			/>
 		</div>
 	);
@@ -152,7 +152,7 @@ export function ScriptHeaderSection() {
 						onKeyDown={(event) => {
 							if (event.key === 'Enter') event.currentTarget.blur();
 						}}
-						className="border-line-2 bg-bg text-ui text-ink hover:border-muted h-8 w-full min-w-0 cursor-text rounded-xs border px-2.5 transition-colors"
+						className="border-field bg-bg text-ui text-ink hover:border-muted h-8 w-full min-w-0 cursor-text rounded-xs border px-2.5 transition-colors"
 					/>
 				</div>
 				{CREDITS.map((key) => (

@@ -228,7 +228,7 @@ export function OffsetField({ id, value, onChange }: { id: string; value: number
 				if (event.key === 'Enter') commit();
 				if (event.key === 'Escape') setDraft(null);
 			}}
-			className="border-line-2 bg-bg text-ink hover:border-muted tabular h-8 w-full cursor-text rounded-xs border px-2.5 text-small transition-colors"
+			className="border-field bg-bg text-ink hover:border-muted tabular h-8 w-full cursor-text rounded-xs border px-2.5 text-small transition-colors"
 		/>
 	);
 }

@@ -120,7 +120,7 @@ export function FindPanel() {
 								event.preventDefault();
 								next(event.shiftKey ? -1 : 1);
 							}}
-							className="border-line-2 bg-bg text-ui text-ink hover:border-muted aria-invalid:border-danger h-8 w-0 min-w-0 flex-1 rounded-xs border px-2.5 font-mono transition-colors"
+							className="border-field bg-bg text-ui text-ink hover:border-muted aria-invalid:border-danger h-8 w-0 min-w-0 flex-1 rounded-xs border px-2.5 font-mono transition-colors"
 						/>
 						<IconButton
 							label={m.find_previous()}
@@ -183,7 +183,7 @@ export function FindPanel() {
 						onChange={(event) => {
 							setBy(event.target.value);
 						}}
-						className="border-line-2 bg-bg text-ui text-ink hover:border-muted h-8 w-full rounded-xs border px-2.5 font-mono transition-colors"
+						className="border-field bg-bg text-ui text-ink hover:border-muted h-8 w-full rounded-xs border px-2.5 font-mono transition-colors"
 					/>
 				</div>
 				<div className="grid grid-cols-2 gap-2">

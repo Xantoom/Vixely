@@ -134,7 +134,7 @@ function MetaField({
 		setDraft(null);
 	};
 	const field =
-		'border-line-2 bg-bg text-ui text-ink hover:border-muted w-full cursor-text rounded-xs border px-2.5 transition-colors';
+		'border-field bg-bg text-ui text-ink hover:border-muted w-full cursor-text rounded-xs border px-2.5 transition-colors';
 	return (
 		<div className="grid gap-1.5">
 			<label htmlFor={id} className="text-ui text-ink-2">

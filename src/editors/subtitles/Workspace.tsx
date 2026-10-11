@@ -4,7 +4,7 @@ import { usePlayback } from '@/media/playback';
 import { AROUND, AudioBox, SubtitlePlayer } from './AudioBox';
 import { gridLines, MIN_CUE, removeCues, setCueTimes } from './document';
 import { EditBox } from './EditBox';
-import { LineGrid } from './LineGrid';
+import { gridHeight, LineGrid } from './LineGrid';
 import { QualityBar } from './QualityBar';
 import { useSubtitleDoc, useSubtitleEditor } from './store';
 import { SubtitleViewer, subtitleFrame } from './SubtitleViewer';
@@ -85,15 +85,18 @@ function useColumnPicture(): boolean {
  */
 export function Workspace({ title }: { title: string }) {
 	const column = useColumnPicture();
+	const doc = useSubtitleDoc();
+	// On a phone the lines take the height they need, up to most of the screen.
+	const listHeight = `min(60svh, ${gridHeight(gridLines(doc).length, doc.format === 'pgs')}px)`;
 	const [fit, setFit] = useState(0);
 	// Changes of a few pixels are the layout settling: ignoring them keeps it from going back and forth.
 	const onFit = useCallback((width: number) => {
 		setFit((current) => (Math.abs(current - width) < 4 ? current : width));
 	}, []);
 	const list = (
-		<div className="flex min-w-0 flex-col gap-1 max-lg:order-4 max-lg:h-[60svh] max-lg:px-3 lg:min-h-0">
+		<div className="relative flex min-w-0 flex-col gap-1 max-lg:order-4 max-lg:px-3 lg:min-h-0">
 			<QualityBar />
-			<div className="min-h-0 flex-1">
+			<div className="min-h-0 flex-1 max-lg:h-(--list-h) max-lg:flex-none" style={{ '--list-h': listHeight }}>
 				<LineGrid />
 			</div>
 		</div>

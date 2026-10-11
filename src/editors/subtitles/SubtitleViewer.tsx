@@ -175,6 +175,8 @@ export function SubtitleViewer({
 	const height = Math.floor(frame.height * scale);
 	const top = Math.max(0, (area.height - height - below) / 2);
 	const fit = room > 0 ? Math.round((room * frame.width) / frame.height) : 0;
+	// Without a video the way to choose one takes the picture's place, black frame included.
+	const choosing = !fromVideo && !file;
 	useEffect(() => {
 		if (fit > 0) onFit?.(fit);
 	}, [fit, onFit]);
@@ -189,7 +191,10 @@ export function SubtitleViewer({
 				// On narrow screens the picture spans the width, as tall as its shape needs.
 				style={{ '--frame': `${frame.width} / ${frame.height}` }}
 			>
-				<div className="absolute inset-x-0" style={controls ? { top, height } : { inset: 0 }}>
+				<div
+					className={`absolute inset-x-0 ${choosing ? 'invisible' : ''}`}
+					style={controls ? { top, height } : { inset: 0 }}
+				>
 					<PlayerPicture width={width} height={height}>
 						{width > 0 && (
 							<SubtitleLayer
@@ -221,7 +226,7 @@ export function SubtitleViewer({
 				>
 					{controls}
 				</div>
-				{!fromVideo && !file && <ChooseVideo onChoose={picker.choose} />}
+				{choosing && <ChooseVideo onChoose={picker.choose} />}
 			</div>
 		</div>
 	);

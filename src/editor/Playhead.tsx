@@ -6,6 +6,7 @@ import { timeAt } from './timeline-view';
  * Where playback is on a timeline: a line topped with a diamond, in a positioned track whose width
  * spans `view`. It can be taken and dragged to scrub, from where it was grabbed so it doesn't jump
  * under the pointer; pressing it never starts what pressing the track does, such as a selection.
+ * On a touchscreen it takes a finger-wide band around the line.
  */
 export function Playhead({
 	time,
@@ -42,7 +43,7 @@ export function Playhead({
 		<div
 			onPointerDown={onPointerDown}
 			onPointerMove={onPointerMove}
-			className={`absolute z-10 w-3 -translate-x-1/2 cursor-ew-resize touch-none ${className}`}
+			className={`absolute z-10 w-3 -translate-x-1/2 cursor-ew-resize touch-none pointer-coarse:before:absolute pointer-coarse:before:inset-y-0 pointer-coarse:before:-inset-x-4 ${className}`}
 			style={{ left: `${((time - view.start) / (view.end - view.start)) * 100}%` }}
 			aria-hidden="true"
 		>

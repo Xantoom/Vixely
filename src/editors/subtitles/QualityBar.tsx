@@ -144,6 +144,25 @@ export function QualityBar() {
 		select([found.id], found.id);
 		usePlayback.getState().seek(found.start / 1000);
 	};
+	// With nothing to report, the bar would be a row holding one button: it goes into the corner of
+	// the grid's header instead.
+	const quiet = chosen !== null && flagged === 0;
+	const menu = (
+		<Menu
+			label={m.subs_advice()}
+			value={mode}
+			items={MODES.map((value) => ({
+				value,
+				label: MODE_LABELS[value](),
+				detail: value === 'auto' && chosen && mode === 'auto' ? MODE_LABELS[chosen.profile]() : undefined,
+			}))}
+			onChange={setMode}
+			buttonClassName={`h-8! min-w-8! text-muted ${quiet ? 'hover:bg-surface-2! aria-expanded:bg-surface-2!' : ''}`}
+		>
+			<SlidersHorizontal className="size-4" aria-hidden="true" />
+		</Menu>
+	);
+	if (quiet) return <div className="absolute top-0.5 right-3.5 z-20 max-lg:right-6.5">{menu}</div>;
 	return (
 		<div className="text-small flex h-9 min-w-0 flex-none items-center gap-1.5">
 			{chosen === null ? (
@@ -163,22 +182,8 @@ export function QualityBar() {
 						<ChevronDown className="size-4" aria-hidden="true" />
 					</button>
 				</>
-			) : (
-				<span className="flex-1" />
-			)}
-			<Menu
-				label={m.subs_advice()}
-				value={mode}
-				items={MODES.map((value) => ({
-					value,
-					label: MODE_LABELS[value](),
-					detail: value === 'auto' && chosen && mode === 'auto' ? MODE_LABELS[chosen.profile]() : undefined,
-				}))}
-				onChange={setMode}
-				buttonClassName="h-8! min-w-8! text-muted"
-			>
-				<SlidersHorizontal className="size-4" aria-hidden="true" />
-			</Menu>
+			) : null}
+			{menu}
 		</div>
 	);
 }

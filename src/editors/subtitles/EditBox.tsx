@@ -96,7 +96,7 @@ function TimeBox({
 					}
 					if (event.key === 'Escape') event.currentTarget.value = shown;
 				}}
-				className="border-line-2 bg-bg text-ink hover:border-muted tabular text-small h-8 w-[104px] rounded-xs max-sm:w-full max-sm:px-1.5 border px-2 transition-colors disabled:opacity-45"
+				className="border-field bg-bg text-ink hover:border-muted tabular text-small h-8 w-[104px] rounded-xs max-sm:w-full max-sm:px-1.5 border px-2 transition-colors disabled:opacity-45"
 			/>
 		</label>
 	);
@@ -217,43 +217,46 @@ export function EditBox() {
 			className="bg-bg flex h-full min-h-0 flex-col gap-2.5 rounded-md p-3 shadow-[inset_0_0_0_1px_var(--line)] max-lg:rounded-none max-lg:shadow-none"
 		>
 			<div className="flex flex-wrap items-end gap-x-2 gap-y-2">
-				<p className="text-ui mr-1 grid h-8 items-center font-semibold whitespace-nowrap">
+				<p className="text-ui mr-1 grid h-8 items-center font-semibold whitespace-nowrap max-sm:mr-auto">
 					{index >= 0 ? m.subs_line_title({ number: index + 1 }) : m.subs_line_none()}
 				</p>
-				<div className="flex min-w-0 flex-1 flex-wrap items-end justify-end gap-1.5 max-sm:justify-start">
-					<TimeBox
-						label={m.trim_start()}
-						value={(cue?.start ?? 0) / 1000}
-						disabled={!cue}
-						onCommit={(seconds) => {
-							change((present, line) =>
-								setCueTimes(
-									present,
-									line.id,
-									seconds * 1000,
-									Math.max(line.end, seconds * 1000 + MIN_CUE),
-								),
-							);
-						}}
-					/>
-					<TimeBox
-						label={m.trim_end()}
-						value={(cue?.end ?? 0) / 1000}
-						disabled={!cue}
-						onCommit={(seconds) => {
-							change((present, line) => setCueTimes(present, line.id, line.start, seconds * 1000));
-						}}
-					/>
-					<TimeBox
-						label={m.info_duration()}
-						value={cue ? (cue.end - cue.start) / 1000 : 0}
-						disabled={!cue}
-						onCommit={(seconds) => {
-							change((present, line) =>
-								setCueTimes(present, line.id, line.start, line.start + seconds * 1000),
-							);
-						}}
-					/>
+				{/* On a phone the times take a row of their own under the title and the buttons. */}
+				<div className="flex min-w-0 flex-1 flex-wrap items-end justify-end gap-1.5 max-sm:contents">
+					<div className="flex items-end gap-1.5 max-sm:order-last max-sm:w-full">
+						<TimeBox
+							label={m.trim_start()}
+							value={(cue?.start ?? 0) / 1000}
+							disabled={!cue}
+							onCommit={(seconds) => {
+								change((present, line) =>
+									setCueTimes(
+										present,
+										line.id,
+										seconds * 1000,
+										Math.max(line.end, seconds * 1000 + MIN_CUE),
+									),
+								);
+							}}
+						/>
+						<TimeBox
+							label={m.trim_end()}
+							value={(cue?.end ?? 0) / 1000}
+							disabled={!cue}
+							onCommit={(seconds) => {
+								change((present, line) => setCueTimes(present, line.id, line.start, seconds * 1000));
+							}}
+						/>
+						<TimeBox
+							label={m.info_duration()}
+							value={cue ? (cue.end - cue.start) / 1000 : 0}
+							disabled={!cue}
+							onCommit={(seconds) => {
+								change((present, line) =>
+									setCueTimes(present, line.id, line.start, line.start + seconds * 1000),
+								);
+							}}
+						/>
+					</div>
 					<IconButton
 						label={m.subs_times_here()}
 						className="size-8"
@@ -300,7 +303,7 @@ export function EditBox() {
 			{picture && cue?.picture ? (
 				<PicturePreview picture={cue.picture} />
 			) : (
-				<div className="border-line-2 focus-within:border-ed hover:border-muted flex min-h-20 flex-1 flex-col rounded-sm border transition-colors">
+				<div className="border-field focus-within:border-ed hover:border-muted flex min-h-20 flex-1 flex-col rounded-sm border transition-colors">
 					<div className="border-line flex items-center gap-0.5 border-b px-1 py-0.5">
 						{(['b', 'i', 'u', 's'] as const).map((style) => {
 							const Icon = STYLE_ICONS[style];
@@ -400,7 +403,7 @@ export function EditBox() {
 								preview((present) => updateCue(present, cue.id, { fields: { ...cue.fields, name } }));
 							}}
 							onBlur={settle}
-							className="border-line-2 bg-bg text-ui hover:border-muted placeholder:text-muted h-10 w-36 min-w-0 rounded-xs border px-2.5 transition-colors max-sm:flex-1"
+							className="border-field bg-bg text-ui hover:border-muted placeholder:text-muted h-10 w-36 min-w-0 rounded-xs border px-2.5 transition-colors max-sm:flex-1"
 						/>
 					)}
 				</div>

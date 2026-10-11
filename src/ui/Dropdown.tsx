@@ -194,7 +194,7 @@ export function Dropdown<T extends string>({
 			className={`group/dropdown relative flex min-w-0 items-center gap-1.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
 				compact
 					? 'text-ink-2 enabled:hover:text-ink enabled:hover:bg-surface aria-expanded:bg-surface aria-expanded:text-ink h-8 max-w-60 rounded-sm pr-7 pl-2 shadow-[inset_0_0_0_1px_var(--line-2)]'
-					: 'border-line-2 bg-bg text-ink enabled:hover:border-muted aria-expanded:border-muted h-8 w-full rounded-xs border pr-7 pl-2.5 text-small'
+					: 'border-field bg-bg text-ink enabled:hover:border-muted aria-expanded:border-muted h-8 w-full rounded-xs border pr-7 pl-2.5 text-small'
 			} ${className}`}
 		>
 			{Icon && <Icon size={15} aria-hidden="true" className="flex-none" />}

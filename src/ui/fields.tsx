@@ -5,7 +5,7 @@ import { m } from '@/paraglide/messages.js';
 import { Dropdown, type DropdownOption } from './Dropdown';
 
 const FIELD =
-	'h-10 w-full rounded-xs border border-line-2 bg-bg text-small text-ink transition-colors hover:border-muted';
+	'h-10 w-full rounded-xs border border-field bg-bg text-small text-ink transition-colors hover:border-muted';
 
 /** A label and its control on one row: the label reads left, the value sits right. */
 export function FieldRow({ label, htmlFor, children }: { label: string; htmlFor?: string; children: ReactNode }) {
@@ -116,7 +116,7 @@ export function TextField({
 				onChange={(event) => {
 					onChange(event.target.value);
 				}}
-				className="border-line-2 bg-bg text-ui text-ink hover:border-muted placeholder:text-muted h-8 w-full cursor-text rounded-xs border px-2.5 transition-colors"
+				className="border-field bg-bg text-ui text-ink hover:border-muted placeholder:text-muted h-8 w-full cursor-text rounded-xs border px-2.5 transition-colors"
 			/>
 		</div>
 	);
@@ -297,7 +297,7 @@ export function OptionList<T extends string>({
 					}}
 					className="enabled:hover:bg-surface group grid grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-3 rounded-xs px-2.5 py-2 text-left disabled:cursor-not-allowed disabled:opacity-45"
 				>
-					<span className="size-4 rounded-full shadow-[inset_0_0_0_1.5px_var(--line-2)] group-aria-checked:shadow-[inset_0_0_0_5px_var(--ed)]" />
+					<span className="size-4 rounded-full shadow-[inset_0_0_0_1.5px_var(--field-line)] group-aria-checked:shadow-[inset_0_0_0_5px_var(--ed)]" />
 					<span className="text-body">{option.label}</span>
 					<span className="text-small text-muted flex items-center gap-1.5">
 						{option.disabled && option.reason && <Lock size={12} aria-hidden="true" />}

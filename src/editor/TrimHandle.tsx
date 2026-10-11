@@ -61,7 +61,7 @@ export function TrimHandle({ label, time, duration, view, onMove, onEnd }: TrimH
 			onKeyDown={onKeyDown}
 			onKeyUp={onEnd}
 			onBlur={onEnd}
-			className="group absolute inset-y-0 z-10 w-4 -translate-x-1/2 cursor-ew-resize touch-none"
+			className="group absolute inset-y-0 z-10 w-4 -translate-x-1/2 cursor-ew-resize touch-none pointer-coarse:before:absolute pointer-coarse:before:inset-y-0 pointer-coarse:before:-inset-x-3.5"
 			style={{ left: `${((time - view.start) / span) * 100}%` }}
 		>
 			<span className="bg-ed absolute inset-y-0 left-1/2 w-[3px] -translate-x-1/2 rounded-full" />

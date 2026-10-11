@@ -2,7 +2,10 @@ import { type PointerEvent as ReactPointerEvent, useRef } from 'react';
 import type { Range } from '@/document/timemap';
 import { m } from '@/paraglide/messages.js';
 
-/** Thin bar under a zoomed timeline: shows and moves the visible part. */
+/**
+ * Thin bar under a zoomed timeline: shows and moves the visible part. On a touchscreen it takes a
+ * taller band below it, wide enough for a finger.
+ */
 export function ViewScroll({
 	view,
 	duration,
@@ -49,10 +52,10 @@ export function ViewScroll({
 			aria-controls={controls}
 			onPointerDown={onPointerDown}
 			onPointerMove={onPointerMove}
-			onPointerUp={() => {
+			onLostPointerCapture={() => {
 				grab.current = null;
 			}}
-			className="group relative h-2.5 cursor-grab touch-none active:cursor-grabbing"
+			className="group relative h-2.5 cursor-grab touch-none active:cursor-grabbing pointer-coarse:before:absolute pointer-coarse:before:inset-x-0 pointer-coarse:before:-top-2 pointer-coarse:before:-bottom-6.5"
 		>
 			<div className="ease-out-soft absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-(--track-base) opacity-60 transition-[height] duration-150 group-hover:h-1.5" />
 			<div

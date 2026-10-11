@@ -13,6 +13,13 @@ import { useLineIssues } from './QualityBar';
 import { useSubtitleDoc, useSubtitleEditor } from './store';
 
 const ROW = 36;
+/** Height of the "Add a line" row under the text lines. */
+const ADD_ROW = 44;
+
+/** Height the grid needs to show every line, its header and, for text, the row that adds one. */
+export function gridHeight(lines: number, pictures: boolean): number {
+	return (lines + 1) * ROW + (pictures ? 0 : ADD_ROW);
+}
 /** Rows drawn above and below the visible ones, so fast scrolling doesn't show gaps. */
 const OVERSCAN = 8;
 

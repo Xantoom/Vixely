@@ -132,7 +132,7 @@ export function DropZone({
 						if (address.trim()) void download(async () => fetchFile(address));
 					}}
 				>
-					<label className="border-line-2 bg-bg focus-within:border-muted flex h-10 min-w-0 flex-1 items-center gap-2 rounded-sm border px-3 transition-colors">
+					<label className="border-field bg-bg focus-within:border-muted flex h-10 min-w-0 flex-1 items-center gap-2 rounded-sm border px-3 transition-colors">
 						<Link2 className="text-muted size-[1.1rem] flex-none" aria-hidden="true" />
 						<span className="sr-only">{m.url_label()}</span>
 						<input

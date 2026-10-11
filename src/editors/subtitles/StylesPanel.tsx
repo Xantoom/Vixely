@@ -177,7 +177,7 @@ export function StylesPanel({ title }: { title: string }) {
 									preview((before) => updateStyle(before, index, { name }));
 								}}
 								onBlur={settle}
-								className="border-line-2 bg-bg text-ui text-ink hover:border-muted h-8 w-full rounded-xs border px-2.5 transition-colors"
+								className="border-field bg-bg text-ui text-ink hover:border-muted h-8 w-full rounded-xs border px-2.5 transition-colors"
 							/>
 						</label>
 						<FontField

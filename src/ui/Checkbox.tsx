@@ -10,7 +10,7 @@ export function Checkbox({ className = '', ...props }: Omit<ComponentProps<'inpu
 		<span className={`relative grid size-[1.15rem] flex-none place-items-center ${className}`}>
 			<input
 				type="checkbox"
-				className="peer border-line-2 bg-bg enabled:hover:border-muted checked:border-ed checked:bg-ed indeterminate:border-ed indeterminate:bg-ed focus-visible:outline-ed-text ease-spring size-full appearance-none rounded-[0.35rem] border-[1.5px] transition-[background-color,border-color,transform] duration-150 enabled:active:scale-90 disabled:cursor-not-allowed disabled:opacity-50"
+				className="peer border-field bg-bg enabled:hover:border-muted checked:border-ed checked:bg-ed indeterminate:border-ed indeterminate:bg-ed focus-visible:outline-ed-text ease-spring size-full appearance-none rounded-[0.35rem] border-[1.5px] transition-[background-color,border-color,transform] duration-150 enabled:active:scale-90 disabled:cursor-not-allowed disabled:opacity-50"
 				{...props}
 			/>
 			<svg

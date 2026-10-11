@@ -233,7 +233,7 @@ function TrackRow({
 		else setExport(value ? { burn: track.key, mode: 'encode' } : { burn: null });
 	};
 	const field =
-		'border-line-2 bg-bg text-ui hover:border-muted h-9 w-full min-w-0 rounded-xs border px-2.5 transition-colors';
+		'border-field bg-bg text-ui hover:border-muted h-9 w-full min-w-0 rounded-xs border px-2.5 transition-colors';
 	return (
 		<li data-media={KIND_MEDIA[track.kind]} className="border-line border-t first:border-t-0">
 			<div
