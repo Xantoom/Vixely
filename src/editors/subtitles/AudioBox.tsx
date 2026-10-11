@@ -61,13 +61,34 @@ function PlayheadLine({ view }: { view: Range }) {
  * dragging across a spoken passage. Neighbouring lines show in the background.
  */
 /** Where playback is, over the length of the video or sound, drawn again on its own as it moves. */
-function SubtitleTime() {
-	const time = usePlayback((state) => state.time);
-	const length = usePlaybackLength();
-	return <PlayTime time={time} length={length} />;
+/** Narrower than this, in pixels, the playback bar shows the time without the length. */
+const SHORT_BAR = 380;
+
+/** The playback bar on its own, for under the picture: the time, play and the sound. */
+export function SubtitlePlayer() {
+	const ref = useRef<HTMLDivElement>(null);
+	const { width } = useBoxSize(ref);
+	return (
+		<div ref={ref}>
+			<PlayerControls seek={false} time={<SubtitleTime short={width > 0 && width < SHORT_BAR} />}>
+				<VolumeControl />
+				<AudioTrackMenu />
+			</PlayerControls>
+		</div>
+	);
 }
 
-export function AudioBox() {
+function SubtitleTime({ short = false }: { short?: boolean }) {
+	const time = usePlayback((state) => state.time);
+	const length = usePlaybackLength();
+	return <PlayTime time={time} length={length} short={short} />;
+}
+
+/**
+ * The sound under the lines, with the playback bar above it; `transport` left off when the bar is
+ * under the picture instead, which keeps only the buttons that play around the line.
+ */
+export function AudioBox({ transport = true }: { transport?: boolean }) {
 	const doc = useSubtitleDoc();
 	const { issues } = useLineIssues();
 	const active = useSubtitleEditor((state) => state.active);
@@ -262,6 +283,39 @@ export function AudioBox() {
 	const fit = () => {
 		zoom(defaultSpan / span);
 	};
+	const zoomed = Math.abs(span - defaultSpan) > 0.01;
+	// What plays around the line: the half second before, the line, the half second after.
+	const lineButtons = (
+		<>
+			<IconButton
+				label={m.subs_play_before()}
+				disabled={!cue}
+				onClick={() => {
+					if (cue) playRange(Math.max(0, cue.start / 1000 - AROUND), cue.start / 1000);
+				}}
+			>
+				<ChevronFirst size={17} />
+			</IconButton>
+			<IconButton
+				label={m.subs_play_line()}
+				disabled={!cue}
+				onClick={() => {
+					if (cue) playRange(cue.start / 1000, cue.end / 1000);
+				}}
+			>
+				<Play size={17} />
+			</IconButton>
+			<IconButton
+				label={m.subs_play_after()}
+				disabled={!cue}
+				onClick={() => {
+					if (cue) playRange(cue.end / 1000, cue.end / 1000 + AROUND);
+				}}
+			>
+				<ChevronLast size={17} />
+			</IconButton>
+		</>
+	);
 
 	const toX = (time: number) => ((time / 1000 - view.start) / span) * 100;
 	const visible = doc.cues.filter(
@@ -270,42 +324,21 @@ export function AudioBox() {
 
 	return (
 		<div className="flex h-full min-h-0 flex-col gap-1.5">
-			<PlayerControls
-				seek={false}
-				time={<SubtitleTime />}
-				fit={<FitButton zoomed={Math.abs(span - defaultSpan) > 0.01} onFit={fit} />}
-			>
-				<IconButton
-					label={m.subs_play_before()}
-					disabled={!cue}
-					onClick={() => {
-						if (cue) playRange(Math.max(0, cue.start / 1000 - AROUND), cue.start / 1000);
-					}}
-				>
-					<ChevronFirst size={17} />
-				</IconButton>
-				<IconButton
-					label={m.subs_play_line()}
-					disabled={!cue}
-					onClick={() => {
-						if (cue) playRange(cue.start / 1000, cue.end / 1000);
-					}}
-				>
-					<Play size={17} />
-				</IconButton>
-				<IconButton
-					label={m.subs_play_after()}
-					disabled={!cue}
-					onClick={() => {
-						if (cue) playRange(cue.end / 1000, cue.end / 1000 + AROUND);
-					}}
-				>
-					<ChevronLast size={17} />
-				</IconButton>
-				<span className="bg-line mx-1 h-5 w-px flex-none max-sm:hidden" aria-hidden="true" />
-				<VolumeControl />
-				<AudioTrackMenu />
-			</PlayerControls>
+			{transport ? (
+				<PlayerControls seek={false} time={<SubtitleTime />} fit={<FitButton zoomed={zoomed} onFit={fit} />}>
+					{lineButtons}
+					<span className="bg-line mx-1 h-5 w-px flex-none max-sm:hidden" aria-hidden="true" />
+					<VolumeControl />
+					<AudioTrackMenu />
+				</PlayerControls>
+			) : (
+				// The playback bar is under the picture: here, only what plays around the line.
+				<div className="flex min-w-0 items-center gap-0.5">
+					{lineButtons}
+					<span className="flex-1" />
+					<FitButton zoomed={zoomed} onFit={fit} />
+				</div>
+			)}
 			<TimeRuler view={view} onSeek={seek} />
 			<div
 				ref={areaRef}

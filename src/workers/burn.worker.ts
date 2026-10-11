@@ -56,7 +56,9 @@ self.onmessage = async ({ data }: MessageEvent<BurnRequest>) => {
 		return;
 	}
 	if (!renderer || !canvas) return;
-	const images = renderer._wasm.rawRender(data.time, first ? 1 : 0);
+	// Rounded to the hundredth like the script's times, so a line starting at 1.007 s (written 1.01)
+	// is on the picture at 1.007 s.
+	const images = renderer._wasm.rawRender(Math.round(data.time * 100) / 100, first ? 1 : 0);
 	first = false;
 	if (!images) {
 		post({ type: 'rendered', id: data.id, same: true, bitmap: null });

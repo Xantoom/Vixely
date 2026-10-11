@@ -247,8 +247,11 @@ export class AudioPlayer {
 			this.onStateChange(false);
 			return;
 		}
+		const run = this.run;
 		this.onTime(toSource(this.plan.ranges, output));
-		this.frame = requestAnimationFrame(this.tick);
+		// The listener may have paused or moved playback (the end of a line played alone): the clock
+		// then stops here, or it would run on silently.
+		if (run === this.run) this.frame = requestAnimationFrame(this.tick);
 	};
 
 	/** Decodes and schedules every kept range from `from` on, staying about a second ahead. */

@@ -1,5 +1,5 @@
 import { Film, Replace, Trash2, TriangleAlert } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { AssOverlay } from '@/editor/AssOverlay';
 import { PlayerPicture } from '@/editor/PlayerControls';
 import { usePlayback } from '@/media/playback';
@@ -11,11 +11,16 @@ import { PgsOverlay } from './PgsOverlay';
 import { useSubtitleProject } from './project';
 import { useSubtitleDoc } from './store';
 
+/** Space between the picture and the playback bar under it, in pixels. */
+const GAP = 8;
+/** The playback bar keeps this width under a picture narrower than it, in pixels. */
+const MIN_BAR = 288;
+
 /** Picture size used without a video: the resolution of the ASS script, or 1080p. */
 const DEFAULT_FRAME = { width: 1920, height: 1080 };
 
 /** Size of the picture subtitles are drawn on: the video, else what the subtitles were made for. */
-function subtitleFrame(doc: SubtitleDoc, video: { width: number; height: number } | null) {
+export function subtitleFrame(doc: SubtitleDoc, video: { width: number; height: number } | null) {
 	return video ?? (doc.format === 'pgs' ? doc.pgsSize : doc.ass?.playRes) ?? DEFAULT_FRAME;
 }
 
@@ -51,7 +56,9 @@ export function SubtitleLayer({
 			// Fonts are loaded as the renderer starts: new ones start a new renderer.
 			key={fonts.length}
 			script={script}
-			time={time}
+			// ASS times are in hundredths, rounded: a line at 1.007 s is written 1.01. The time drawn is
+			// rounded the same way, or the start of such a line (where picking it goes) shows nothing.
+			time={Math.round(time * 100) / 100}
 			width={frame.width}
 			height={frame.height}
 			fonts={fonts}
@@ -135,10 +142,13 @@ function VideoBar({ name, onReplace, onRemove }: { name: string; onReplace: () =
 export function SubtitleViewer({
 	title,
 	onFit,
+	controls,
 }: {
 	title: string;
 	/** Told the width at which the picture fills the height it has, so its column can match it. */
 	onFit?: (width: number) => void;
+	/** The playback bar, under the picture when the video stands in a column of its own. */
+	controls?: ReactNode;
 }) {
 	const doc = useSubtitleDoc();
 	const time = usePlayback((state) => state.time);
@@ -151,11 +161,17 @@ export function SubtitleViewer({
 	const file = usePlayback((state) => state.file);
 	const fromVideo = useSubtitleProject((state) => state.source === 'video');
 	const picker = useMediaPicker();
+	const barRef = useRef<HTMLDivElement>(null);
+	const bar = useBoxSize(barRef);
 	const frame = subtitleFrame(doc, video);
-	const scale = area.width && area.height ? Math.min(area.width / frame.width, area.height / frame.height) : 0;
+	// The playback bar sits right under the picture, the two centred together.
+	const below = controls ? bar.height + GAP : 0;
+	const room = Math.max(0, area.height - below);
+	const scale = area.width && room ? Math.min(area.width / frame.width, room / frame.height) : 0;
 	const width = Math.floor(frame.width * scale);
 	const height = Math.floor(frame.height * scale);
-	const fit = area.height > 0 ? Math.round((area.height * frame.width) / frame.height) : 0;
+	const top = Math.max(0, (area.height - height - below) / 2);
+	const fit = room > 0 ? Math.round((room * frame.width) / frame.height) : 0;
 	useEffect(() => {
 		if (fit > 0) onFit?.(fit);
 	}, [fit, onFit]);
@@ -170,28 +186,38 @@ export function SubtitleViewer({
 				// On narrow screens the picture spans the width, as tall as its shape needs.
 				style={{ '--frame': `${frame.width} / ${frame.height}` }}
 			>
-				<PlayerPicture width={width} height={height}>
-					{width > 0 && (
-						<SubtitleLayer
-							doc={doc}
-							time={time}
-							title={title}
-							video={video}
-							fonts={fonts}
-							onFailed={() => {
-								setRendererFailed(true);
-							}}
-						/>
-					)}
-					{(failed || rendererFailed) && (
-						<span
-							className="bg-danger absolute top-2 right-2 grid size-7 place-items-center rounded-full text-white"
-							title={rendererFailed ? m.subs_renderer_failed() : m.subs_media_failed()}
-						>
-							<TriangleAlert size={15} aria-hidden="true" />
-						</span>
-					)}
-				</PlayerPicture>
+				<div className="absolute inset-x-0" style={controls ? { top, height } : { inset: 0 }}>
+					<PlayerPicture width={width} height={height}>
+						{width > 0 && (
+							<SubtitleLayer
+								doc={doc}
+								time={time}
+								title={title}
+								video={video}
+								fonts={fonts}
+								onFailed={() => {
+									setRendererFailed(true);
+								}}
+							/>
+						)}
+						{(failed || rendererFailed) && (
+							<span
+								className="bg-danger absolute top-2 right-2 grid size-7 place-items-center rounded-full text-white"
+								title={rendererFailed ? m.subs_renderer_failed() : m.subs_media_failed()}
+							>
+								<TriangleAlert size={15} aria-hidden="true" />
+							</span>
+						)}
+					</PlayerPicture>
+				</div>
+				{/* Always there, so its size is known as soon as a video turns the layout into a column. */}
+				<div
+					ref={barRef}
+					className={controls ? 'absolute left-1/2 max-w-full min-w-0 -translate-x-1/2' : 'hidden'}
+					style={{ top: top + height + GAP, width: Math.max(width, MIN_BAR) }}
+				>
+					{controls}
+				</div>
 				{!fromVideo && !file && <ChooseVideo onChoose={picker.choose} />}
 			</div>
 		</div>

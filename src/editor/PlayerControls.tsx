@@ -149,7 +149,16 @@ export function AudioTrackMenu() {
 }
 
 /** Where playback is, over how long the result lasts. */
-export function PlayTime({ time, length }: { time: number; length: number }) {
+export function PlayTime({
+	time,
+	length,
+	short = false,
+}: {
+	time: number;
+	length: number;
+	/** The time alone, without the length: for a bar too narrow for both. */
+	short?: boolean;
+}) {
 	return (
 		<span
 			role="timer"
@@ -158,7 +167,7 @@ export function PlayTime({ time, length }: { time: number; length: number }) {
 		>
 			<span className="text-ink font-medium">{formatPreciseTime(Math.min(time, length), length)}</span>
 			{/* On a phone the bar has room for the time alone. */}
-			<span className="text-muted max-sm:hidden"> / {formatPreciseTime(length)}</span>
+			{!short && <span className="text-muted max-sm:hidden"> / {formatPreciseTime(length)}</span>}
 		</span>
 	);
 }

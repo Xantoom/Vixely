@@ -89,8 +89,11 @@ export function LineGrid() {
 			return;
 		}
 		select([line.id]);
-		// The video goes to the start of the line picked, every time, playing or not.
-		usePlayback.getState().seek(line.start / 1000);
+		// The video goes to the start of the line picked, every time. Playing, it plays that line
+		// and stops at its end.
+		const playback = usePlayback.getState();
+		if (playback.playing) playback.playRange(line.start / 1000, line.end / 1000);
+		else playback.seek(line.start / 1000);
 	};
 
 	const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
