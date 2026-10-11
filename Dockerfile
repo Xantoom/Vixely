@@ -60,10 +60,22 @@ ARG RAILWAY_PUBLIC_DOMAIN=""
 ENV RAILWAY_PUBLIC_DOMAIN=${RAILWAY_PUBLIC_DOMAIN}
 RUN bun run build:site
 
-# ── Stage 5: serve ──
-FROM nginx:1-alpine
-RUN rm /etc/nginx/conf.d/default.conf
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=site /app/dist /usr/share/nginx/html
+# ── Stage 5: the site compressed ahead, so nginx sends each file as it is ──
+# Brotli at its best (about a quarter smaller than gzip on the WebAssembly), gzip for the rest.
+FROM alpine:3.24 AS compressed
+RUN apk add --no-cache brotli
+COPY --from=site /app/dist /dist
+RUN find /dist -type f -size +255c \( -name '*.js' -o -name '*.mjs' -o -name '*.wasm' -o -name '*.css' \
+        -o -name '*.html' -o -name '*.json' -o -name '*.svg' -o -name '*.webmanifest' -o -name '*.txt' \) -print0 | \
+    xargs -0 -n 4 -P "$(nproc)" sh -c 'brotli -q 11 -k "$@" && gzip -9 -k "$@"' _
+
+# ── Stage 6: serve ──
+# Alpine's nginx, for its Brotli module; the logs go to Railway's.
+FROM alpine:3.24
+RUN apk add --no-cache nginx nginx-mod-http-brotli && \
+    ln -sf /dev/stdout /var/log/nginx/access.log && ln -sf /dev/stderr /var/log/nginx/error.log && \
+    rm /etc/nginx/http.d/default.conf
+COPY nginx.conf /etc/nginx/http.d/default.conf
+COPY --from=compressed /dist /usr/share/nginx/html
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
