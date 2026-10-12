@@ -137,7 +137,7 @@ export function LineGrid() {
 			ref={scrollRef}
 			role="grid"
 			aria-label={m.subs_lines()}
-			aria-rowcount={lines.length + 1}
+			aria-rowcount={lines.length + (pictures ? 1 : 2)}
 			tabIndex={0}
 			onKeyDown={onKeyDown}
 			onScroll={(event) => {
@@ -163,6 +163,11 @@ export function LineGrid() {
 					const speed = speedShown ? readingSpeed(line, doc.format) : 0;
 					const found = issues.get(line.id);
 					const flagged = hasError(found) ? found : undefined;
+					// Grey on the tinted rows of the chosen lines falls under 4.5:1: it darkens there.
+					const tinted = line.id === active || selected;
+					const quiet = tinted ? 'text-ink-2' : 'text-muted';
+					// Red too, pulled towards the text colour.
+					const alarm = tinted ? 'text-[color-mix(in_srgb,var(--danger)_80%,var(--ink))]' : 'text-danger';
 					return (
 						<div
 							key={line.id}
@@ -186,7 +191,7 @@ export function LineGrid() {
 						>
 							<span
 								role="gridcell"
-								className={`tabular flex items-center gap-1 px-2 ${flagged ? 'text-danger font-semibold' : 'text-muted'} ${
+								className={`tabular flex items-center gap-1 px-2 ${flagged ? `${alarm} font-semibold` : quiet} ${
 									index === current
 										? 'shadow-[inset_3px_0_0_var(--ed)]'
 										: flagged
@@ -209,19 +214,19 @@ export function LineGrid() {
 								<span
 									role="gridcell"
 									className={`tabular flex items-center px-2 ${
-										speed > FAST_READING ? 'text-danger font-semibold' : 'text-muted'
+										speed > FAST_READING ? `${alarm} font-semibold` : quiet
 									}`}
 								>
 									{Math.round(speed)}
 								</span>
 							)}
 							{ass && (
-								<span role="gridcell" className="text-muted flex items-center truncate px-2">
+								<span role="gridcell" className={`${quiet} flex items-center truncate px-2`}>
 									{line.fields?.style ?? ''}
 								</span>
 							)}
 							{originShown && (
-								<span role="gridcell" className="text-muted flex min-w-0 items-center px-2">
+								<span role="gridcell" className={`${quiet} flex min-w-0 items-center px-2`}>
 									<span className="truncate">
 										{(origin.get(line.id) ?? '').replace(/\n/g, ' \u23CE ')}
 									</span>
@@ -236,25 +241,30 @@ export function LineGrid() {
 					);
 				})}
 			</div>
-			{/* Pictures (PGS) come from files; text lines can be written here. */}
+			{/* Pictures (PGS) come from files; text lines can be written here. A row of its own, as a
+			    grid holds only rows. */}
 			{!pictures && (
-				<button
-					type="button"
-					onClick={() => {
-						const state = useSubtitleEditor.getState();
-						let created = 0;
-						state.apply((present) => {
-							const result = addCue(present, usePlayback.getState().time * 1000);
-							created = result.id;
-							return result.doc;
-						});
-						state.select([created]);
-					}}
-					className="text-ui text-muted hover:text-ink hover:bg-surface flex w-full items-center gap-2 px-2.5 py-2.5 text-left font-medium transition-colors"
-				>
-					<Plus size={16} aria-hidden="true" />
-					{m.subs_add_line()}
-				</button>
+				<div role="row" aria-rowindex={lines.length + 2}>
+					<div role="gridcell">
+						<button
+							type="button"
+							onClick={() => {
+								const state = useSubtitleEditor.getState();
+								let created = 0;
+								state.apply((present) => {
+									const result = addCue(present, usePlayback.getState().time * 1000);
+									created = result.id;
+									return result.doc;
+								});
+								state.select([created]);
+							}}
+							className="text-ui text-muted hover:text-ink hover:bg-surface flex w-full items-center gap-2 px-2.5 py-2.5 text-left font-medium transition-colors"
+						>
+							<Plus size={16} aria-hidden="true" />
+							{m.subs_add_line()}
+						</button>
+					</div>
+				</div>
 			)}
 		</div>
 	);

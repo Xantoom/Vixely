@@ -112,7 +112,8 @@ function EditorTabs() {
 							/>
 						)}
 					</div>
-					<figcaption className="flex flex-wrap gap-2">
+					{/* One row that scrolls sideways on a phone, rather than a second row of tabs under the first. */}
+					<figcaption className="-mx-1 flex gap-1 overflow-x-auto px-1 [scrollbar-width:none]">
 						{editor.shots.map((item, index) => (
 							<button
 								key={item.name}
@@ -121,7 +122,7 @@ function EditorTabs() {
 								onClick={() => {
 									setShot(index);
 								}}
-								className="text-ui text-muted hover:text-ink aria-pressed:bg-surface aria-pressed:text-ink rounded-full px-3.5 py-1.5 font-medium transition-colors"
+								className="text-ui text-muted hover:text-ink aria-pressed:bg-surface aria-pressed:text-ink flex-none rounded-full px-3.5 py-1.5 font-medium whitespace-nowrap transition-colors"
 							>
 								{item.caption}
 							</button>

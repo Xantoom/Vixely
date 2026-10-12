@@ -2,6 +2,7 @@ import { Volume1, Volume2, VolumeX } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { isTyping } from '@/editor/shortcuts';
+import { formatPercent } from '@/lib/format';
 import { listeningGain, useListening } from '@/media/listening';
 import { m } from '@/paraglide/messages.js';
 import { layerOf } from '@/ui/layer';
@@ -134,7 +135,7 @@ export function VolumeControl() {
 							max={100}
 							step={1}
 							value={percent}
-							aria-valuetext={`${percent} %`}
+							aria-valuetext={formatPercent(percent)}
 							onChange={(event) => {
 								setVolume(Number(event.target.value) / 100);
 							}}

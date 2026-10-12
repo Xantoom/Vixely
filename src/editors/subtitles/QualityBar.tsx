@@ -86,11 +86,26 @@ export function useLineIssues(): { issues: Map<number, IssueId[]>; label: (issue
 	const rules = chosen?.rules ?? null;
 	return useMemo(
 		() => ({
-			issues: rules ? checkLines(doc, rules) : new Map<number, IssueId[]>(),
+			issues: rules ? linesChecked(doc, rules) : NO_ISSUES,
 			label: (issue: IssueId) => issueLabel(issue, rules ?? PROFILES.film),
 		}),
 		[doc, rules],
 	);
+}
+
+const NO_ISSUES = new Map<number, IssueId[]>();
+/**
+ * The last check of each document, by rules. The grid, the edit box, the sound and this bar all
+ * want it after every edit: worked out once, not by each of them.
+ */
+const checked = new WeakMap<SubtitleDoc, { rules: Rules; issues: Map<number, IssueId[]> }>();
+
+function linesChecked(doc: SubtitleDoc, rules: Rules): Map<number, IssueId[]> {
+	const kept = checked.get(doc);
+	if (kept?.rules === rules) return kept.issues;
+	const issues = checkLines(doc, rules);
+	checked.set(doc, { rules, issues });
+	return issues;
 }
 
 /** What a line breaks of the rules, under its text: what hurts reading first, then what is worth a look. */

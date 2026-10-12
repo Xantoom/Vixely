@@ -5,7 +5,7 @@ import { useDropHandler } from '@/app/GlobalDrop';
 import { isShortened } from '@/document/kept';
 import { ExportAnnounce } from '@/editor/ExportAnnounce';
 import { Section } from '@/editor/panel-parts';
-import { formatDb } from '@/lib/format';
+import { formatDb, formatPercent } from '@/lib/format';
 import { languageName } from '@/lib/language';
 import { identify } from '@/media/identify';
 import { usePlayback } from '@/media/playback';
@@ -32,6 +32,7 @@ import {
 	type TrackEncode,
 	type VideoContainer,
 	type VideoExportSettings,
+	type VideoSource,
 } from './export';
 import {
 	audioId,
@@ -400,7 +401,7 @@ function TrackRow({
 								min={0}
 								max={100}
 								defaultValue={0}
-								format={(value) => (value === 0 ? m.denoise_off() : `${value} %`)}
+								format={(value) => (value === 0 ? m.denoise_off() : formatPercent(value))}
 								onChange={(value) => {
 									change({ compress: value / 100 });
 								}}
@@ -741,6 +742,7 @@ export interface ConvertOrder {
 	settings: VideoExportSettings;
 	doc: VideoDoc;
 	upright: { width: number; height: number };
+	source: Pick<VideoSource, 'bitrate' | 'frameRate'>;
 }
 
 /**

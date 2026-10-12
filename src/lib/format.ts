@@ -32,6 +32,11 @@ export function formatBytes(bytes: number): string {
 	return `${value >= 100 ? Math.round(value) : decimal(value, 1)} ${units[unit]}`;
 }
 
+/** A percentage as each language writes it: `25%` in English, `25 %` in French (a narrow no-break space). */
+export function formatPercent(value: number | string): string {
+	return getLocale() === 'fr' ? `${value}\u202f%` : `${value}%`;
+}
+
 /** Editing timecode `HH:MM:SS:FF`, with frames counted at the given rate. */
 export function formatTimecode(seconds: number, fps = 30): string {
 	const safe = Math.max(0, seconds);

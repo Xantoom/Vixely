@@ -13,7 +13,6 @@ import {
 	Grid3x3,
 	Italic,
 	ScanFace,
-	Plus,
 	Shapes,
 	Smile,
 	Trash2,
@@ -22,7 +21,7 @@ import {
 import { type ReactNode, type RefObject, useEffect, useId, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { Section } from '@/editor/panel-parts';
-import { formatClock } from '@/lib/format';
+import { formatClock, formatPercent } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
 import { IconButton } from '@/ui/Button';
 import { Button } from '@/ui/Button';
@@ -113,7 +112,7 @@ function ColorPicker({ label, value, onChange }: { label: string; value: string;
 							onChange(swatch);
 						}}
 						style={{ background: swatch }}
-						className="ease-spring size-7 rounded-full shadow-[inset_0_0_0_1px_rgb(0_0_0/0.15)] transition-transform duration-200 hover:scale-110 aria-checked:shadow-[0_0_0_2px_var(--bg),0_0_0_4px_var(--ed)]"
+						className="ease-spring touch-target relative size-7 rounded-full shadow-[inset_0_0_0_1px_rgb(0_0_0/0.15)] transition-transform duration-200 hover:scale-110 aria-checked:shadow-[0_0_0_2px_var(--bg),0_0_0_4px_var(--ed)]"
 					/>
 				))}
 				<ColorPopover
@@ -235,7 +234,7 @@ function Arrange({ editing, overlay }: { editing: OverlayEditing; overlay: Overl
 					min={1}
 					max={150}
 					defaultValue={Math.round(overlay.size * 100)}
-					format={(value) => `${value} %`}
+					format={(value) => formatPercent(value)}
 					onChange={(value) => {
 						place({ size: value / 100 });
 					}}
@@ -261,7 +260,7 @@ function Arrange({ editing, overlay }: { editing: OverlayEditing; overlay: Overl
 						min={0}
 						max={100}
 						defaultValue={100}
-						format={(value) => `${value} %`}
+						format={(value) => formatPercent(value)}
 						onChange={(value) => {
 							place({ opacity: value / 100 });
 						}}
@@ -663,7 +662,7 @@ function ZoneSettings({ editing, zone }: { editing: OverlayEditing; zone: ZoneOv
 				min={0}
 				max={100}
 				defaultValue={50}
-				format={(value) => `${value} %`}
+				format={(value) => formatPercent(value)}
 				onChange={(value) => {
 					editing.preview(updateZone(zone.id, { strength: value / 100 }));
 				}}
@@ -942,8 +941,9 @@ export function LayersPanel({
 				</Section>
 			)}
 			<Section title={m.layers_add()}>
+				{/* What to add: each opens its choices below, and picking one of those adds the layer. */}
 				<div
-					role="tablist"
+					role="group"
 					aria-label={m.layers_add()}
 					className="grid grid-cols-[repeat(auto-fit,minmax(4.5rem,1fr))] gap-1.5"
 				>
@@ -953,27 +953,21 @@ export function LayersPanel({
 							<button
 								key={kind}
 								type="button"
-								role="tab"
-								aria-selected={adding === kind}
+								aria-pressed={adding === kind}
 								onClick={() => {
 									setAdding(adding === kind ? null : kind);
 								}}
-								className="text-caption text-ink-2 hover:bg-surface hover:text-ink aria-selected:bg-ed-soft aria-selected:text-ink grid justify-items-center gap-1.5 rounded-sm px-1 pt-2.5 pb-2 font-medium shadow-[inset_0_0_0_1px_var(--line-2)] transition-[background-color,box-shadow,color] aria-selected:shadow-[inset_0_0_0_1.5px_var(--ed)]"
+								className="text-caption text-ink-2 hover:bg-surface hover:text-ink aria-pressed:bg-ed-soft aria-pressed:text-ink grid justify-items-center gap-1.5 rounded-sm px-1 pt-2.5 pb-2 font-medium shadow-[inset_0_0_0_1px_var(--line-2)] transition-[background-color,box-shadow,color] aria-pressed:shadow-[inset_0_0_0_1.5px_var(--ed)]"
 							>
-								<span className="relative">
-									<Icon size={18} aria-hidden="true" />
-									<Plus
-										size={11}
-										strokeWidth={3}
-										className="bg-bg absolute -right-1.5 -bottom-1 rounded-full"
-										aria-hidden="true"
-									/>
-								</span>
+								<Icon size={18} aria-hidden="true" />
 								{ADD_LABELS[kind]()}
 							</button>
 						);
 					})}
 				</div>
+				{adding !== null && adding !== 'draw' && (
+					<p className="text-small text-muted -mb-1">{m.layers_pick()}</p>
+				)}
 				{adding === 'text' && <TextStyles onAdd={addText} />}
 				{adding === 'sticker' && <StickerPicker onAdd={add} />}
 				{adding === 'shape' && <ShapePicker color="#ff3b30" onAdd={add} />}

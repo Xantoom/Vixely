@@ -1,4 +1,4 @@
-import { AudioLines, ChevronFirst, ChevronLast, Play } from 'lucide-react';
+import { ArrowLeftFromLine, ArrowRightFromLine, AudioLines, SquarePlay } from 'lucide-react';
 import {
 	type MouseEvent as ReactMouseEvent,
 	type PointerEvent as ReactPointerEvent,
@@ -284,40 +284,53 @@ export function AudioBox({ transport = true }: { transport?: boolean }) {
 		zoom(defaultSpan / span);
 	};
 	const zoomed = Math.abs(span - defaultSpan) > 0.01;
-	// What plays around the line: the half second before, the line, the half second after.
+	// What plays around the line: the half second before, the line, the half second after. Set in
+	// a group of their own, with their own icons, so they don't pass for the player's buttons.
 	const lineButtons = (
-		<>
+		<div
+			role="group"
+			aria-label={m.subs_play_around()}
+			className="bg-surface flex flex-none items-center gap-0.5 rounded-md p-0.5"
+		>
 			<IconButton
 				label={m.subs_play_before()}
+				className="enabled:hover:bg-surface-2! size-9!"
 				disabled={!cue}
 				onClick={() => {
 					if (cue) playRange(Math.max(0, cue.start / 1000 - AROUND), cue.start / 1000);
 				}}
 			>
-				<ChevronFirst size={17} />
+				<ArrowLeftFromLine size={17} />
 			</IconButton>
 			<IconButton
 				label={m.subs_play_line()}
+				className="enabled:hover:bg-surface-2! size-9!"
 				disabled={!cue}
 				onClick={() => {
 					if (cue) playRange(cue.start / 1000, cue.end / 1000);
 				}}
 			>
-				<Play size={17} />
+				<SquarePlay size={17} />
 			</IconButton>
 			<IconButton
 				label={m.subs_play_after()}
+				className="enabled:hover:bg-surface-2! size-9!"
 				disabled={!cue}
 				onClick={() => {
 					if (cue) playRange(cue.end / 1000, cue.end / 1000 + AROUND);
 				}}
 			>
-				<ChevronLast size={17} />
+				<ArrowRightFromLine size={17} />
 			</IconButton>
-		</>
+		</div>
 	);
 
 	const toX = (time: number) => ((time / 1000 - view.start) / span) * 100;
+	// A line's text where it is wide enough to be read, past 40 pixels.
+	const shortLabel = (line: Cue) =>
+		width > 0 && ((line.end - line.start) / 1000 / span) * width > 40
+			? cueLabel(line, doc.format).replace(/\n/g, ' ')
+			: '';
 	const visible = doc.cues.filter(
 		(line) => !line.comment && line.end / 1000 > view.start && line.start / 1000 < view.end,
 	);
@@ -325,12 +338,19 @@ export function AudioBox({ transport = true }: { transport?: boolean }) {
 	return (
 		<div className="flex h-full min-h-0 flex-col gap-1.5">
 			{transport ? (
-				<PlayerControls seek={false} time={<SubtitleTime />} fit={<FitButton zoomed={zoomed} onFit={fit} />}>
-					{lineButtons}
-					<span className="bg-line mx-1 h-5 w-px flex-none max-sm:hidden" aria-hidden="true" />
-					<VolumeControl />
-					<AudioTrackMenu />
-				</PlayerControls>
+				<>
+					<PlayerControls
+						seek={false}
+						time={<SubtitleTime />}
+						fit={<FitButton zoomed={zoomed} onFit={fit} />}
+					>
+						{/* On a phone the bar has no room for them: they take a row of their own. */}
+						<div className="mr-1.5 flex max-sm:hidden">{lineButtons}</div>
+						<VolumeControl />
+						<AudioTrackMenu />
+					</PlayerControls>
+					<div className="flex sm:hidden">{lineButtons}</div>
+				</>
 			) : (
 				// The playback bar is under the picture: here, only what plays around the line.
 				<div className="flex min-w-0 items-center gap-0.5">
@@ -369,10 +389,8 @@ export function AudioBox({ transport = true }: { transport?: boolean }) {
 							}`}
 							style={{ left: `${toX(line.start)}%`, width: `${toX(line.end) - toX(line.start)}%` }}
 						>
-							<span className="text-caption text-muted absolute top-1 right-1 left-1 truncate">
-								{width > 0 && ((line.end - line.start) / 1000 / span) * width > 40
-									? cueLabel(line, doc.format).replace(/\n/g, ' ')
-									: ''}
+							<span className="text-caption text-ink-2 absolute top-1 right-1 left-1 truncate">
+								{shortLabel(line)}
 							</span>
 						</div>
 					),
@@ -381,7 +399,12 @@ export function AudioBox({ transport = true }: { transport?: boolean }) {
 					<div
 						className="bg-ed/20 absolute inset-y-0"
 						style={{ left: `${toX(cue.start)}%`, width: `${toX(cue.end) - toX(cue.start)}%` }}
-					/>
+					>
+						{/* Clear of the handles at the top of its edges. */}
+						<span className="text-caption text-ink absolute top-1 right-2.5 left-2.5 truncate">
+							{shortLabel(cue)}
+						</span>
+					</div>
 				)}
 				<Waveform peaks={peaks} version={version} view={view} />
 				{cue && (
@@ -403,6 +426,7 @@ export function AudioBox({ transport = true }: { transport?: boolean }) {
 				<PlayheadLine view={view} />
 				{(!file || !hasAudio) && (
 					<span
+						role="img"
 						className="text-muted pointer-events-none absolute right-2 bottom-2"
 						title={m.subs_no_audio()}
 						aria-label={m.subs_no_audio()}

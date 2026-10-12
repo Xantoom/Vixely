@@ -7,7 +7,15 @@ import type { ComponentProps } from 'react';
  */
 export function Checkbox({ className = '', ...props }: Omit<ComponentProps<'input'>, 'type'>) {
 	return (
-		<span className={`relative grid size-[1.15rem] flex-none place-items-center ${className}`}>
+		// On a touchscreen a band around the box takes the finger too, and passes it on to the box.
+		<span
+			onClick={(event) => {
+				// Inside a label, the label already does it.
+				const span = event.currentTarget;
+				if (event.target === span && !span.closest('label')) span.querySelector('input')?.click();
+			}}
+			className={`relative grid size-[1.15rem] flex-none place-items-center pointer-coarse:before:absolute pointer-coarse:before:-inset-3 ${className}`}
+		>
 			<input
 				type="checkbox"
 				className="peer border-field bg-bg enabled:hover:border-muted checked:border-ed checked:bg-ed indeterminate:border-ed indeterminate:bg-ed focus-visible:outline-ed-text ease-spring size-full appearance-none rounded-[0.35rem] border-[1.5px] transition-[background-color,border-color,transform] duration-150 enabled:active:scale-90 disabled:cursor-not-allowed disabled:opacity-50"

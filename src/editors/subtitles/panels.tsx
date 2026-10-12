@@ -7,7 +7,7 @@ import { Row } from '@/editor/facts';
 import { Group, Section } from '@/editor/panel-parts';
 import { saveFile } from '@/editors/image/export';
 import { EDITORS } from '@/editors/registry';
-import { decimal, formatBytes, formatPreciseTime } from '@/lib/format';
+import { decimal, formatBytes, formatPercent, formatPreciseTime } from '@/lib/format';
 import { withAssFonts } from '@/media/font-attach';
 import { usePlayback } from '@/media/playback';
 import { type OpenedFile, useSession } from '@/media/session';
@@ -179,7 +179,7 @@ export function SubtitleInfoPanel({ opened }: { opened: OpenedFile }) {
 			{(fromVideo || trackCount > 1) && <TracksSection fileName={opened.file.name} />}
 			{doc.ass && <ScriptHeaderSection />}
 			{source === 'text' && (
-				<Section title={m.subs_charset()}>
+				<Section title={m.subs_charset_read()}>
 					<label htmlFor={encodingId} className="sr-only">
 						{m.subs_charset_read()}
 					</label>
@@ -228,7 +228,7 @@ export function OffsetField({ id, value, onChange }: { id: string; value: number
 				if (event.key === 'Enter') commit();
 				if (event.key === 'Escape') setDraft(null);
 			}}
-			className="border-field bg-bg text-ink hover:border-muted tabular h-8 w-full cursor-text rounded-xs border px-2.5 text-small transition-colors"
+			className="border-field bg-bg text-ink hover:border-muted tabular h-8 pointer-coarse:h-10 w-full cursor-text rounded-xs border px-2.5 text-small transition-colors"
 		/>
 	);
 }
@@ -346,7 +346,7 @@ export function TimingPanel() {
 					{sync ? (
 						<p className="text-small text-muted tabular">
 							{m.subs_sync_result({
-								percent: `${sync.scale >= 1 ? '+' : '−'}${decimal(Math.abs(sync.scale - 1) * 100, 2)} %`,
+								percent: `${sync.scale >= 1 ? '+' : '−'}${formatPercent(decimal(Math.abs(sync.scale - 1) * 100, 2))}`,
 								offset: signedSeconds(Math.round(sync.offset)),
 							})}
 						</p>
@@ -472,7 +472,7 @@ function SubtitleFileSettings() {
 			</Section>
 			{doc.format !== 'pgs' && (
 				<dl className="grid gap-3.5">
-					<Row label={m.subs_charset()} value={settings.format === 'vtt' ? 'UTF-8' : 'UTF-8 BOM'} />
+					<Row label={m.subs_charset_write()} value={settings.format === 'vtt' ? 'UTF-8' : 'UTF-8 BOM'} />
 				</dl>
 			)}
 		</>

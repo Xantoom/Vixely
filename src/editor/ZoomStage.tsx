@@ -10,6 +10,7 @@ import {
 	useState,
 } from 'react';
 import { create } from 'zustand';
+import { formatPercent } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
 import { isLayoutMoving } from '@/ui/layout-motion';
 import { useBoxSize } from '@/ui/use-box-size';
@@ -350,10 +351,10 @@ function HoldButton({ className = '', onPicture = false }: { className?: string;
 			onBlur={() => {
 				setHolding(false);
 			}}
-			className={`aria-pressed:bg-ed aria-pressed:text-ed-ink grid size-9 place-items-center transition-colors duration-150 select-none disabled:cursor-default disabled:opacity-35 ${
+			className={`aria-pressed:bg-ed aria-pressed:text-ed-ink touch-target grid size-9 place-items-center transition-colors duration-150 select-none disabled:cursor-default disabled:opacity-35 ${
 				onPicture
 					? 'rounded-full bg-black/55 text-white backdrop-blur-md'
-					: 'text-ink-2 enabled:hover:bg-surface enabled:hover:text-ink rounded-sm'
+					: 'text-ink-2 enabled:hover:bg-surface enabled:hover:text-ink relative rounded-sm'
 			} ${className}`}
 		>
 			<Eye className="size-[1.1rem]" aria-hidden="true" />
@@ -421,7 +422,7 @@ function CompareLine() {
 				aria-valuemin={0}
 				aria-valuemax={100}
 				aria-valuenow={percent}
-				aria-valuetext={`${percent} %`}
+				aria-valuetext={formatPercent(percent)}
 				data-no-pan
 				onPointerDown={(event) => {
 					if (event.button !== 0) return;

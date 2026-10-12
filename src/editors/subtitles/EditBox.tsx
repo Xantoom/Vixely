@@ -1,4 +1,4 @@
-import { ArrowDownToLine, Bold, Italic, type LucideIcon, MoreHorizontal, Strikethrough, Underline } from 'lucide-react';
+import { Bold, Italic, LocateFixed, type LucideIcon, MoreHorizontal, Strikethrough, Underline } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { decimal, formatPreciseTime, parseTime } from '@/lib/format';
 import { usePlayback } from '@/media/playback';
@@ -96,7 +96,7 @@ function TimeBox({
 					}
 					if (event.key === 'Escape') event.currentTarget.value = shown;
 				}}
-				className="border-field bg-bg text-ink hover:border-muted tabular text-small h-8 w-[104px] rounded-xs max-sm:w-full max-sm:px-1.5 border px-2 transition-colors disabled:opacity-45"
+				className="border-field bg-bg text-ink hover:border-muted tabular text-small h-8 pointer-coarse:h-10 w-[104px] rounded-xs max-sm:w-full max-sm:px-1.5 border px-2 transition-colors disabled:opacity-45"
 			/>
 		</label>
 	);
@@ -268,7 +268,7 @@ export function EditBox() {
 							);
 						}}
 					>
-						<ArrowDownToLine size={16} />
+						<LocateFixed className="size-[1.1rem]" />
 					</IconButton>
 					<Menu
 						label={m.subs_line_actions()}

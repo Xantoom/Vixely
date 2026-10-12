@@ -106,7 +106,7 @@ export function AppBar({ editor, fileName, actions, onSearch, from = null }: App
 						to="/"
 						aria-label={m.app_home()}
 						title={m.app_home()}
-						className={`hover:bg-surface grid size-9 flex-none place-items-center rounded-sm transition-colors ${editor ? 'md:size-10' : ''}`}
+						className={`hover:bg-surface touch-target relative grid size-9 flex-none place-items-center rounded-sm transition-colors ${editor ? 'md:size-10' : ''}`}
 					>
 						<LogoMark size={26} className={editor ? 'md:size-8' : undefined} />
 					</Link>

@@ -168,7 +168,7 @@ function BatchTable({
 										onClick={() => {
 											remove(item.id);
 										}}
-										className="text-muted hover:text-ink hover:bg-surface grid size-6 place-items-center rounded-xs"
+										className="text-muted hover:text-ink hover:bg-surface touch-target relative grid size-6 place-items-center rounded-xs"
 									>
 										<X size={13} />
 									</button>

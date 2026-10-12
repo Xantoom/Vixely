@@ -1,7 +1,7 @@
 import { Link2, Unlink2 } from 'lucide-react';
 import { useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
-import { ResetButton, Section } from '@/editor/panel-parts';
+import { Group, ResetButton, Section } from '@/editor/panel-parts';
 import { ScaleChoices } from '@/editor/ResizeParts';
 import { m } from '@/paraglide/messages.js';
 import { IconButton } from '@/ui/Button';
@@ -116,13 +116,22 @@ export function ResizePanel({ source }: { source: Size }) {
 				</div>
 			</Section>
 
-			<Section title={m.resize_common()}>
+			{/* A third way to the same thing: folded unless one of its sizes is the one chosen. */}
+			<Group
+				title={m.resize_common()}
+				changed={settings.longestSide !== null}
+				defaultOpen={settings.longestSide !== null}
+			>
 				<OptionList
 					label={m.resize_common()}
 					value={common}
 					options={[
 						{ value: 'original', label: m.size_original(), detail: `${crop.width} × ${crop.height}` },
-						...SIZE_STEPS.filter((step) => step !== longest).map((step) => {
+						// Smaller sizes first: enlarging adds no detail, it comes after, said as such.
+						...[
+							...SIZE_STEPS.filter((step) => step < longest),
+							...SIZE_STEPS.filter((step) => step > longest).toReversed(),
+						].map((step) => {
 							// Smaller sides follow each picture of a batch; larger ones are exact.
 							const size =
 								step < longest
@@ -134,7 +143,10 @@ export function ResizePanel({ source }: { source: Size }) {
 							return {
 								value: step < longest ? String(step) : `${size.width}x${size.height}`,
 								label: `${size.width} × ${size.height}`,
-								detail: SIZE_NAMES[step],
+								detail:
+									step < longest
+										? SIZE_NAMES[step]
+										: [SIZE_NAMES[step], m.resize_enlarged()].filter(Boolean).join(' · '),
 							};
 						}),
 					]}
@@ -147,7 +159,7 @@ export function ResizePanel({ source }: { source: Size }) {
 						}
 					}}
 				/>
-			</Section>
+			</Group>
 
 			<Section title={m.resize_sampling()}>
 				<OptionList

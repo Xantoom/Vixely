@@ -5,7 +5,7 @@ import { isShortened, keptRanges } from '@/document/kept';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { Section } from '@/editor/panel-parts';
 import { EDITORS } from '@/editors/registry';
-import { codecName } from '@/lib/format';
+import { codecName, formatBytes } from '@/lib/format';
 import { detectGpu, type Gpu } from '@/media/gpu';
 import { type OpenedFile, useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
@@ -20,12 +20,13 @@ import { pictureChange, timeShaped, videoLength } from './document';
 import {
 	type AudioChoice,
 	audioFits,
-	bitrateForSize,
 	CODEC_LABELS,
 	CONTAINERS,
 	chooseEncoding,
+	estimatedMegabytes,
 	FRAME_RATES,
 	HEIGHTS,
+	limitedBitrate,
 	outputSize,
 	PRESET_ORDER,
 	type PresetId,
@@ -35,7 +36,8 @@ import {
 	readVideoSource,
 	resolveAudio,
 	shortSide,
-	SIZE_LIMITS,
+	sizeLimits,
+	sourceCeiling,
 	type VideoContainer,
 	type VideoEncoderKind,
 	type VideoExportSettings,
@@ -272,10 +274,22 @@ function VideoSettings({ upright }: { upright: Size }) {
 	const size = outputSize(picture, upright, settings.height);
 	// What a size limit leaves the pictures, the main sound track taking its share.
 	const sound = settings.audio === 'copy' ? (source.audioBitrate ?? settings.audioBitrate) : settings.audioBitrate;
+	const audio = source.audioCodec ? sound : 0;
 	const limited =
 		settings.sizeLimit === null
 			? null
-			: bitrateForSize(settings.sizeLimit, videoLength(doc), source.audioCodec ? sound : 0);
+			: limitedBitrate(
+					settings.sizeLimit,
+					videoLength(doc),
+					audio,
+					sourceCeiling(source, upright, size, settings.frameRate),
+				);
+	// Low is a warning only when the limit squeezes the pictures, not when the source is light already.
+	const squeezed =
+		settings.sizeLimit !== null && limitedBitrate(settings.sizeLimit, videoLength(doc), audio, null) < LOW_BITRATE;
+	// Told only when the bitrate is set: kept to a quality, the size depends on the pictures.
+	const bitrate = limited ?? (settings.rateControl === 'bitrate' ? settings.bitrate : null);
+	const estimate = bitrate === null ? null : estimatedMegabytes(bitrate, audio, videoLength(doc));
 
 	const chooseContainer = (container: VideoContainer) => {
 		const encoding = chooseEncoding(encoders, CONTAINERS[container].codecs, settings.codec, settings.encoder);
@@ -392,7 +406,7 @@ function VideoSettings({ upright }: { upright: Size }) {
 						value={settings.sizeLimit === null ? NONE : String(settings.sizeLimit)}
 						options={[
 							{ value: NONE, label: m.size_limit_none() },
-							...SIZE_LIMITS.map((limit) => ({
+							...sizeLimits(settings.sizeLimit).map((limit) => ({
 								value: String(limit),
 								label: m.size_mb({ size: limit }),
 							})),
@@ -448,8 +462,8 @@ function VideoSettings({ upright }: { upright: Size }) {
 					<div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
 						<span className="text-ui text-ink-2">{m.export_bitrate()}</span>
 						<span
-							className={`tabular text-small ${limited < LOW_BITRATE ? 'text-danger' : ''}`}
-							title={limited < LOW_BITRATE ? m.bitrate_low() : undefined}
+							className={`tabular text-small ${squeezed ? 'text-danger' : ''}`}
+							title={squeezed ? m.bitrate_low() : undefined}
 						>
 							{limited} kb/s
 						</span>
@@ -461,6 +475,12 @@ function VideoSettings({ upright }: { upright: Size }) {
 						{size.width} × {size.height}
 					</span>
 				</div>
+				{estimate !== null && (
+					<div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
+						<span className="text-ui text-ink-2">{m.export_estimate()}</span>
+						<span className="tabular text-small">≈ {formatBytes(Math.round(estimate * 1_000_000))}</span>
+					</div>
+				)}
 			</div>
 		</Section>
 	);

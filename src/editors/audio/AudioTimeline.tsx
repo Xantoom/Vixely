@@ -298,7 +298,7 @@ function WaveArea({ engine, trimmable, fill }: { engine: AudioEngine; trimmable:
 			onPointerCancel={() => {
 				drag.current = null;
 			}}
-			className={`relative cursor-text touch-none rounded-sm bg-[color-mix(in_srgb,var(--audio-1)_6%,var(--bg))] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--audio-1)_22%,transparent)] select-none ${fill ? 'min-h-32 flex-1' : 'h-24 lg:h-32'}`}
+			className={`relative cursor-text touch-none rounded-sm bg-[color-mix(in_srgb,var(--audio-1)_6%,var(--bg))] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--audio-1)_22%,transparent)] select-none ${fill ? 'min-h-32 flex-1' : 'h-24 max-md:h-auto max-md:min-h-24 max-md:flex-1 lg:h-32'}`}
 		>
 			<canvas ref={canvasRef} className="absolute inset-0 size-full" />
 			{outside.map((range) => (
@@ -328,7 +328,7 @@ function WaveArea({ engine, trimmable, fill }: { engine: AudioEngine; trimmable:
 							onClick={() => {
 								apply((current) => restoreCut(current, index));
 							}}
-							className="bg-bg text-ink-2 hover:text-ink absolute top-1.5 left-1/2 grid size-6 -translate-x-1/2 place-items-center rounded-full shadow-[0_0_0_1px_var(--line-2)] transition-colors"
+							className="bg-bg text-ink-2 hover:text-ink touch-target absolute top-1.5 left-1/2 grid size-6 -translate-x-1/2 place-items-center rounded-full shadow-[0_0_0_1px_var(--line-2)] transition-colors"
 						>
 							<RotateCcw size={12} strokeWidth={2.4} />
 						</button>
@@ -400,11 +400,19 @@ export function AudioTimeline({
 			className={
 				fill
 					? 'flex min-h-0 flex-1 flex-col gap-1 px-4 pt-4 pb-4 md:px-8 md:pt-6 md:pb-7'
-					: 'border-line grid gap-1 border-t px-4 pt-2 pb-4'
+					: // On a phone the stage is a fixed share of the screen: the waveform takes what the cover leaves.
+						'border-line grid gap-1 border-t px-4 pt-2 pb-4 max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col'
 			}
 		>
 			<Transport engine={engine} />
-			<div id="audio-waveform" className={fill ? 'flex min-h-0 flex-1 flex-col gap-1' : 'grid gap-1'}>
+			<div
+				id="audio-waveform"
+				className={
+					fill
+						? 'flex min-h-0 flex-1 flex-col gap-1'
+						: 'grid gap-1 max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col'
+				}
+			>
 				<TimeRuler view={view} onSeek={engine.seek} />
 				<WaveArea engine={engine} trimmable={trimmable} fill={fill} />
 				<AudioViewScroll />

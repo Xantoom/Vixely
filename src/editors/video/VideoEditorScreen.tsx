@@ -384,6 +384,7 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 													},
 										doc,
 										upright,
+										source: exportSource.source,
 									}
 								: null
 						}

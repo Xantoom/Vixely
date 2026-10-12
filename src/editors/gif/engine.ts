@@ -15,12 +15,8 @@ import { takeVideoEdits } from './from-video';
 import { type FrameSource, openAnimation, openImages, openVideo, type StillImage } from './source';
 import { useGifDoc, useGifEditor } from './store';
 
-/** Width a GIF made from a video starts at: wider ones weigh too much for most uses. */
-const VIDEO_WIDTH = 480;
 /** Frame rate a GIF made from a video starts at: gifski's own default, smooth and light. */
 const VIDEO_FPS = 20;
-/** Width a GIF made from photos starts at: sharp enough on a screen, still light. */
-const IMAGES_WIDTH = 800;
 
 export interface GifEngine {
 	source: FrameSource | null;
@@ -71,7 +67,7 @@ function startRate(sourceFps: number | null): number {
 
 /**
  * Opens the pictures of a file, a GIF or a video, and plays the output. Animations keep their own
- * frames and size by default; a video starts at 20 fps and 480 px wide, what most GIFs need.
+ * frames by default; a video starts at 20 fps. All start at their own size.
  */
 /**
  * The frames read last, kept when the editor is left: coming back to the same file shows them
@@ -122,16 +118,11 @@ export function useGifEngine(opened: OpenedFile | null, batchKey: object | null)
 				return;
 			}
 			const fps = next.timing ? null : startRate(next.fps);
-			const width = still
-				? Math.min(next.width, IMAGES_WIDTH)
-				: next.timing
-					? null
-					: Math.min(next.width, VIDEO_WIDTH);
 			const carried = isVideo ? takeVideoEdits(file) : null;
 			const doc = { ...createGifDoc(next.duration, fps), ...carried };
 			// A batch keeps its export settings from file to file; a single file starts afresh.
 			if (batchKey && useGifEditor.getState().owner === batchKey) retarget(doc);
-			else load(batchKey ?? file, doc, width, !batchKey && !isVideo && format === 'gif');
+			else load(batchKey ?? file, doc, !batchKey && !isVideo && format === 'gif');
 			latest.current = next;
 			setSource(next);
 			setReading(null);

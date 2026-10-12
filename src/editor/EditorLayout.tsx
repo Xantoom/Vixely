@@ -1,6 +1,7 @@
 import { useNavigate } from '@tanstack/react-router';
 import {
 	Download,
+	Ellipsis,
 	House,
 	Keyboard,
 	Languages,
@@ -36,6 +37,7 @@ import { getLocale, locales } from '@/paraglide/runtime.js';
 import { IconButton } from '@/ui/Button';
 import { MEDIA_ICONS, TOOL_ICONS } from '@/ui/icons';
 import { holdLayout } from '@/ui/layout-motion';
+import { Menu } from '@/ui/Menu';
 import { fadeMask, useOverflowEdges } from '@/ui/use-overflow-edges';
 import { Ambient } from './Ambient';
 import { type Command, CommandPalette, type ShortcutGroup, ShortcutHelp } from './CommandPalette';
@@ -44,6 +46,9 @@ import { useStageZoom } from './ZoomStage';
 
 /** Milliseconds the panel's column takes to open or close, as `duration-240` on the grid. */
 const PANEL_MS = 240;
+
+/** Tools a phone's bar shows beside Export; past that, the last place opens the others. */
+const PHONE_TOOLS = 4;
 
 /** Lets the panel's own title close the panel. */
 const PanelContext = createContext<(() => void) | null>(null);
@@ -67,6 +72,17 @@ function Rail({
 	exportable: boolean;
 }) {
 	const { ref, edges } = useOverflowEdges<HTMLDivElement>();
+	const folded = tools.length > PHONE_TOOLS ? tools.slice(PHONE_TOOLS - 1) : [];
+	const foldedOpen = open && folded.includes(current);
+	const FoldedIcon = foldedOpen ? TOOL_ICONS[current] : Ellipsis;
+	const moreFace = (
+		<>
+			<FoldedIcon strokeWidth={1.75} aria-hidden="true" className="size-[1.4rem]" />
+			<span className="max-w-full text-center leading-tight text-balance">
+				{foldedOpen ? TOOL_LABELS[current]() : m.rail_more()}
+			</span>
+		</>
+	);
 	// The highlight behind the chosen tool slides from one tool to the next.
 	const [mark, setMark] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 	const pressedRef = useRef<HTMLButtonElement | null>(null);
@@ -123,6 +139,7 @@ function Rail({
 				{tools.map((tool) => {
 					const Icon = TOOL_ICONS[tool];
 					const pressed = open && tool === current;
+					const hidden = folded.includes(tool);
 					return (
 						<Fragment key={tool}>
 							<button
@@ -144,7 +161,7 @@ function Rail({
 										behavior: 'smooth',
 									});
 								}}
-								className={`group text-caption enabled:hover:bg-surface enabled:hover:text-ink disabled:opacity-40 aria-pressed:text-ed-text relative grid min-w-[4.5rem] aria-pressed:hover:bg-transparent flex-1 justify-items-center gap-1.5 rounded-md px-1 pt-3 pb-2.5 font-medium text-muted transition-colors duration-200 md:flex-none`}
+								className={`group text-caption enabled:hover:bg-surface enabled:hover:text-ink disabled:opacity-40 aria-pressed:text-ed-text relative grid min-w-[4.5rem] aria-pressed:hover:bg-transparent flex-1 justify-items-center gap-1.5 rounded-md px-1 pt-3 pb-2.5 font-medium text-muted transition-colors duration-200 md:flex-none ${hidden ? 'max-md:hidden' : ''}`}
 							>
 								<Icon
 									strokeWidth={1.75}
@@ -159,6 +176,34 @@ function Rail({
 						</Fragment>
 					);
 				})}
+				{folded.length > 0 &&
+					(disabled ? (
+						<button
+							type="button"
+							disabled
+							className="text-caption text-muted grid min-w-[4.5rem] flex-1 justify-items-center gap-1.5 rounded-md px-1 pt-3 pb-2.5 font-medium opacity-40 md:hidden"
+						>
+							{moreFace}
+						</button>
+					) : (
+						<Menu
+							label={m.rail_more()}
+							value={foldedOpen ? current : null}
+							items={folded.map((tool) => {
+								const Icon = TOOL_ICONS[tool];
+								return {
+									value: tool,
+									label: TOOL_LABELS[tool](),
+									leading: <Icon strokeWidth={1.75} aria-hidden="true" className="size-5" />,
+								};
+							})}
+							onChange={onSelect}
+							className="min-w-[4.5rem] flex-1 md:hidden"
+							buttonClassName={`text-caption h-auto! w-full items-start gap-1.5 rounded-md! px-1 pt-3 pb-2.5 font-medium ${foldedOpen ? 'bg-ed-soft text-ed-text! hover:bg-ed-soft!' : 'text-muted!'}`}
+						>
+							{moreFace}
+						</Menu>
+					))}
 			</div>
 			<span className="bg-line flex-none max-md:my-2.5 max-md:w-px md:mx-3 md:my-2 md:h-px" aria-hidden="true" />
 			<button
@@ -545,6 +590,8 @@ export function EditorLayout({
 				// it shows comes in, from that editor's side.
 				className={`ease-out-soft grid min-h-0 flex-1 grid-cols-1 transition-[grid-template-columns] duration-240 md:grid-rows-[minmax(0,1fr)_auto] ${phoneRows} ${open ? 'md:grid-cols-[var(--rail-w)_var(--panel-w)_minmax(0,1fr)]' : 'md:grid-cols-[var(--rail-w)_0px_minmax(0,1fr)]'}`}
 			>
+				{/* First, before the panel's headings; out of the grid's flow, as it isn't seen. */}
+				<h1 className="sr-only">{task ? task.title() : editor.page()}</h1>
 				<div className="z-30 max-md:order-4 md:row-span-2">
 					<Rail
 						tools={(tools ?? editor.tools).filter((id) => id !== 'export')}
@@ -565,7 +612,6 @@ export function EditorLayout({
 				</div>
 				{/* Laid out by the grid around it, as if it weren't there. */}
 				<main className="contents">
-					<h1 className="sr-only">{task ? task.title() : editor.page()}</h1>
 					{workspace ? (
 						<section
 							aria-label={m.preview()}

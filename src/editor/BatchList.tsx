@@ -90,6 +90,7 @@ export function BatchList({ statuses, locked, count, addLabel, accept }: BatchLi
 								<span className="truncate">{item.file.name}</span>
 								<StatusMark status={statuses.get(item.id)} />
 							</button>
+							{/* Shown on hover; a finger can't hover, so on a touchscreen it stays, with room around it. */}
 							{!locked && batch.length > 1 && (
 								<button
 									type="button"
@@ -97,7 +98,7 @@ export function BatchList({ statuses, locked, count, addLabel, accept }: BatchLi
 									onClick={() => {
 										remove(item.id);
 									}}
-									className="bg-bg text-ink-2 hover:text-ink absolute -top-1.5 -right-1.5 grid size-5 place-items-center rounded-full opacity-0 shadow-[0_0_0_1px_var(--line-2)] transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+									className="bg-bg text-ink-2 hover:text-ink absolute -top-1.5 -right-1.5 grid size-5 place-items-center rounded-full opacity-0 pointer-coarse:opacity-100 pointer-coarse:before:absolute pointer-coarse:before:-inset-3 shadow-[0_0_0_1px_var(--line-2)] transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
 								>
 									<X size={12} strokeWidth={2.5} />
 								</button>

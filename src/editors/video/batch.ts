@@ -199,6 +199,7 @@ export async function exportVideoBatch(job: VideoBatchJob): Promise<number> {
 					doc: createVideoDoc(sound.duration),
 					settings: { ...own, mode: 'encode', burn: null, audio: resolveAudio(own, source) },
 					upright: sound.upright,
+					source,
 				},
 				save,
 				progress,

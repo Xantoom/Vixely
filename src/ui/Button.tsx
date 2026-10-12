@@ -6,7 +6,8 @@ const VARIANTS: Record<Variant, string> = {
 	// The primary action takes the colour of the current editor, neutral elsewhere.
 	primary:
 		'bg-ed text-ed-ink font-semibold hover:brightness-[1.07] disabled:opacity-45 disabled:hover:brightness-100 aria-disabled:opacity-45 aria-disabled:hover:brightness-100',
-	secondary: 'text-ink font-medium shadow-[inset_0_0_0_1px_var(--line-2)] hover:bg-surface disabled:opacity-45',
+	// Edged like the fields it often sits beside, so it shows even while it waits.
+	secondary: 'text-ink font-medium shadow-[inset_0_0_0_1px_var(--field-line)] hover:bg-surface disabled:opacity-45',
 };
 
 export function Button({
@@ -49,7 +50,7 @@ export function IconButton({
 			type={type}
 			aria-label={label}
 			title={tip ? label : undefined}
-			className={`text-muted enabled:hover:bg-surface enabled:hover:text-ink aria-pressed:bg-ed-soft aria-pressed:text-ed-text grid size-10 flex-none place-items-center rounded-sm transition-colors duration-150 disabled:opacity-40 ${className}`}
+			className={`text-muted enabled:hover:bg-surface enabled:hover:text-ink aria-pressed:bg-ed-soft aria-pressed:text-ed-text touch-target relative grid size-10 flex-none place-items-center rounded-sm transition-colors duration-150 disabled:opacity-40 ${className}`}
 			{...props}
 		>
 			{children}

@@ -242,7 +242,7 @@ function Lanes({ file, aspect, cutting }: { file: File; aspect: number; cutting:
 								onClick={() => {
 									apply((current) => restoreCut(current, index));
 								}}
-								className="bg-bg text-ink-2 hover:text-ink absolute top-1.5 left-1/2 grid size-6 -translate-x-1/2 place-items-center rounded-full shadow-[0_0_0_1px_var(--line-2)] transition-colors"
+								className="bg-bg text-ink-2 hover:text-ink touch-target absolute top-1.5 left-1/2 grid size-6 -translate-x-1/2 place-items-center rounded-full shadow-[0_0_0_1px_var(--line-2)] transition-colors"
 							>
 								<RotateCcw size={12} strokeWidth={2.4} />
 							</button>

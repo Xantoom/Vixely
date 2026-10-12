@@ -2,15 +2,55 @@ import type { PointerEvent as ReactPointerEvent } from 'react';
 import { dragCrop, type Handle } from '@/editors/image/crop';
 import type { Rect, Size } from '@/editors/image/document';
 
+/**
+ * Each handle straddles the frame's edge; on a touchscreen it grows to a finger's size and sits
+ * just inside the frame, so a picture spanning the whole screen keeps its handles on it.
+ */
 const HANDLES: { handle: Handle; className: string; cursor: string }[] = [
-	{ handle: 'nw', className: '-top-3 -left-3', cursor: 'nwse-resize' },
-	{ handle: 'n', className: '-top-3 left-1/2 -translate-x-1/2', cursor: 'ns-resize' },
-	{ handle: 'ne', className: '-top-3 -right-3', cursor: 'nesw-resize' },
-	{ handle: 'e', className: 'top-1/2 -right-3 -translate-y-1/2', cursor: 'ew-resize' },
-	{ handle: 'se', className: '-right-3 -bottom-3', cursor: 'nwse-resize' },
-	{ handle: 's', className: '-bottom-3 left-1/2 -translate-x-1/2', cursor: 'ns-resize' },
-	{ handle: 'sw', className: '-bottom-3 -left-3', cursor: 'nesw-resize' },
-	{ handle: 'w', className: 'top-1/2 -left-3 -translate-y-1/2', cursor: 'ew-resize' },
+	{
+		handle: 'nw',
+		className:
+			'-top-3 -left-3 pointer-coarse:top-0 pointer-coarse:left-0 pointer-coarse:items-start pointer-coarse:justify-items-start',
+		cursor: 'nwse-resize',
+	},
+	{
+		handle: 'n',
+		className: '-top-3 left-1/2 -translate-x-1/2 pointer-coarse:top-0 pointer-coarse:items-start',
+		cursor: 'ns-resize',
+	},
+	{
+		handle: 'ne',
+		className:
+			'-top-3 -right-3 pointer-coarse:top-0 pointer-coarse:right-0 pointer-coarse:items-start pointer-coarse:justify-items-end',
+		cursor: 'nesw-resize',
+	},
+	{
+		handle: 'e',
+		className: 'top-1/2 -right-3 -translate-y-1/2 pointer-coarse:right-0 pointer-coarse:justify-items-end',
+		cursor: 'ew-resize',
+	},
+	{
+		handle: 'se',
+		className:
+			'-right-3 -bottom-3 pointer-coarse:right-0 pointer-coarse:bottom-0 pointer-coarse:items-end pointer-coarse:justify-items-end',
+		cursor: 'nwse-resize',
+	},
+	{
+		handle: 's',
+		className: '-bottom-3 left-1/2 -translate-x-1/2 pointer-coarse:bottom-0 pointer-coarse:items-end',
+		cursor: 'ns-resize',
+	},
+	{
+		handle: 'sw',
+		className:
+			'-bottom-3 -left-3 pointer-coarse:bottom-0 pointer-coarse:left-0 pointer-coarse:items-end pointer-coarse:justify-items-start',
+		cursor: 'nesw-resize',
+	},
+	{
+		handle: 'w',
+		className: 'top-1/2 -left-3 -translate-y-1/2 pointer-coarse:left-0 pointer-coarse:justify-items-start',
+		cursor: 'ew-resize',
+	},
 ];
 
 interface CropOverlayProps {
@@ -72,13 +112,13 @@ export function CropOverlay({ crop, scale, bounds, ratio, onChange, onEnd }: Cro
 				{HANDLES.map(({ handle, className, cursor }) => (
 					<div
 						key={handle}
-						className={`absolute grid size-6 place-items-center ${className}`}
+						className={`absolute grid size-6 place-items-center pointer-coarse:size-11 ${className}`}
 						style={{ cursor }}
 						onPointerDown={(event) => {
 							start(event, handle);
 						}}
 					>
-						<span className="size-2.5 rounded-[2px] bg-white shadow-[0_0_0_1px_rgb(0_0_0/0.45)]" />
+						<span className="size-2.5 rounded-[2px] bg-white shadow-[0_0_0_1px_rgb(0_0_0/0.45)] pointer-coarse:size-3.5" />
 					</div>
 				))}
 			</div>

@@ -22,14 +22,17 @@ import { type AudioPlan, copiesParts, copyTracks } from './copy-tracks';
 import { editTurn, fadeOf, pictureChange, speedOf, timeShaped, type VideoDoc, videoLength } from './document';
 import {
 	audioBitrates,
-	bitrateForSize,
 	CONTAINERS,
 	convertVideo,
 	SOUND_AS_IS,
 	type TrackEncode,
 	type TrackSound,
 	type VideoContainer,
+	limitedBitrate,
+	outputSize,
+	sourceCeiling,
 	type VideoExportSettings,
+	type VideoSource,
 } from './export';
 
 export type MuxKind = 'video' | 'audio' | 'subtitle';
@@ -526,6 +529,8 @@ export interface ConvertedJob extends MuxJob {
 	settings: VideoExportSettings;
 	/** Size of the source's pictures, upright. */
 	upright: { width: number; height: number };
+	/** The source's video bitrate and frame rate: a size limit never goes above them. */
+	source: Pick<VideoSource, 'bitrate' | 'frameRate'>;
 }
 
 /** Whether the tracks can't simply be copied into a file like the source: their sound changes. */
@@ -545,7 +550,7 @@ function burnJob(job: ConvertedJob): BurnJob | null {
 
 /**
  * The settings with the video bitrate a size limit leaves: the length of the output, less what
- * the sound takes (copied tracks at their own bitrate).
+ * the sound takes (copied tracks at their own bitrate), and no more than the source has.
  */
 async function withSizeLimit(job: ConvertedJob): Promise<VideoExportSettings> {
 	const { settings, doc } = job;
@@ -566,7 +571,13 @@ async function withSizeLimit(job: ConvertedJob): Promise<VideoExportSettings> {
 					: settings.audioBitrate)),
 		0,
 	);
-	return { ...settings, bitrate: bitrateForSize(settings.sizeLimit, videoLength(doc), audio) };
+	const ceiling = sourceCeiling(
+		job.source,
+		job.upright,
+		outputSize(doc.picture, job.upright, settings.height),
+		settings.frameRate,
+	);
+	return { ...settings, bitrate: limitedBitrate(settings.sizeLimit, videoLength(doc), audio, ceiling) };
 }
 
 /** Splits the progress bar between passes, by weight. */

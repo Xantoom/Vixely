@@ -137,14 +137,28 @@ export function FramesPanel({ engine, fileName }: { engine: GifEngine; fileName:
 	const keys = ownFrames ? keptKeys(doc, timing) : [...new Set(frames.map((frame) => frame.key))];
 	const key = current?.key ?? null;
 	// The frames acted on, in play order before the direction: those chosen, or the one shown.
-	const live = selected.filter((candidate) => keys.includes(candidate));
-	const chosen = live.length > 1 ? keys.filter((candidate) => live.includes(candidate)) : key === null ? [] : [key];
+	// Looked up by key rather than searched: an animation from a video can hold thousands of frames.
+	const places = new Map(keys.map((candidate, place) => [candidate, place]));
+	const live = selected.filter((candidate) => places.has(candidate));
+	const liveSet = new Set(live);
+	const chosen = live.length > 1 ? keys.filter((candidate) => liveSet.has(candidate)) : key === null ? [] : [key];
+	const chosenSet = new Set(chosen);
 	const several = chosen.length > 1;
-	const positions = chosen.map((candidate) => keys.indexOf(candidate));
+	const positions = chosen.map((candidate) => places.get(candidate) ?? -1);
 	const first = Math.min(...positions);
 	const last = Math.max(...positions);
 	// Earlier on screen is later in the source when the animation plays backwards.
 	const step = doc.direction === 'reverse' ? -1 : 1;
+
+	// Frames are edited one at a time: playback stops, or the frame being timed would keep changing.
+	useEffect(() => {
+		useGifEditor.getState().setPlaying(false);
+	}, []);
+
+	// The frame shown stays in sight in the grid as it changes.
+	useEffect(() => {
+		listRef.current?.querySelector('[aria-current="true"]')?.scrollIntoView({ block: 'nearest' });
+	}, [index]);
 
 	// Made once mounted, so a panel mounted twice (as React does in development) draws with a live one.
 	useEffect(() => {
@@ -217,8 +231,15 @@ export function FramesPanel({ engine, fileName }: { engine: GifEngine; fileName:
 		const lastBefore = keys.slice(0, last).filter((candidate) => !gone.has(candidate)).length;
 		move(chosen, delta < 0 ? before - 1 : lastBefore + 1);
 	};
+	// How many times each frame shown was shown before, counted in one pass.
+	const seen = new Map<number, number>();
+	const repeats = frames.map((frame) => {
+		const count = seen.get(frame.key) ?? 0;
+		seen.set(frame.key, count + 1);
+		return count;
+	});
 	const rest = keys.length - chosen.length;
-	const restBefore = keys.slice(0, first).filter((candidate) => !chosen.includes(candidate)).length;
+	const restBefore = keys.slice(0, first).filter((candidate) => !chosenSet.has(candidate)).length;
 	const restAfter = keys.slice(last + 1).length;
 	const canShift = (delta: number) =>
 		ownFrames && chosen.length > 0 && rest > 0 && (delta < 0 ? restBefore > 0 : restAfter > 0);
@@ -451,8 +472,8 @@ export function FramesPanel({ engine, fileName }: { engine: GifEngine; fileName:
 			>
 				{frames.map((frame, shown) => {
 					// A frame played twice (back and forth) has a button for each time.
-					const repeat = frames.slice(0, shown).filter((before) => before.key === frame.key).length;
-					const isChosen = chosen.includes(frame.key);
+					const repeat = repeats[shown] ?? 0;
+					const isChosen = chosenSet.has(frame.key);
 					return (
 						<button
 							key={`${frame.key}-${repeat}`}
@@ -490,10 +511,10 @@ export function FramesPanel({ engine, fileName }: { engine: GifEngine; fileName:
 							onClick={(event) => {
 								pick(frame, event);
 							}}
-							className={`hover:bg-surface aria-selected:bg-ed-soft aria-selected:shadow-[inset_0_0_0_1.5px_var(--ed)] grid content-start gap-1 rounded-sm p-1 text-left transition-colors ${several && shown === index ? 'outline-ed outline-2 outline-offset-1' : ''}`}
+							className={`group hover:bg-surface aria-selected:bg-ed-soft aria-selected:shadow-[inset_0_0_0_1.5px_var(--ed)] grid content-start gap-1 rounded-sm p-1 text-left transition-colors ${several && shown === index ? 'outline-ed outline-2 outline-offset-1' : ''}`}
 						>
 							<Thumbnail engine={engine} frame={frame} composer={composer} />
-							<span className="text-caption text-muted tabular flex justify-between px-0.5">
+							<span className="text-caption text-muted group-aria-selected:text-ink-2 tabular flex justify-between px-0.5">
 								<span>{shown + 1}</span>
 								<span>{Math.round(frame.duration * 1000)} ms</span>
 							</span>

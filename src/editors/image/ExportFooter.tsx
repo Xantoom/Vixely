@@ -1,7 +1,7 @@
 import { Check } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { ExportAnnounce } from '@/editor/ExportAnnounce';
-import { formatBytes } from '@/lib/format';
+import { formatBytes, formatPercent } from '@/lib/format';
 import type { PhotoMetadata } from '@/media/probe';
 import type { BatchFile } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
@@ -40,9 +40,9 @@ const FORMAT_NAMES: Record<ImageFormat, string> = {
 /** How long the settings stay still before the file size is worked out again. */
 const ESTIMATE_DELAY = 600;
 
-/** `−35 %` or `+12 %`: how much bigger or smaller than the original. */
+/** `−35%` or `+12%` (`−35 %` in French): how much bigger or smaller than the original. */
 function change(before: number, after: number): string {
-	return `${after <= before ? '−' : '+'}${Math.abs(Math.round((1 - after / before) * 100))} %`;
+	return `${after <= before ? '−' : '+'}${formatPercent(Math.abs(Math.round((1 - after / before) * 100)))}`;
 }
 
 /**

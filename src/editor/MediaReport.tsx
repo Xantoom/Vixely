@@ -1,5 +1,5 @@
 import { ChevronRight } from 'lucide-react';
-import { type ReactNode, useEffect, useState } from 'react';
+import { createContext, type ReactNode, use, useEffect, useState } from 'react';
 import { codecName, formatBitrate, formatBytes, formatFrameRate, formatLength } from '@/lib/format';
 import { languageName } from '@/lib/language';
 import type { MediaInfo } from '@/media/probe';
@@ -142,17 +142,22 @@ function languageLine(track: TrackBase): string | null {
 	return notes.length > 0 ? `${known} (${notes.join(', ')})` : known;
 }
 
+/** The title of the section around, so each "Details" line says whose details it opens. */
+const SectionTitle = createContext('');
+
 /** Facts few look for, folded under a quiet line at the end of their section. */
 function More({ children }: { children: ReactNode }) {
+	const section = use(SectionTitle);
 	return (
 		<details className="group mt-1">
-			<summary className="text-small text-muted hover:text-ink flex w-fit cursor-pointer list-none items-center gap-1 outline-none focus-visible:underline [&::-webkit-details-marker]:hidden">
+			<summary className="text-small text-muted hover:text-ink touch-target relative flex w-fit cursor-pointer list-none items-center gap-1 rounded-xs [&::-webkit-details-marker]:hidden">
 				<ChevronRight
 					className="size-4 transition-transform duration-150 group-open:rotate-90"
 					strokeWidth={2}
 					aria-hidden="true"
 				/>
 				{m.info_details()}
+				{section && <span className="sr-only">, {section}</span>}
 			</summary>
 			<dl className="mt-3 grid gap-2.5">{children}</dl>
 		</details>
@@ -178,7 +183,7 @@ function Section({
 				{aside}
 			</div>
 			<dl className="grid gap-2.5">{children}</dl>
-			{more}
+			<SectionTitle value={title}>{more}</SectionTitle>
 		</section>
 	);
 }

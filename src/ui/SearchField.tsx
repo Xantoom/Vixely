@@ -43,7 +43,7 @@ export function SearchField({
 					onClick={() => {
 						onChange('');
 					}}
-					className="text-muted hover:text-ink absolute top-1/2 right-1.5 grid size-6 -translate-y-1/2 place-items-center rounded-full"
+					className="text-muted hover:text-ink touch-target absolute top-1/2 right-1.5 grid size-6 -translate-y-1/2 place-items-center rounded-full"
 				>
 					<X className="size-3.5" aria-hidden="true" />
 				</button>

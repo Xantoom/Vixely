@@ -292,7 +292,7 @@ function StepButton({ direction, onStep, disabled }: { direction: -1 | 1; onStep
 			data-tip={label}
 			disabled={disabled}
 			onClick={onStep}
-			className="text-ink-2 enabled:hover:bg-surface enabled:hover:text-ink grid size-9 place-items-center rounded-full transition-colors disabled:opacity-45 max-sm:size-8"
+			className="text-ink-2 enabled:hover:bg-surface enabled:hover:text-ink touch-target relative grid size-9 place-items-center rounded-full transition-colors disabled:opacity-45 max-sm:size-8"
 		>
 			{direction < 0 ? (
 				<ChevronFirst className="size-[1.15rem]" aria-hidden="true" />

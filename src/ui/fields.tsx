@@ -116,7 +116,7 @@ export function TextField({
 				onChange={(event) => {
 					onChange(event.target.value);
 				}}
-				className="border-field bg-bg text-ui text-ink hover:border-muted placeholder:text-muted h-8 w-full cursor-text rounded-xs border px-2.5 transition-colors"
+				className="border-field bg-bg text-ui text-ink hover:border-muted placeholder:text-muted h-8 pointer-coarse:h-10 w-full cursor-text rounded-xs border px-2.5 transition-colors"
 			/>
 		</div>
 	);
@@ -232,7 +232,7 @@ export function Slider({
 							onChange(defaultValue);
 							onEnd();
 						}}
-						className="text-muted enabled:hover:bg-surface enabled:hover:text-ink -my-1 ml-auto grid size-6 flex-none cursor-pointer place-items-center rounded-xs transition-[opacity,color,background-color] duration-200 disabled:pointer-events-none disabled:opacity-0"
+						className="text-muted enabled:hover:bg-surface enabled:hover:text-ink touch-target relative -my-1 ml-auto grid size-6 flex-none cursor-pointer place-items-center rounded-xs transition-[opacity,color,background-color] duration-200 disabled:pointer-events-none disabled:opacity-0"
 					>
 						<RotateCcw className="size-3.5" aria-hidden="true" />
 					</button>
@@ -327,7 +327,7 @@ export function Switch({
 			onClick={() => {
 				onChange(!checked);
 			}}
-			className="group text-ui text-ink-2 flex items-center justify-between gap-3 py-1 text-left"
+			className="group text-ui text-ink-2 flex items-center justify-between gap-3 py-1 text-left pointer-coarse:min-h-11"
 		>
 			{label}
 			<span

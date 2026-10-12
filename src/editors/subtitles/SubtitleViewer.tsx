@@ -1,5 +1,5 @@
 import { Film, Replace, Trash2, TriangleAlert } from 'lucide-react';
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { type ComponentProps, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { AssOverlay } from '@/editor/AssOverlay';
 import { PlayerPicture } from '@/editor/PlayerControls';
 import { usePlayback } from '@/media/playback';
@@ -70,6 +70,12 @@ export function SubtitleLayer({
 	);
 }
 
+/** The subtitles at the moment playing: only they follow playback, frame by frame, not the viewer. */
+function PlayingSubtitleLayer(props: Omit<ComponentProps<typeof SubtitleLayer>, 'time'>) {
+	const time = usePlayback((state) => state.time);
+	return <SubtitleLayer {...props} time={time} />;
+}
+
 /** The video (or sound) played under subtitles opened from a file: chosen, replaced or removed. */
 function useMediaPicker() {
 	const inputRef = useRef<HTMLInputElement>(null);
@@ -97,20 +103,30 @@ function useMediaPicker() {
 	};
 }
 
-/** In place of the picture while no video is chosen: the way to choose one. */
+/**
+ * In place of the picture while no video is chosen: a band, the lines taking the room. A video is
+ * an option here, not the point.
+ */
 function ChooseVideo({ onChoose }: { onChoose: () => void }) {
 	return (
 		<button
 			type="button"
 			onClick={onChoose}
-			className="group border-line-2 bg-surface hover:border-ink-2 absolute inset-0 grid place-content-center justify-items-center gap-3 rounded-md border-[1.5px] border-dashed px-6 text-center transition-colors"
+			className="group border-line-2 bg-surface hover:border-ink-2 flex min-h-16 w-full items-center gap-3 rounded-md border-[1.5px] border-dashed px-4 py-3 text-left transition-colors"
 		>
-			<span className="bg-ed text-ed-ink grid size-12 place-items-center rounded-xl transition-transform duration-200 group-hover:-translate-y-0.5">
-				<Film className="size-6" aria-hidden="true" />
+			<span className="bg-ed text-ed-ink grid size-9 flex-none place-items-center rounded-lg transition-transform duration-200 group-hover:-translate-y-0.5">
+				<Film className="size-5" aria-hidden="true" />
 			</span>
-			<span className="text-lead font-semibold">{m.subs_video_load()}</span>
+			<span className="text-ui font-semibold">{m.subs_video_load()}</span>
 		</button>
 	);
+}
+
+/** Whether no video plays under subtitles opened from a file: the editor then makes room for the lines. */
+export function useChoosingVideo(): boolean {
+	const file = usePlayback((state) => state.file);
+	const fromVideo = useSubtitleProject((state) => state.source === 'video');
+	return !fromVideo && !file;
 }
 
 /** The video chosen, its name cut short, and the buttons that replace or remove it. */
@@ -154,7 +170,6 @@ export function SubtitleViewer({
 	controls?: ReactNode;
 }) {
 	const doc = useSubtitleDoc();
-	const time = usePlayback((state) => state.time);
 	const video = usePlayback((state) => state.details?.video ?? null);
 	const failed = usePlayback((state) => state.failed);
 	const fonts = useSubtitleProject((state) => state.fonts);
@@ -175,11 +190,19 @@ export function SubtitleViewer({
 	const height = Math.floor(frame.height * scale);
 	const top = Math.max(0, (area.height - height - below) / 2);
 	const fit = room > 0 ? Math.round((room * frame.width) / frame.height) : 0;
-	// Without a video the way to choose one takes the picture's place, black frame included.
 	const choosing = !fromVideo && !file;
 	useEffect(() => {
 		if (fit > 0) onFit?.(fit);
 	}, [fit, onFit]);
+
+	if (choosing)
+		return (
+			<div className="grid gap-3 max-lg:px-3 max-lg:pt-3">
+				{picker.input}
+				<ChooseVideo onChoose={picker.choose} />
+				{controls}
+			</div>
+		);
 
 	return (
 		<div className="flex h-full min-h-0 flex-col gap-2">
@@ -191,15 +214,11 @@ export function SubtitleViewer({
 				// On narrow screens the picture spans the width, as tall as its shape needs.
 				style={{ '--frame': `${frame.width} / ${frame.height}` }}
 			>
-				<div
-					className={`absolute inset-x-0 ${choosing ? 'invisible' : ''}`}
-					style={controls ? { top, height } : { inset: 0 }}
-				>
+				<div className="absolute inset-x-0" style={controls ? { top, height } : { inset: 0 }}>
 					<PlayerPicture width={width} height={height}>
 						{width > 0 && (
-							<SubtitleLayer
+							<PlayingSubtitleLayer
 								doc={doc}
-								time={time}
 								title={title}
 								video={video}
 								fonts={fonts}
@@ -226,7 +245,6 @@ export function SubtitleViewer({
 				>
 					{controls}
 				</div>
-				{choosing && <ChooseVideo onChoose={picker.choose} />}
 			</div>
 		</div>
 	);

@@ -85,8 +85,9 @@ export function DropZone({
 					large ? 'min-h-[clamp(20rem,52vh,34rem)] py-12' : compact ? 'min-h-56 py-8' : 'min-h-60 py-8'
 				} border-line-2 bg-surface hover:border-ink-2 hover:bg-bg`}
 			>
+				{/* In an editor, its own kind of file; on the home page, every kind. Others still open. */}
 				<span className="flex gap-1.5" aria-hidden="true">
-					{EDITOR_ORDER.map((kind, index) => (
+					{(prefer ? [prefer] : EDITOR_ORDER).map((kind, index) => (
 						<Tile
 							key={kind}
 							kind={kind}
@@ -142,7 +143,7 @@ export function DropZone({
 							onChange={(event) => {
 								setAddress(event.target.value);
 							}}
-							className="text-ui min-w-0 flex-1 bg-transparent outline-none"
+							className="text-ui placeholder:text-muted min-w-0 flex-1 bg-transparent outline-none"
 						/>
 					</label>
 					<Button type="submit" busy={downloading} disabled={!address.trim()}>

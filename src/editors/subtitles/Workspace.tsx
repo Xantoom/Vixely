@@ -7,7 +7,7 @@ import { EditBox } from './EditBox';
 import { gridHeight, LineGrid } from './LineGrid';
 import { QualityBar } from './QualityBar';
 import { useSubtitleDoc, useSubtitleEditor } from './store';
-import { SubtitleViewer, subtitleFrame } from './SubtitleViewer';
+import { SubtitleViewer, subtitleFrame, useChoosingVideo } from './SubtitleViewer';
 
 /**
  * Keys of Aegisub where they make sense here: Space plays, R plays the line, Q and W the half
@@ -84,7 +84,9 @@ function useColumnPicture(): boolean {
  * the top, the sound, the line being edited and every line. On phones, one under the other.
  */
 export function Workspace({ title }: { title: string }) {
-	const column = useColumnPicture();
+	const choosing = useChoosingVideo();
+	// Without a video there is no picture to stand in a column.
+	const column = useColumnPicture() && !choosing;
 	const doc = useSubtitleDoc();
 	// On a phone the lines take the height they need, up to most of the screen.
 	const listHeight = `min(60svh, ${gridHeight(gridLines(doc).length, doc.format === 'pgs')}px)`;
@@ -127,7 +129,12 @@ export function Workspace({ title }: { title: string }) {
 	}
 	return (
 		<div
-			className="h-full min-h-0 gap-3 max-lg:flex max-lg:flex-col max-lg:overflow-auto max-lg:pb-3 lg:grid lg:grid-rows-[minmax(0,1fr)_auto_clamp(10rem,24%,13rem)] lg:p-3"
+			className={`h-full min-h-0 gap-3 max-lg:flex max-lg:flex-col max-lg:overflow-auto max-lg:pb-3 lg:grid lg:p-3 ${
+				// Without a video, the band to choose one is short: the line being edited takes the height.
+				choosing
+					? 'lg:grid-rows-[auto_minmax(0,1fr)_clamp(10rem,24%,13rem)]'
+					: 'lg:grid-rows-[minmax(0,1fr)_auto_clamp(10rem,24%,13rem)]'
+			}`}
 			// The picture column is as wide as the picture is at the height it has: no bands beside it.
 			style={{
 				gridTemplateColumns: fit

@@ -54,9 +54,10 @@ function SingleSubtitleScreen({ initialTool }: { initialTool?: ToolId }) {
 		'info',
 		'timing',
 		'find',
-		// Styles belong to text: not to subtitles made of pictures.
-		...(doc.format === 'pgs' ? [] : (['styles'] as const)),
-		...(pictures ? (['ocr'] as const) : []),
+		// Styles belong to text: not to subtitles made of pictures. Before a file is open, the rail
+		// shows what most files get, not what the last one had.
+		...(opened && doc.format === 'pgs' ? [] : (['styles'] as const)),
+		...(opened && pictures ? (['ocr'] as const) : []),
 		'translate',
 	];
 

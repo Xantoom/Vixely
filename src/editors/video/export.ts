@@ -371,6 +371,49 @@ export function bitrateForSize(megabytes: number, seconds: number, audio: number
 	return Math.max(MIN_BITRATE, Math.floor(kilobits / seconds - audio));
 }
 
+/**
+ * The source's video bitrate brought to the output (kb/s): fewer pixels or pictures need fewer
+ * bits, by the usual 0.75 power. Null when the file doesn't tell its bitrate.
+ */
+export function sourceCeiling(
+	source: Pick<VideoSource, 'bitrate' | 'frameRate'>,
+	upright: Size,
+	output: Size,
+	frameRate: number | null,
+): number | null {
+	if (!source.bitrate) return null;
+	const pixels = Math.min(1, (output.width * output.height) / (upright.width * upright.height));
+	const pictures = frameRate && source.frameRate ? Math.min(1, frameRate / source.frameRate) : 1;
+	return Math.round(source.bitrate * (pixels * pictures) ** 0.75);
+}
+
+/**
+ * The video bitrate under a size limit: what fits, but never more than the source has. A limit
+ * caps a file; a video already well under it is not made bigger to fill it.
+ */
+export function limitedBitrate(megabytes: number, seconds: number, audio: number, ceiling: number | null): number {
+	const fits = bitrateForSize(megabytes, seconds, audio);
+	return ceiling === null ? fits : Math.max(MIN_BITRATE, Math.min(fits, ceiling));
+}
+
+/** The size limits offered, with the one a platform asks for when it is not a round figure. */
+export function sizeLimits(current: number | null): number[] {
+	return current === null || SIZE_LIMITS.includes(current)
+		? SIZE_LIMITS
+		: [...SIZE_LIMITS, current].toSorted((a, b) => a - b);
+}
+
+/**
+ * Size of a file written at these bitrates (kb/s), in MB of a million bytes, with the share the
+ * container takes. Encoders keep close to a set bitrate, so this lands within a few percent.
+ */
+export function estimatedMegabytes(video: number, audio: number, seconds: number): number {
+	return ((video + audio) * 1000 * seconds * CONTAINER_SHARE) / 8 / 1_000_000;
+}
+
+/** What the container adds to the pictures and sound, as a factor. */
+const CONTAINER_SHARE = 1.015;
+
 export type PresetId =
 	| 'discord'
 	| 'discord-basic'

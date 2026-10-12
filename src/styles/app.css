@@ -288,6 +288,20 @@
 	font-variant-numeric: tabular-nums;
 }
 
+/*
+ * On a touchscreen, a control smaller than a finger takes a 44 px band around it, without looking
+ * any bigger. The element must be positioned (relative or absolute).
+ */
+@utility touch-target {
+	@media (pointer: coarse) {
+		&::before {
+			content: '';
+			position: absolute;
+			inset: min(0px, calc((100% - 2.75rem) / 2));
+		}
+	}
+}
+
 /* The picture on the stage: lifted off it on larger screens, edge to edge on a phone. */
 @media (width >= 48rem) {
 	.stage-picture {

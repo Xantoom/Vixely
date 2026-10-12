@@ -343,10 +343,6 @@ export function ExportPanel({ engine, isGif }: { engine: GifEngine; isGif: boole
 		<>
 			<PanelTitle>{m.export_animation_title()}</PanelTitle>
 
-			<Group title={m.export_platform()} defaultOpen={settings.preset !== null}>
-				<GifPlatformFormats engine={engine} />
-			</Group>
-
 			<div className="grid gap-2">
 				<OptionList
 					label={m.export_encoding()}
@@ -371,6 +367,10 @@ export function ExportPanel({ engine, isGif }: { engine: GifEngine; isGif: boole
 					}}
 				/>
 			</div>
+
+			<Group title={m.export_platform()} defaultOpen={settings.preset !== null}>
+				<GifPlatformFormats engine={engine} />
+			</Group>
 
 			{/* Only when converting: keeping the original has nothing to set but its loop. */}
 			{!copying && (

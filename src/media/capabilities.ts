@@ -14,7 +14,12 @@ export interface CodecSupport {
 	codec: string;
 	decode: boolean;
 	encode: boolean;
+	/** Decoded by Vixely itself where the browser can't (see decoders.ts). */
+	decodedByVixely: boolean;
 }
+
+/** Sound codecs Vixely decodes itself when the browser doesn't: Dolby Digital, DTS, TrueHD. */
+const VIXELY_DECODES = new Set(['ac3', 'eac3', 'dts', 'truehd']);
 
 export interface Capabilities {
 	webCodecs: boolean;
@@ -39,7 +44,11 @@ function hasWebGl2(): boolean {
 }
 
 function merge(all: readonly string[], decodable: string[], encodable: string[]): CodecSupport[] {
-	return all.map((codec) => ({ codec, decode: decodable.includes(codec), encode: encodable.includes(codec) }));
+	return all.map((codec) => {
+		const browser = decodable.includes(codec);
+		const vixely = !browser && VIXELY_DECODES.has(codec);
+		return { codec, decode: browser || vixely, encode: encodable.includes(codec), decodedByVixely: vixely };
+	});
 }
 
 let detecting: Promise<Capabilities> | null = null;

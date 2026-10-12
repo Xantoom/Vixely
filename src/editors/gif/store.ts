@@ -51,7 +51,7 @@ interface GifEditorState {
 	cropAspect: AspectId;
 	exportSettings: GifExportSettings;
 
-	load: (owner: object, doc: GifDoc, width: number | null, copyable: boolean) => void;
+	load: (owner: object, doc: GifDoc, copyable: boolean) => void;
 	/** Shows another file of a batch: a fresh document, the same export settings. */
 	retarget: (doc: GifDoc) => void;
 	apply: (change: (doc: GifDoc) => GifDoc) => void;
@@ -65,13 +65,13 @@ interface GifEditorState {
 	setExport: (settings: Partial<GifExportSettings>) => void;
 }
 
-function defaultExport(width: number | null, copyable: boolean): GifExportSettings {
+function defaultExport(copyable: boolean): GifExportSettings {
 	// Opened from "GIF to MP4": saved as a video.
 	const video = peekTaskIntent()?.animationVideo === true;
 	return {
 		mode: copyable && !video ? 'copy' : 'encode',
 		format: video ? 'video' : 'gif',
-		width,
+		width: null,
 		exact: null,
 		sampling: 'smooth',
 		repeat: 0,
@@ -91,9 +91,9 @@ export const useGifEditor = create<GifEditorState>((set, get) => ({
 	playhead: 0,
 	playing: false,
 	cropAspect: 'original',
-	exportSettings: defaultExport(null, false),
+	exportSettings: defaultExport(false),
 
-	load(owner, doc, width, copyable) {
+	load(owner, doc, copyable) {
 		if (get().owner === owner) return;
 		set({
 			owner,
@@ -104,7 +104,7 @@ export const useGifEditor = create<GifEditorState>((set, get) => ({
 			// as playing it is heavy.
 			playing: doc.duration <= LONG_GIF,
 			cropAspect: 'original',
-			exportSettings: defaultExport(width, copyable),
+			exportSettings: defaultExport(copyable),
 		});
 	},
 

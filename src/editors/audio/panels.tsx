@@ -3,7 +3,7 @@ import { useId, useMemo, useRef, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { KeptPanel } from '@/editor/KeptPanel';
 import { Group, ResetButton } from '@/editor/panel-parts';
-import { decimal, formatDb, signedDb } from '@/lib/format';
+import { decimal, formatDb, formatPercent, signedDb } from '@/lib/format';
 import { EQ_BANDS, EQ_PRESET_IDS, EQ_PRESETS, EQ_RANGE, type EqPresetId, FLAT_EQ, responseAt } from '@/media/sound';
 import { PITCH_RANGE } from '@/media/stretch';
 import { m } from '@/paraglide/messages.js';
@@ -167,19 +167,33 @@ function VolumeGroup({ engine }: { engine: AudioEngine }) {
 				</p>
 			)}
 			{doc.normalize === null ? (
-				<Slider
-					label={m.volume_gain()}
-					value={doc.gain}
-					min={GAIN_RANGE.min}
-					max={GAIN_RANGE.max}
-					step={0.5}
-					defaultValue={0}
-					format={formatDb}
-					onChange={(value) => {
-						preview((current) => setGain(current, value));
-					}}
-					onEnd={settle}
-				/>
+				// The gain, and under it a button for the gain that brings the peaks just under the ceiling.
+				<div className="grid gap-2">
+					<Slider
+						label={m.volume_gain()}
+						value={doc.gain}
+						min={GAIN_RANGE.min}
+						max={GAIN_RANGE.max}
+						step={0.5}
+						defaultValue={0}
+						format={formatDb}
+						onChange={(value) => {
+							preview((current) => setGain(current, value));
+						}}
+						onEnd={settle}
+					/>
+					<Button
+						className="justify-self-start"
+						disabled={truePeak === null}
+						onClick={() => {
+							if (truePeak !== null) {
+								apply((current) => setGain(current, current.gain + TRUE_PEAK_CEILING - truePeak));
+							}
+						}}
+					>
+						{m.volume_maximize()}
+					</Button>
+				</div>
 			) : (
 				<ValueRow label={m.volume_gain()} value={reading ? formatDb(gain) : '–'} />
 			)}
@@ -189,7 +203,7 @@ function VolumeGroup({ engine }: { engine: AudioEngine }) {
 				min={0}
 				max={100}
 				defaultValue={0}
-				format={(value) => (value === 0 ? m.denoise_off() : `${value} %`)}
+				format={(value) => (value === 0 ? m.denoise_off() : formatPercent(value))}
 				onChange={(value) => {
 					preview((current) => ({ ...current, compress: value / 100 }));
 				}}
@@ -209,18 +223,6 @@ function VolumeGroup({ engine }: { engine: AudioEngine }) {
 					<p role="status" className="text-small text-danger font-medium">
 						{m.volume_clipping({ db: decimal(Math.round(truePeak * 10) / 10, 1) })}
 					</p>
-				)}
-				{doc.normalize === null && (
-					<Button
-						disabled={truePeak === null}
-						onClick={() => {
-							if (truePeak !== null) {
-								apply((current) => setGain(current, current.gain + TRUE_PEAK_CEILING - truePeak));
-							}
-						}}
-					>
-						{m.volume_maximize()}
-					</Button>
 				)}
 			</div>
 		</Group>
@@ -495,7 +497,7 @@ function EqCurve({
 								set(step === null ? 0 : gain + step);
 							}}
 							onKeyUp={onSettle}
-							className="group bg-bg absolute size-4 -translate-1/2 cursor-ns-resize touch-none rounded-full shadow-[inset_0_0_0_2.5px_var(--ed)]"
+							className="group bg-bg touch-target absolute size-4 -translate-1/2 cursor-ns-resize touch-none rounded-full shadow-[inset_0_0_0_2.5px_var(--ed)]"
 							style={{
 								left: `${curveX(band.frequency) * 100}%`,
 								top: `${(curveY(gain) / CURVE.height) * 100}%`,
@@ -579,7 +581,7 @@ export function SoundPanel({ engine, fades = false }: { engine: AudioEngine; fad
 					min={0}
 					max={100}
 					defaultValue={0}
-					format={(value) => (value === 0 ? m.denoise_off() : `${value} %`)}
+					format={(value) => (value === 0 ? m.denoise_off() : formatPercent(value))}
 					onChange={(value) => {
 						preview((current) => ({ ...current, denoise: value / 100 }));
 					}}

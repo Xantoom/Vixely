@@ -1,4 +1,5 @@
 import type { Size } from '@/editors/image/document';
+import { formatPercent } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
 
 const SMALLER = [25, 50, 75];
@@ -46,7 +47,7 @@ export function ScaleChoices({
 	);
 	return (
 		<div role="radiogroup" aria-label={m.resize_scale()} className="grid grid-cols-4 gap-1.5">
-			{SMALLER.map((percent) => chip(percent, `${percent} %`))}
+			{SMALLER.map((percent) => chip(percent, formatPercent(percent)))}
 			<button
 				type="button"
 				role="radio"
@@ -54,9 +55,9 @@ export function ScaleChoices({
 				onClick={onOriginal}
 				className={CHIP}
 			>
-				100 %
+				{formatPercent(100)}
 			</button>
-			{LARGER.map((percent) => chip(percent, `×${percent / 100}`))}
+			{LARGER.map((percent) => chip(percent, `${percent / 100}×`))}
 		</div>
 	);
 }

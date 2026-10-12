@@ -1,3 +1,4 @@
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 import { m } from '@/paraglide/messages.js';
 import { useDragScroll } from '@/ui/drag-scroll';
@@ -65,44 +66,72 @@ export function LookStrip({ editing }: { editing: PictureEditing }) {
 		apply((d) => ({ ...d, adjust: values }));
 	};
 
-	return (
-		<div
-			ref={(element) => {
-				dragScroll(element);
-				edgesRef.current = element;
+	// A page of looks at a time, for those without a trackpad or a finger to swipe the row.
+	const page = (direction: -1 | 1) => {
+		const row = edgesRef.current;
+		row?.scrollBy({ left: direction * row.clientWidth * 0.8, behavior: 'smooth' });
+	};
+	const arrow = (direction: -1 | 1) => (
+		<button
+			type="button"
+			aria-label={direction < 0 ? m.looks_back() : m.looks_more()}
+			tabIndex={-1}
+			onClick={() => {
+				page(direction);
 			}}
-			role="radiogroup"
-			aria-label={m.looks()}
-			style={{ maskImage: fadeMask(edges, 'x') }}
-			className="-mx-5 flex snap-x scroll-px-5 gap-2.5 overflow-x-auto px-5 pt-1 pb-3"
+			className={`bg-bg text-ink-2 hover:text-ink touch-target absolute z-10 grid size-8 -translate-y-1/2 place-items-center rounded-full shadow-[0_0_0_1px_var(--line-2),0_4px_12px_-4px_rgb(0_0_0/0.3)] transition-colors ${direction < 0 ? '-left-2' : '-right-2'}`}
+			style={{ top: 4 + TILE / 2 }}
 		>
-			{tiles.map((tile) => {
-				const selected = sameAdjustments(doc.adjust, tile.values);
-				return (
-					<button
-						key={tile.id}
-						type="button"
-						role="radio"
-						aria-checked={selected}
-						onClick={() => {
-							choose(tile.values);
-						}}
-						className="group grid flex-none snap-start justify-items-center gap-1.5"
-					>
-						<canvas
-							ref={(element) => {
-								if (element) canvases.current.set(tile.id, element);
-								else canvases.current.delete(tile.id);
+			{direction < 0 ? (
+				<ChevronLeft className="size-4" aria-hidden="true" />
+			) : (
+				<ChevronRight className="size-4" aria-hidden="true" />
+			)}
+		</button>
+	);
+
+	return (
+		<div className="relative">
+			{edges.start && arrow(-1)}
+			{edges.end && arrow(1)}
+			<div
+				ref={(element) => {
+					dragScroll(element);
+					edgesRef.current = element;
+				}}
+				role="radiogroup"
+				aria-label={m.looks()}
+				style={{ maskImage: fadeMask(edges, 'x') }}
+				className="-mx-5 flex snap-x scroll-px-5 gap-2.5 overflow-x-auto px-5 pt-1 pb-3"
+			>
+				{tiles.map((tile) => {
+					const selected = sameAdjustments(doc.adjust, tile.values);
+					return (
+						<button
+							key={tile.id}
+							type="button"
+							role="radio"
+							aria-checked={selected}
+							onClick={() => {
+								choose(tile.values);
 							}}
-							style={{ width: TILE, height: TILE }}
-							className="bg-surface ease-spring group-aria-checked:shadow-[0_0_0_2px_var(--bg),0_0_0_4px_var(--ed)] rounded-sm transition-[transform,box-shadow] duration-200 group-hover:scale-[1.04] group-active:scale-[0.97]"
-						/>
-						<span className="text-small text-ink-2 group-aria-checked:text-ed-text font-medium group-aria-checked:font-semibold">
-							{tile.label}
-						</span>
-					</button>
-				);
-			})}
+							className="group grid flex-none snap-start justify-items-center gap-1.5"
+						>
+							<canvas
+								ref={(element) => {
+									if (element) canvases.current.set(tile.id, element);
+									else canvases.current.delete(tile.id);
+								}}
+								style={{ width: TILE, height: TILE }}
+								className="bg-surface ease-spring group-aria-checked:shadow-[0_0_0_2px_var(--bg),0_0_0_4px_var(--ed)] rounded-sm transition-[transform,box-shadow] duration-200 group-hover:scale-[1.04] group-active:scale-[0.97]"
+							/>
+							<span className="text-small text-ink-2 group-aria-checked:text-ed-text font-medium group-aria-checked:font-semibold">
+								{tile.label}
+							</span>
+						</button>
+					);
+				})}
+			</div>
 		</div>
 	);
 }

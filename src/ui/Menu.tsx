@@ -161,7 +161,7 @@ export function Menu<T extends string>({
 						show(true);
 					}
 				}}
-				className={`text-ink-2 hover:bg-surface hover:text-ink aria-expanded:bg-surface aria-expanded:text-ink grid h-10 min-w-10 place-items-center rounded-sm transition-colors duration-150 ${buttonClassName}`}
+				className={`text-ink-2 hover:bg-surface hover:text-ink aria-expanded:bg-surface aria-expanded:text-ink touch-target relative grid h-10 min-w-10 place-items-center rounded-sm transition-colors duration-150 ${buttonClassName}`}
 			>
 				{children}
 			</button>
