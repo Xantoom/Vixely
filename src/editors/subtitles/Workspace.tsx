@@ -83,7 +83,7 @@ function useColumnPicture(): boolean {
  * the whole height on the left with the playback bar under it, as on a phone; beside it, from
  * the top, the sound, the line being edited and every line. On phones, one under the other.
  */
-export function Workspace({ title }: { title: string }) {
+export function Workspace({ title, ambient = null }: { title: string; ambient?: ImageBitmap | null }) {
 	const choosing = useChoosingVideo();
 	// Without a video there is no picture to stand in a column.
 	const column = useColumnPicture() && !choosing;
@@ -115,7 +115,7 @@ export function Workspace({ title }: { title: string }) {
 				}}
 			>
 				<div className="min-w-0 max-lg:order-1 lg:row-span-3 lg:min-h-0">
-					<SubtitleViewer title={title} onFit={onFit} controls={<SubtitlePlayer />} />
+					<SubtitleViewer title={title} ambient={ambient} onFit={onFit} controls={<SubtitlePlayer />} />
 				</div>
 				<div className="min-w-0 max-lg:order-2 max-lg:h-44 max-lg:flex-none max-lg:px-3 lg:min-h-0">
 					<AudioBox transport={false} />
@@ -143,7 +143,7 @@ export function Workspace({ title }: { title: string }) {
 			}}
 		>
 			<div className="min-w-0 max-lg:order-1 lg:col-start-1 lg:row-start-1 lg:min-h-0">
-				<SubtitleViewer title={title} onFit={onFit} />
+				<SubtitleViewer title={title} ambient={ambient} onFit={onFit} />
 			</div>
 			<div className="min-w-0 max-lg:order-3 lg:col-start-1 lg:row-start-2">
 				<EditBox />

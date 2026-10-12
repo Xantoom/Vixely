@@ -57,7 +57,8 @@ export function AudioHeading({ opened }: { opened: OpenedFile }) {
 
 /**
  * What is playing, as music players show it: the cover large, the title and artist beside it,
- * the cover's colours blurred behind. Without a cover, a tile in the editor's colour.
+ * the cover's colours blurred behind. Without a cover, a tile in the editor's colour; without
+ * tags, the cover alone, centred.
  */
 export function AudioStage({ opened }: { opened: OpenedFile }) {
 	const tags = opened.info?.tags;
@@ -69,7 +70,11 @@ export function AudioStage({ opened }: { opened: OpenedFile }) {
 					<Cover bitmap={poster} side={48} filter={AMBIENT_FILTER} className="size-full scale-150" />
 				</div>
 			)}
-			<div className="relative flex h-full max-h-[28rem] min-h-0 w-full max-w-4xl items-center gap-4 md:gap-10">
+			<div
+				className={`relative flex h-full max-h-[28rem] min-h-0 w-full max-w-4xl items-center gap-4 md:gap-10 ${
+					tags?.title || tags?.artist || tags?.album ? '' : 'justify-center'
+				}`}
+			>
 				<div
 					className="bg-ed-soft text-ed-text grid aspect-square h-full max-h-full min-h-0 flex-none place-items-center overflow-hidden rounded-lg shadow-[0_24px_60px_-20px_rgb(0_0_0/0.45),0_0_0_1px_rgb(0_0_0/0.06)] max-md:size-24 max-md:rounded-md"
 					aria-hidden="true"
@@ -80,13 +85,18 @@ export function AudioStage({ opened }: { opened: OpenedFile }) {
 						<AudioLines className="size-1/3" strokeWidth={1.25} />
 					)}
 				</div>
-				<div className="grid min-w-0 gap-1 md:gap-1.5">
-					<p className="font-display text-[clamp(1.25rem,2.6vw,2.4rem)] leading-tight font-semibold tracking-[-0.02em] [overflow-wrap:anywhere]">
-						{tags?.title || opened.file.name}
-					</p>
-					{tags?.artist && <p className="text-lead text-ink-2 truncate">{tags.artist}</p>}
-					{tags?.album && <p className="text-ui text-muted truncate">{tags.album}</p>}
-				</div>
+				{/* Only the file's own tags: its name is in the bar already. */}
+				{(tags?.title || tags?.artist || tags?.album) && (
+					<div className="grid min-w-0 gap-1 md:gap-1.5">
+						{tags.title && (
+							<p className="font-display text-[clamp(1.25rem,2.6vw,2.4rem)] leading-tight font-semibold tracking-[-0.02em] [overflow-wrap:anywhere]">
+								{tags.title}
+							</p>
+						)}
+						{tags.artist && <p className="text-lead text-ink-2 truncate">{tags.artist}</p>}
+						{tags.album && <p className="text-ui text-muted truncate">{tags.album}</p>}
+					</div>
+				)}
 			</div>
 		</div>
 	);

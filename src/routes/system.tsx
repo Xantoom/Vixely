@@ -36,7 +36,7 @@ function CodecTable({ title, codecs }: { title: string; codecs: CodecSupport[] }
 								<State ok={codec.decode} vixely={codec.decodedByVixely} />
 							</td>
 							<td className="py-2.5">
-								<State ok={codec.encode} />
+								<State ok={codec.encode} vixely={codec.encodedByVixely} />
 							</td>
 						</tr>
 					))}
@@ -91,7 +91,7 @@ function SystemScreen() {
 	return (
 		<div className="flex min-h-full flex-col">
 			<SiteHeader />
-			<main className="mx-auto grid min-h-svh w-full max-w-[76rem] flex-1 content-start gap-12 px-[clamp(1rem,4vw,2.5rem)] pt-[clamp(3rem,7vw,5rem)]">
+			<main className="mx-auto grid w-full max-w-[76rem] flex-1 content-start gap-12 px-[clamp(1rem,4vw,2.5rem)] pt-[clamp(3rem,7vw,5rem)] pb-[clamp(3rem,7vw,5rem)]">
 				<div className="grid gap-3.5">
 					<h1 className="font-display max-w-[18ch] text-[clamp(2.25rem,5vw,3.5rem)] leading-[1.02] font-bold tracking-[-0.025em] text-balance">
 						{m.system_title()}
@@ -114,7 +114,7 @@ function SystemScreen() {
 										<dt className="text-ink-2">{label}</dt>
 										<dd>
 											{typeof value === 'string' ? (
-												<span className="text-caption">{value}</span>
+												<span className="tabular">{value}</span>
 											) : (
 												<State ok={value} />
 											)}

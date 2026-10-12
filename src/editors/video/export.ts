@@ -55,6 +55,11 @@ export type VideoContainer = 'mp4' | 'mov' | 'mkv' | 'webm';
 export type VideoCodecId = 'avc' | 'hevc' | 'vp9' | 'av1';
 /** The sound as it is, or encoded again. */
 export type AudioChoice = 'copy' | 'aac' | 'opus';
+/**
+ * How the pictures' bitrate is set: from the source (as much as it needs, for its quality and the
+ * codec written), from a quality level whatever the bitrate it takes (as FFmpeg's CRF), or by hand.
+ */
+export type RateControl = 'auto' | 'quality' | 'bitrate';
 
 export interface VideoExportSettings {
 	/** Copy the tracks as they are, or encode the pictures again. */
@@ -63,11 +68,17 @@ export interface VideoExportSettings {
 	codec: VideoCodecId;
 	/** Shorter side of the output, as in "720p"; null keeps the crop's. */
 	height: number | null;
+	/**
+	 * Under a size limit, `height` is a ceiling: the pictures come out smaller when the limit leaves
+	 * too few bits for them to look clean, as a 20 MB minute at 1080p would.
+	 */
+	adaptive: boolean;
 	/** Pictures per second; null keeps the source's. */
 	frameRate: number | null;
-	/** Kept to a bitrate, or to a quality whatever the bitrate it takes (as FFmpeg's CRF). */
-	rateControl: 'bitrate' | 'quality';
-	/** Video bitrate, in kb/s. */
+	rateControl: RateControl;
+	/** Highest bitrate from the source, in kb/s: a platform's recommendation; null for none. */
+	bitrateCeiling: number | null;
+	/** Video bitrate, in kb/s, when set by hand. */
 	bitrate: number;
 	/** Quality level from 0 (worst) to 1 (best), when kept to a quality. */
 	quality: number;
@@ -80,8 +91,10 @@ export interface VideoExportSettings {
 	sizeLimit: number | null;
 	/** The platform the settings were chosen for, until one of them changes. */
 	preset: PresetId | null;
-	/** Encoded on the graphics card (fast) or on the processor (slower, a little better). */
+	/** Encoded on the graphics card or on the processor. */
 	encoder: VideoEncoderKind;
+	/** Seconds between key frames, as the platform asks; null leaves Mediabunny's 5 s. */
+	keyframes: number | null;
 }
 
 export type VideoEncoderKind = 'gpu' | 'software';
@@ -90,6 +103,16 @@ export type VideoEncoderKind = 'gpu' | 'software';
 export interface VideoEncoders {
 	gpu: VideoCodecId[];
 	software: VideoCodecId[];
+	/** Those it also encodes in 10 bits: HEVC and AV1 only, where the browser takes it. */
+	deep?: { gpu: VideoCodecId[]; software: VideoCodecId[] };
+}
+
+/** Codecs always written in 10 bits when the encoder takes it: finer gradients for fewer bits. */
+const DEEP_CODECS: ReadonlySet<VideoCodecId> = new Set(['hevc', 'av1']);
+
+/** Whether the pictures go out in 10 bits with this codec on this encoder. */
+export function bitDepthOf(encoders: VideoEncoders, codec: VideoCodecId, encoder: VideoEncoderKind): 8 | 10 {
+	return encoders.deep?.[encoder].includes(codec) ? 10 : 8;
 }
 
 const ENCODER_ORDER: VideoEncoderKind[] = ['gpu', 'software'];
@@ -102,7 +125,8 @@ export const CONTAINERS: Record<
 		mime: string;
 		codecs: VideoCodecId[];
 		audio: AudioCodec[];
-		create: () => OutputFormat;
+		/** `fastStart` puts the index first, for players and services to start before the end. */
+		create: (fastStart?: boolean) => OutputFormat;
 	}
 > = {
 	mp4: {
@@ -111,8 +135,9 @@ export const CONTAINERS: Record<
 		mime: 'video/mp4',
 		codecs: ['avc', 'hevc', 'vp9', 'av1'],
 		audio: ['aac', 'opus', 'mp3', 'flac', 'ac3', 'eac3'],
-		// The index goes at the end: written as the file grows, never held in memory.
-		create: () => new Mp4OutputFormat({ fastStart: false }),
+		// The index goes at the end, written as the file grows, unless the file is small enough to
+		// be held in memory until it is put first.
+		create: (fastStart = false) => new Mp4OutputFormat({ fastStart: fastStart ? 'in-memory' : false }),
 	},
 	mov: {
 		label: 'MOV',
@@ -120,7 +145,7 @@ export const CONTAINERS: Record<
 		mime: 'video/quicktime',
 		codecs: ['avc', 'hevc'],
 		audio: ['aac', 'mp3', 'ac3', 'eac3'],
-		create: () => new MovOutputFormat({ fastStart: false }),
+		create: (fastStart = false) => new MovOutputFormat({ fastStart: fastStart ? 'in-memory' : false }),
 	},
 	mkv: {
 		label: 'MKV',
@@ -254,17 +279,41 @@ export function writeMeta(tags: MetadataTags, meta: VideoMeta | null): MetadataT
 	};
 }
 
-/** The quality levels offered, as Mediabunny names them. */
+/** The quality levels offered, from best to worst. */
 export const QUALITY_LEVELS = [1, 0.75, 0.5, 0.25, 0] as const;
 
-/** The video's rate control for Mediabunny: a size limit always keeps to its bitrate. */
-function videoQuality(settings: VideoExportSettings): Quality {
+/**
+ * The quantizer of each quality level, per codec, as encoders count it: QP for H.264 and HEVC,
+ * 0 to 63 for VP9, AV1's q-index from 0 to 255. "High" sits where x264's CRF 21 does: no visible
+ * loss at a normal viewing distance. Hardware encoders keep these as a constant QP, without their
+ * adaptive quantization, so the levels lean a little towards quality.
+ */
+const QUANTIZERS: Record<VideoCodecId, Record<(typeof QUALITY_LEVELS)[number], number>> = {
+	avc: { 1: 18, 0.75: 22, 0.5: 26, 0.25: 30, 0: 34 },
+	hevc: { 1: 20, 0.75: 24, 0.5: 28, 0.25: 32, 0: 36 },
+	vp9: { 1: 24, 0.75: 31, 0.5: 37, 0.25: 43, 0: 49 },
+	av1: { 1: 88, 0.75: 116, 0.5: 140, 0.25: 164, 0: 188 },
+};
+
+export function quantizerFor(codec: VideoCodecId, quality: number): number {
+	const level = QUALITY_LEVELS.reduce((best, candidate) =>
+		Math.abs(candidate - quality) < Math.abs(best - quality) ? candidate : best,
+	);
+	return QUANTIZERS[codec][level];
+}
+
+/**
+ * The video's rate control for Mediabunny. A quality level is a quantizer, its bitrate the
+ * fallback for encoders without one. A bitrate is variable (the encoder spends bits where the
+ * pictures need them); `strict` keeps it constant, for a second try under a size limit.
+ */
+function videoQuality(settings: VideoExportSettings, strict: boolean): Quality {
 	if (settings.rateControl === 'quality' && settings.sizeLimit === null)
-		return new Quality({ quality: settings.quality });
-	return new Quality({
-		bitrate: settings.bitrate * 1000,
-		bitrateMode: settings.sizeLimit === null ? 'variable' : 'constant',
-	});
+		return new Quality({
+			quantizer: quantizerFor(settings.codec, settings.quality),
+			bitrate: settings.bitrate * 1000,
+		});
+	return new Quality({ bitrate: settings.bitrate * 1000, bitrateMode: strict ? 'constant' : 'variable' });
 }
 
 function isCodecId(codec: VideoCodec | null): codec is VideoCodecId {
@@ -278,14 +327,77 @@ function isCodecId(codec: VideoCodec | null): codec is VideoCodecId {
  */
 export async function videoEncoders(size: Size): Promise<VideoEncoders> {
 	const codecs: VideoCodecId[] = ['avc', 'hevc', 'vp9', 'av1'];
-	const on = async (hardwareAcceleration: 'prefer-hardware' | 'prefer-software') => {
+	const on = async (hardwareAcceleration: Acceleration, bitDepth: 8 | 10, among: readonly VideoCodecId[]) => {
 		const found = await Promise.all(
-			codecs.map(async (codec) => canEncodeVideo(codec, { ...size, hardwareAcceleration }).catch(() => false)),
+			among.map(
+				async (codec) =>
+					(await canEncodeVideo(codec, { ...size, hardwareAcceleration, bitDepth }).catch(() => false)) &&
+					(bitDepth === 8 || (await encodesDeep(codec, hardwareAcceleration))),
+			),
 		);
-		return codecs.filter((_, k) => found[k]);
+		return among.filter((_, k) => found[k]);
 	};
-	const [gpu, software] = await Promise.all([on('prefer-hardware'), on('prefer-software')]);
-	return { gpu, software };
+	const [gpu, software] = await Promise.all([on('prefer-hardware', 8, codecs), on('prefer-software', 8, codecs)]);
+	const [deepGpu, deepSoftware] = await Promise.all([
+		on(
+			'prefer-hardware',
+			10,
+			gpu.filter((codec) => DEEP_CODECS.has(codec)),
+		),
+		on(
+			'prefer-software',
+			10,
+			software.filter((codec) => DEEP_CODECS.has(codec)),
+		),
+	]);
+	return { gpu, software, deep: { gpu: deepGpu, software: deepSoftware } };
+}
+
+type Acceleration = 'prefer-hardware' | 'prefer-software';
+
+/** Codec strings of a small 10-bit test: HEVC Main 10, level 3.1; AV1 Main, level 3.0, 10 bits. */
+const DEEP_PROBES: Partial<Record<VideoCodecId, VideoEncoderConfig>> = {
+	hevc: { codec: 'hvc1.2.4.L93.B0', width: 640, height: 360 },
+	av1: { codec: 'av01.0.04M.10', width: 640, height: 360 },
+};
+
+/**
+ * Whether a 10-bit encoder really encodes. Browsers may say yes to the configuration and fail on
+ * the first picture (Chrome behind its flags): one picture is encoded to know.
+ */
+async function encodesDeep(codec: VideoCodecId, hardwareAcceleration: Acceleration): Promise<boolean> {
+	const probe = DEEP_PROBES[codec];
+	if (!probe || typeof VideoEncoder === 'undefined' || typeof OffscreenCanvas === 'undefined') return false;
+	const config: VideoEncoderConfig = { ...probe, bitrate: 1_000_000, framerate: 30, hardwareAcceleration };
+	if (!(await VideoEncoder.isConfigSupported(config).catch(() => null))?.supported) return false;
+	let chunks = 0;
+	let failed = false;
+	const encoder = new VideoEncoder({
+		output: () => {
+			chunks += 1;
+		},
+		error: () => {
+			failed = true;
+		},
+	});
+	try {
+		encoder.configure(config);
+		const canvas = new OffscreenCanvas(probe.width, probe.height);
+		const context = canvas.getContext('2d');
+		if (context) {
+			context.fillStyle = '#3a6ea5';
+			context.fillRect(0, 0, probe.width, probe.height);
+		}
+		const frame = new VideoFrame(canvas, { timestamp: 0 });
+		encoder.encode(frame, { keyFrame: true });
+		frame.close();
+		await Promise.race([encoder.flush(), new Promise((resolve) => setTimeout(resolve, 4000))]);
+		return !failed && chunks > 0;
+	} catch {
+		return false;
+	} finally {
+		if (encoder.state !== 'closed') encoder.close();
+	}
 }
 
 /**
@@ -340,8 +452,10 @@ export function settingsFromSource(
 		container,
 		...chooseEncoding(encoders, CONTAINERS[container].codecs, wanted, encoder),
 		height: null,
+		adaptive: false,
 		frameRate: null,
-		rateControl: 'bitrate',
+		rateControl: 'auto',
+		bitrateCeiling: null,
 		bitrate: source.bitrate ?? 5000,
 		quality: 0.75,
 		audio: audioFits(source, container) ? 'copy' : container === 'webm' ? 'opus' : 'aac',
@@ -349,6 +463,7 @@ export function settingsFromSource(
 		burn: null,
 		sizeLimit: null,
 		preset: null,
+		keyframes: null,
 	};
 }
 
@@ -387,15 +502,6 @@ export function sourceCeiling(
 	return Math.round(source.bitrate * (pixels * pictures) ** 0.75);
 }
 
-/**
- * The video bitrate under a size limit: what fits, but never more than the source has. A limit
- * caps a file; a video already well under it is not made bigger to fill it.
- */
-export function limitedBitrate(megabytes: number, seconds: number, audio: number, ceiling: number | null): number {
-	const fits = bitrateForSize(megabytes, seconds, audio);
-	return ceiling === null ? fits : Math.max(MIN_BITRATE, Math.min(fits, ceiling));
-}
-
 /** The size limits offered, with the one a platform asks for when it is not a round figure. */
 export function sizeLimits(current: number | null): number[] {
 	return current === null || SIZE_LIMITS.includes(current)
@@ -413,6 +519,115 @@ export function estimatedMegabytes(video: number, audio: number, seconds: number
 
 /** What the container adds to the pictures and sound, as a factor. */
 const CONTAINER_SHARE = 1.015;
+
+/**
+ * Bits each codec needs for the same look, against H.264: HEVC and VP9 about two thirds, AV1
+ * about half. A source in another codec is brought to the one written by these.
+ */
+const EFFICIENCY: Partial<Record<VideoCodec, number>> = { avc: 1, hevc: 0.65, vp9: 0.7, av1: 0.55, vp8: 1.15 };
+
+/**
+ * Bits per pixel and picture: `least` where pictures start to break into blocks, `good` a clean
+ * picture when nothing tells what the source needs, `most` beyond which more bits show nothing.
+ */
+const DENSITY: Record<VideoCodecId, { least: number; good: number; most: number }> = {
+	avc: { least: 0.055, good: 0.1, most: 0.22 },
+	hevc: { least: 0.036, good: 0.065, most: 0.14 },
+	vp9: { least: 0.038, good: 0.07, most: 0.15 },
+	av1: { least: 0.03, good: 0.055, most: 0.12 },
+};
+
+/** Bitrate in kb/s at a density, for pictures of `size` at `rate` per second. */
+function atDensity(density: number, size: Size, rate: number): number {
+	return Math.round((density * size.width * size.height * rate) / 1000);
+}
+
+/** What the video plan starts from. */
+export interface PlanInput {
+	settings: VideoExportSettings;
+	picture: ImageDoc;
+	upright: Size;
+	/** Length of the output, in seconds. */
+	seconds: number;
+	/** Bitrate of the sound tracks together, in kb/s. */
+	audio: number;
+	source: Pick<VideoSource, 'bitrate' | 'frameRate' | 'codec'>;
+}
+
+/** How the pictures will be written, worked out from the settings. */
+export interface VideoPlan {
+	/** Shorter side, as the settings take it: null keeps the crop's. */
+	height: number | null;
+	size: Size;
+	/** Video bitrate, in kb/s: the one written, or the fallback of a quality level. */
+	bitrate: number;
+	/** Kept to a quality level rather than to the bitrate. */
+	constantQuality: boolean;
+	/** The size limit decides the bitrate. */
+	limited: boolean;
+	/** So few bits per pixel that the pictures will show blocks. */
+	squeezed: boolean;
+	/** Size of the file in MB, when the bitrate tells it. */
+	estimate: number | null;
+}
+
+/**
+ * The plan of the pictures: their size (brought down under a size limit when `adaptive` and the
+ * bits are short), and their bitrate. From the source, the bitrate is what its pictures carry,
+ * brought to the size, frame rate and codec written, within what the codec can use. A size limit
+ * caps it and never raises it.
+ */
+export function planVideo({ settings, picture, upright, seconds, audio, source }: PlanInput): VideoPlan {
+	const { codec, sizeLimit } = settings;
+	const rate = settings.frameRate ?? source.frameRate ?? 30;
+	const fits = sizeLimit === null ? null : bitrateForSize(sizeLimit, seconds, audio);
+	const density = DENSITY[codec];
+	let height = settings.height;
+	if (settings.adaptive && fits !== null) {
+		const top = shortSide(outputSize(picture, upright, settings.height));
+		const heights = [top, ...HEIGHTS.filter((candidate) => candidate < top)];
+		height =
+			heights.find(
+				(candidate) => fits >= atDensity(density.least, outputSize(picture, upright, candidate), rate),
+			) ??
+			heights.at(-1) ??
+			null;
+		if (height === top) height = settings.height;
+	}
+	const size = outputSize(picture, upright, height);
+	const fromSource = sourceCeiling(source, upright, size, settings.frameRate);
+	const efficiency = (EFFICIENCY[codec] ?? 1) / (source.codec ? (EFFICIENCY[source.codec] ?? 1) : 1);
+	const auto = Math.min(
+		fromSource === null ? atDensity(density.good, size, rate) : Math.round(fromSource * efficiency),
+		atDensity(density.most, size, rate),
+		settings.bitrateCeiling ?? Number.POSITIVE_INFINITY,
+	);
+	const chosen = settings.rateControl === 'bitrate' ? settings.bitrate : Math.max(MIN_BITRATE, auto);
+	const limited = fits !== null && fits < chosen;
+	const bitrate = limited ? Math.max(MIN_BITRATE, fits) : chosen;
+	const constantQuality = settings.rateControl === 'quality' && sizeLimit === null;
+	return {
+		height,
+		size,
+		bitrate,
+		constantQuality,
+		limited,
+		squeezed: limited && bitrate < atDensity(density.least, size, rate) * 0.75,
+		estimate: constantQuality ? null : estimatedMegabytes(bitrate, audio, seconds),
+	};
+}
+
+/** The settings with the plan written in: a bitrate or a quality, and a fixed height. */
+export function planned(settings: VideoExportSettings, plan: VideoPlan): VideoExportSettings {
+	return {
+		...settings,
+		height: plan.height,
+		adaptive: false,
+		bitrate: plan.bitrate,
+		rateControl: plan.constantQuality ? 'quality' : 'bitrate',
+		// The bitrate already keeps under the limit; the limit stays for the encoder's rate mode.
+	};
+}
 
 export type PresetId =
 	| 'discord'
@@ -458,16 +673,22 @@ export interface Preset {
 	maxHeight: number;
 	/** Highest frame rate; slower videos keep theirs. */
 	maxFrameRate: number;
-	/** Video bitrate in kb/s, when no size limit applies. */
+	/** Video bitrate in kb/s for 1080p at 30 fps, brought to the size and rate written. */
 	bitrate: number;
 	/** Largest file taken, in MB; null when far beyond what a video here weighs. */
 	sizeLimit: number | null;
 	/** Longest video taken, in seconds. */
 	maxSeconds?: number;
+	/** Seconds between key frames, as the platform asks; absent leaves the encoder's. */
+	keyframes?: number;
 	audio: 'aac' | 'opus';
 	audioBitrate: number;
 }
 
+/**
+ * The places videos are sent to: H.264 and AAC in MP4, which every phone plays and every service
+ * takes. Under a size limit the pictures get smaller when a long video leaves them too few bits.
+ */
 const mp4 = (preset: Omit<Preset, 'container' | 'codec' | 'audio'>): Preset => ({
 	container: 'mp4',
 	codec: 'avc',
@@ -476,50 +697,53 @@ const mp4 = (preset: Omit<Preset, 'container' | 'codec' | 'audio'>): Preset => (
 });
 
 /**
- * Settings for the places videos go, from their published limits (September 2026). Services
- * re-encode what they get, so H.264 in MP4 at their recommended bitrates goes everywhere. Mail
- * servers take 25 MB, but attachments grow by a third on the way: 18 MB is what fits.
+ * Settings for the places videos go, from their published limits (October 2026). Messaging apps
+ * play the file as it is sent, up to a size: the picture is kept as large as the size allows.
+ * Social networks encode again what they get: they are sent their recommended bitrate, with a key
+ * frame every 2 s (YouTube: closed GOPs of half the frame rate). Mail servers take 25 MB, but
+ * attachments grow by a third on the way: 18 MB is what fits.
  */
 export const PRESETS: Record<PresetId, Preset> = {
 	'discord': mp4({
 		label: 'Discord',
 		group: 'messages',
 		logo: 'discord',
-		maxHeight: 720,
-		maxFrameRate: 30,
-		bitrate: 2500,
+		maxHeight: 1080,
+		maxFrameRate: 60,
+		bitrate: 6000,
 		sizeLimit: 20,
-		audioBitrate: 96,
+		audioBitrate: 128,
 	}),
 	'discord-basic': mp4({
 		label: 'Discord Nitro Basic',
 		group: 'messages',
 		logo: 'discord',
 		maxHeight: 1080,
-		maxFrameRate: 30,
-		bitrate: 5000,
+		maxFrameRate: 60,
+		bitrate: 8000,
 		sizeLimit: 50,
-		audioBitrate: 128,
+		audioBitrate: 160,
 	}),
 	'discord-nitro': mp4({
 		label: 'Discord Nitro',
 		group: 'messages',
 		logo: 'discord',
-		maxHeight: 1080,
+		maxHeight: 2160,
 		maxFrameRate: 60,
-		bitrate: 8000,
-		sizeLimit: 1000,
-		audioBitrate: 160,
+		bitrate: 10000,
+		sizeLimit: 500,
+		audioBitrate: 192,
 	}),
 	'whatsapp': mp4({
 		label: 'WhatsApp',
 		group: 'messages',
 		logo: 'whatsapp',
+		// WhatsApp shows videos at 720p at most, in HD; it compresses anything larger again.
 		maxHeight: 720,
 		maxFrameRate: 30,
-		bitrate: 2500,
+		bitrate: 4000,
 		sizeLimit: 16,
-		audioBitrate: 96,
+		audioBitrate: 128,
 	}),
 	'telegram': mp4({
 		label: 'Telegram',
@@ -528,8 +752,8 @@ export const PRESETS: Record<PresetId, Preset> = {
 		maxHeight: 1080,
 		maxFrameRate: 60,
 		bitrate: 6000,
-		sizeLimit: null,
-		audioBitrate: 128,
+		sizeLimit: 2000,
+		audioBitrate: 160,
 	}),
 	'signal': mp4({
 		label: 'Signal',
@@ -537,7 +761,7 @@ export const PRESETS: Record<PresetId, Preset> = {
 		logo: 'signal',
 		maxHeight: 1080,
 		maxFrameRate: 30,
-		bitrate: 4000,
+		bitrate: 5000,
 		sizeLimit: 100,
 		audioBitrate: 128,
 	}),
@@ -545,19 +769,19 @@ export const PRESETS: Record<PresetId, Preset> = {
 		label: 'Messenger',
 		group: 'messages',
 		logo: 'messenger',
-		maxHeight: 720,
+		maxHeight: 1080,
 		maxFrameRate: 30,
-		bitrate: 2500,
+		bitrate: 5000,
 		sizeLimit: 25,
-		audioBitrate: 96,
+		audioBitrate: 128,
 	}),
 	'email': mp4({
 		label: 'E-mail',
 		group: 'messages',
 		logo: 'email',
-		maxHeight: 720,
+		maxHeight: 1080,
 		maxFrameRate: 30,
-		bitrate: 2500,
+		bitrate: 4000,
 		sizeLimit: 18,
 		audioBitrate: 96,
 	}),
@@ -571,7 +795,8 @@ export const PRESETS: Record<PresetId, Preset> = {
 		bitrate: 10000,
 		sizeLimit: null,
 		maxSeconds: 3600,
-		audioBitrate: 128,
+		keyframes: 2,
+		audioBitrate: 192,
 	}),
 	'reels': mp4({
 		label: 'Instagram Reels',
@@ -579,11 +804,12 @@ export const PRESETS: Record<PresetId, Preset> = {
 		logo: 'instagram',
 		aspect: '9:16',
 		maxHeight: 1080,
-		maxFrameRate: 30,
-		bitrate: 5000,
-		sizeLimit: null,
+		maxFrameRate: 60,
+		bitrate: 9000,
+		sizeLimit: 4000,
 		maxSeconds: 900,
-		audioBitrate: 128,
+		keyframes: 2,
+		audioBitrate: 192,
 	}),
 	'shorts': mp4({
 		label: 'YouTube Shorts',
@@ -595,7 +821,8 @@ export const PRESETS: Record<PresetId, Preset> = {
 		bitrate: 8000,
 		sizeLimit: null,
 		maxSeconds: 180,
-		audioBitrate: 192,
+		keyframes: 0.5,
+		audioBitrate: 256,
 	}),
 	'snapchat': mp4({
 		label: 'Snapchat',
@@ -604,9 +831,10 @@ export const PRESETS: Record<PresetId, Preset> = {
 		aspect: '9:16',
 		maxHeight: 1080,
 		maxFrameRate: 30,
-		bitrate: 5000,
+		bitrate: 6000,
 		sizeLimit: null,
 		maxSeconds: 180,
+		keyframes: 2,
 		audioBitrate: 128,
 	}),
 	'instagram-feed': mp4({
@@ -615,32 +843,35 @@ export const PRESETS: Record<PresetId, Preset> = {
 		logo: 'instagram',
 		aspect: '4:5',
 		maxHeight: 1080,
-		maxFrameRate: 30,
-		bitrate: 5000,
-		sizeLimit: null,
+		maxFrameRate: 60,
+		bitrate: 9000,
+		sizeLimit: 4000,
 		maxSeconds: 900,
-		audioBitrate: 128,
+		keyframes: 2,
+		audioBitrate: 192,
 	}),
 	'instagram': mp4({
 		label: 'Instagram',
 		group: 'social',
 		logo: 'instagram',
 		maxHeight: 1080,
-		maxFrameRate: 30,
-		bitrate: 5000,
-		sizeLimit: null,
+		maxFrameRate: 60,
+		bitrate: 9000,
+		sizeLimit: 4000,
 		maxSeconds: 900,
-		audioBitrate: 128,
+		keyframes: 2,
+		audioBitrate: 192,
 	}),
 	'facebook': mp4({
 		label: 'Facebook',
 		group: 'social',
 		logo: 'facebook',
-		maxHeight: 1080,
+		maxHeight: 2160,
 		maxFrameRate: 60,
 		bitrate: 8000,
-		sizeLimit: null,
-		audioBitrate: 128,
+		sizeLimit: 10000,
+		keyframes: 2,
+		audioBitrate: 192,
 	}),
 	'x': mp4({
 		label: 'X',
@@ -651,6 +882,7 @@ export const PRESETS: Record<PresetId, Preset> = {
 		bitrate: 8000,
 		sizeLimit: 512,
 		maxSeconds: 140,
+		keyframes: 2,
 		audioBitrate: 128,
 	}),
 	'x-premium': mp4({
@@ -659,8 +891,9 @@ export const PRESETS: Record<PresetId, Preset> = {
 		logo: 'x',
 		maxHeight: 1080,
 		maxFrameRate: 60,
-		bitrate: 12000,
+		bitrate: 10000,
 		sizeLimit: 8000,
+		keyframes: 2,
 		audioBitrate: 192,
 	}),
 	'threads': mp4({
@@ -672,7 +905,8 @@ export const PRESETS: Record<PresetId, Preset> = {
 		bitrate: 8000,
 		sizeLimit: 1000,
 		maxSeconds: 300,
-		audioBitrate: 128,
+		keyframes: 2,
+		audioBitrate: 160,
 	}),
 	'bluesky': mp4({
 		label: 'Bluesky',
@@ -680,21 +914,23 @@ export const PRESETS: Record<PresetId, Preset> = {
 		logo: 'bluesky',
 		maxHeight: 1080,
 		maxFrameRate: 60,
-		bitrate: 5000,
+		bitrate: 6000,
 		sizeLimit: 300,
 		maxSeconds: 600,
-		audioBitrate: 128,
+		keyframes: 2,
+		audioBitrate: 160,
 	}),
 	'linkedin': mp4({
 		label: 'LinkedIn',
 		group: 'social',
 		logo: 'linkedin',
 		maxHeight: 1080,
-		maxFrameRate: 30,
+		maxFrameRate: 60,
 		bitrate: 8000,
 		sizeLimit: 5000,
 		maxSeconds: 900,
-		audioBitrate: 128,
+		keyframes: 2,
+		audioBitrate: 160,
 	}),
 	'reddit': mp4({
 		label: 'Reddit',
@@ -705,7 +941,8 @@ export const PRESETS: Record<PresetId, Preset> = {
 		bitrate: 8000,
 		sizeLimit: 1000,
 		maxSeconds: 900,
-		audioBitrate: 128,
+		keyframes: 2,
+		audioBitrate: 160,
 	}),
 	'youtube': mp4({
 		label: 'YouTube',
@@ -713,9 +950,10 @@ export const PRESETS: Record<PresetId, Preset> = {
 		logo: 'youtube',
 		maxHeight: 2160,
 		maxFrameRate: 60,
-		bitrate: 12000,
+		bitrate: 8000,
 		sizeLimit: null,
-		audioBitrate: 192,
+		keyframes: 0.5,
+		audioBitrate: 384,
 	}),
 	'vimeo': mp4({
 		label: 'Vimeo',
@@ -725,6 +963,7 @@ export const PRESETS: Record<PresetId, Preset> = {
 		maxFrameRate: 60,
 		bitrate: 16000,
 		sizeLimit: null,
+		keyframes: 2,
 		audioBitrate: 320,
 	}),
 	'twitch': mp4({
@@ -735,6 +974,7 @@ export const PRESETS: Record<PresetId, Preset> = {
 		maxFrameRate: 60,
 		bitrate: 6000,
 		sizeLimit: null,
+		keyframes: 2,
 		audioBitrate: 160,
 	}),
 	'square': mp4({
@@ -743,10 +983,10 @@ export const PRESETS: Record<PresetId, Preset> = {
 		logo: 'square',
 		aspect: '1:1',
 		maxHeight: 1080,
-		maxFrameRate: 30,
-		bitrate: 5000,
+		maxFrameRate: 60,
+		bitrate: 8000,
 		sizeLimit: null,
-		audioBitrate: 128,
+		audioBitrate: 160,
 	}),
 	'uhd': {
 		label: '4K UHD',
@@ -756,21 +996,22 @@ export const PRESETS: Record<PresetId, Preset> = {
 		codec: 'hevc',
 		maxHeight: 2160,
 		maxFrameRate: 60,
-		bitrate: 30000,
+		bitrate: 6000,
 		sizeLimit: null,
 		audio: 'aac',
-		audioBitrate: 192,
+		audioBitrate: 256,
 	},
 	'web': {
 		label: 'Web',
 		group: 'general',
 		logo: 'web',
 		container: 'webm',
-		codec: 'vp9',
+		codec: 'av1',
 		maxHeight: 1080,
 		maxFrameRate: 60,
-		bitrate: 2500,
+		bitrate: 3000,
 		sizeLimit: null,
+		keyframes: 2,
 		audio: 'opus',
 		audioBitrate: 128,
 	},
@@ -807,15 +1048,24 @@ export const PRESET_ORDER: PresetId[] = [
 	'web',
 ];
 
-/** YouTube's recommended bitrates for H.264 uploads, by height (at 30 fps; half again above). */
+/** YouTube's recommended bitrates for SDR uploads, by height (at 30 fps; half again above). */
 function uploadBitrate(height: number, frameRate: number): number {
 	const base = height >= 2160 ? 40000 : height >= 1440 ? 16000 : height >= 1080 ? 8000 : height >= 720 ? 5000 : 2500;
 	return frameRate > 30 ? Math.round(base * 1.5) : base;
 }
 
+/** A preset's bitrate for pictures `height` high at `frameRate`: its 1080p30 one, scaled. */
+function presetBitrate(id: PresetId, height: number, frameRate: number): number {
+	if (id === 'youtube' || id === 'shorts') return uploadBitrate(height, frameRate);
+	const pixels = (height / 1080) ** 2;
+	return Math.round((PRESETS[id].bitrate * pixels ** 0.75 * (frameRate > 30 ? 1.5 : 1)) / 100) * 100;
+}
+
 /**
  * The settings a preset gives a video whose pictures are `height` high: never enlarged, never
- * faster than the source. A codec this browser can't encode falls back to one it can.
+ * faster than the source, the bitrate as much as the source needs up to the platform's. Under a
+ * size limit, the height is a ceiling the pictures come down from when the bits are short. A
+ * codec this browser can't encode falls back to one it can.
  */
 export function presetSettings(
 	id: PresetId,
@@ -826,16 +1076,18 @@ export function presetSettings(
 ): Partial<VideoExportSettings> {
 	const preset = PRESETS[id];
 	const outHeight = Math.min(height, preset.maxHeight);
-	const rate = source.frameRate ?? 30;
+	const rate = Math.min(source.frameRate ?? 30, preset.maxFrameRate);
 	return {
 		mode: 'encode',
 		container: preset.container,
 		...chooseEncoding(encoders, CONTAINERS[preset.container].codecs, preset.codec, encoder),
 		height: height > preset.maxHeight ? (HEIGHTS.find((candidate) => candidate <= preset.maxHeight) ?? null) : null,
-		frameRate: rate > preset.maxFrameRate + 0.5 ? preset.maxFrameRate : null,
-		rateControl: 'bitrate',
-		bitrate: id === 'youtube' ? uploadBitrate(outHeight, Math.min(rate, preset.maxFrameRate)) : preset.bitrate,
+		adaptive: preset.sizeLimit !== null,
+		frameRate: (source.frameRate ?? 30) > preset.maxFrameRate + 0.5 ? preset.maxFrameRate : null,
+		rateControl: 'auto',
+		bitrateCeiling: presetBitrate(id, outHeight, rate),
 		sizeLimit: preset.sizeLimit,
+		keyframes: preset.keyframes ?? null,
 		audio: preset.audio,
 		audioBitrate: preset.audioBitrate,
 		preset: id,
@@ -1019,7 +1271,16 @@ export interface ConvertJob {
 	audioTracks: ReadonlyMap<number, TrackSound>;
 	/** Subtitles burned into the pictures. */
 	burn?: BurnJob | null;
+	/** Bit depth of the pictures: 10 where the encoder takes it, for HEVC and AV1. */
+	bitDepth?: 8 | 10;
+	/** The bitrate kept constant: a second try under a size limit the first one went over. */
+	strict?: boolean;
+	/** The index written first (MP4, MOV): the file is held in memory until the end. */
+	fastStart?: boolean;
 }
+
+/** Largest file written with its index first, in MB: it is held in memory until the end. */
+export const FAST_START_LIMIT = 512;
 
 /** Metadata tags for a conversion: the file's, with the edited ones in their place. */
 function conversionTags(meta: VideoMeta | null) {
@@ -1038,7 +1299,7 @@ export async function convertVideo(
 ): Promise<void> {
 	const { doc, settings } = job;
 	const input = new Input({ source: new BlobSource(job.file), formats: ALL_FORMATS });
-	const output = new Output({ format: CONTAINERS[settings.container].create(), target });
+	const output = new Output({ format: CONTAINERS[settings.container].create(job.fastStart), target });
 	const ranges = keptRanges(doc);
 	const cuts = doc.cuts.length > 0;
 	// Burned subtitles are drawn over the pictures, which then go through the renderer too.
@@ -1075,9 +1336,11 @@ export async function convertVideo(
 		if (track.number > 1) return { discard: true };
 		const options: ConversionVideoOptions = {
 			codec: settings.codec,
-			quality: videoQuality(settings),
+			quality: videoQuality(settings, job.strict ?? false),
 			hardwareAcceleration: settings.encoder === 'gpu' ? 'prefer-hardware' : 'prefer-software',
 			frameRate: settings.frameRate ?? sourceRate,
+			keyFrameInterval: settings.keyframes ?? undefined,
+			bitDepth: job.bitDepth === 10 && DEEP_CODECS.has(settings.codec) ? 10 : undefined,
 			forceTranscode: true,
 		};
 		if (!drawn && !cuts && speed === 1) return { ...options, width: size.width, height: size.height, fit: 'fill' };

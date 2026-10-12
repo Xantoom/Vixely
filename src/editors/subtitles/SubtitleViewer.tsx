@@ -1,5 +1,6 @@
 import { Film, Replace, Trash2, TriangleAlert } from 'lucide-react';
 import { type ComponentProps, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { Ambient } from '@/editor/Ambient';
 import { AssOverlay } from '@/editor/AssOverlay';
 import { PlayerPicture } from '@/editor/PlayerControls';
 import { usePlayback } from '@/media/playback';
@@ -160,10 +161,13 @@ function VideoBar({ name, onReplace, onRemove }: { name: string; onReplace: () =
 /** The video with the subtitles on it, and its controls: the top-left box, as in Aegisub. */
 export function SubtitleViewer({
 	title,
+	ambient = null,
 	onFit,
 	controls,
 }: {
 	title: string;
+	/** The video's picture, blurred behind it as on the other editors' stage. */
+	ambient?: ImageBitmap | null;
 	/** Told the width at which the picture fills the height it has, so its column can match it. */
 	onFit?: (width: number) => void;
 	/** The playback bar, under the picture when the video stands in a column of its own. */
@@ -214,6 +218,7 @@ export function SubtitleViewer({
 				// On narrow screens the picture spans the width, as tall as its shape needs.
 				style={{ '--frame': `${frame.width} / ${frame.height}` }}
 			>
+				{ambient && <Ambient bitmap={ambient} className="rounded-md" />}
 				<div className="absolute inset-x-0" style={controls ? { top, height } : { inset: 0 }}>
 					<PlayerPicture width={width} height={height}>
 						{width > 0 && (

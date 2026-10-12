@@ -283,7 +283,17 @@ function SeekBar() {
 }
 
 /** Goes one frame back or forward, paused, as editors do with the comma and period keys. */
-function StepButton({ direction, onStep, disabled }: { direction: -1 | 1; onStep: () => void; disabled: boolean }) {
+function StepButton({
+	direction,
+	onStep,
+	disabled,
+	className = '',
+}: {
+	direction: -1 | 1;
+	onStep: () => void;
+	disabled: boolean;
+	className?: string;
+}) {
 	const label = direction < 0 ? m.frame_back() : m.frame_forward();
 	return (
 		<button
@@ -292,7 +302,7 @@ function StepButton({ direction, onStep, disabled }: { direction: -1 | 1; onStep
 			data-tip={label}
 			disabled={disabled}
 			onClick={onStep}
-			className="text-ink-2 enabled:hover:bg-surface enabled:hover:text-ink touch-target relative grid size-9 place-items-center rounded-full transition-colors disabled:opacity-45 max-sm:size-8"
+			className={`text-ink-2 enabled:hover:bg-surface enabled:hover:text-ink touch-target relative grid size-9 place-items-center rounded-full transition-colors disabled:opacity-45 max-sm:size-8 ${className}`}
 		>
 			{direction < 0 ? (
 				<ChevronFirst className="size-[1.15rem]" aria-hidden="true" />
@@ -314,6 +324,7 @@ export function PlayerBar({
 	playing,
 	onToggle,
 	onStep,
+	around,
 	disabled = false,
 	children,
 }: {
@@ -325,9 +336,12 @@ export function PlayerBar({
 	onToggle: () => void;
 	/** One frame back or forward; left out where there are no frames (sound). */
 	onStep?: (direction: -1 | 1) => void;
+	/** On a phone, what takes the place of the frame buttons on either side of play. */
+	around?: [ReactNode, ReactNode];
 	disabled?: boolean;
 	children?: ReactNode;
 }) {
+	const stepClass = around ? 'max-sm:hidden' : '';
 	return (
 		<div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 max-sm:gap-1.5">
 			{/* All on one line above the timeline, the time lined up with its start. */}
@@ -336,10 +350,12 @@ export function PlayerBar({
 				{fit}
 			</div>
 			<div className="flex items-center gap-1.5 max-sm:gap-0.5">
+				{around && <div className="flex sm:hidden">{around[0]}</div>}
 				{onStep && (
 					<StepButton
 						direction={-1}
 						disabled={disabled}
+						className={stepClass}
 						onStep={() => {
 							onStep(-1);
 						}}
@@ -350,11 +366,13 @@ export function PlayerBar({
 					<StepButton
 						direction={1}
 						disabled={disabled}
+						className={stepClass}
 						onStep={() => {
 							onStep(1);
 						}}
 					/>
 				)}
+				{around && <div className="flex sm:hidden">{around[1]}</div>}
 			</div>
 			<div className="-mr-2 flex min-w-0 items-center justify-end gap-0.5">{children}</div>
 		</div>
@@ -371,10 +389,12 @@ export function PlayerControls({
 	fit,
 	seek = true,
 	frameRate = 30,
+	around,
 }: {
 	children?: ReactNode;
 	time?: ReactNode;
 	fit?: ReactNode;
+	around?: [ReactNode, ReactNode];
 	/** Shows the position bar; left out over a timeline, whose playhead already does it. */
 	seek?: boolean;
 	frameRate?: number;
@@ -389,6 +409,7 @@ export function PlayerControls({
 				fit={fit}
 				playing={playing}
 				onToggle={toggle}
+				around={around}
 				onStep={(direction) => {
 					const playback = usePlayback.getState();
 					playback.pause();

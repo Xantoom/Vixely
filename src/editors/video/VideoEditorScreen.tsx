@@ -19,7 +19,7 @@ import { AdjustPanel, CropPanel } from '../image/panels';
 import { useSubtitleProject } from '../subtitles/project';
 import { VideoBatchFooter } from './BatchFooter';
 import { fadeOf, speedOf } from './document';
-import { resolveAudio } from './export';
+import { bitDepthOf, resolveAudio } from './export';
 import {
 	useCopiedRanges,
 	useCopyBlocker,
@@ -30,7 +30,6 @@ import {
 } from './ExportPanel';
 import { muxContainer, useHeardSounds } from './mux';
 import { MuxFooter } from './MuxPanel';
-import { VideoTracksPanel } from './panels';
 import { useVideoDoc, useVideoEditor, useVideoPictureEditing, useVideoUndoState, videoOverlayEditing } from './store';
 import { VideoFades, VideoSpeed } from './TimePanels';
 import { VideoPlayerBar, VideoPreview } from './VideoPreview';
@@ -243,7 +242,13 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 		if (opened && tool === 'export') {
 			if (batch && ready) return <VideoBatchPanel upright={upright} />;
 			return ready ? (
-				<VideoExportPanel opened={opened} upright={upright} />
+				<VideoExportPanel
+					opened={opened}
+					upright={upright}
+					onSubtitlesAdded={() => {
+						setSubtitles(true);
+					}}
+				/>
 			) : (
 				<ToolLater kind="video" tool={tool} />
 			);
@@ -256,15 +261,6 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 		if (tool === 'crop') return <CropPanel editing={editing} />;
 		if (tool === 'adjust') return <AdjustPanel editing={editing} />;
 		if (tool === 'layers') return <LayersPanel editing={overlays} textRef={textRef} />;
-		if (tool === 'tracks')
-			return (
-				<VideoTracksPanel
-					opened={opened}
-					onSubtitlesAdded={() => {
-						setSubtitles(true);
-					}}
-				/>
-			);
 		return <ToolLater kind="video" tool={tool} />;
 	};
 
@@ -385,6 +381,11 @@ export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 										doc,
 										upright,
 										source: exportSource.source,
+										bitDepth: bitDepthOf(
+											exportSource.encoders,
+											exportSettings.codec,
+											exportSettings.encoder,
+										),
 									}
 								: null
 						}

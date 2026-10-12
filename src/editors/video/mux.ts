@@ -28,9 +28,9 @@ import {
 	type TrackEncode,
 	type TrackSound,
 	type VideoContainer,
-	limitedBitrate,
-	outputSize,
-	sourceCeiling,
+	FAST_START_LIMIT,
+	planned,
+	planVideo,
 	type VideoExportSettings,
 	type VideoSource,
 } from './export';
@@ -529,8 +529,10 @@ export interface ConvertedJob extends MuxJob {
 	settings: VideoExportSettings;
 	/** Size of the source's pictures, upright. */
 	upright: { width: number; height: number };
-	/** The source's video bitrate and frame rate: a size limit never goes above them. */
-	source: Pick<VideoSource, 'bitrate' | 'frameRate'>;
+	/** The source's video bitrate, frame rate and codec: the bitrate written starts from them. */
+	source: Pick<VideoSource, 'bitrate' | 'frameRate' | 'codec'>;
+	/** Bit depth of the pictures when converted: 10 where the encoder takes it. */
+	bitDepth?: 8 | 10;
 }
 
 /** Whether the tracks can't simply be copied into a file like the source: their sound changes. */
@@ -549,12 +551,15 @@ function burnJob(job: ConvertedJob): BurnJob | null {
 }
 
 /**
- * The settings with the video bitrate a size limit leaves: the length of the output, less what
- * the sound takes (copied tracks at their own bitrate), and no more than the source has.
+ * The settings with the plan of the pictures written in: their height and bitrate, from the
+ * source, the codec and the size limit, the sound taking its share (copied tracks at their own
+ * bitrate). Also the sound's bitrate and the size expected, in MB.
  */
-async function withSizeLimit(job: ConvertedJob): Promise<VideoExportSettings> {
+async function plannedSettings(
+	job: ConvertedJob,
+): Promise<{ settings: VideoExportSettings; audio: number; estimate: number | null }> {
 	const { settings, doc } = job;
-	if (settings.mode !== 'encode' || settings.sizeLimit === null) return settings;
+	if (settings.mode !== 'encode') return { settings, audio: 0, estimate: null };
 	const sound = job.tracks.filter((track) => track.kind === 'audio' && track.include);
 	const copied = sound.flatMap((track) =>
 		settings.audio === 'copy' && !soundEdited(track) && !track.encode && track.number !== null
@@ -571,13 +576,30 @@ async function withSizeLimit(job: ConvertedJob): Promise<VideoExportSettings> {
 					: settings.audioBitrate)),
 		0,
 	);
-	const ceiling = sourceCeiling(
-		job.source,
-		job.upright,
-		outputSize(doc.picture, job.upright, settings.height),
-		settings.frameRate,
-	);
-	return { ...settings, bitrate: limitedBitrate(settings.sizeLimit, videoLength(doc), audio, ceiling) };
+	const plan = planVideo({
+		settings,
+		picture: doc.picture,
+		upright: job.upright,
+		seconds: videoLength(doc),
+		audio,
+		source: job.source,
+	});
+	return { settings: planned(settings, plan), audio, estimate: plan.estimate };
+}
+
+/** Bytes in a size limit of `megabytes`, as the size limits count them. */
+const limitBytes = (megabytes: number) => megabytes * 1_000_000;
+
+/** Share of the limit a first try may reach before the file is written again, smaller. */
+const LIMIT_SLACK = 0.99;
+
+/** Copies a written file into the save target, a few megabytes at a time. */
+async function copyInto(file: File, save: SaveTarget) {
+	const step = 8 * 1024 * 1024;
+	for (let start = 0; start < file.size; start += step) {
+		// oxlint-disable-next-line no-await-in-loop -- in order, a piece at a time
+		await save.append(new Uint8Array(await file.slice(start, start + step).arrayBuffer()));
+	}
 }
 
 /** Splits the progress bar between passes, by weight. */
@@ -605,8 +627,15 @@ export async function exportConverted(
 	signal: AbortSignal,
 ): Promise<void> {
 	const { doc } = job;
-	const settings = await withSizeLimit(job);
+	const { settings, audio: soundRate, estimate } = await plannedSettings(job);
 	const { container } = settings;
+	// MP4 and MOV small enough to be held in memory get their index first, for players and
+	// services to start before the end: messaging apps stream them. A copy weighs what the source does.
+	const expected = settings.mode === 'encode' ? (estimate ?? settings.sizeLimit) : job.file.size / 1_000_000;
+	const fastStart = (container === 'mp4' || container === 'mov') && expected !== null && expected <= FAST_START_LIMIT;
+	// Under a size limit, the pictures are written apart first: a file over the limit is written
+	// again, smaller, before it reaches the save target.
+	const checked = settings.mode === 'encode' && settings.sizeLimit !== null;
 	const shortened = isShortened(doc);
 	const kept = shortened ? keptRanges(doc) : null;
 	const sound = job.tracks.filter((track) => track.kind === 'audio' && track.include);
@@ -663,7 +692,7 @@ export async function exportConverted(
 	);
 	const scratches: ScratchFile[] = [];
 	const extension = CONTAINERS[container].extension;
-	const last = !merge && !remuxed;
+	const last = !merge && !remuxed && !checked;
 	const scratch = async () => {
 		const file = await openScratchFile(`converted.${extension}`);
 		scratches.push(file);
@@ -676,13 +705,41 @@ export async function exportConverted(
 		let ranges: Range[] | null;
 		if (settings.mode === 'encode') {
 			const audioTracks = new Map(encodedOwn.map(({ track, id }) => [id, soundOf(track)]));
-			const convert = { file: job.file, doc, settings, upright: job.upright, audioTracks, burn: burnJob(job) };
+			const convert = {
+				file: job.file,
+				doc,
+				settings,
+				upright: job.upright,
+				audioTracks,
+				burn: burnJob(job),
+				bitDepth: job.bitDepth,
+				fastStart,
+			};
 			await convertVideo(convert, target, step(0), signal);
+			if (checked && settings.sizeLimit !== null && written) {
+				const limit = limitBytes(settings.sizeLimit);
+				const size = (await written.file()).size;
+				if (size > limit * LIMIT_SLACK) {
+					// Over the limit: the pictures again, their bitrate brought down by what went over,
+					// kept constant this time.
+					const sound = (soundRate * 1000 * videoLength(doc)) / 8;
+					const share = Math.max(0.1, (limit * 0.95 - sound) / Math.max(1, size - sound));
+					written = await scratch();
+					const smaller = { ...settings, bitrate: Math.max(50, Math.floor(settings.bitrate * share)) };
+					await convertVideo(
+						{ ...convert, settings: smaller, strict: true },
+						written.target,
+						step(0),
+						signal,
+					);
+				}
+				if (!merge && !remuxed) await copyInto(await written.file(), save);
+			}
 			ranges = kept;
 		} else if (shortened && !copiesParts(container, doc.cuts.length > 0) && !soundChanged(job.tracks)) {
 			// MP4 trimmed at both ends: copied exactly, an edit list hiding the pictures before the start.
 			const audioTracks = new Map(own.map(({ id }) => [id, SOUND_AS_IS]));
-			const convert = { file: job.file, doc, settings, upright: job.upright, audioTracks };
+			const convert = { file: job.file, doc, settings, upright: job.upright, audioTracks, fastStart };
 			await convertVideo(convert, target, step(0), signal);
 			ranges = kept;
 		} else {
@@ -692,7 +749,7 @@ export async function exportConverted(
 			];
 			const turn = pictureChange(doc.picture) === 'turn' ? editTurn(doc.picture) : null;
 			ranges = await copyTracks(
-				{ file: job.file, container, ranges: kept, audio, turn, meta: doc.meta },
+				{ file: job.file, container, ranges: kept, audio, turn, meta: doc.meta, fastStart },
 				target,
 				step(0),
 				signal,
@@ -720,7 +777,7 @@ export async function exportConverted(
 				),
 			];
 			await copyTracks(
-				{ file: converted, container, ranges: null, audio },
+				{ file: converted, container, ranges: null, audio, fastStart },
 				written?.target ?? save.target,
 				step(1),
 				signal,

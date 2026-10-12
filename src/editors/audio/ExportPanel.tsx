@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { ExportAnnounce } from '@/editor/ExportAnnounce';
 import { Group } from '@/editor/panel-parts';
-import { codecName, formatSampleRate, groupDigits } from '@/lib/format';
+import { codecName, formatBytes, formatSampleRate, groupDigits } from '@/lib/format';
 import { outputName } from '@/media/save';
 import { openBatchDestination, openSaveTarget } from '@/media/save-target';
 import type { BatchFile } from '@/media/session';
@@ -11,7 +11,7 @@ import { m } from '@/paraglide/messages.js';
 import { Button } from '@/ui/Button';
 import { FieldRow, OptionList, Select, TextField } from '@/ui/fields';
 import { exportAudioBatch, type ItemStatus } from './batch-export';
-import type { AudioDoc } from './document';
+import { type AudioDoc, audioLength } from './document';
 import {
 	AUDIO_FORMAT_ORDER,
 	AUDIO_FORMATS,
@@ -180,10 +180,20 @@ export function ExportPanel({
 		: undefined;
 	const copyReason =
 		blocker === 'volume' ? m.encoding_copy_volume() : blocker === 'codec' ? m.encoding_copy_codec() : undefined;
+	// Told only where the size follows from the settings: a set bitrate, or WAV's samples. FLAC's
+	// depends on the sound itself, and a batch's on each file.
+	const kbps = copying ? (lossy ? source.bitrate : null) : info.bitrates.length > 0 ? bitrate : null;
+	const bytes = batch
+		? null
+		: kbps !== null
+			? (kbps * 1000 * audioLength(doc)) / 8
+			: !copying && settings.format === 'wav'
+				? (rate * channels * settings.bitDepth * audioLength(doc)) / 8
+				: null;
 
 	return (
 		<>
-			<PanelTitle>{m.export_audio_title()}</PanelTitle>
+			<PanelTitle>{m.export()}</PanelTitle>
 
 			<div className="grid gap-2">
 				<OptionList
@@ -298,6 +308,13 @@ export function ExportPanel({
 							</div>
 						)}
 					</div>
+				</div>
+			)}
+
+			{bytes !== null && (
+				<div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
+					<span className="text-ui text-ink-2">{m.export_estimate()}</span>
+					<span className="tabular text-small">≈ {formatBytes(Math.round(bytes))}</span>
 				</div>
 			)}
 

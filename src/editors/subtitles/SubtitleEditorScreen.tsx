@@ -157,7 +157,14 @@ function SingleSubtitleScreen({ initialTool }: { initialTool?: ToolId }) {
 				exportActive: tool === 'export',
 			}}
 			viewer={ready ? undefined : waiting()}
-			workspace={ready ? <Workspace title={opened.file.name.replace(/\.[^.]+$/, '')} /> : undefined}
+			workspace={
+				ready ? (
+					<Workspace
+						title={opened.file.name.replace(/\.[^.]+$/, '')}
+						ambient={source === 'video' ? opened.poster : null}
+					/>
+				) : undefined
+			}
 			inspector={inspector()}
 			inspectorFooter={tool === 'export' && ready ? <SubtitleExportFooter opened={opened} /> : undefined}
 			// The lines need the room: panels open when a tool is chosen, unless a task page asked for one.

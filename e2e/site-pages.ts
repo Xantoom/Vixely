@@ -27,9 +27,9 @@ await page.screenshot({ path: 'shots/task-empty.png' });
 // Discord: the export opens converted, with the preset.
 await page.goto(`${BASE}/tools/compress-video-for-discord`);
 await page.setInputFiles('input[type=file]', sample('film.mkv'));
-await aside.getByLabel('Made for').waitFor({ timeout: 30000 });
+await aside.getByLabel('Destination').waitFor({ timeout: 30000 });
 await page.waitForTimeout(1000);
-console.log('discord preset:', await aside.getByLabel('Made for').textContent(), '|', await aside.getByLabel('Size limit').textContent());
+console.log('discord preset:', await aside.getByLabel('Destination').textContent(), '|', await aside.getByLabel('Max size').textContent());
 await page.screenshot({ path: 'shots/task-discord.png' });
 
 // GIF to MP4: saved as a video.

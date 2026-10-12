@@ -25,7 +25,7 @@ await page.setInputFiles('input[type=file]', [sample('clip.mkv'), sample('h264.m
 await page.getByRole('region', { name: 'Batch' }).waitFor({ timeout: 30000 });
 await page.waitForTimeout(1500);
 await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
-await aside.getByLabel('Made for').click();
+await aside.getByLabel('Destination').click();
 await page.getByRole('option', { name: /^Discord(?! Nitro)/ }).click();
 await page.waitForTimeout(300);
 await page.screenshot({ path: 'shots/video-batch.png' });

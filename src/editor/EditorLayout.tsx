@@ -1,5 +1,6 @@
 import { useNavigate } from '@tanstack/react-router';
 import {
+	ChevronLeft,
 	Download,
 	Ellipsis,
 	House,
@@ -263,7 +264,7 @@ function Panel({
 					onScroll={(event) => {
 						scrolls.current.set(tool, event.currentTarget.scrollTop);
 					}}
-					className="panel-in grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] auto-rows-max content-start gap-5 overflow-auto overscroll-contain [scrollbar-gutter:stable] px-5 pb-6 md:w-(--panel-w) [&>section]:-mx-5 [&>section]:px-5 [&>[data-panel-title]+section]:border-t-0 [&>[data-panel-title]+section]:pt-0"
+					className="panel-in grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] auto-rows-max content-start gap-5 overflow-auto overscroll-contain [scrollbar-gutter:stable] px-5 pb-6 md:w-(--panel-w) [&>section]:-mx-5 [&>section]:px-5 [&>[data-panel-title]+section]:border-t-0 [&>[data-panel-title]+section]:pt-0 [&>[data-page]]:contents [&>[data-page]>section]:-mx-5 [&>[data-page]>section]:px-5 [&>[data-page]>[data-panel-title]+section]:border-t-0 [&>[data-page]>[data-panel-title]+section]:pt-0"
 				>
 					{children}
 				</aside>
@@ -665,14 +666,28 @@ function stageHeight(aspect: number | undefined, open: boolean): string {
 }
 
 /** The panel's heading, with an optional action (reset) and the button closing the panel. */
-export function PanelTitle({ children, action }: { children: string; action?: ReactNode }) {
+export function PanelTitle({
+	children,
+	action,
+	onBack,
+}: {
+	children: string;
+	action?: ReactNode;
+	/** A page opened inside the panel: the button going back to where it was opened from. */
+	onBack?: () => void;
+}) {
 	const close = use(PanelContext);
 	return (
 		<div
 			data-panel-title
-			className="bg-bg border-line sticky top-0 z-10 -mx-5 -mb-1 flex h-14 flex-none items-center gap-1 border-b pr-3 pl-5 max-md:h-12"
+			className={`bg-bg border-line sticky top-0 z-10 -mx-5 -mb-1 flex h-14 flex-none items-center gap-1 border-b pr-3 max-md:h-12 ${onBack ? 'pl-2' : 'pl-5'}`}
 		>
-			<h2 className="text-lead flex-1 font-semibold tracking-[-0.015em]">{children}</h2>
+			{onBack && (
+				<IconButton label={m.back()} onClick={onBack}>
+					<ChevronLeft className="size-5" />
+				</IconButton>
+			)}
+			<h2 className="text-lead min-w-0 flex-1 truncate font-semibold tracking-[-0.015em]">{children}</h2>
 			{action}
 			{close && (
 				<IconButton label={m.close_panel()} onClick={close}>

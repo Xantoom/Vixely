@@ -7,6 +7,7 @@ import { useBoxSize } from '@/ui/use-box-size';
 import { addCue, gridLines } from './document';
 import { FAST_READING, readingSpeed } from './EditBox';
 import { cueLabel } from './labels';
+import { PictureThumb } from './PicturePreview';
 import { useOrigin } from './project';
 import { hasError } from './quality';
 import { useLineIssues } from './QualityBar';
@@ -233,9 +234,13 @@ export function LineGrid() {
 								</span>
 							)}
 							<span role="gridcell" className="flex min-w-0 items-center px-2">
-								<span className="truncate">
-									{cueLabel(line, doc.format).replace(/\n/g, ' \u23CE ')}
-								</span>
+								{line.picture ? (
+									<PictureThumb picture={line.picture} />
+								) : (
+									<span className="truncate">
+										{cueLabel(line, doc.format).replace(/\n/g, ' \u23CE ')}
+									</span>
+								)}
 							</span>
 						</div>
 					);

@@ -129,7 +129,7 @@ await page.screenshot({ path: 'shots/subs-lines.png' });
 await page.locator('nav[aria-label="Editing tools"]').getByRole('button', { name: 'Timing' }).click();
 await aside.getByLabel('Shift by').fill('1.5');
 await aside.getByLabel('Shift by').press('Enter');
-await aside.getByRole('button', { name: /^Shift \+1\.500 s/ }).click();
+await aside.getByRole('button', { name: 'Shift', exact: true }).click();
 { const sync = aside.getByRole('button', { name: 'Two-point sync' }); if ((await sync.getAttribute('aria-expanded')) === 'false') await sync.click(); }
 const fields = aside.getByLabel('New start');
 await fields.nth(1).fill('55');

@@ -16,7 +16,6 @@ export type ToolId =
 	| 'sound'
 	| 'translate'
 	| 'ocr'
-	| 'tracks'
 	| 'speed'
 	| 'lines'
 	| 'timing'
@@ -42,7 +41,7 @@ export const EDITORS: Record<MediaKind, EditorDefinition> = {
 		path: '/video',
 		label: () => m.media_video(),
 		page: () => m.editor_page_video(),
-		tools: ['info', 'trim', 'crop', 'adjust', 'layers', 'tracks'],
+		tools: ['info', 'trim', 'crop', 'adjust', 'layers'],
 		timed: true,
 	},
 	image: {
@@ -98,7 +97,6 @@ export const TOOL_LABELS: Record<ToolId, () => string> = {
 	sound: () => m.tool_sound(),
 	translate: () => m.tool_translate(),
 	ocr: () => m.tool_ocr(),
-	tracks: () => m.tool_tracks(),
 	speed: () => m.tool_speed(),
 	lines: () => m.tool_lines(),
 	timing: () => m.tool_timing(),

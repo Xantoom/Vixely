@@ -65,8 +65,8 @@ export const SHOTS: Record<string, Shot> = {
 	},
 	'video-subtitles': async (page) => {
 		await open(page, '/video', 'sunset.mkv', tracks());
-		await tool(page, t('Tracks', 'Pistes'));
-		await aside(page).locator('li[data-media=audio] button[aria-expanded]').first().click();
+		await exportPanel(page);
+		await aside(page).locator('[data-media=audio] [data-track-row]').first().click();
 	},
 	'gif-frames': async (page) => {
 		await open(page, '/gif', 'sunset.gif');

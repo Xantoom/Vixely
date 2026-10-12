@@ -81,20 +81,15 @@ export function ResizePanel({ source }: { source: Size }) {
 				{m.tool_resize()}
 			</PanelTitle>
 
-			<Section title={m.resize_scale()}>
+			<Section title={m.resize_dimensions()}>
 				<ScaleChoices
-					from={crop}
 					scale={scale}
 					untouched={untouched}
-					largest={LARGEST}
 					onScale={scaleTo}
 					onOriginal={() => {
 						setExport({ exact: null, longestSide: null });
 					}}
 				/>
-			</Section>
-
-			<Section title={m.resize_dimensions()}>
 				<div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-2">
 					<label className="grid gap-1.5">
 						<span className="text-ui text-ink-2">{m.field_width()}</span>
@@ -116,7 +111,7 @@ export function ResizePanel({ source }: { source: Size }) {
 				</div>
 			</Section>
 
-			{/* A third way to the same thing: folded unless one of its sizes is the one chosen. */}
+			{/* Another way to the same thing: folded unless one of its sizes is the one chosen. */}
 			<Group
 				title={m.resize_common()}
 				changed={settings.longestSide !== null}

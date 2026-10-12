@@ -7,7 +7,7 @@ import { Row } from '@/editor/facts';
 import { FormatGroups } from '@/editor/FormatGroups';
 import { FilePanel } from '@/editor/Inspector';
 import { TrimRow } from '@/editor/KeptPanel';
-import { Group, ResetButton, Section } from '@/editor/panel-parts';
+import { Group, ResetButton, Section, SpeedChoices } from '@/editor/panel-parts';
 import { fitRatio } from '@/editors/image/crop';
 import { orientedSize } from '@/editors/image/document';
 import { saveFile } from '@/editors/image/export';
@@ -17,7 +17,6 @@ import { type GifInfo, readGifInfo } from '@/media/gif-info';
 import { outputName } from '@/media/save';
 import type { BatchFile, OpenedFile } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
-import { getLocale } from '@/paraglide/runtime.js';
 import { Button } from '@/ui/Button';
 import { FieldRow, OptionList, Select, Slider, Switch } from '@/ui/fields';
 import { exportGifBatch } from './batch-export';
@@ -213,19 +212,12 @@ const DIRECTIONS: { value: Direction; label: () => string }[] = [
 	{ value: 'pingpong', label: () => m.direction_pingpong() },
 ];
 
-function formatSpeed(speed: number): string {
-	return `${new Intl.NumberFormat(getLocale()).format(speed)}×`;
-}
-
 /** Faster or slower, forwards or back, at a frame rate of choice: a part of the trim panel. */
 function SpeedSection({ animated }: { animated: boolean }) {
 	const doc = useGifDoc();
 	const apply = useGifEditor((state) => state.apply);
-	const preview = useGifEditor((state) => state.preview);
-	const settle = useGifEditor((state) => state.settle);
 	const rateId = useId();
 	const skipId = useId();
-	const speedIndex = Math.max(0, SPEEDS.indexOf(doc.speed));
 	const changed = doc.speed !== 1 || doc.direction !== 'forward' || doc.skip !== 1 || (animated && doc.fps !== null);
 
 	return (
@@ -242,18 +234,12 @@ function SpeedSection({ animated }: { animated: boolean }) {
 				}));
 			}}
 		>
-			<Slider
-				label={m.speed_label()}
-				hideLabel
-				value={speedIndex}
-				min={0}
-				max={SPEEDS.length - 1}
-				defaultValue={SPEEDS.indexOf(1)}
-				format={(index) => formatSpeed(SPEEDS[index] ?? 1)}
-				onChange={(index) => {
-					preview((current) => ({ ...current, speed: SPEEDS[index] ?? 1 }));
+			<SpeedChoices
+				speeds={SPEEDS}
+				value={doc.speed}
+				onChange={(choice) => {
+					apply((current) => ({ ...current, speed: choice }));
 				}}
-				onEnd={settle}
 			/>
 			<OptionList
 				label={m.direction()}
@@ -341,7 +327,7 @@ export function ExportPanel({ engine, isGif }: { engine: GifEngine; isGif: boole
 
 	return (
 		<>
-			<PanelTitle>{m.export_animation_title()}</PanelTitle>
+			<PanelTitle>{m.export()}</PanelTitle>
 
 			<div className="grid gap-2">
 				<OptionList
@@ -367,10 +353,6 @@ export function ExportPanel({ engine, isGif }: { engine: GifEngine; isGif: boole
 					}}
 				/>
 			</div>
-
-			<Group title={m.export_platform()} defaultOpen={settings.preset !== null}>
-				<GifPlatformFormats engine={engine} />
-			</Group>
 
 			{/* Only when converting: keeping the original has nothing to set but its loop. */}
 			{!copying && (
@@ -481,6 +463,11 @@ export function ExportPanel({ engine, isGif }: { engine: GifEngine; isGif: boole
 					/>
 				</FieldRow>
 			)}
+
+			{/* Last, folded: a shortcut that sets the above for a platform. */}
+			<Group title={m.export_platform()} defaultOpen={settings.preset !== null}>
+				<GifPlatformFormats engine={engine} />
+			</Group>
 		</>
 	);
 }

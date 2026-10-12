@@ -16,10 +16,14 @@ export interface CodecSupport {
 	encode: boolean;
 	/** Decoded by Vixely itself where the browser can't (see decoders.ts). */
 	decodedByVixely: boolean;
+	/** Encoded by Vixely itself where the browser can't (the WebAssembly encoders of audio/export.ts). */
+	encodedByVixely: boolean;
 }
 
 /** Sound codecs Vixely decodes itself when the browser doesn't: Dolby Digital, DTS, TrueHD. */
 const VIXELY_DECODES = new Set(['ac3', 'eac3', 'dts', 'truehd']);
+/** Sound codecs Vixely encodes itself when the browser doesn't: MP3, AAC, FLAC. */
+const VIXELY_ENCODES = new Set(['mp3', 'aac', 'flac']);
 
 export interface Capabilities {
 	webCodecs: boolean;
@@ -47,7 +51,15 @@ function merge(all: readonly string[], decodable: string[], encodable: string[])
 	return all.map((codec) => {
 		const browser = decodable.includes(codec);
 		const vixely = !browser && VIXELY_DECODES.has(codec);
-		return { codec, decode: browser || vixely, encode: encodable.includes(codec), decodedByVixely: vixely };
+		const browserEncodes = encodable.includes(codec);
+		const vixelyEncodes = !browserEncodes && VIXELY_ENCODES.has(codec);
+		return {
+			codec,
+			decode: browser || vixely,
+			encode: browserEncodes || vixelyEncodes,
+			decodedByVixely: vixely,
+			encodedByVixely: vixelyEncodes,
+		};
 	});
 }
 

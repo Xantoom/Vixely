@@ -181,6 +181,8 @@ export interface CopyJob {
 	turn?: Turn | null;
 	/** Title, artist, date and cover as edited; absent or null keeps the file's. */
 	meta?: VideoMeta | null;
+	/** The index written first (MP4, MOV), the file held in memory until the end. */
+	fastStart?: boolean;
 }
 
 interface PartPlaced {
@@ -245,7 +247,7 @@ export async function copyTracks(
 		}
 		return input;
 	};
-	const output = new Output({ format: CONTAINERS[job.container].create(), target });
+	const output = new Output({ format: CONTAINERS[job.container].create(job.fastStart), target });
 	try {
 		const input = open(job.file);
 		const video = (await input.getVideoTracks())[0];

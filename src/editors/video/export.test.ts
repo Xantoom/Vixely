@@ -7,12 +7,15 @@ import {
 	CONTAINERS,
 	chooseEncoding,
 	outputSize,
+	planVideo,
 	presetSettings,
+	quantizerFor,
 	resolveAudio,
 	readMeta,
 	settingsFromSource,
 	type VideoCodecId,
 	type VideoEncoders,
+	type VideoExportSettings,
 	type VideoSource,
 	writeMeta,
 } from './export';
@@ -35,7 +38,13 @@ const soft = (codecs: VideoCodecId[]): VideoEncoders => ({ gpu: [], software: co
 describe('video export settings', () => {
 	it('start from the source, with a codec this browser encodes', () => {
 		const settings = settingsFromSource(source, soft(['avc', 'vp9']));
-		expect(settings).toMatchObject({ mode: 'copy', container: 'mkv', codec: 'avc', bitrate: 4200, audio: 'copy' });
+		expect(settings).toMatchObject({
+			mode: 'copy',
+			container: 'mkv',
+			codec: 'avc',
+			rateControl: 'auto',
+			audio: 'copy',
+		});
 		expect(settingsFromSource(source, soft(['avc', 'hevc'])).codec).toBe('hevc');
 	});
 
@@ -124,12 +133,66 @@ describe('size limit', () => {
 
 describe('presets', () => {
 	it('never enlarge the pictures nor speed them up', () => {
-		const discord = presetSettings('discord', { ...source, frameRate: 59.94 }, soft(['avc']), 1080);
-		expect(discord).toMatchObject({ container: 'mp4', codec: 'avc', height: 720, frameRate: 30, sizeLimit: 20 });
+		const whatsapp = presetSettings('whatsapp', { ...source, frameRate: 59.94 }, soft(['avc']), 1080);
+		expect(whatsapp).toMatchObject({ container: 'mp4', codec: 'avc', height: 720, frameRate: 30, sizeLimit: 16 });
 		const small = presetSettings('discord', source, soft(['avc']), 480);
-		expect(small).toMatchObject({ height: null, frameRate: null });
-		expect(presetSettings('youtube', source, soft(['avc']), 1080).bitrate).toBe(8000);
+		expect(small).toMatchObject({ height: null, frameRate: null, adaptive: true });
+		expect(presetSettings('youtube', source, soft(['avc']), 1080)).toMatchObject({
+			rateControl: 'auto',
+			bitrateCeiling: 8000,
+			keyframes: 0.5,
+		});
 		expect(presetSettings('web', source, soft(['avc', 'av1']), 1080).codec).toBe('av1');
+		expect(presetSettings('web', source, soft(['vp9']), 1080).codec).toBe('vp9');
+	});
+});
+
+describe('video plan', () => {
+	const upright = { width: 1920, height: 1080 };
+	const picture = createImageDoc();
+	const base = { ...settingsFromSource(source, soft(['avc', 'hevc'])), mode: 'encode' as const };
+	const plan = (changes: Partial<VideoExportSettings>, seconds = 60, from = source) =>
+		planVideo({ settings: { ...base, ...changes }, picture, upright, seconds, audio: 128, source: from });
+
+	it('carry the source over to another codec and size', () => {
+		// HEVC to H.264 takes half as many bits again; the same codec keeps the source's.
+		expect(plan({ codec: 'hevc' }).bitrate).toBe(4200);
+		expect(plan({ codec: 'avc' }).bitrate).toBe(Math.round(4200 / 0.65));
+		// Half the pixels: about 60 % of the bits.
+		expect(plan({ codec: 'hevc', height: 720 }).bitrate).toBe(
+			Math.round(4200 * ((1280 * 720) / (1920 * 1080)) ** 0.75),
+		);
+		// A heavy source is not copied beyond what the codec can use.
+		const heavy = plan({ codec: 'avc' }, 60, { ...source, codec: 'prores', bitrate: 150_000 });
+		expect(heavy.bitrate).toBeLessThan(12_000);
+	});
+
+	it('keep a size limit as a ceiling, never a target', () => {
+		const light = plan({ codec: 'hevc', sizeLimit: 500 });
+		expect(light).toMatchObject({ bitrate: 4200, limited: false });
+		const tight = plan({ codec: 'hevc', sizeLimit: 20 });
+		expect(tight.limited).toBe(true);
+		expect(tight.estimate).toBeLessThanOrEqual(20);
+	});
+
+	it('bring the picture down when a limit leaves it too few bits', () => {
+		// A minute in 20 MB: about 2.5 Mb/s, too few for 1080p in H.264.
+		const minute = plan({ codec: 'avc', sizeLimit: 20, adaptive: true });
+		expect(minute.height).toBe(720);
+		expect(minute.size).toEqual({ width: 1280, height: 720 });
+		// Ten seconds keep the whole picture.
+		expect(plan({ codec: 'avc', sizeLimit: 20, adaptive: true }, 10).height).toBeNull();
+		// Not adaptive: the height stays, and the bits are told short.
+		expect(plan({ codec: 'avc', sizeLimit: 8 }, 300).squeezed).toBe(true);
+	});
+
+	it('keep a quality level to a quantizer, of no known size', () => {
+		const quality = plan({ codec: 'avc', rateControl: 'quality', quality: 0.75 });
+		expect(quality).toMatchObject({ constantQuality: true, estimate: null });
+		expect(quantizerFor('avc', 0.75)).toBe(22);
+		expect(quantizerFor('av1', 1)).toBe(88);
+		// Under a limit, the bitrate decides.
+		expect(plan({ codec: 'avc', rateControl: 'quality', sizeLimit: 20 }).constantQuality).toBe(false);
 	});
 });
 

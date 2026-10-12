@@ -1,95 +1,13 @@
-import { useNavigate } from '@tanstack/react-router';
-import { AudioLines, Camera, Captions, Film, ImagePlus, Trash2 } from 'lucide-react';
+import { Camera, ImagePlus, Trash2 } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
-import { PanelTitle } from '@/editor/EditorLayout';
-import { Group, Section } from '@/editor/panel-parts';
-import { EDITORS } from '@/editors/registry';
+import { Group } from '@/editor/panel-parts';
 import { usePlayback } from '@/media/playback';
-import { type OpenedFile, useSession } from '@/media/session';
+import type { OpenedFile } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { Button } from '@/ui/Button';
-import { useSubtitleProject } from '../subtitles/project';
 import { capturePicture } from './capture';
 import { type CoverImage, type VideoMeta } from './document';
-import { exportTarget, useExportMode } from './ExportPanel';
-import { type MuxKind, useMuxTracks } from './mux';
-import { AudioTrackList, SubtitleTrackList, trackLabel } from './MuxPanel';
 import { useVideoDoc, useVideoEditor } from './store';
-
-/** The container the tracks go into, and the subtitle track burned into the pictures. */
-function useTarget() {
-	const mode = useExportMode();
-	const settings = useVideoEditor((state) => state.exportSettings);
-	return { target: exportTarget(mode, settings), burned: mode === 'encode' ? (settings?.burn ?? null) : null };
-}
-
-/**
- * The Tracks tool, as in HandBrake: every sound and subtitle track of the video with what it is,
- * each kept or left out, unfolding to change its name, language, flags, encoding and sound.
- * Tracks come from other files too, and subtitle tracks open in the subtitle editor to be edited.
- */
-export function VideoTracksPanel({
-	opened,
-	onSubtitlesAdded,
-}: {
-	opened: OpenedFile;
-	/** Subtitle files were added: they show over the video at once. */
-	onSubtitlesAdded?: () => void;
-}) {
-	const { target, burned } = useTarget();
-	const navigate = useNavigate();
-	const openFrom = useSession((state) => state.openFrom);
-	const choose = useSubtitleProject((state) => state.choose);
-	const toSubtitles = () => {
-		openFrom('video', 'subtitles');
-		void navigate({ to: EDITORS.subtitles.path });
-	};
-	return (
-		<>
-			<PanelTitle>{m.tool_tracks()}</PanelTitle>
-			<AudioTrackList opened={opened} target={target} title={m.mux_audio()} />
-			<SubtitleTrackList
-				opened={opened}
-				target={target}
-				burned={burned}
-				title={m.player_subtitles()}
-				onAdded={onSubtitlesAdded}
-				onEditLines={(track) => {
-					if (track.subtitle !== null) choose(track.subtitle);
-					toSubtitles();
-				}}
-			/>
-		</>
-	);
-}
-
-const KIND_ICONS: Record<MuxKind, typeof Film> = { video: Film, audio: AudioLines, subtitle: Captions };
-const KIND_MEDIA: Record<MuxKind, string> = { video: 'video', audio: 'audio', subtitle: 'subtitles' };
-
-/** What the exported file will hold, track by track; the Audio and Subtitles tools change it. */
-export function TrackSummary({ opened }: { opened: OpenedFile }) {
-	const { target, burned } = useTarget();
-	const tracks = useMuxTracks(opened.file, opened.format, target, burned)?.tracks.filter((track) => track.include);
-	if (!tracks) return null;
-	return (
-		<Section title={m.mux_tracks()}>
-			<ul className="grid gap-2">
-				{tracks.map((track) => {
-					const Icon = KIND_ICONS[track.kind];
-					return (
-						<li key={track.key} className="flex min-w-0 items-center gap-2">
-							<span data-media={KIND_MEDIA[track.kind]} className="text-ed flex-none" aria-hidden="true">
-								<Icon size={15} />
-							</span>
-							<span className="text-body truncate">{trackLabel(track)}</span>
-							<span className="text-small text-muted ml-auto flex-none pl-2">{track.codec}</span>
-						</li>
-					);
-				})}
-			</ul>
-		</Section>
-	);
-}
 
 /** Longest side of a cover made from a picture, in pixels: players show them small. */
 const COVER_SIDE = 1280;

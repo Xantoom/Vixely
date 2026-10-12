@@ -1,23 +1,15 @@
-import { Group } from '@/editor/panel-parts';
+import { Group, SpeedChoices } from '@/editor/panel-parts';
 import { decimal } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
-import { getLocale } from '@/paraglide/runtime.js';
 import { Slider } from '@/ui/fields';
 import { fadeOf, NO_FADE, speedOf, VIDEO_SPEEDS, videoLength } from './document';
 import { useVideoDoc, useVideoEditor } from './store';
-
-function formatSpeed(speed: number): string {
-	return `${new Intl.NumberFormat(getLocale()).format(speed)}×`;
-}
 
 /** The video faster or slower, its sound at the same pitch: a part of the trim panel. */
 export function VideoSpeed() {
 	const doc = useVideoDoc();
 	const apply = useVideoEditor((state) => state.apply);
-	const preview = useVideoEditor((state) => state.preview);
-	const settle = useVideoEditor((state) => state.settle);
 	const speed = speedOf(doc);
-	const index = Math.max(0, VIDEO_SPEEDS.indexOf(speed));
 	return (
 		<Group
 			title={m.tool_speed()}
@@ -26,35 +18,13 @@ export function VideoSpeed() {
 				apply((current) => ({ ...current, speed: 1 }));
 			}}
 		>
-			<Slider
-				label={m.speed_label()}
-				hideLabel
-				value={index}
-				min={0}
-				max={VIDEO_SPEEDS.length - 1}
-				defaultValue={VIDEO_SPEEDS.indexOf(1)}
-				format={(at) => formatSpeed(VIDEO_SPEEDS[at] ?? 1)}
-				onChange={(at) => {
-					preview((current) => ({ ...current, speed: VIDEO_SPEEDS[at] ?? 1 }));
+			<SpeedChoices
+				speeds={VIDEO_SPEEDS}
+				value={speed}
+				onChange={(choice) => {
+					apply((current) => ({ ...current, speed: choice }));
 				}}
-				onEnd={settle}
 			/>
-			<div role="radiogroup" aria-label={m.speed_label()} className="grid grid-cols-5 gap-1.5">
-				{[0.5, 1, 1.5, 2, 4].map((choice) => (
-					<button
-						key={choice}
-						type="button"
-						role="radio"
-						aria-checked={speed === choice}
-						onClick={() => {
-							apply((current) => ({ ...current, speed: choice }));
-						}}
-						className="text-ui tabular text-ink-2 hover:bg-surface aria-checked:bg-ed-soft aria-checked:text-ink h-9 rounded-sm font-medium shadow-[inset_0_0_0_1px_var(--line-2)] transition-[background-color,box-shadow] aria-checked:shadow-[inset_0_0_0_1.5px_var(--ed)]"
-					>
-						{formatSpeed(choice)}
-					</button>
-				))}
-			</div>
 		</Group>
 	);
 }

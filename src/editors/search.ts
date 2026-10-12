@@ -13,7 +13,6 @@ const TOOLS = new Set<string>([
 	'sound',
 	'translate',
 	'ocr',
-	'tracks',
 	'speed',
 	'lines',
 	'timing',
@@ -30,7 +29,7 @@ export interface EditorSearch {
 }
 
 /** Tools merged into others: links to them open the one they joined. */
-const MERGED: Partial<Record<string, ToolId>> = { speed: 'trim', volume: 'sound' };
+const MERGED: Partial<Record<string, ToolId>> = { speed: 'trim', volume: 'sound', tracks: 'export' };
 
 export function validateEditorSearch(search: Record<string, unknown>): EditorSearch {
 	const tool = typeof search.tool === 'string' ? (MERGED[search.tool] ?? search.tool) : search.tool;

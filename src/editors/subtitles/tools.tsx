@@ -8,7 +8,7 @@ import { m } from '@/paraglide/messages.js';
 import { Alert } from '@/ui/Alert';
 import { Button } from '@/ui/Button';
 import { FieldRow, Select } from '@/ui/fields';
-import { LANGUAGES } from '../video/MuxPanel';
+import { LANGUAGES } from '../video/Tracks';
 import { type Cue, newCueId } from './document';
 import { pictureBitmap } from './pgs';
 import { whenRead, currentTrackDoc, type TrackKey, useOrigin, useProjectTracks, useSubtitleProject } from './project';

@@ -4,51 +4,60 @@ import type { Rect, Size } from '@/editors/image/document';
 
 /**
  * Each handle straddles the frame's edge; on a touchscreen it grows to a finger's size and sits
- * just inside the frame, so a picture spanning the whole screen keeps its handles on it.
+ * just inside the frame, drawn as a bracket on it, so a picture spanning the whole screen keeps
+ * its handles on it.
  */
-const HANDLES: { handle: Handle; className: string; cursor: string }[] = [
+const HANDLES: { handle: Handle; className: string; mark: string; cursor: string }[] = [
 	{
 		handle: 'nw',
 		className:
 			'-top-3 -left-3 pointer-coarse:top-0 pointer-coarse:left-0 pointer-coarse:items-start pointer-coarse:justify-items-start',
+		mark: 'pointer-coarse:border-t-[3px] pointer-coarse:border-l-[3px] pointer-coarse:size-5',
 		cursor: 'nwse-resize',
 	},
 	{
 		handle: 'n',
 		className: '-top-3 left-1/2 -translate-x-1/2 pointer-coarse:top-0 pointer-coarse:items-start',
+		mark: 'pointer-coarse:h-[3px] pointer-coarse:w-6',
 		cursor: 'ns-resize',
 	},
 	{
 		handle: 'ne',
 		className:
 			'-top-3 -right-3 pointer-coarse:top-0 pointer-coarse:right-0 pointer-coarse:items-start pointer-coarse:justify-items-end',
+		mark: 'pointer-coarse:border-t-[3px] pointer-coarse:border-r-[3px] pointer-coarse:size-5',
 		cursor: 'nesw-resize',
 	},
 	{
 		handle: 'e',
 		className: 'top-1/2 -right-3 -translate-y-1/2 pointer-coarse:right-0 pointer-coarse:justify-items-end',
+		mark: 'pointer-coarse:w-[3px] pointer-coarse:h-6',
 		cursor: 'ew-resize',
 	},
 	{
 		handle: 'se',
 		className:
 			'-right-3 -bottom-3 pointer-coarse:right-0 pointer-coarse:bottom-0 pointer-coarse:items-end pointer-coarse:justify-items-end',
+		mark: 'pointer-coarse:border-r-[3px] pointer-coarse:border-b-[3px] pointer-coarse:size-5',
 		cursor: 'nwse-resize',
 	},
 	{
 		handle: 's',
 		className: '-bottom-3 left-1/2 -translate-x-1/2 pointer-coarse:bottom-0 pointer-coarse:items-end',
+		mark: 'pointer-coarse:h-[3px] pointer-coarse:w-6',
 		cursor: 'ns-resize',
 	},
 	{
 		handle: 'sw',
 		className:
 			'-bottom-3 -left-3 pointer-coarse:bottom-0 pointer-coarse:left-0 pointer-coarse:items-end pointer-coarse:justify-items-start',
+		mark: 'pointer-coarse:border-b-[3px] pointer-coarse:border-l-[3px] pointer-coarse:size-5',
 		cursor: 'nesw-resize',
 	},
 	{
 		handle: 'w',
 		className: 'top-1/2 -left-3 -translate-y-1/2 pointer-coarse:left-0 pointer-coarse:justify-items-start',
+		mark: 'pointer-coarse:w-[3px] pointer-coarse:h-6',
 		cursor: 'ew-resize',
 	},
 ];
@@ -109,7 +118,7 @@ export function CropOverlay({ crop, scale, bounds, ratio, onChange, onEnd }: Cro
 						start(event, 'move');
 					}}
 				/>
-				{HANDLES.map(({ handle, className, cursor }) => (
+				{HANDLES.map(({ handle, className, mark, cursor }) => (
 					<div
 						key={handle}
 						className={`absolute grid size-6 place-items-center pointer-coarse:size-11 ${className}`}
@@ -118,7 +127,11 @@ export function CropOverlay({ crop, scale, bounds, ratio, onChange, onEnd }: Cro
 							start(event, handle);
 						}}
 					>
-						<span className="size-2.5 rounded-[2px] bg-white shadow-[0_0_0_1px_rgb(0_0_0/0.45)] pointer-coarse:size-3.5" />
+						{/* On a touchscreen, brackets on the frame's own corners and edges, like a phone's
+						    photo editor, rather than squares pressed against the screen's border. */}
+						<span
+							className={`size-2.5 rounded-[2px] bg-white shadow-[0_0_0_1px_rgb(0_0_0/0.45)] pointer-coarse:rounded-none pointer-coarse:border-white pointer-coarse:shadow-none pointer-coarse:drop-shadow-[0_0_1px_rgb(0_0_0/0.6)] ${mark} ${handle.length === 2 ? 'pointer-coarse:bg-transparent' : ''}`}
+						/>
 					</div>
 				))}
 			</div>

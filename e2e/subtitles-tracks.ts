@@ -28,7 +28,9 @@ const tool = async (name: string) => {
 };
 const exportAs = async (format: RegExp) => {
 	await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
-	await aside.getByRole('radio', { name: format }).click();
+	// A single format possible (pictures stay pictures) is shown, not offered.
+	const choice = aside.getByRole('radio', { name: format });
+	if (await choice.count()) await choice.click();
 	const [download] = await Promise.all([
 		page.waitForEvent('download'),
 		page.locator('aside + div').getByRole('button').first().click(),
@@ -111,7 +113,7 @@ await page.getByRole('region', { name: 'Selected line' }).screenshot({ path: 'sh
 await tool('Timing');
 await aside.getByLabel('Shift by').fill('0.5');
 await aside.getByLabel('Shift by').press('Enter');
-await aside.getByRole('button', { name: /^Shift \+0\.500 s/ }).click();
+await aside.getByRole('button', { name: 'Shift', exact: true }).click();
 const sup = await exportAs(/^PGS/);
 console.log('exported', sup.name, sup.data.length, 'bytes, starts with', sup.data.subarray(0, 2).toString());
 

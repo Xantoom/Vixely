@@ -42,8 +42,7 @@ await page.getByLabel('Start', { exact: true }).fill('1'); await page.keyboard.p
 await page.getByLabel('End', { exact: true }).fill('2.5'); await page.keyboard.press('Enter');
 console.log('trimmed:', await preview());
 // Speed is a part of the trim tool, open already.
-const speed = page.getByRole('slider', { name: 'Speed' });
-await speed.focus(); for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight'); await speed.blur();
+await page.locator('aside').getByRole('radio', { name: '2×' }).click();
 await page.locator('aside').getByRole('radio', { name: 'Back and forth' }).click();
 console.log('2× back and forth:', await preview());
 await rail.getByRole('button', { name: 'Crop' }).click();

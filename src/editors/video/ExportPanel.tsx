@@ -3,7 +3,7 @@ import { Film } from 'lucide-react';
 import { useEffect, useId } from 'react';
 import { isShortened, keptRanges } from '@/document/kept';
 import { PanelTitle } from '@/editor/EditorLayout';
-import { Section } from '@/editor/panel-parts';
+import { Group, Section } from '@/editor/panel-parts';
 import { EDITORS } from '@/editors/registry';
 import { codecName, formatBytes } from '@/lib/format';
 import { detectGpu, type Gpu } from '@/media/gpu';
@@ -20,31 +20,36 @@ import { pictureChange, timeShaped, videoLength } from './document';
 import {
 	type AudioChoice,
 	audioFits,
+	bitDepthOf,
 	CODEC_LABELS,
 	CONTAINERS,
 	chooseEncoding,
-	estimatedMegabytes,
 	FRAME_RATES,
 	HEIGHTS,
-	limitedBitrate,
 	outputSize,
 	PRESET_ORDER,
+	type Preset,
 	type PresetId,
 	PRESETS,
+	planVideo,
 	presetSettings,
 	QUALITY_LEVELS,
+	quantizerFor,
+	type RateControl,
 	readVideoSource,
 	resolveAudio,
 	shortSide,
 	sizeLimits,
-	sourceCeiling,
+	type VideoCodecId,
 	type VideoContainer,
 	type VideoEncoderKind,
 	type VideoExportSettings,
 	videoEncoders,
 } from './export';
-import { MetadataSection, TrackSummary } from './panels';
+import { muxContainer } from './mux';
+import { MetadataSection } from './panels';
 import { useVideoDoc, useVideoEditor } from './store';
+import { SoundTracks, SubtitleTracks, TrackPages } from './Tracks';
 
 /** Reads what the export starts from, once per file: the source's codec, bitrate and rate. */
 export function useExportSource(opened: OpenedFile | null, upright: Size | null) {
@@ -139,9 +144,6 @@ const CONTAINER_ORDER: VideoContainer[] = ['mp4', 'mkv', 'webm', 'mov'];
 
 const NONE = 'none';
 
-/** Below this video bitrate (kb/s), pictures come out blurry. */
-const LOW_BITRATE = 300;
-
 const QUALITY_LABELS: Record<(typeof QUALITY_LEVELS)[number], () => string> = {
 	1: () => m.quality_very_high(),
 	0.75: () => m.quality_high(),
@@ -150,25 +152,28 @@ const QUALITY_LABELS: Record<(typeof QUALITY_LEVELS)[number], () => string> = {
 	0: () => m.quality_very_low(),
 };
 
-/** The encoder in short: its system name on the graphics card (`NVENC`), else "Software". */
+const PRESET_GROUPS: Record<Preset['group'], () => string> = {
+	messages: () => m.preset_group_messages(),
+	vertical: () => m.preset_group_vertical(),
+	social: () => m.preset_group_social(),
+	video: () => m.preset_group_video(),
+	general: () => m.preset_group_general(),
+};
+
+/** The encoder in short: its system name on the graphics card (`NVENC`), else "Processor". */
 function encoderLabel(encoder: VideoEncoderKind, gpu: Gpu | null): string {
 	if (encoder === 'software') return m.encoder_software_short();
 	return gpu?.encoder ?? m.encoder_gpu_unknown();
 }
 
-/** A setting changed by hand: the settings are no longer a platform's. */
+/** A setting changed by hand: the settings are no longer a platform's, nor its bitrate ceiling. */
 function useChangeExport() {
 	const set = useVideoEditor((state) => state.setExport);
 	return (change: Partial<VideoExportSettings>) => {
-		set({ ...change, preset: null });
+		set({ ...change, preset: null, bitrateCeiling: null });
 	};
 }
 
-/** Settings made for the places videos are sent to, filled in with one choice. */
-/**
- * Chooses a platform's settings. Those with a frame of their own (9:16 for TikTok) crop the
- * pictures to it from the middle; the size then follows from the crop.
- */
 /** The pictures as a preset leaves them: cropped from the middle to its frame, if it has one. */
 function presetPicture(picture: ImageDoc, upright: Size, id: PresetId): ImageDoc {
 	const { aspect } = PRESETS[id];
@@ -178,6 +183,10 @@ function presetPicture(picture: ImageDoc, upright: Size, id: PresetId): ImageDoc
 	return { ...picture, crop: fitRatio({ x: 0, y: 0, ...bounds }, width / height) };
 }
 
+/**
+ * Chooses a platform's settings. Those with a frame of their own (9:16 for TikTok) crop the
+ * pictures to it from the middle; the size then follows from the crop.
+ */
 function useChoosePreset(upright: Size) {
 	const exportSource = useVideoEditor((state) => state.exportSource);
 	const set = useVideoEditor((state) => state.setExport);
@@ -200,11 +209,39 @@ function useChoosePreset(upright: Size) {
 /** What a preset gives, in short: the size limit, else the picture size. */
 function presetDetail(id: PresetId, height: number): string {
 	const { sizeLimit, maxHeight } = PRESETS[id];
-	return sizeLimit ? m.size_mb({ size: sizeLimit }) : `${Math.min(height, maxHeight)} p`;
+	return sizeLimit && sizeLimit < 1000 ? m.size_mb({ size: sizeLimit }) : `${Math.min(height, maxHeight)} p`;
 }
 
-/** Settings made for the places videos are sent to, filled in with one choice. */
-function PresetSettings({ upright, batch = false }: { upright: Size; batch?: boolean }) {
+/** Why a preset sets what it does, in a sentence. */
+function presetReason(id: PresetId): string {
+	const preset = PRESETS[id];
+	if (preset.group === 'messages')
+		return preset.sizeLimit && preset.sizeLimit < 1000
+			? m.preset_reason_limit({ name: preset.label, size: m.size_mb({ size: preset.sizeLimit }) })
+			: m.preset_reason_plays({ name: preset.label });
+	if (id === 'youtube' || id === 'shorts') return m.preset_reason_youtube();
+	if (preset.group === 'general') return preset.codec === 'av1' ? m.preset_reason_web() : m.preset_reason_uhd();
+	return m.preset_reason_upload({ name: preset.label });
+}
+
+/**
+ * Everything worked out for the panel: the plan of the pictures, the sound's bitrate it leaves
+ * room for, and what the source is.
+ */
+function usePlan(upright: Size) {
+	const settings = useVideoEditor((state) => state.exportSettings);
+	const exportSource = useVideoEditor((state) => state.exportSource);
+	const doc = useVideoDoc();
+	if (!settings || !exportSource) return null;
+	const { source } = exportSource;
+	const sound = settings.audio === 'copy' ? (source.audioBitrate ?? settings.audioBitrate) : settings.audioBitrate;
+	const audio = source.audioCodec ? sound : 0;
+	const plan = planVideo({ settings, picture: doc.picture, upright, seconds: videoLength(doc), audio, source });
+	return { settings, exportSource, plan, audio };
+}
+
+/** Where the video goes: a platform's settings in one choice, and why they are what they are. */
+function Destination({ upright, batch = false }: { upright: Size; batch?: boolean }) {
 	const settings = useVideoEditor((state) => state.exportSettings);
 	const exportSource = useVideoEditor((state) => state.exportSource);
 	const set = useVideoEditor((state) => state.setExport);
@@ -215,50 +252,116 @@ function PresetSettings({ upright, batch = false }: { upright: Size; batch?: boo
 	const height = shortSide(outputSize(picture, upright, null));
 	// A batch keeps each video's own frame: presets that crop are chosen per video.
 	const presets = batch ? PRESET_ORDER.filter((preset) => !PRESETS[preset].aspect) : PRESET_ORDER;
+	const preset = settings.preset ? PRESETS[settings.preset] : null;
 	return (
-		<Section title={m.export_preset()}>
-			<FieldRow label={m.export_preset_for()} htmlFor={id}>
+		<Section title={m.export_destination()}>
+			<div className="grid gap-2">
+				<label htmlFor={id} className="sr-only">
+					{m.export_destination()}
+				</label>
 				<Select
 					id={id}
+					label={m.export_destination()}
 					value={settings.preset ?? NONE}
 					options={[
-						{ value: NONE, label: m.preset_custom() },
-						...presets.map((preset) => ({
-							value: preset,
-							label: PRESETS[preset].label,
-							detail: presetDetail(preset, height),
-							leading: <BrandLogo logo={PRESETS[preset].logo} size={18} />,
+						{ value: NONE, label: m.preset_custom(), detail: m.preset_custom_detail() },
+						...presets.map((value) => ({
+							value,
+							label: PRESETS[value].label,
+							detail: presetDetail(value, height),
+							leading: <BrandLogo logo={PRESETS[value].logo} size={18} />,
+							group: PRESET_GROUPS[PRESETS[value].group](),
 						})),
 					]}
 					onChange={(value) => {
-						if (value === NONE) set({ preset: null });
+						if (value === NONE) set({ preset: null, bitrateCeiling: null });
 						else choose(value);
 					}}
 				/>
-			</FieldRow>
+				<p className="text-small text-muted text-pretty">
+					{settings.preset && preset ? presetReason(settings.preset) : m.preset_custom_reason()}
+				</p>
+			</div>
 		</Section>
 	);
 }
 
-/** Pictures: container, codec, size, rate and bitrate. */
-function VideoSettings({ upright }: { upright: Size }) {
+/** Size and rate of the pictures. */
+function PictureFields({ upright }: { upright: Size }) {
+	const planned = usePlan(upright);
+	const set = useChangeExport();
+	const picture = useVideoDoc().picture;
+	const ids = { height: useId(), rate: useId() };
+	if (!planned) return null;
+	const { settings, exportSource, plan } = planned;
+	const { source } = exportSource;
+	const full = outputSize(picture, upright, null);
+	const top = shortSide(outputSize(picture, upright, settings.height));
+	const AUTO = 'auto';
+	const adaptive = settings.adaptive && settings.sizeLimit !== null;
+	return (
+		<div className="grid gap-2.5">
+			<FieldRow label={m.export_resolution()} htmlFor={ids.height}>
+				<Select
+					id={ids.height}
+					value={adaptive ? AUTO : settings.height === null ? SOURCE : String(settings.height)}
+					options={[
+						...(settings.sizeLimit === null
+							? []
+							: [
+									{
+										value: AUTO,
+										label: m.resolution_auto(),
+										detail: m.resolution_auto_detail({ height: shortSide(plan.size) }),
+									},
+								]),
+						{ value: SOURCE, label: `${shortSide(full)} p`, detail: m.encoding_copy() },
+						...HEIGHTS.filter((height) => height < shortSide(full)).map((height) => {
+							const scaled = outputSize(picture, upright, height);
+							return {
+								value: String(height),
+								label: `${height} p`,
+								detail: `${scaled.width} × ${scaled.height}`,
+							};
+						}),
+					]}
+					onChange={(value) => {
+						if (value === AUTO) set({ adaptive: true, height: top < shortSide(full) ? top : null });
+						else set({ adaptive: false, height: value === SOURCE ? null : Number(value) });
+					}}
+				/>
+			</FieldRow>
+			<FieldRow label={m.export_frame_rate()} htmlFor={ids.rate}>
+				<Select
+					id={ids.rate}
+					value={settings.frameRate === null ? SOURCE : String(settings.frameRate)}
+					options={[
+						{
+							value: SOURCE,
+							label: source.frameRate ? `${source.frameRate} fps` : m.encoding_copy(),
+							detail: source.frameRate ? m.encoding_copy() : undefined,
+						},
+						...FRAME_RATES.filter((rate) => !source.frameRate || rate < source.frameRate + 0.5).map(
+							(rate) => ({ value: String(rate), label: `${rate} fps` }),
+						),
+					]}
+					onChange={(value) => {
+						set({ frameRate: value === SOURCE ? null : Number(value) });
+					}}
+				/>
+			</FieldRow>
+		</div>
+	);
+}
+
+/** File format, encoder and codec, the codec with its bit depth. */
+function EncodingFields() {
 	const settings = useVideoEditor((state) => state.exportSettings);
 	const exportSource = useVideoEditor((state) => state.exportSource);
 	const set = useChangeExport();
-	const doc = useVideoDoc();
-	const picture = doc.picture;
-	const ids = {
-		container: useId(),
-		codec: useId(),
-		encoder: useId(),
-		height: useId(),
-		rate: useId(),
-		limit: useId(),
-		rateControl: useId(),
-		bitrate: useId(),
-	};
+	const ids = { container: useId(), codec: useId(), encoder: useId() };
 	if (!settings || !exportSource) return null;
-	const { source, encoders, gpu } = exportSource;
+	const { encoders, gpu } = exportSource;
 	const containerCodecs = CONTAINERS[settings.container].codecs;
 	// Codecs the chosen encoder can't write are not offered: AV1 only shows on the cards that
 	// encode it.
@@ -270,26 +373,6 @@ function VideoSettings({ upright }: { upright: Size }) {
 			: gpuCodecs.length === 0
 				? m.encoder_gpu_container({ container: CONTAINERS[settings.container].label })
 				: null;
-	const full = outputSize(picture, upright, null);
-	const size = outputSize(picture, upright, settings.height);
-	// What a size limit leaves the pictures, the main sound track taking its share.
-	const sound = settings.audio === 'copy' ? (source.audioBitrate ?? settings.audioBitrate) : settings.audioBitrate;
-	const audio = source.audioCodec ? sound : 0;
-	const limited =
-		settings.sizeLimit === null
-			? null
-			: limitedBitrate(
-					settings.sizeLimit,
-					videoLength(doc),
-					audio,
-					sourceCeiling(source, upright, size, settings.frameRate),
-				);
-	// Low is a warning only when the limit squeezes the pictures, not when the source is light already.
-	const squeezed =
-		settings.sizeLimit !== null && limitedBitrate(settings.sizeLimit, videoLength(doc), audio, null) < LOW_BITRATE;
-	// Told only when the bitrate is set: kept to a quality, the size depends on the pictures.
-	const bitrate = limited ?? (settings.rateControl === 'bitrate' ? settings.bitrate : null);
-	const estimate = bitrate === null ? null : estimatedMegabytes(bitrate, audio, videoLength(doc));
 
 	const chooseContainer = (container: VideoContainer) => {
 		const encoding = chooseEncoding(encoders, CONTAINERS[container].codecs, settings.codec, settings.encoder);
@@ -305,189 +388,235 @@ function VideoSettings({ upright }: { upright: Size }) {
 	};
 
 	return (
-		<Section title={m.mux_video()}>
-			<div className="grid gap-2.5">
-				<FieldRow label={m.export_container()} htmlFor={ids.container}>
-					<Select
-						id={ids.container}
-						value={settings.container}
-						options={CONTAINER_ORDER.map((container) => {
-							const usable = CONTAINERS[container].codecs.some(
-								(codec) => encoders.gpu.includes(codec) || encoders.software.includes(codec),
-							);
-							return {
-								value: container,
-								label: CONTAINERS[container].label,
-								detail: CONTAINERS[container].codecs.map((codec) => CODEC_LABELS[codec]).join(' '),
-								disabled: !usable,
-								reason: usable ? undefined : m.container_unavailable(),
-							};
-						})}
-						onChange={chooseContainer}
-					/>
-				</FieldRow>
-				<FieldRow label={m.export_encoder()} htmlFor={ids.encoder}>
-					<Select<VideoEncoderKind>
-						id={ids.encoder}
-						value={settings.encoder}
-						options={[
-							{
-								value: 'gpu',
-								label: gpu ? m.encoder_gpu({ encoder: gpu.encoder }) : m.encoder_gpu_unknown(),
-								detail: gpu?.name ?? m.encoder_gpu_detail(),
-								disabled: gpuBlocker !== null,
-								reason: gpuBlocker ?? undefined,
-							},
-							{
-								value: 'software',
-								label: m.encoder_software(),
-								detail: m.encoder_software_detail(),
-								disabled: !containerCodecs.some((codec) => encoders.software.includes(codec)),
-								reason: m.encoder_software_none(),
-							},
-						]}
-						onChange={chooseEncoder}
-					/>
-				</FieldRow>
-				<FieldRow label={m.export_codec()} htmlFor={ids.codec}>
-					<Select
-						id={ids.codec}
-						value={settings.codec}
-						options={codecs.map((codec) => ({
-							value: codec,
-							label: CODEC_LABELS[codec],
-							detail: encoderLabel(settings.encoder, gpu),
-						}))}
-						onChange={(codec) => {
-							set({ codec });
-						}}
-					/>
-				</FieldRow>
-				<FieldRow label={m.export_resolution()} htmlFor={ids.height}>
-					<Select
-						id={ids.height}
-						value={settings.height === null ? SOURCE : String(settings.height)}
-						options={[
-							{ value: SOURCE, label: `${shortSide(full)} p`, detail: m.encoding_copy() },
-							...HEIGHTS.filter((height) => height < shortSide(full)).map((height) => {
-								const scaled = outputSize(picture, upright, height);
-								return {
-									value: String(height),
-									label: `${height} p`,
-									detail: `${scaled.width} × ${scaled.height}`,
-								};
-							}),
-						]}
-						onChange={(value) => {
-							set({ height: value === SOURCE ? null : Number(value) });
-						}}
-					/>
-				</FieldRow>
-				<FieldRow label={m.info_frame_rate()} htmlFor={ids.rate}>
-					<Select
-						id={ids.rate}
-						value={settings.frameRate === null ? SOURCE : String(settings.frameRate)}
-						options={[
-							{
-								value: SOURCE,
-								label: source.frameRate ? `${source.frameRate} fps` : m.encoding_copy(),
-								detail: source.frameRate ? m.encoding_copy() : undefined,
-							},
-							...FRAME_RATES.map((rate) => ({ value: String(rate), label: `${rate} fps` })),
-						]}
-						onChange={(value) => {
-							set({ frameRate: value === SOURCE ? null : Number(value) });
-						}}
-					/>
-				</FieldRow>
-				<FieldRow label={m.export_size_limit()} htmlFor={ids.limit}>
-					<Select
-						id={ids.limit}
-						value={settings.sizeLimit === null ? NONE : String(settings.sizeLimit)}
-						options={[
-							{ value: NONE, label: m.size_limit_none() },
-							...sizeLimits(settings.sizeLimit).map((limit) => ({
-								value: String(limit),
-								label: m.size_mb({ size: limit }),
-							})),
-						]}
-						onChange={(value) => {
-							set({ sizeLimit: value === NONE ? null : Number(value) });
-						}}
-					/>
-				</FieldRow>
-				{limited === null && (
-					<FieldRow label={m.export_rate_control()} htmlFor={ids.rateControl}>
-						<Select
-							id={ids.rateControl}
-							value={settings.rateControl}
-							options={[
-								{ value: 'bitrate' as const, label: m.rate_bitrate() },
-								{ value: 'quality' as const, label: m.rate_quality() },
-							]}
-							onChange={(rateControl) => {
-								set({ rateControl });
-							}}
-						/>
-					</FieldRow>
-				)}
-				{limited === null && settings.rateControl === 'quality' ? (
-					<FieldRow label={m.export_quality()} htmlFor={ids.bitrate}>
-						<Select
-							id={ids.bitrate}
-							value={String(settings.quality)}
-							options={QUALITY_LEVELS.map((level) => ({
-								value: String(level),
-								label: QUALITY_LABELS[level](),
-							}))}
-							onChange={(value) => {
-								set({ quality: Number(value) });
-							}}
-						/>
-					</FieldRow>
-				) : limited === null ? (
-					<FieldRow label={m.export_bitrate()} htmlFor={ids.bitrate}>
-						<NumberField
-							id={ids.bitrate}
-							value={settings.bitrate}
-							unit="kb/s"
-							min={100}
-							max={200_000}
-							onCommit={(bitrate) => {
-								set({ bitrate });
-							}}
-						/>
-					</FieldRow>
-				) : (
-					<div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
-						<span className="text-ui text-ink-2">{m.export_bitrate()}</span>
-						<span
-							className={`tabular text-small ${squeezed ? 'text-danger' : ''}`}
-							title={squeezed ? m.bitrate_low() : undefined}
-						>
-							{limited} kb/s
-						</span>
-					</div>
-				)}
-				<div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
-					<span className="text-ui text-ink-2">{m.export_size()}</span>
-					<span className="tabular text-small">
-						{size.width} × {size.height}
-					</span>
-				</div>
-				{estimate !== null && (
-					<div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
-						<span className="text-ui text-ink-2">{m.export_estimate()}</span>
-						<span className="tabular text-small">≈ {formatBytes(Math.round(estimate * 1_000_000))}</span>
-					</div>
-				)}
-			</div>
-		</Section>
+		<div className="grid gap-2.5">
+			<FieldRow label={m.export_format()} htmlFor={ids.container}>
+				<Select
+					id={ids.container}
+					value={settings.container}
+					options={CONTAINER_ORDER.map((container) => {
+						const usable = CONTAINERS[container].codecs.some(
+							(codec) => encoders.gpu.includes(codec) || encoders.software.includes(codec),
+						);
+						return {
+							value: container,
+							label: CONTAINERS[container].label,
+							detail: CONTAINERS[container].codecs.map((codec) => CODEC_LABELS[codec]).join(' '),
+							disabled: !usable,
+							reason: usable ? undefined : m.container_unavailable(),
+						};
+					})}
+					onChange={chooseContainer}
+				/>
+			</FieldRow>
+			<FieldRow label={m.export_encoder()} htmlFor={ids.encoder}>
+				<Select<VideoEncoderKind>
+					id={ids.encoder}
+					value={settings.encoder}
+					options={[
+						{
+							value: 'gpu',
+							label: gpu?.encoder ?? m.encoder_gpu_unknown(),
+							detail: gpu?.name ?? m.encoder_gpu_detail(),
+							disabled: gpuBlocker !== null,
+							reason: gpuBlocker ?? undefined,
+						},
+						{
+							value: 'software',
+							label: m.encoder_software(),
+							detail: m.encoder_software_detail(),
+							disabled: !containerCodecs.some((codec) => encoders.software.includes(codec)),
+							reason: m.encoder_software_none(),
+						},
+					]}
+					onChange={chooseEncoder}
+				/>
+			</FieldRow>
+			<FieldRow label={m.export_codec()} htmlFor={ids.codec}>
+				<Select
+					id={ids.codec}
+					value={settings.codec}
+					options={codecs.map((codec) => ({
+						value: codec,
+						label: CODEC_LABELS[codec],
+						detail: `${encoderLabel(settings.encoder, gpu)}, ${m.bit_depth({ bits: bitDepthOf(encoders, codec, settings.encoder) })}`,
+					}))}
+					onChange={(codec) => {
+						set({ codec });
+					}}
+				/>
+			</FieldRow>
+		</div>
 	);
 }
 
-/** Sound: copied as it is where it can be, else encoded again. */
-function AudioSettings() {
+/** How the bitrate is set, and the size the file may not go over. */
+function RateFields({ upright }: { upright: Size }) {
+	const planned = usePlan(upright);
+	const set = useChangeExport();
+	const ids = { rateControl: useId(), level: useId(), limit: useId() };
+	if (!planned) return null;
+	const { settings, plan } = planned;
+	return (
+		<div className="grid gap-2.5">
+			<FieldRow label={m.export_quality()} htmlFor={ids.rateControl}>
+				<Select<RateControl>
+					id={ids.rateControl}
+					value={settings.rateControl}
+					options={[
+						{ value: 'auto', label: m.rate_auto(), detail: m.rate_auto_detail() },
+						{ value: 'quality', label: m.rate_quality(), detail: m.rate_quality_detail() },
+						{ value: 'bitrate', label: m.rate_bitrate(), detail: 'kb/s' },
+					]}
+					onChange={(rateControl) => {
+						// A bitrate set by hand starts from the one the plan gave.
+						set(rateControl === 'bitrate' ? { rateControl, bitrate: plan.bitrate } : { rateControl });
+					}}
+				/>
+			</FieldRow>
+			{settings.rateControl === 'quality' && (
+				<FieldRow label={m.export_level()} htmlFor={ids.level}>
+					<Select
+						id={ids.level}
+						value={String(settings.quality)}
+						options={QUALITY_LEVELS.map((level) => ({
+							value: String(level),
+							label: QUALITY_LABELS[level](),
+							detail: `${quantizerName(settings.codec)} ${quantizerFor(settings.codec, level)}`,
+						}))}
+						onChange={(value) => {
+							set({ quality: Number(value) });
+						}}
+					/>
+				</FieldRow>
+			)}
+			{settings.rateControl === 'bitrate' && (
+				<FieldRow label={m.export_bitrate()} htmlFor={ids.level}>
+					<NumberField
+						id={ids.level}
+						value={settings.bitrate}
+						unit="kb/s"
+						min={100}
+						max={200_000}
+						onCommit={(bitrate) => {
+							set({ bitrate });
+						}}
+					/>
+				</FieldRow>
+			)}
+			<FieldRow label={m.export_size_limit()} htmlFor={ids.limit}>
+				<Select
+					id={ids.limit}
+					value={settings.sizeLimit === null ? NONE : String(settings.sizeLimit)}
+					options={[
+						{ value: NONE, label: m.size_limit_none() },
+						...sizeLimits(settings.sizeLimit).map((limit) => ({
+							value: String(limit),
+							label: m.size_mb({ size: limit }),
+						})),
+					]}
+					onChange={(value) => {
+						set({ sizeLimit: value === NONE ? null : Number(value) });
+					}}
+				/>
+			</FieldRow>
+		</div>
+	);
+}
+
+/** How the encoder counts its quantizer: QP, or AV1's and VP9's own scale. */
+function quantizerName(codec: VideoCodecId): string {
+	return codec === 'avc' || codec === 'hevc' ? 'QP' : 'Q';
+}
+
+/**
+ * What comes out, always in view: the picture's size and depth, the bitrate and the file's
+ * weight, or why the weight can't be told before the end.
+ */
+function Outcome({ upright }: { upright: Size }) {
+	const planned = usePlan(upright);
+	if (!planned) return null;
+	const { settings, exportSource, plan } = planned;
+	const depth = bitDepthOf(exportSource.encoders, settings.codec, settings.encoder);
+	const rows: { label: string; value: string; tone?: 'danger' }[] = [
+		{ label: m.export_size(), value: `${plan.size.width} × ${plan.size.height}, ${m.bit_depth({ bits: depth })}` },
+		plan.constantQuality
+			? { label: m.export_bitrate(), value: m.rate_follows_picture() }
+			: { label: m.export_bitrate(), value: `${plan.bitrate} kb/s`, tone: plan.squeezed ? 'danger' : undefined },
+		{
+			label: m.export_estimate(),
+			value:
+				plan.estimate === null
+					? m.estimate_unknown()
+					: settings.sizeLimit === null
+						? `≈ ${formatBytes(Math.round(plan.estimate * 1_000_000))}`
+						: m.estimate_within({
+								size: formatBytes(Math.round(plan.estimate * 1_000_000)),
+								limit: m.size_mb({ size: settings.sizeLimit }),
+							}),
+		},
+	];
+	return (
+		<section className="border-line grid gap-2 border-t pt-4" aria-label={m.export_outcome()}>
+			<dl className="grid gap-1.5">
+				{rows.map((row) => (
+					<div key={row.label} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
+						<dt className="text-ui text-ink-2">{row.label}</dt>
+						<dd
+							className={`tabular text-small text-right ${row.tone === 'danger' ? 'text-danger' : 'text-ink'}`}
+						>
+							{row.value}
+						</dd>
+					</div>
+				))}
+			</dl>
+			{plan.squeezed && <p className="text-small text-danger text-pretty">{m.bitrate_squeezed()}</p>}
+			{settings.encoder === 'gpu' && depth === 8 && (settings.codec === 'hevc' || settings.codec === 'av1') && (
+				<p className="text-small text-muted text-pretty">{m.bit_depth_unavailable()}</p>
+			)}
+		</section>
+	);
+}
+
+/**
+ * The conversion's settings under the destination: folded once a platform has chosen them, open
+ * when made by hand.
+ */
+function ConvertSettings({ upright, batch = false }: { upright: Size; batch?: boolean }) {
+	// A batch's videos each have their own length and size: what comes out is told per video.
+	const preset = useVideoEditor((state) => state.exportSettings?.preset ?? null);
+	return (
+		<>
+			<Destination upright={upright} batch={batch} />
+			<Group
+				key={preset === null ? 'custom' : 'preset'}
+				title={m.export_settings()}
+				defaultOpen={preset === null}
+			>
+				<div className="grid gap-5">
+					<div className="grid gap-2.5">
+						<h4 className="text-small text-muted font-medium">{m.export_picture()}</h4>
+						<PictureFields upright={upright} />
+					</div>
+					<div className="grid gap-2.5">
+						<h4 className="text-small text-muted font-medium">{m.export_encoding()}</h4>
+						<EncodingFields />
+					</div>
+					<div className="grid gap-2.5">
+						<h4 className="text-small text-muted font-medium">{m.export_quality_size()}</h4>
+						<RateFields upright={upright} />
+					</div>
+				</div>
+			</Group>
+			{!batch && <Outcome upright={upright} />}
+		</>
+	);
+}
+
+/**
+ * Sound: copied as it is where it can be, else encoded again. `bare` gives the fields alone, for
+ * the sound tracks' section to hold.
+ */
+function AudioSettings({ bare = false }: { bare?: boolean }) {
 	const settings = useVideoEditor((state) => state.exportSettings);
 	const exportSource = useVideoEditor((state) => state.exportSource);
 	const set = useChangeExport();
@@ -498,30 +627,28 @@ function AudioSettings() {
 		? null
 		: m.audio_copy_container({ container: CONTAINERS[settings.container].label });
 	const choice = resolveAudio(settings, source);
-	return (
-		<Section title={m.mux_audio()}>
-			<div className="grid gap-2.5">
-				<FieldRow label={m.export_codec()} htmlFor={ids.codec}>
-					<Select<AudioChoice>
-						id={ids.codec}
-						value={choice}
-						options={[
-							{
-								value: 'copy',
-								label: m.export_original({
-									value: source.audioCodec ? codecName(source.audioCodec) : '',
-								}),
-								disabled: copyBlocker !== null,
-								reason: copyBlocker ?? undefined,
-							},
-							...(settings.container === 'webm' ? [] : [{ value: 'aac' as const, label: 'AAC' }]),
-							{ value: 'opus', label: 'Opus' },
-						]}
-						onChange={(audio) => {
-							set({ audio });
-						}}
-					/>
-				</FieldRow>
+	const fields = (
+		<div className="grid gap-2.5">
+			<FieldRow label={m.export_codec()} htmlFor={ids.codec}>
+				<Select<AudioChoice>
+					id={ids.codec}
+					value={choice}
+					options={[
+						{
+							value: 'copy',
+							label: m.export_original({ value: source.audioCodec ? codecName(source.audioCodec) : '' }),
+							disabled: copyBlocker !== null,
+							reason: copyBlocker ?? undefined,
+						},
+						...(settings.container === 'webm' ? [] : [{ value: 'aac' as const, label: 'AAC' }]),
+						{ value: 'opus', label: 'Opus' },
+					]}
+					onChange={(audio) => {
+						set({ audio });
+					}}
+				/>
+			</FieldRow>
+			{choice !== 'copy' && (
 				<FieldRow label={m.export_bitrate()} htmlFor={ids.bitrate}>
 					<NumberField
 						id={ids.bitrate}
@@ -534,9 +661,19 @@ function AudioSettings() {
 						}}
 					/>
 				</FieldRow>
-			</div>
-		</Section>
+			)}
+		</div>
 	);
+	return bare ? fields : <Section title={m.mux_audio()}>{fields}</Section>;
+}
+
+/** What sound tracks become unless their own page says otherwise: copied, or the encoding chosen. */
+function useSoundDefault(mode: 'copy' | 'encode'): string {
+	const settings = useVideoEditor((state) => state.exportSettings);
+	const exportSource = useVideoEditor((state) => state.exportSource);
+	if (mode === 'copy' || !settings || !exportSource) return m.tracks_keep();
+	const choice = resolveAudio(settings, exportSource.source);
+	return choice === 'copy' ? m.tracks_keep() : `${choice === 'aac' ? 'AAC' : 'Opus'} ${settings.audioBitrate} kb/s`;
 }
 
 /** Opens the video in the GIF editor with the edits made here: its passage, speed, crop, looks and text. */
@@ -565,49 +702,72 @@ function ToGif({ opened }: { opened: OpenedFile }) {
  * Export of the video: as it is (its tracks copied, nothing re-encoded, the subtitles as the
  * subtitle editor left them), or converted with the edits. Every setting starts from the source.
  */
-export function VideoExportPanel({ opened, upright }: { opened: OpenedFile; upright: Size }) {
+export function VideoExportPanel({
+	opened,
+	upright,
+	onSubtitlesAdded,
+}: {
+	opened: OpenedFile;
+	upright: Size;
+	/** Subtitle files were added: they show over the video at once. */
+	onSubtitlesAdded?: () => void;
+}) {
 	const blocker = useCopyBlocker();
 	const mode = useExportMode();
 	const settings = useVideoEditor((state) => state.exportSettings);
 	const set = useVideoEditor((state) => state.setExport);
+	const target = exportTarget(mode, settings);
+	const burned = mode === 'encode' ? (settings?.burn ?? null) : null;
+	const soundDefault = useSoundDefault(mode);
 	return (
-		<>
-			<PanelTitle>{m.export_video_title()}</PanelTitle>
-			<OptionList
-				label={m.export_encoding()}
-				value={mode}
-				options={[
-					{
-						value: 'copy',
-						label: m.encoding_copy(),
-						detail: opened.format.toUpperCase(),
-						disabled: blocker !== null,
-						reason: blocker ?? undefined,
-					},
-					{
-						value: 'encode',
-						label: m.encoding_convert(),
-						detail: settings
-							? `${CONTAINERS[settings.container].label}, ${CODEC_LABELS[settings.codec]}`
-							: undefined,
-						disabled: settings === null,
-					},
-				]}
-				onChange={(value) => {
-					set({ mode: value });
-				}}
-			/>
-			{mode === 'encode' && (
+		<TrackPages opened={opened} target={target} burned={burned} soundDefault={soundDefault} editLines>
+			{(open) => (
 				<>
-					<PresetSettings upright={upright} />
-					<VideoSettings upright={upright} />
-					<AudioSettings />
+					<PanelTitle>{m.export()}</PanelTitle>
+					<OptionList
+						label={m.export_encoding()}
+						value={mode}
+						options={[
+							{
+								value: 'copy',
+								label: m.encoding_copy(),
+								description: blocker ?? m.encoding_copy_description(),
+								detail: muxContainer(opened.format).toUpperCase(),
+								disabled: blocker !== null,
+							},
+							{
+								value: 'encode',
+								label: m.encoding_convert(),
+								description: m.encoding_convert_description(),
+								detail: settings
+									? `${CONTAINERS[settings.container].label}, ${CODEC_LABELS[settings.codec]}`
+									: undefined,
+								disabled: settings === null,
+							},
+						]}
+						onChange={(value) => {
+							set({ mode: value });
+						}}
+					/>
+					{mode === 'encode' && <ConvertSettings upright={upright} />}
+					<SoundTracks
+						opened={opened}
+						target={target}
+						onOpen={open}
+						settings={mode === 'encode' ? <AudioSettings bare /> : undefined}
+					/>
+					<SubtitleTracks
+						opened={opened}
+						target={target}
+						burned={burned}
+						onOpen={open}
+						onAdded={onSubtitlesAdded}
+					/>
+					<MetadataSection opened={opened} />
+					{opened.info?.video && <ToGif opened={opened} />}
 				</>
 			)}
-			<TrackSummary opened={opened} />
-			<MetadataSection opened={opened} />
-			{opened.info?.video && <ToGif opened={opened} />}
-		</>
+		</TrackPages>
 	);
 }
 
@@ -621,9 +781,8 @@ export function VideoBatchPanel({ upright }: { upright: Size }) {
 	}, [settings, set]);
 	return (
 		<>
-			<PanelTitle>{m.export_video_title()}</PanelTitle>
-			<PresetSettings upright={upright} batch />
-			<VideoSettings upright={upright} />
+			<PanelTitle>{m.export()}</PanelTitle>
+			<ConvertSettings upright={upright} batch />
 			<AudioSettings />
 		</>
 	);

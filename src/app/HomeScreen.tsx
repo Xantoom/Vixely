@@ -3,6 +3,7 @@ import { ChevronDown, Plus } from 'lucide-react';
 import { type KeyboardEvent, useId, useState } from 'react';
 import { EDITOR_ORDER, EDITORS, type MediaKind } from '@/editors/registry';
 import { Tile } from '@/ui/Tile';
+import { fadeMask, useOverflowEdges } from '@/ui/use-overflow-edges';
 import { DropZone } from './DropZone';
 import { usePageHead } from './head';
 import { homeCopy } from './home/copy';
@@ -14,7 +15,44 @@ import { TASKS } from './tasks';
 
 const WRAP = 'mx-auto w-full max-w-[76rem] px-[clamp(1rem,4vw,2.5rem)]';
 const SECTION = 'grid scroll-mt-20 gap-8 pt-[clamp(4rem,8vw,6.5rem)] max-md:gap-5 max-md:pt-14';
-const H2 = 'font-display text-[clamp(1.75rem,4vw,3rem)] leading-[1.05] font-bold tracking-[-0.02em] text-balance';
+const H2 = 'font-display text-[clamp(1.5rem,3vw,2.25rem)] leading-[1.1] font-semibold tracking-[-0.015em] text-balance';
+
+/**
+ * The pictures of an editor, as one row that scrolls sideways on a phone rather than a second row
+ * of tabs under the first; its edges fade where more tabs lie beyond.
+ */
+function ShotTabs({
+	shots,
+	shot,
+	onShot,
+}: {
+	shots: readonly { name: string; caption: string }[];
+	shot: number;
+	onShot: (index: number) => void;
+}) {
+	const { ref, edges } = useOverflowEdges<HTMLElement>();
+	return (
+		<figcaption
+			ref={ref}
+			className="-mx-1 flex gap-1 overflow-x-auto px-1 [scrollbar-width:none]"
+			style={{ maskImage: fadeMask(edges, 'x') }}
+		>
+			{shots.map((item, index) => (
+				<button
+					key={item.name}
+					type="button"
+					aria-pressed={index === shot}
+					onClick={() => {
+						onShot(index);
+					}}
+					className="text-ui text-muted hover:text-ink aria-pressed:bg-surface aria-pressed:text-ink flex-none rounded-full px-3.5 py-1.5 font-medium whitespace-nowrap transition-colors"
+				>
+					{item.caption}
+				</button>
+			))}
+		</figcaption>
+	);
+}
 
 function SectionHeader({ id, title, lede }: { id: string; title: string; lede?: string }) {
 	return (
@@ -112,25 +150,10 @@ function EditorTabs() {
 							/>
 						)}
 					</div>
-					{/* One row that scrolls sideways on a phone, rather than a second row of tabs under the first. */}
-					<figcaption className="-mx-1 flex gap-1 overflow-x-auto px-1 [scrollbar-width:none]">
-						{editor.shots.map((item, index) => (
-							<button
-								key={item.name}
-								type="button"
-								aria-pressed={index === shot}
-								onClick={() => {
-									setShot(index);
-								}}
-								className="text-ui text-muted hover:text-ink aria-pressed:bg-surface aria-pressed:text-ink flex-none rounded-full px-3.5 py-1.5 font-medium whitespace-nowrap transition-colors"
-							>
-								{item.caption}
-							</button>
-						))}
-					</figcaption>
+					<ShotTabs key={kind} shots={editor.shots} shot={shot} onShot={setShot} />
 				</figure>
 				<div className="grid gap-5">
-					<h3 className="font-display text-[1.75rem] font-bold tracking-[-0.025em]">{editor.title}</h3>
+					<h3 className="font-display text-[1.5rem] font-semibold tracking-[-0.015em]">{editor.title}</h3>
 					<p className="text-lead text-muted">{editor.lede}</p>
 					<ul className="grid gap-4">
 						{editor.points.map(([title, text]) => (

@@ -80,7 +80,7 @@ console.log('  first packets (source, copy):', run(['-select_streams', 'v', '-sh
 await open(sample('clip.mkv'));
 await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 await aside.getByRole('button', { name: 'Metadata', expanded: false }).first().click();
-await aside.getByLabel('Title').fill('Vixely test');
+await aside.getByLabel('Title', { exact: true }).fill('Vixely test');
 await aside.getByLabel('Artist').fill('Xantoom');
 await aside.getByLabel('Artist').press('Tab');
 await aside.getByRole('button', { name: 'Current frame' }).click();
@@ -94,8 +94,8 @@ console.log('  attachments:', run(['-show_entries', 'stream_tags=filename,mimety
 await open(sample('clip.mp4'));
 await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 await aside.getByRole('button', { name: 'Metadata', expanded: false }).first().click();
-await aside.getByLabel('Title').fill('Vixely MP4');
-await aside.getByLabel('Title').press('Tab');
+await aside.getByLabel('Title', { exact: true }).fill('Vixely MP4');
+await aside.getByLabel('Title', { exact: true }).press('Tab');
 await aside.getByRole('button', { name: 'Current frame' }).click();
 await aside.getByRole('img', { name: 'Cover' }).waitFor();
 const taggedMp4 = await exportAs('tagged.mp4', /Original/);
@@ -113,8 +113,8 @@ await page.waitForTimeout(300);
 await aside.screenshot({ path: 'shots/text-timing.png' });
 await page.locator('section[aria-label="Preview"]').screenshot({ path: 'shots/text-preview.png' });
 const titled = await exportAs('titled.mp4', /Convert/, async () => {
-	await aside.getByLabel('Rate control').click();
-	await page.getByRole('option', { name: 'Constant quality' }).click();
+	await aside.getByLabel('Quality', { exact: true }).click();
+	await page.getByRole('option', { name: /^Constant/ }).click();
 });
 streams(titled);
 frame(titled, 1, 'titled-1s');
@@ -146,7 +146,7 @@ await page.waitForTimeout(500);
 // 3b. The layers stay on the timeline in every tool; a bar dragged up a row comes forward.
 await tool('Layers');
 { const back = aside.getByRole('button', { name: /^All layers/ }); if (await back.isVisible()) await back.click(); }
-await aside.getByRole('tab', { name: 'Text' }).click();
+await aside.getByRole('group', { name: 'Add' }).getByRole('button', { name: 'Text', exact: true }).click();
 await aside.getByRole('button', { name: /^Caption/ }).click();
 await tool('Info');
 const layerRows = page.locator('section[aria-label="Timeline"]').getByRole('group', { name: 'Layers' });
@@ -182,7 +182,7 @@ for (const file of ['ac3.mkv', 'dts.mkv', 'truehd.mkv', 'truehd.m2ts', 'truehd.m
 	console.log(`${file} audio:`, decoding?.replace(/\s+/g, ' '));
 	await page.locator('[role=group][aria-label="Tracks"]').screenshot({ path: `shots/${name}-timeline.png` });
 	const converted = await exportAs(`${name}.mp4`, /Convert/, async () => {
-		await aside.getByLabel('Container').click();
+		await aside.getByLabel('Format', { exact: true }).click();
 		await page.getByRole('option', { name: 'MP4' }).click();
 		await aside.getByLabel('Codec').nth(1).click();
 		await page.getByRole('option', { name: 'AAC', exact: true }).click();
@@ -269,7 +269,7 @@ for (const file of ['ac3.mkv', 'dts.mkv', 'truehd.mkv', 'truehd.m2ts', 'truehd.m
 
 // 6. A subtitle file added to the video as a track, copied into it.
 await open(sample('clip.mkv'));
-await tool('Tracks');
+await tool('Export');
 await aside.locator('input[type=file][accept^=".srt"]').setInputFiles('samples/extra.fr.srt');
 await page.waitForTimeout(500);
 await aside.screenshot({ path: 'shots/subtitles-added.png' });

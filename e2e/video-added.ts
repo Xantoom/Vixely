@@ -22,7 +22,7 @@ await page.goto(`${BASE}/video`);
 await page.setInputFiles('input[type=file]', 'samples/speech.mp4');
 await page.waitForSelector('[role=group][aria-label="Tracks"]', { timeout: 30000 });
 await page.waitForTimeout(1500);
-await tools.getByRole('button', { name: 'Tracks', exact: true }).click();
+await tools.getByRole('button', { name: 'Export', exact: true }).click();
 
 const menuItems = async (label: string) => {
 	await page.getByRole('button', { name: label, exact: true }).click();
@@ -61,22 +61,22 @@ await page.waitForTimeout(600);
 await page.screenshot({ path: 'shots/video-added.png' });
 
 // Tracks left out of the video are no longer offered by the player.
-await aside.getByRole('checkbox', { name: /^Keep .*French/ }).uncheck();
+await aside.getByRole('switch', { name: /^Keep .*French/ }).click();
 await page.waitForTimeout(300);
 console.log(
 	'subtitles menu after leaving French out:',
 	await page.getByRole('button', { name: 'Subtitles', exact: true }).count(),
 );
-await aside.getByRole('checkbox', { name: /^Keep .*French/ }).check();
-await aside.getByRole('checkbox', { name: /^Keep .*jfk/ }).uncheck();
+await aside.getByRole('switch', { name: /^Keep .*French/ }).click();
+await aside.getByRole('switch', { name: /^Keep .*jfk/ }).click();
 await page.waitForTimeout(500);
 console.log('audio after leaving jfk out:', await menuItems('Audio track'));
-await aside.getByRole('checkbox', { name: /^Keep .*jfk/ }).check();
+await aside.getByRole('switch', { name: /^Keep .*jfk/ }).click();
 await page.waitForTimeout(300);
 console.log('audio after putting jfk back:', await menuItems('Audio track'));
 
 // The added sound taken out: the video's own sound is heard again.
-await aside.getByRole('button', { name: /jfk/ }).first().click();
+await aside.locator('[data-track-row]').filter({ hasText: 'jfk' }).click();
 await aside.getByRole('button', { name: 'Remove this track' }).click();
 await page.waitForTimeout(800);
 console.log('audio after remove:', await menuItems('Audio track'));

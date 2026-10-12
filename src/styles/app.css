@@ -352,6 +352,32 @@
 	animation: panel-in 220ms var(--ease-out-soft);
 }
 
+/*
+ * A page opened inside a panel (a track's settings) comes in from the right; going back, the list
+ * it came from comes in from the left. The page's wrapper takes no box: its parts move each.
+ */
+.page-forward > * {
+	animation: page-forward 240ms var(--ease-out-soft) backwards;
+}
+
+.page-back > * {
+	animation: page-back 240ms var(--ease-out-soft) backwards;
+}
+
+@keyframes page-forward {
+	from {
+		opacity: 0;
+		transform: translateX(1.25rem);
+	}
+}
+
+@keyframes page-back {
+	from {
+		opacity: 0;
+		transform: translateX(-1.25rem);
+	}
+}
+
 @keyframes pop {
 	from {
 		opacity: 0;
@@ -401,6 +427,8 @@
 	.menu-in,
 	.tooltip-in,
 	.panel-in,
+	.page-forward > *,
+	.page-back > *,
 	.stage-in,
 	.glow-in {
 		animation: editor-fade 120ms ease-out backwards !important;

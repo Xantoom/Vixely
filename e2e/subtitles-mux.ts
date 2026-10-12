@@ -84,7 +84,7 @@ await open(sample('sample.mkv'));
 await page.locator('nav[aria-label="Editing tools"]').getByRole('button', { name: 'Timing' }).click();
 await aside.getByLabel('Shift by').fill('0.5');
 await aside.getByLabel('Shift by').press('Enter');
-await aside.getByRole('button', { name: /^Shift \+0\.500 s/ }).click();
+await aside.getByRole('button', { name: 'Shift', exact: true }).click();
 const pgs = await exportVideo('subtitles');
 await open({ name: 'mux-pgs.mkv', mimeType: 'video/x-matroska', buffer: pgs.data });
 console.log('reopened pgs:', await grid());

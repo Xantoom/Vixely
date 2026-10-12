@@ -2,12 +2,11 @@ import { Scissors } from 'lucide-react';
 import { useId, useMemo, useRef, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { KeptPanel } from '@/editor/KeptPanel';
-import { Group, ResetButton } from '@/editor/panel-parts';
+import { Group, ResetButton, SpeedChoices } from '@/editor/panel-parts';
 import { decimal, formatDb, formatPercent, signedDb } from '@/lib/format';
 import { EQ_BANDS, EQ_PRESET_IDS, EQ_PRESETS, EQ_RANGE, type EqPresetId, FLAT_EQ, responseAt } from '@/media/sound';
 import { PITCH_RANGE } from '@/media/stretch';
 import { m } from '@/paraglide/messages.js';
-import { getLocale } from '@/paraglide/runtime.js';
 import { Button } from '@/ui/Button';
 import { Dropdown } from '@/ui/Dropdown';
 import { OptionList, Slider } from '@/ui/fields';
@@ -272,10 +271,6 @@ function AudioFades() {
 	);
 }
 
-function formatSpeed(speed: number): string {
-	return `${new Intl.NumberFormat(getLocale()).format(speed)}×`;
-}
-
 /** How fast the sound plays and how high it sounds, each on its own: a part of the trim panel. */
 function AudioSpeed() {
 	const doc = useAudioDoc();
@@ -284,7 +279,6 @@ function AudioSpeed() {
 	const settle = useAudioEditor((state) => state.settle);
 	const speed = speedOf(doc);
 	const pitch = pitchOf(doc);
-	const index = Math.max(0, AUDIO_SPEEDS.indexOf(speed));
 	return (
 		<Group
 			title={m.tool_speed()}
@@ -293,37 +287,13 @@ function AudioSpeed() {
 				apply((current) => ({ ...current, speed: 1, pitch: 0 }));
 			}}
 		>
-			<div className="grid gap-3.5">
-				<Slider
-					label={m.speed_label()}
-					hideLabel
-					value={index}
-					min={0}
-					max={AUDIO_SPEEDS.length - 1}
-					defaultValue={AUDIO_SPEEDS.indexOf(1)}
-					format={(at) => formatSpeed(AUDIO_SPEEDS[at] ?? 1)}
-					onChange={(at) => {
-						preview((current) => ({ ...current, speed: AUDIO_SPEEDS[at] ?? 1 }));
-					}}
-					onEnd={settle}
-				/>
-				<div role="radiogroup" aria-label={m.speed_label()} className="grid grid-cols-5 gap-1.5">
-					{[0.75, 1, 1.25, 1.5, 2].map((choice) => (
-						<button
-							key={choice}
-							type="button"
-							role="radio"
-							aria-checked={speed === choice}
-							onClick={() => {
-								apply((current) => ({ ...current, speed: choice }));
-							}}
-							className="text-ui tabular text-ink-2 hover:bg-surface aria-checked:bg-ed-soft aria-checked:text-ink h-9 rounded-sm font-medium shadow-[inset_0_0_0_1px_var(--line-2)] transition-[background-color,box-shadow] aria-checked:shadow-[inset_0_0_0_1.5px_var(--ed)]"
-						>
-							{formatSpeed(choice)}
-						</button>
-					))}
-				</div>
-			</div>
+			<SpeedChoices
+				speeds={AUDIO_SPEEDS}
+				value={speed}
+				onChange={(choice) => {
+					apply((current) => ({ ...current, speed: choice }));
+				}}
+			/>
 			<Slider
 				label={m.pitch_label()}
 				value={pitch}

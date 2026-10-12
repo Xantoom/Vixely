@@ -965,9 +965,6 @@ export function LayersPanel({
 						);
 					})}
 				</div>
-				{adding !== null && adding !== 'draw' && (
-					<p className="text-small text-muted -mb-1">{m.layers_pick()}</p>
-				)}
 				{adding === 'text' && <TextStyles onAdd={addText} />}
 				{adding === 'sticker' && <StickerPicker onAdd={add} />}
 				{adding === 'shape' && <ShapePicker color="#ff3b30" onAdd={add} />}

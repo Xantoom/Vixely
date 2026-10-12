@@ -15,7 +15,8 @@ import { m } from '@/paraglide/messages.js';
 import { Button, IconButton } from '@/ui/Button';
 import { FieldRow, OptionList, Select, TimeField } from '@/ui/fields';
 import { muxContainer } from '../video/mux';
-import { MuxFooter, MuxTracks } from '../video/MuxPanel';
+import { MuxFooter } from '../video/MuxPanel';
+import { SoundTracks, SubtitleTracks, TrackPages } from '../video/Tracks';
 import {
 	FRAME_RATES,
 	inTimeOrder,
@@ -299,7 +300,7 @@ export function TimingPanel() {
 						applyWhole((current) => retime(current, 1, offset, ids));
 					}}
 				>
-					{m.subs_shift_apply({ offset: signedSeconds(offset) })}
+					{m.subs_shift()}
 				</Button>
 			</Section>
 
@@ -420,9 +421,9 @@ export function SubtitleExportPanel({ opened }: { opened: OpenedFile }) {
 	const setExport = useSubtitleEditor((state) => state.setExport);
 	const fromVideo = useSubtitleProject((state) => state.source === 'video');
 	const intoVideo = fromVideo && settings.target === 'video';
-	return (
+	const panel = (open?: (key: string) => void) => (
 		<>
-			<PanelTitle>{m.subs_export_title()}</PanelTitle>
+			<PanelTitle>{m.export()}</PanelTitle>
 			{fromVideo && (
 				<OptionList
 					label={m.subs_export_target()}
@@ -440,8 +441,22 @@ export function SubtitleExportPanel({ opened }: { opened: OpenedFile }) {
 					}}
 				/>
 			)}
-			{intoVideo ? <MuxTracks opened={opened} /> : <SubtitleFileSettings />}
+			{open ? (
+				<>
+					<SubtitleTracks opened={opened} target={null} onOpen={open} />
+					<SoundTracks opened={opened} target={null} onOpen={open} />
+				</>
+			) : (
+				<SubtitleFileSettings />
+			)}
 		</>
+	);
+	// Into the video, its tracks are listed, each opening a page of its own.
+	if (!intoVideo) return panel();
+	return (
+		<TrackPages opened={opened} target={null} soundDefault={m.tracks_keep()}>
+			{panel}
+		</TrackPages>
 	);
 }
 
@@ -452,13 +467,22 @@ function SubtitleFileSettings() {
 	const setExport = useSubtitleEditor((state) => state.setExport);
 	const dropped = droppedCues(doc, settings.format);
 	const losesStyles = doc.format === 'ass' && settings.format !== 'ass';
+	const formats = exportFormats(doc);
+	// A single format (pictures stay pictures) is a fact, not a choice.
+	const [only] = formats;
+	if (formats.length === 1 && only)
+		return (
+			<dl className="grid gap-3.5">
+				<Row label={m.export_format()} value={FORMAT_FILES[only].label} />
+			</dl>
+		);
 	return (
 		<>
 			<Section title={m.export_format()}>
 				<OptionList
 					label={m.export_format()}
 					value={settings.format}
-					options={exportFormats(doc).map((format) => ({
+					options={formats.map((format) => ({
 						value: format,
 						label: FORMAT_FILES[format].label,
 						detail: format === doc.format ? m.subs_format_source() : `.${FORMAT_FILES[format].extension}`,

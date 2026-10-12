@@ -2,6 +2,7 @@ import { ChevronDown, RotateCcw } from 'lucide-react';
 import { type ReactNode, useId, useState } from 'react';
 import type { FixedAspect } from '@/editors/image/store';
 import { m } from '@/paraglide/messages.js';
+import { getLocale } from '@/paraglide/runtime.js';
 import { IconButton } from '@/ui/Button';
 
 /** Pieces shared by the inspector panels of every editor. */
@@ -119,3 +120,37 @@ export const ASPECT_LABELS: Record<FixedAspect, () => string> = {
 	'9:16': () => '9:16',
 	'21:9': () => '21:9',
 };
+
+/**
+ * Every speed offered, as one grid of choices: the value is read on the button lit, no slider
+ * nor number beside it to say the same again.
+ */
+export function SpeedChoices({
+	speeds,
+	value,
+	onChange,
+}: {
+	speeds: readonly number[];
+	value: number;
+	onChange: (speed: number) => void;
+}) {
+	const format = new Intl.NumberFormat(getLocale());
+	return (
+		<div role="radiogroup" aria-label={m.speed_label()} className="grid grid-cols-3 gap-1.5">
+			{speeds.map((choice) => (
+				<button
+					key={choice}
+					type="button"
+					role="radio"
+					aria-checked={value === choice}
+					onClick={() => {
+						onChange(choice);
+					}}
+					className="text-ui tabular text-ink-2 hover:bg-surface aria-checked:bg-ed-soft aria-checked:text-ink h-9 rounded-sm font-medium shadow-[inset_0_0_0_1px_var(--line-2)] transition-[background-color,box-shadow] aria-checked:shadow-[inset_0_0_0_1.5px_var(--ed)]"
+				>
+					{format.format(choice)}×
+				</button>
+			))}
+		</div>
+	);
+}

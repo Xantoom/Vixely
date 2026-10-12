@@ -13,6 +13,7 @@ import type { SubtitleDoc } from '../subtitles/document';
 import { codecLabel, trackDoc, trackKind } from '../subtitles/tracks';
 import { createVideoDoc } from './document';
 import {
+	bitDepthOf,
 	CONTAINERS,
 	presetSettings,
 	readVideoSource,
@@ -164,20 +165,19 @@ export async function exportVideoBatch(job: VideoBatchJob): Promise<number> {
 			if (!sound.upright || !source) throw new Error('No video');
 			// A platform's settings depend on each video: its height, its frame rate.
 			// oxlint-disable-next-line no-await-in-loop
-			const encoders = settings.preset ? await videoEncoders(sound.upright) : null;
-			const own =
-				settings.preset && encoders
-					? {
-							...settings,
-							...presetSettings(
-								settings.preset,
-								source,
-								encoders,
-								shortSide(sound.upright),
-								settings.encoder,
-							),
-						}
-					: settings;
+			const encoders = await videoEncoders(sound.upright);
+			const own = settings.preset
+				? {
+						...settings,
+						...presetSettings(
+							settings.preset,
+							source,
+							encoders,
+							shortSide(sound.upright),
+							settings.encoder,
+						),
+					}
+				: settings;
 			const name = uniqueName(outputName(item.file.name, container.extension), taken);
 			const type = { mime: container.mime, extension: container.extension, description: container.label };
 			// oxlint-disable-next-line no-await-in-loop
@@ -200,6 +200,7 @@ export async function exportVideoBatch(job: VideoBatchJob): Promise<number> {
 					settings: { ...own, mode: 'encode', burn: null, audio: resolveAudio(own, source) },
 					upright: sound.upright,
 					source,
+					bitDepth: bitDepthOf(encoders, own.codec, own.encoder),
 				},
 				save,
 				progress,

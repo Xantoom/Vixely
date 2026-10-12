@@ -278,8 +278,11 @@ export function OptionList<T extends string>({
 }: {
 	label: string;
 	value: T;
-	/** `reason` says why a disabled choice can't be picked, on hover. */
-	options: { value: T; label: string; detail?: string; disabled?: boolean; reason?: string }[];
+	/**
+	 * `description` says what the choice does, under its label; `reason` says why a disabled
+	 * choice can't be picked, on hover.
+	 */
+	options: { value: T; label: string; description?: string; detail?: string; disabled?: boolean; reason?: string }[];
 	onChange: (value: T) => void;
 }) {
 	return (
@@ -295,14 +298,19 @@ export function OptionList<T extends string>({
 					onClick={() => {
 						onChange(option.value);
 					}}
-					className="enabled:hover:bg-surface group grid grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-3 rounded-xs px-2.5 py-2 text-left disabled:cursor-not-allowed disabled:opacity-45"
+					className="enabled:hover:bg-surface group grid grid-cols-[16px_minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-0.5 rounded-xs px-2.5 py-2 text-left disabled:cursor-not-allowed"
 				>
-					<span className="size-4 rounded-full shadow-[inset_0_0_0_1.5px_var(--field-line)] group-aria-checked:shadow-[inset_0_0_0_5px_var(--ed)]" />
-					<span className="text-body">{option.label}</span>
-					<span className="text-small text-muted flex items-center gap-1.5">
+					<span className="size-4 translate-y-0.5 self-start rounded-full shadow-[inset_0_0_0_1.5px_var(--field-line)] group-disabled:opacity-45 group-aria-checked:shadow-[inset_0_0_0_5px_var(--ed)]" />
+					<span className="text-body group-disabled:opacity-45">{option.label}</span>
+					<span className="text-small text-muted flex items-center gap-1.5 group-disabled:opacity-45">
 						{option.disabled && option.reason && <Lock size={12} aria-hidden="true" />}
 						{option.detail}
 					</span>
+					{option.description && (
+						<span className="text-small text-muted col-start-2 col-end-4 text-pretty">
+							{option.description}
+						</span>
+					)}
 				</button>
 			))}
 		</div>
@@ -314,22 +322,37 @@ export function Switch({
 	label,
 	checked,
 	onChange,
+	hideLabel = false,
+	disabled = false,
+	title,
 }: {
 	label: string;
 	checked: boolean;
 	onChange: (checked: boolean) => void;
+	/** Beside what it names already, as at the start of a list's line: the label is for assistive tech. */
+	hideLabel?: boolean;
+	disabled?: boolean;
+	/** Why it can't be changed, when disabled. */
+	title?: string;
 }) {
 	return (
 		<button
 			type="button"
 			role="switch"
 			aria-checked={checked}
+			aria-label={hideLabel ? label : undefined}
+			disabled={disabled}
+			title={title}
 			onClick={() => {
 				onChange(!checked);
 			}}
-			className="group text-ui text-ink-2 flex items-center justify-between gap-3 py-1 text-left pointer-coarse:min-h-11"
+			className={
+				hideLabel
+					? 'group grid flex-none place-items-center disabled:cursor-not-allowed disabled:opacity-45 pointer-coarse:min-h-11'
+					: 'group text-ui text-ink-2 flex items-center justify-between gap-3 py-1 text-left disabled:cursor-not-allowed disabled:opacity-45 pointer-coarse:min-h-11'
+			}
 		>
-			{label}
+			{!hideLabel && label}
 			<span
 				aria-hidden="true"
 				className="bg-(--track-base) group-aria-checked:bg-ed ease-spring relative h-6 w-10 flex-none rounded-full transition-colors duration-200"

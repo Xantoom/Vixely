@@ -64,12 +64,10 @@ export function GifResizePanel({ source }: { source: Size }) {
 				{m.tool_resize()}
 			</PanelTitle>
 
-			<Section title={m.resize_scale()}>
+			<Section title={m.resize_dimensions()}>
 				<ScaleChoices
-					from={natural}
 					scale={scale}
 					untouched={untouched}
-					largest={LARGEST}
 					onScale={(percent) => {
 						setSize({
 							width: Math.min(LARGEST, Math.max(1, Math.round((natural.width * percent) / 100))),
@@ -80,9 +78,6 @@ export function GifResizePanel({ source }: { source: Size }) {
 						setExport({ exact: null, width: null });
 					}}
 				/>
-			</Section>
-
-			<Section title={m.resize_dimensions()}>
 				<div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-2">
 					<label className="grid gap-1.5">
 						<span className="text-ui text-ink-2">{m.field_width()}</span>

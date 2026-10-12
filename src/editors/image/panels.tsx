@@ -395,7 +395,7 @@ export function ExportPanel({ source, photo }: { source: ImageBitmap; photo: Pho
 
 	return (
 		<>
-			<PanelTitle>{m.export_image_title()}</PanelTitle>
+			<PanelTitle>{m.export()}</PanelTitle>
 			{preset && (
 				<p className="bg-ed-soft text-ed-text text-ui rounded-sm px-3.5 py-2.5 font-medium">
 					{m.preset_chosen({ name: `${presetGroupTitle(preset.id)} · ${preset.label()}` })}
