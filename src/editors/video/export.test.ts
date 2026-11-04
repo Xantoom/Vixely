@@ -213,6 +213,7 @@ describe('video metadata', () => {
 		expect(written.images).toEqual([]);
 		expect(written.raw).toEqual({});
 		expect(written.date?.toISOString()).toBe('2024-07-14T00:00:00.000Z');
-		expect(writeMeta(tags, null)).toBe(tags);
+		expect(written.creationTime).toBeNull();
+		expect(writeMeta(tags, null)).toEqual({ ...tags, creationTime: null });
 	});
 });

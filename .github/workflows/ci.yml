@@ -3,8 +3,10 @@ name: CI
 on:
     push:
         branches: [main, v1]
+        paths-ignore: ['**.md', 'e2e/**', 'LICENSE']
     pull_request:
         branches: [main, v1]
+        paths-ignore: ['**.md', 'e2e/**', 'LICENSE']
 
 permissions:
     contents: read
@@ -18,6 +20,8 @@ concurrency:
 jobs:
     check:
         name: Build, lint and test
+        # A branch of this repository is checked when pushed: its pull request would only repeat that.
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.fork
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v7
@@ -79,6 +83,7 @@ jobs:
 
     rust:
         name: Test Rust
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.fork
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v7
@@ -101,7 +106,7 @@ jobs:
 
             - name: Test
               if: steps.tested.outputs.cache-hit != 'true'
-              run: cargo test --workspace --release && touch .rust-tested
+              run: cargo test --workspace --profile ci && touch .rust-tested
 
             - name: Remember the passed run
               if: steps.tested.outputs.cache-hit != 'true'

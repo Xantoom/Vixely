@@ -241,6 +241,7 @@ async function exportVideo(options: ExportGifOptions, frames: readonly OutputFra
 		...(settings.alpha && { alpha: 'keep' as const }),
 	});
 	output.addVideoTrack(video);
+	output.setMetadataTags({ creationTime: null });
 	await output.start();
 	try {
 		await drawFrames(options, frames, layout, async (image, frame) => {

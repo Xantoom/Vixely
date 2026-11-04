@@ -20,8 +20,8 @@ export interface CodecSupport {
 	encodedByVixely: boolean;
 }
 
-/** Sound codecs Vixely decodes itself when the browser doesn't: Dolby Digital, DTS, TrueHD. */
-const VIXELY_DECODES = new Set(['ac3', 'eac3', 'dts', 'truehd']);
+/** Codecs Vixely decodes itself when the browser doesn't: Dolby Digital, DTS, TrueHD, ProRes. */
+const VIXELY_DECODES = new Set(['ac3', 'eac3', 'dts', 'truehd', 'prores']);
 /** Sound codecs Vixely encodes itself when the browser doesn't: MP3, AAC, FLAC. */
 const VIXELY_ENCODES = new Set(['mp3', 'aac', 'flac']);
 

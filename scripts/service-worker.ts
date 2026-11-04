@@ -32,7 +32,7 @@ const lazy = files.filter(
 		SUBTITLE_FONTS.test(path) ||
 		path.endsWith('.woff') ||
 		path.startsWith('/shots/') ||
-		/\/mediabunny-(dts|ac3)-|\/jassub-worker-[^m/][^/]*\.wasm$/.test(path) ||
+		/\/mediabunny-(dts|ac3|prores)-|\/jassub-worker-[^m/][^/]*\.wasm$/.test(path) ||
 		(/\/vixely_image_bg-[^/]+\.wasm$/.test(path) && !importsMemory(path)),
 );
 // The pages, what the first page loads, and the app's icons.

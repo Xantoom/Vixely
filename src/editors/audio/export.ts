@@ -349,6 +349,7 @@ function outputFormat(settings: AudioExportSettings, bytes: number): OutputForma
 async function outputTags(input: Input, settings: AudioExportSettings): Promise<MetadataTags> {
 	const source = await input.getMetadataTags().catch((): MetadataTags => ({}));
 	const tags: MetadataTags = {
+		creationTime: null,
 		description: source.description,
 		albumArtist: source.albumArtist,
 		trackNumber: source.trackNumber,

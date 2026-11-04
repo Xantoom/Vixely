@@ -19,6 +19,7 @@ function locale(): Locale {
 const CREDITS = [
 	['Mediabunny', 'https://mediabunny.dev'],
 	['FFmpeg (AC-3, E-AC-3, DTS and AAC coders)', 'https://ffmpeg.org'],
+	['TurboRes (ProRes decoder)', 'https://github.com/Vanilagy/turbores'],
 	['RNNoise / nnnoiseless', 'https://github.com/jneem/nnnoiseless'],
 	['LAME', 'https://lame.sourceforge.io'],
 	['libFLAC', 'https://xiph.org/flac/'],

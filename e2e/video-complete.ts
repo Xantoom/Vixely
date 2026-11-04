@@ -174,8 +174,8 @@ await page.screenshot({ path: 'shots/tiktok-editor.png' });
 const tiktok = await exportAs('tiktok.mp4', /Convert/);
 streams(tiktok);
 
-// 5. Dolby Digital 5.1, DTS and TrueHD (in Matroska, as on Blu-ray, and in MP4): decoded, converted to AAC.
-for (const file of ['ac3.mkv', 'dts.mkv', 'truehd.mkv', 'truehd.m2ts', 'truehd.mp4']) {
+// 5. Dolby Digital 5.1, DTS, TrueHD (in Matroska, as on Blu-ray, and in MP4) and ProRes: decoded, converted to AAC.
+for (const file of ['ac3.mkv', 'dts.mkv', 'truehd.mkv', 'truehd.m2ts', 'truehd.mp4', 'prores.mov']) {
 	const name = file.replace('.mkv', '').replace('.', '-');
 	await open(sample(file));
 	const decoding = await aside.locator('dl').last().textContent();

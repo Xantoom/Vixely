@@ -1,9 +1,9 @@
-import type { InputAudioTrack } from 'mediabunny';
+import type { InputAudioTrack, InputVideoTrack } from 'mediabunny';
 
 /**
- * Sound codecs browsers don't decode, common in films: Dolby Digital (AC-3, E-AC-3) and DTS, read
- * by FFmpeg's decoders built for WebAssembly, and Dolby TrueHD, by vixely-truehd. Each is loaded
- * the first time a track needs it, in the page or worker that reads the track.
+ * Codecs browsers don't decode: Dolby Digital (AC-3, E-AC-3) and DTS, read by FFmpeg's decoders
+ * built for WebAssembly, Dolby TrueHD, by vixely-truehd, and ProRes. Each is loaded the first time
+ * a track needs it, in the page or worker that reads the track.
  */
 const EXTENSIONS: Record<string, () => Promise<void>> = {
 	ac3: async () => {
@@ -17,6 +17,9 @@ const EXTENSIONS: Record<string, () => Promise<void>> = {
 	},
 	truehd: async () => {
 		(await import('./truehd')).registerTrueHdDecoder();
+	},
+	prores: async () => {
+		(await import('@mediabunny/prores')).registerProresDecoder();
 	},
 };
 
@@ -35,12 +38,13 @@ async function ensureDecoder(codec: string | null): Promise<void> {
 	if (!pending) {
 		pending = (async () => {
 			// Safari decodes Dolby Digital itself.
-			const native = await AudioDecoder.isConfigSupported({
-				codec: WEB_CODECS[codec] ?? codec,
-				numberOfChannels: 2,
-				sampleRate: 48_000,
-			}).catch(() => ({ supported: false }));
-			if (!native.supported) await load();
+			const name = WEB_CODECS[codec];
+			const native =
+				name &&
+				(await AudioDecoder.isConfigSupported({ codec: name, numberOfChannels: 2, sampleRate: 48_000 }).catch(
+					() => ({ supported: false }),
+				));
+			if (!native || !native.supported) await load();
 		})();
 		loaded.set(key, pending);
 	}
@@ -48,7 +52,7 @@ async function ensureDecoder(codec: string | null): Promise<void> {
 }
 
 /** Whether the track can be decoded here, with the extension decoders when needed. */
-export async function canDecodeAudio(track: InputAudioTrack): Promise<boolean> {
+export async function canDecode(track: InputAudioTrack | InputVideoTrack): Promise<boolean> {
 	await ensureDecoder(await track.getCodec());
 	return track.canDecode();
 }

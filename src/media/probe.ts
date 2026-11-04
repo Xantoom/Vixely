@@ -1,7 +1,7 @@
 import { ALL_FORMATS, BlobSource, CanvasSink, Input, type InputVideoTrack } from 'mediabunny';
 import type { MediaKind } from '@/editors/registry';
 import { loadCore } from '@/wasm/core';
-import { canDecodeAudio } from './decoders';
+import { canDecode } from './decoders';
 
 export interface VideoStream {
 	codec: string | null;
@@ -172,7 +172,7 @@ async function readTimed(input: Input, base: MediaInfo): Promise<Probe> {
 	if (videoTrack) {
 		const [rate, decodable, codec, width, height] = await Promise.all([
 			measureFrameRate(videoTrack),
-			videoTrack.canDecode(),
+			canDecode(videoTrack),
 			videoTrack.getCodec(),
 			videoTrack.getDisplayWidth(),
 			videoTrack.getDisplayHeight(),
@@ -194,7 +194,7 @@ async function readTimed(input: Input, base: MediaInfo): Promise<Probe> {
 			audioTrack.getCodec(),
 			audioTrack.getSampleRate(),
 			audioTrack.getNumberOfChannels(),
-			canDecodeAudio(audioTrack),
+			canDecode(audioTrack),
 		]);
 		audio = { codec, sampleRate, channels, decodable };
 	}

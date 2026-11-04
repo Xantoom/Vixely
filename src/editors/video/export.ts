@@ -30,6 +30,7 @@ import { drawOverlays, loadOverlayAssets } from '@/editor/overlays/draw';
  * its sound copied or encoded again, through Mediabunny's Conversion. The pictures are drawn by
  * the same WebGL renderer as the preview, so the file looks like what was on screen.
  */
+import { canDecode } from '@/media/decoders';
 import { containerHdr } from '@/media/report/container';
 import { changesSound, type SoundChanges } from '@/media/sound';
 import type { LogoId } from '@/ui/BrandLogo';
@@ -248,10 +249,11 @@ export function readMeta(tags: MetadataTags): VideoMeta {
 
 /**
  * The file's tags with the edited ones in place of its own. The format's raw tags go, as they
- * would say the old title; attached files other than pictures stay (subtitle fonts).
+ * would say the old title; attached files other than pictures stay (subtitle fonts). The moment
+ * of the export isn't written: it says when the person worked, and nothing of the video.
  */
 export function writeMeta(tags: MetadataTags, meta: VideoMeta | null): MetadataTags {
-	if (!meta) return tags;
+	if (!meta) return { ...tags, creationTime: null };
 	const raw = Object.fromEntries(
 		Object.entries(tags.raw ?? {}).filter(
 			([, value]) => value instanceof AttachedFile && !value.mimeType?.startsWith('image/'),
@@ -276,6 +278,7 @@ export function writeMeta(tags: MetadataTags, meta: VideoMeta | null): MetadataT
 		date: date && !Number.isNaN(date.getTime()) ? date : undefined,
 		images: cover,
 		raw,
+		creationTime: null,
 	};
 }
 
@@ -1284,7 +1287,7 @@ export const FAST_START_LIMIT = 512;
 
 /** Metadata tags for a conversion: the file's, with the edited ones in their place. */
 function conversionTags(meta: VideoMeta | null) {
-	return meta ? (tags: MetadataTags) => writeMeta(tags, meta) : undefined;
+	return (tags: MetadataTags) => writeMeta(tags, meta);
 }
 
 /**
@@ -1299,6 +1302,9 @@ export async function convertVideo(
 ): Promise<void> {
 	const { doc, settings } = job;
 	const input = new Input({ source: new BlobSource(job.file), formats: ALL_FORMATS });
+	// A batch comes here without the file having been opened: its decoders load now.
+	const tracks = (await input.getTracks()).filter((track) => track.isVideoTrack() || track.isAudioTrack());
+	await Promise.all(tracks.map(canDecode));
 	const output = new Output({ format: CONTAINERS[settings.container].create(job.fastStart), target });
 	const ranges = keptRanges(doc);
 	const cuts = doc.cuts.length > 0;

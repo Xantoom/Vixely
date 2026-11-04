@@ -14,7 +14,7 @@
 
 | Editor    | Opens                                     | Tools                                                                    |
 | --------- | ----------------------------------------- | ------------------------------------------------------------------------ |
-| Video     | MP4, M4V, MKV, WebM, MOV                  | Trim, crop, resize, speed, colour, layers, sound and subtitle tracks     |
+| Video     | MP4, M4V, MKV, WebM, MOV, ProRes          | Trim, crop, resize, speed, colour, layers, sound and subtitle tracks     |
 | Image     | JPEG, PNG, WebP, AVIF, JPEG XL, HEIC, BMP, TIFF, ICO | Crop, resize, colour, layers, format conversion                |
 | GIF       | GIF, APNG, animated WebP                  | Trim, crop, frame editing, size optimisation                             |
 | Audio     | MP3, WAV, FLAC, Ogg, Opus, M4A, AAC, MKA  | Trim, volume, loudness, noise reduction                                  |

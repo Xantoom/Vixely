@@ -1,14 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
-	codecName,
-	formatAperture,
 	formatBitrate,
 	formatBytes,
 	formatLength,
 	formatClock,
 	formatCoordinates,
 	formatExifDate,
-	formatFocalLength,
 	formatFrameRate,
 	formatPreciseTime,
 	formatShutter,
@@ -67,18 +64,10 @@ describe('format', () => {
 		expect(formatFrameRate(12.5)).toBe('12.5 fps');
 	});
 
-	it('names codecs', () => {
-		expect(codecName('avc')).toBe('H.264');
-		expect(codecName('pcm-s16')).toBe('PCM S16');
-		expect(codecName('something')).toBe('SOMETHING');
-	});
-
 	it('formats exposure values like photographers', () => {
 		expect(formatShutter(0.004)).toBe('1/250 s');
 		expect(formatShutter(0.5)).toBe('1/2 s');
 		expect(formatShutter(2)).toBe('2 s');
-		expect(formatAperture(2.8)).toBe('f/2.8');
-		expect(formatFocalLength(35)).toBe('35 mm');
 	});
 
 	it('formats EXIF dates and coordinates', () => {

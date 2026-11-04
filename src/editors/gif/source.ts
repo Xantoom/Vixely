@@ -1,4 +1,5 @@
 import { ALL_FORMATS, BlobSource, CanvasSink, Input, type InputVideoTrack } from 'mediabunny';
+import { canDecode } from '@/media/decoders';
 import { decodeAnimation } from '@/media/gif-codec';
 import { decodeStill } from '@/media/probe';
 import type { SourceTiming } from './document';
@@ -97,7 +98,7 @@ function key(time: number): number {
 export async function openVideo(file: File, fps: number | null): Promise<FrameSource> {
 	const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
 	const track: InputVideoTrack | null = await input.getPrimaryVideoTrack();
-	if (!track) throw new Error('No video track.');
+	if (!track || !(await canDecode(track))) throw new Error('No video track.');
 	const [duration, start, width, height] = await Promise.all([
 		input.computeDuration(),
 		track.getFirstTimestamp(),

@@ -1,127 +1,3 @@
-diff --git a/dist/bundles/mediabunny.cjs b/dist/bundles/mediabunny.cjs
-index 6a4cebc3e65171e214241cd2c67ccc66ccc0bf86..beb3d36c3de8cd5ed498814b017235bdfa0b7b9a 100644
---- a/dist/bundles/mediabunny.cjs
-+++ b/dist/bundles/mediabunny.cjs
-@@ -31592,7 +31592,7 @@ var Mediabunny = (() => {
-     { fourCc: "ap4x", bitrate: 5e8, alpha: true }
-     // 4444 XQ
-   ];
--  var buildVideoCodecString = (codec, width, height, bitrate, alpha) => {
-+  var buildVideoCodecString = (codec, width, height, bitrate, alpha, bitDepth = 8) => {
-     if (codec === "avc") {
-       const constrainedBaseline = isWebKit();
-       const profileIndication = constrainedBaseline ? 66 : 100;
-@@ -31618,7 +31618,7 @@ var Mediabunny = (() => {
-     } else if (codec === "vp8") {
-       return "vp8";
-     } else if (codec === "vp9") {
--      const profile = "00";
-+      const profile = bitDepth === 10 ? "02" : "00";
-       const pictureSize = width * height;
-       const levelInfo = VP9_LEVEL_TABLE.find(
-         (level) => pictureSize <= level.maxPictureSize && bitrate <= level.maxBitrate
-diff --git a/dist/bundles/mediabunny.mjs b/dist/bundles/mediabunny.mjs
-index c36dab84f86666884053be4df746865274144ee0..d9e2cd603da162c834931a26a199498c0e6d57d5 100644
---- a/dist/bundles/mediabunny.mjs
-+++ b/dist/bundles/mediabunny.mjs
-@@ -7569,7 +7569,8 @@ var buildVideoEncoderConfigs = (options) => {
-       options.width,
-       options.height,
-       bitrateEstimate,
--      options.alpha === "keep"
-+      options.alpha === "keep",
-+      options.bitDepth
-     ),
-     width: options.width,
-     height: options.height,
-@@ -31435,7 +31436,7 @@ var PRORES_PROFILE_TARGET_BITRATES = [
-   { fourCc: "ap4x", bitrate: 5e8, alpha: true }
-   // 4444 XQ
- ];
--var buildVideoCodecString = (codec, width, height, bitrate, alpha) => {
-+var buildVideoCodecString = (codec, width, height, bitrate, alpha, bitDepth = 8) => {
-   if (codec === "avc") {
-     const constrainedBaseline = isWebKit();
-     const profileIndication = constrainedBaseline ? 66 : 100;
-@@ -31450,8 +31451,8 @@ var buildVideoCodecString = (codec, width, height, bitrate, alpha) => {
-     return `avc1.${hexProfileIndication}${hexProfileCompatibility}${hexLevelIndication}`;
-   } else if (codec === "hevc") {
-     const profilePrefix = "";
--    const profileIdc = 1;
--    const compatibilityFlags = "6";
-+    const profileIdc = bitDepth === 10 ? 2 : 1;
-+    const compatibilityFlags = bitDepth === 10 ? "4" : "6";
-     const pictureSize = width * height;
-     const levelInfo = HEVC_LEVEL_TABLE.find(
-       (level) => pictureSize <= level.maxPictureSize && bitrate <= level.maxBitrate
-@@ -31461,13 +31462,13 @@ var buildVideoCodecString = (codec, width, height, bitrate, alpha) => {
-   } else if (codec === "vp8") {
-     return "vp8";
-   } else if (codec === "vp9") {
--    const profile = "00";
-+    const profile = bitDepth === 10 ? "02" : "00";
-     const pictureSize = width * height;
-     const levelInfo = VP9_LEVEL_TABLE.find(
-       (level) => pictureSize <= level.maxPictureSize && bitrate <= level.maxBitrate
-     ) ?? last(VP9_LEVEL_TABLE);
--    const bitDepth = "08";
--    return `vp09.${profile}.${levelInfo.level.toString().padStart(2, "0")}.${bitDepth}`;
-+    const depth = bitDepth === 10 ? "10" : "08";
-+    return `vp09.${profile}.${levelInfo.level.toString().padStart(2, "0")}.${depth}`;
-   } else if (codec === "av1") {
-     const profile = 0;
-     const pictureSize = width * height;
-@@ -31475,8 +31476,8 @@ var buildVideoCodecString = (codec, width, height, bitrate, alpha) => {
-       (level2) => pictureSize <= level2.maxPictureSize && bitrate <= level2.maxBitrate
-     ) ?? last(AV1_LEVEL_TABLE);
-     const level = levelInfo.level.toString().padStart(2, "0");
--    const bitDepth = "08";
--    return `av01.${profile}.${level}${levelInfo.tier}.${bitDepth}`;
-+    const depth = bitDepth === 10 ? "10" : "08";
-+    return `av01.${profile}.${level}${levelInfo.tier}.${depth}`;
-   } else if (codec === "prores") {
-     const referencePixels = 1920 * 1080;
-     const scaleFactor = Math.pow(width * height / referencePixels, 0.95);
-@@ -42608,6 +42609,7 @@ The @mediabunny/mp3-encoder extension package provides support for encoding MP3.
-         sizeChangeBehavior: trackOptions.fit ?? "passThrough",
-         alpha,
-         hardwareAcceleration: trackOptions.hardwareAcceleration,
-+        bitDepth: trackOptions.bitDepth,
-         transform: {}
-       };
-       assert(encodingConfig.transform);
-diff --git a/dist/bundles/mediabunny.node.cjs b/dist/bundles/mediabunny.node.cjs
-index 948cc9c2e67bf44dd46baa6ac372f1f99cf458db..778f521a9f2c6cd3468173a7e78c99d0919d7140 100644
---- a/dist/bundles/mediabunny.node.cjs
-+++ b/dist/bundles/mediabunny.node.cjs
-@@ -7723,7 +7723,8 @@ var Mediabunny = (() => {
-         options.width,
-         options.height,
-         bitrateEstimate,
--        options.alpha === "keep"
-+        options.alpha === "keep",
-+        options.bitDepth
-       ),
-       width: options.width,
-       height: options.height,
-@@ -31595,7 +31596,7 @@ var Mediabunny = (() => {
-     { fourCc: "ap4x", bitrate: 5e8, alpha: true }
-     // 4444 XQ
-   ];
--  var buildVideoCodecString = (codec, width, height, bitrate, alpha) => {
-+  var buildVideoCodecString = (codec, width, height, bitrate, alpha, bitDepth = 8) => {
-     if (codec === "avc") {
-       const constrainedBaseline = isWebKit();
-       const profileIndication = constrainedBaseline ? 66 : 100;
-@@ -31621,7 +31622,7 @@ var Mediabunny = (() => {
-     } else if (codec === "vp8") {
-       return "vp8";
-     } else if (codec === "vp9") {
--      const profile = "00";
-+      const profile = bitDepth === 10 ? "02" : "00";
-       const pictureSize = width * height;
-       const levelInfo = VP9_LEVEL_TABLE.find(
-         (level) => pictureSize <= level.maxPictureSize && bitrate <= level.maxBitrate
 diff --git a/dist/modules/src/conversion.d.ts b/dist/modules/src/conversion.d.ts
 index e1b1d386a3949d4b9833cc4ce3a47713447af786..fbed99a950d7521022089a39ec80061e90b977c3 100644
 --- a/dist/modules/src/conversion.d.ts
@@ -209,7 +85,7 @@ index a901b445570a253be185ab020882508d4cde3743..d9ad54d2f9c5884c4a1bd0d7e43f7b47
          height: options.height,
          displayWidth: options.squarePixelWidth,
 diff --git a/dist/modules/src/isobmff/isobmff-boxes.js b/dist/modules/src/isobmff/isobmff-boxes.js
-index 6bf85740e4531996342fe603b68caa847e27d744..043a56553a6458558ef568cf90f966ea5825c56c 100644
+index 39cb4984b72cf85d86cc448e2a9ecc0fe82ae9c9..4472d0b8a8876ed16a12728c240c523a669695d2 100644
 --- a/dist/modules/src/isobmff/isobmff-boxes.js
 +++ b/dist/modules/src/isobmff/isobmff-boxes.js
 @@ -551,7 +551,7 @@ export const stsd = (trackData) => {
@@ -264,99 +140,6 @@ index 6bf85740e4531996342fe603b68caa847e27d744..043a56553a6458558ef568cf90f966ea
  /** Bit Rate Box: Signals the average and peak bitrate of the track. */
  export const btrt = (trackData) => {
      if (trackData.avgBitrate === 0 && trackData.maxBitrate === 0) {
-diff --git a/dist/modules/src/isobmff/isobmff-demuxer.js b/dist/modules/src/isobmff/isobmff-demuxer.js
-index 2a744c4b908a3835b27470e6eb549c510f4e7135..7947e8626b29ed32ff72529194e3f9316625f9ee 100644
---- a/dist/modules/src/isobmff/isobmff-demuxer.js
-+++ b/dist/modules/src/isobmff/isobmff-demuxer.js
-@@ -19,6 +19,7 @@ import { AC3_SAMPLE_RATES } from '../../shared/ac3-misc.js';
- import { Bitstream } from '../../shared/bitstream.js';
- import { Aes128CbcContext } from '../aes.js';
- import { Logging } from '../logging.js';
-+import { parseTrueHdFormatInfo } from '../mpeg-ts/mpeg-ts-demuxer.js';
- const TRUEHD_CHANNEL_ASSIGNMENT_COUNTS = [2, 1, 1, 2, 2, 2, 2, 1, 1, 2, 2, 1, 1];
- // Anything beyond this is malicious
- const MAX_BOX_NESTING_DEPTH = 64;
-@@ -903,6 +904,10 @@ export class IsobmffDemuxer extends Demuxer {
-                             else if (codecName === 'ec-3') {
-                                 track.info.codec = 'eac3';
-                             }
-+                            else if (codecName === 'mlpa') {
-+                                // Its rate, 32 bits wide here, and channels come from the dmlp box
-+                                track.info.codec = 'truehd';
-+                            }
-                             else if (DTS_FOURCCS.includes(codecName)) {
-                                 track.info.codec = 'dts';
-                                 track.info.dtsFormat = codecName;
-@@ -1501,6 +1506,23 @@ export class IsobmffDemuxer extends Demuxer {
-                 }
-                 ;
-                 break;
-+            case 'dmlp':
-+                { // MLPSpecificBox, of TrueHD
-+                    const track = this.currentTrack;
-+                    if (!track) {
-+                        break;
-+                    }
-+                    assert(track.info?.type === 'audio');
-+                    const format = boxInfo.contentSize >= 4 ? parseTrueHdFormatInfo(readU32Be(slice)) : null;
-+                    if (!format) {
-+                        Logging._warn('Invalid dmlp box contents, ignoring.');
-+                        break;
-+                    }
-+                    track.info.sampleRate = format.sampleRate;
-+                    track.info.numberOfChannels = format.eightChannels || format.sixChannels || 2;
-+                }
-+                ;
-+                break;
-             case 'ddts':
-                 { // DTSSpecificBox
-                     const track = this.currentTrack;
-diff --git a/dist/modules/src/matroska/matroska-demuxer.js b/dist/modules/src/matroska/matroska-demuxer.js
-index ea18ec1025b5982ed97de67917f86cda80bc75f1..b430ff37d7a52545e1a905e7d57c6c78052cd350 100644
---- a/dist/modules/src/matroska/matroska-demuxer.js
-+++ b/dist/modules/src/matroska/matroska-demuxer.js
-@@ -597,7 +597,9 @@ export class MatroskaDemuxer extends Demuxer {
-                 expandedBlocks.push({
-                     timestamp: frameTimestamp,
-                     duration: frameDuration,
--                    isKeyFrame: originalBlock.isKeyFrame,
-+                    isKeyFrame: track.info?.codec === 'truehd'
-+                        ? isTrueHdMajorSync(frameData)
-+                        : originalBlock.isKeyFrame,
-                     data: frameData,
-                     lacing: BlockLacing.None,
-                     decoded: originalBlock.decoded,
-@@ -914,6 +916,9 @@ export class MatroskaDemuxer extends Demuxer {
-                             else if (codecIdWithoutSuffix === CODEC_STRING_MAP.truehd) {
-                                 this.currentTrack.info.codec = 'truehd';
-                             }
-+                            else if (this.currentTrack.codecId === CODEC_STRING_MAP.truehd) {
-+                                this.currentTrack.info.codec = 'truehd';
-+                            }
-                             else if (this.currentTrack.codecId === 'A_PCM/INT/LIT') {
-                                 if (this.currentTrack.info.bitDepth === 8) {
-                                     this.currentTrack.info.codec = 'pcm-u8';
-@@ -1423,6 +1428,10 @@ export class MatroskaDemuxer extends Demuxer {
-                     }
-                     const blockData = readBytes(blockSlice, blockSlice.remainingLength);
-                     const hasDecodingInstructions = trackData.track.decodingInstructions.length > 0;
-+                    if (trackData.track.info?.codec === 'truehd' && !hasDecodingInstructions && lacing === 0) {
-+                        // TrueHD can only be decoded from an access unit with a major sync
-+                        isKeyFrame = isTrueHdMajorSync(blockData);
-+                    }
-                     trackData.blocks.push({
-                         timestamp: relativeTimestamp, // We'll add the cluster's timestamp to this later
-                         duration: 0, // Will set later
-@@ -2470,3 +2479,9 @@ class MatroskaAudioTrackBacking extends MatroskaTrackBacking {
-         })();
-     }
- }
-+
-+/** Whether a TrueHD access unit begins with a major sync, where decoding can start. */
-+export const isTrueHdMajorSync = (data) => {
-+    return data.length >= 8 && data[4] === 0xf8 && data[5] === 0x72 && data[6] === 0x6f
-+        && (data[7] === 0xba || data[7] === 0xbb);
-+};
 diff --git a/dist/modules/src/matroska/matroska-muxer.js b/dist/modules/src/matroska/matroska-muxer.js
 index a1d23087a6a2a05b8e8950c458be623b259d9492..ce04cfdb89c0f194df1c987a23381b086d53783f 100644
 --- a/dist/modules/src/matroska/matroska-muxer.js
@@ -427,18 +210,10 @@ index a1d23087a6a2a05b8e8950c458be623b259d9492..ce04cfdb89c0f194df1c987a23381b08
 +        { id: 0x41ED, data: toUint8Array(dolbyVision.record) },
 +    ] });
 diff --git a/dist/modules/src/mpeg-ts/mpeg-ts-demuxer.js b/dist/modules/src/mpeg-ts/mpeg-ts-demuxer.js
-index 2da6b042a68300b074a2f79b540d412ff51c5209..bd412deaae4f8a548428e13e7a0a0b9a4e4bdaa0 100644
+index 2da6b042a68300b074a2f79b540d412ff51c5209..93e333672cad5120d396a59e73230a688e0f0a54 100644
 --- a/dist/modules/src/mpeg-ts/mpeg-ts-demuxer.js
 +++ b/dist/modules/src/mpeg-ts/mpeg-ts-demuxer.js
-@@ -20,6 +20,7 @@ import { FileSlice, readBytes, readU16Be, readU32Be, readU8 } from '../reader.js
- import { buildMpegTsMimeType, createTimestampWrapInfo, normalizeWrappedTimestamp, MPEG_TS_TIMESCALE, TS_PACKET_SIZE, } from './mpeg-ts-misc.js';
- import { AC3_SAMPLE_RATES } from '../../shared/ac3-misc.js';
- import { Bitstream } from '../../shared/bitstream.js';
-+import { isTrueHdMajorSync } from '../matroska/matroska-demuxer.js';
- // Resources:
- // ISO/IEC 13818-1
- const MISSING_PTS_ERROR_MESSAGE = 'PES packet is missing PTS where it was expected. PES packets without PTS are not'
-@@ -275,6 +276,21 @@ export class MpegTsDemuxer extends Demuxer {
+@@ -275,6 +275,21 @@ export class MpegTsDemuxer extends Demuxer {
                                  }
                                  ;
                                  break;
@@ -460,7 +235,7 @@ index 2da6b042a68300b074a2f79b540d412ff51c5209..bd412deaae4f8a548428e13e7a0a0b9a
                              case 6 /* MpegTsStreamType.PRIVATE_DATA */:
                                  {
                                      if (hasEac3Descriptor) {
-@@ -469,6 +485,11 @@ export class MpegTsDemuxer extends Demuxer {
+@@ -469,6 +484,11 @@ export class MpegTsDemuxer extends Demuxer {
                          }
                          else {
                              await context.markNextPacket();
@@ -472,7 +247,7 @@ index 2da6b042a68300b074a2f79b540d412ff51c5209..bd412deaae4f8a548428e13e7a0a0b9a
                              if (!context.suppliedPacket) {
                                  throw new Error(`Couldn't parse first media packet for Elementary Stream with`
                                      + ` PID ${elementaryStream.pid}`);
-@@ -534,6 +555,14 @@ export class MpegTsDemuxer extends Demuxer {
+@@ -534,6 +554,14 @@ export class MpegTsDemuxer extends Demuxer {
                                      elementaryStream.info.dtsFormat = frameInfo.hasExtensions ? 'dtsh' : 'dtsc';
                                  }
                              }
@@ -487,7 +262,7 @@ index 2da6b042a68300b074a2f79b540d412ff51c5209..bd412deaae4f8a548428e13e7a0a0b9a
                              else {
                                  throw new Error('Unhandled.');
                              }
-@@ -1363,7 +1392,8 @@ class MpegTsAudioTrackBacking extends MpegTsTrackBacking {
+@@ -1363,7 +1391,8 @@ class MpegTsAudioTrackBacking extends MpegTsTrackBacking {
          return this.elementaryStream.info.decoderConfig;
      }
      allPacketsAreKeyPackets() {
@@ -497,7 +272,7 @@ index 2da6b042a68300b074a2f79b540d412ff51c5209..bd412deaae4f8a548428e13e7a0a0b9a
      }
      getReorderSize() {
          return 0; // No reordering, since no B-frames because goated
-@@ -1420,6 +1450,8 @@ class PacketReadingContext {
+@@ -1420,6 +1449,8 @@ class PacketReadingContext {
          this.pid = elementaryStream.pid;
          this.demuxer = elementaryStream.demuxer;
          this.startingPesPacket = startingPesPacket;
@@ -506,7 +281,7 @@ index 2da6b042a68300b074a2f79b540d412ff51c5209..bd412deaae4f8a548428e13e7a0a0b9a
      }
      ensureBuffered(length) {
          const remaining = this.endPos - this.currentPos;
-@@ -1696,6 +1728,62 @@ class PacketReadingContext {
+@@ -1696,6 +1727,62 @@ class PacketReadingContext {
                  return this.supplyPacket(packetLength, 0);
              }
          }
@@ -569,7 +344,7 @@ index 2da6b042a68300b074a2f79b540d412ff51c5209..bd412deaae4f8a548428e13e7a0a0b9a
          else {
              const codec = elementaryStream.info.codec;
              const CHUNK_SIZE = 128;
-@@ -2063,3 +2151,47 @@ class PacketBuffer {
+@@ -2063,3 +2150,53 @@ class PacketBuffer {
          this.reorderBuffer.length = 0;
      }
  }
@@ -617,39 +392,12 @@ index 2da6b042a68300b074a2f79b540d412ff51c5209..bd412deaae4f8a548428e13e7a0a0b9a
 +        eightChannels: trueHdChannels(formatInfo & 0x1fff),
 +    };
 +};
-diff --git a/dist/modules/src/output-format.js b/dist/modules/src/output-format.js
-index ca749428857b5942240d94dfeae9746cc8175ef0..89d397f78d99bd44b04ca4d3af4f847ccf5d5d63 100644
---- a/dist/modules/src/output-format.js
-+++ b/dist/modules/src/output-format.js
-@@ -153,7 +153,8 @@ export class Mp4OutputFormat extends IsobmffOutputFormat {
-     getSupportedCodecs() {
-         return [
-             ...VIDEO_CODECS,
--            ...NON_PCM_AUDIO_CODECS,
-+            // TrueHD is only written in Matroska
-+            ...NON_PCM_AUDIO_CODECS.filter(codec => codec !== 'truehd'),
-             // These are supported via ISO/IEC 23003-5:
-             'pcm-s16',
-             'pcm-s16be',
-@@ -200,7 +201,8 @@ export class CmafOutputFormat extends IsobmffOutputFormat {
-     getSupportedCodecs() {
-         return [
-             ...VIDEO_CODECS,
--            ...NON_PCM_AUDIO_CODECS,
-+            // TrueHD is only written in Matroska
-+            ...NON_PCM_AUDIO_CODECS.filter(codec => codec !== 'truehd'),
-             // These are supported via ISO/IEC 23003-5:
-             'pcm-s16',
-             'pcm-s16be',
-@@ -239,7 +241,7 @@ export class MovOutputFormat extends IsobmffOutputFormat {
-     getSupportedCodecs() {
-         return [
-             ...VIDEO_CODECS,
--            ...AUDIO_CODECS,
-+            ...AUDIO_CODECS.filter(codec => codec !== 'truehd'),
-         ];
-     }
-     /** @internal */
++
++/** Whether a TrueHD access unit begins with a major sync, where decoding can start. */
++const isTrueHdMajorSync = (data) => {
++    return data.length >= 8 && data[4] === 0xf8 && data[5] === 0x72 && data[6] === 0x6f
++        && (data[7] === 0xba || data[7] === 0xbb);
++};
 diff --git a/dist/modules/src/output.d.ts b/dist/modules/src/output.d.ts
 index fdffa4ff9c0a86a4e9078c940381fd43e5494856..e0673474fa6543a7bda899a473751b727e9a1b6f 100644
 --- a/dist/modules/src/output.d.ts

@@ -15,6 +15,7 @@ import { spawnSync } from 'node:child_process';
  * - h264.mp4: 12 s of 1080p H.264 with B-frames and two audio tracks (English, French commentary).
  * - rotated.mp4: the same, stored turned as phones do (a display matrix of 90°); silent.mp4: the
  *   same without sound.
+ * - prores.mov: 4 s of 10-bit ProRes with PCM sound, which browsers don't decode.
  * - ac3.mkv, dts.mkv: 8 s of test pattern with Dolby Digital 5.1 and DTS sound, which browsers
  *   don't decode; truehd.mkv, truehd.m2ts, truehd.mp4: the same with Dolby TrueHD 5.1, as on Blu-ray; vfr.mp4: 6 s whose pictures come at irregular times, as phones record them;
  *   extra.fr.srt: a subtitle file to add to a video; noisy.wav: a voice-like buzz in white noise.
@@ -373,6 +374,24 @@ if (ffmpeg) {
 		'-2',
 		'-ac',
 		'2',
+	]);
+	make('prores.mov', [
+		'-f',
+		'lavfi',
+		'-i',
+		'testsrc2=size=1280x720:rate=25:duration=4',
+		'-f',
+		'lavfi',
+		'-i',
+		'sine=f=440:d=4',
+		'-c:v',
+		'prores_ks',
+		'-profile:v',
+		'2',
+		'-pix_fmt',
+		'yuv422p10le',
+		'-c:a',
+		'pcm_s16le',
 	]);
 	const truehd = ['-c:a', 'truehd', '-strict', '-2', '-ac', '6'];
 	make('truehd.mkv', [...pattern, '-f', 'lavfi', '-i', 'sine=f=550:d=8', ...h264, ...truehd]);

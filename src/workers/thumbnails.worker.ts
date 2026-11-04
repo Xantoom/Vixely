@@ -38,6 +38,7 @@ const replaced = new Map<number, number>();
 async function open(file: File, height: number): Promise<Opened> {
 	const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
 	const track: InputVideoTrack | null = await input.getPrimaryVideoTrack();
+	if ((await track?.getCodec()) === 'prores') (await import('@mediabunny/prores')).registerProresDecoder();
 	if (!track || !(await track.canDecode())) throw new Error('No decodable video');
 	return {
 		packets: new EncodedPacketSink(track),

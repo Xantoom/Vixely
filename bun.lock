@@ -25,17 +25,18 @@
         "@fontsource/permanent-marker": "^5.3.0",
         "@fontsource/playfair-display": "^5.3.0",
         "@fontsource/tinos": "^5.3.0",
-        "@mediabunny/aac-encoder": "1.65.1",
-        "@mediabunny/ac3": "1.65.1",
-        "@mediabunny/dts": "1.65.1",
-        "@mediabunny/flac-encoder": "1.65.1",
-        "@mediabunny/mp3-encoder": "1.65.1",
+        "@mediabunny/aac-encoder": "1.65.2",
+        "@mediabunny/ac3": "1.65.2",
+        "@mediabunny/dts": "1.65.2",
+        "@mediabunny/flac-encoder": "1.65.2",
+        "@mediabunny/mp3-encoder": "1.65.2",
+        "@mediabunny/prores": "1.65.2",
         "@tanstack/react-router": "^1.170.46",
         "fflate": "^0.8.3",
         "jassub": "2.5.29",
         "libheif-js": "^1.23.5",
         "lucide-react": "^1.68.0",
-        "mediabunny": "1.65.1",
+        "mediabunny": "1.65.2",
         "react": "^19.3.1",
         "react-dom": "^19.3.1",
         "wasm-feature-detect": "^1.9.0",
@@ -61,8 +62,8 @@
     },
   },
   "patchedDependencies": {
+    "mediabunny@1.65.2": "patches/mediabunny@1.65.2.patch",
     "jassub@2.5.29": "patches/jassub@2.5.29.patch",
-    "mediabunny@1.65.1": "patches/mediabunny@1.65.1.patch",
   },
   "packages": {
     "@babel/code-frame": ["@babel/code-frame@7.29.7", "", { "dependencies": { "@babel/helper-validator-identifier": "^7.29.7", "js-tokens": "^4.0.0", "picocolors": "^1.1.1" } }, "sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw=="],
@@ -187,15 +188,17 @@
 
     "@lix-js/sdk": ["@lix-js/sdk@0.20.1", "", { "dependencies": { "@bytecodealliance/jco-transpile": "0.13.0", "binaryen": "130.0.0", "fflate": "^0.8.3" } }, "sha512-oscOFP8Cr1My6Wh2KVYC9+aJ1mHs+d7vnD+7PPJaA4L+Y1FR37Sm99SrFGfvUizaj/XtRi2GlDF2IOFt9iXMNQ=="],
 
-    "@mediabunny/aac-encoder": ["@mediabunny/aac-encoder@1.65.1", "", { "peerDependencies": { "mediabunny": "^1.0.0" } }, "sha512-lhKI04oePfkGcsIic/cgaGQgO6ICcAz1v/dxTNnvpm8vI3I2lm3/8yVn/i1Kkrrnq4W+sU2uYVxPFsZAVW28/g=="],
+    "@mediabunny/aac-encoder": ["@mediabunny/aac-encoder@1.65.2", "", { "peerDependencies": { "mediabunny": "^1.0.0" } }, "sha512-HsDmtqRf26PwSDl1IYCPz5hHtj3js5u6O1VGdOIPKrln5E0slaPyGue84CWpbbeJ54wrLDJdd/esp17Ot+xh3A=="],
 
-    "@mediabunny/ac3": ["@mediabunny/ac3@1.65.1", "", { "peerDependencies": { "mediabunny": "^1.0.0" } }, "sha512-toNkKkcy2fb+6y346c1PX49iIVNZm1u0JarQQRsmU1vB/HQ/5wrq1brO+Tyy9n2v+SYLrnvoaxgeRCI7u7xgQw=="],
+    "@mediabunny/ac3": ["@mediabunny/ac3@1.65.2", "", { "peerDependencies": { "mediabunny": "^1.0.0" } }, "sha512-zSYnbnBN5CxMQs0jPr0JC0sDCEOR5qg9VAsiE4NcgToHRRG/RqreYeTFLkOzSs6nTNIV2O7ecDT1XgexdLWG4Q=="],
 
-    "@mediabunny/dts": ["@mediabunny/dts@1.65.1", "", { "peerDependencies": { "mediabunny": "^1.0.0" } }, "sha512-XIFKkrAbESRM/MD+J7VM7uIecpRR2Ze3AUjSI5B7/De9tTu15LAoW/Ya8pp7TNBRMxxODDq9DZrSACI05i0VeQ=="],
+    "@mediabunny/dts": ["@mediabunny/dts@1.65.2", "", { "peerDependencies": { "mediabunny": "^1.0.0" } }, "sha512-50YmrKV34GVgH60WOuoyl2CMuM3XLtN+L++zcuFs2xYLJfS9dmtylQpO0n7i2KPSrR6F5K8PT9X8cyVwXB0VRw=="],
 
-    "@mediabunny/flac-encoder": ["@mediabunny/flac-encoder@1.65.1", "", { "peerDependencies": { "mediabunny": "^1.0.0" } }, "sha512-GZXphycVWL3GQzX+QapKDOYnTHtLSm+MvkHIGpXbXdgfQhu1EhdQGTlY/C1brF2jfHjdo+frBf8U10/1LkdwIg=="],
+    "@mediabunny/flac-encoder": ["@mediabunny/flac-encoder@1.65.2", "", { "peerDependencies": { "mediabunny": "^1.0.0" } }, "sha512-EcrtSDTmlImyaKarunE4xytrMueOuiSRg/QBHEVY7XUcIgO9oXLguHxRWnglv7Q7CMloDbcXZTMMlN8CUNziFg=="],
 
-    "@mediabunny/mp3-encoder": ["@mediabunny/mp3-encoder@1.65.1", "", { "peerDependencies": { "mediabunny": "^1.0.0" } }, "sha512-BfdA3ctJ0MUMnnN2svxK5ViE0yWjZ635DU8Ku+JV8GCTxyxue/kb6DrzqQAdA8lVWNjeKimZoeYWC97M+GyUSA=="],
+    "@mediabunny/mp3-encoder": ["@mediabunny/mp3-encoder@1.65.2", "", { "peerDependencies": { "mediabunny": "^1.0.0" } }, "sha512-iuGMybEg07MH7EnDhRXJ0hH80cSJ8ftri+HbTnrE8k/YUu5AcP5l7ZTANh2ZORSsXbWYj/Hu8U/mI8Ctdzb9Rw=="],
+
+    "@mediabunny/prores": ["@mediabunny/prores@1.65.2", "", { "dependencies": { "turbores": "^1.2.4" }, "peerDependencies": { "mediabunny": "^1.49.0" } }, "sha512-kOnGzRRSiIPXA/mVmLzxAkLhu923Iu+J7ejbVmVEFSqY9g9KQ97+mSQPpA5wjlBBwFdaUC0PBm1Pymn/gwj0sg=="],
 
     "@napi-rs/wasm-runtime": ["@napi-rs/wasm-runtime@1.2.7", "", { "dependencies": { "@tybys/wasm-util": "^0.10.3" }, "peerDependencies": { "@emnapi/core": "^1.7.1 || 2.0.0-beta.2 || 2.0.0-beta.3", "@emnapi/runtime": "^1.7.1 || 2.0.0-beta.2 || 2.0.0-beta.3" } }, "sha512-zJccwplOAbgfZju95IUHazLnx9RAPtPN2YGJXI6UbrgeaR9QfPjGrQL6ERkSAtnVCA4Q+83ApGyaX5zdpCaKkQ=="],
 
@@ -398,6 +401,8 @@
     "@rolldown/binding-win32-x64-msvc": ["@rolldown/binding-win32-x64-msvc@1.2.16", "", { "os": "win32", "cpu": "x64" }, "sha512-1lv1KvX0Z871zfk7vw+dnXMMnHNyDwMzWG8Kv3HxDXMOhzCX4SHc7HK319fInP0i+0p9D8brkfzL7pJOaGl+tw=="],
 
     "@rolldown/pluginutils": ["@rolldown/pluginutils@1.0.1", "", {}, "sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw=="],
+
+    "@rollup/rollup-linux-x64-gnu": ["@rollup/rollup-linux-x64-gnu@4.62.1", "", { "os": "linux", "cpu": "x64" }, "sha512-nVQGk/jStQc2V4rrkI+vPD2J+85boKqS4R4nOdPhc3eWw0kyW/b+AYRGoH8qo057XSVqaTx13AliH5qPeLTtgQ=="],
 
     "@shadcn/lint": ["@shadcn/lint@0.2.5", "", { "dependencies": { "@eslint/core": "^0.17.0", "cn": "0.4.0" }, "optionalDependencies": { "oxc-parser": "^0.148.0" }, "peerDependencies": { "@typescript-eslint/parser": ">=8.40.0", "eslint": ">=9.30.0" }, "optionalPeers": ["@typescript-eslint/parser", "eslint"] }, "sha512-2ufiTztq5oz5vVLNg5lopa240S1iHdLnYL7hEu/7WhPhT8UEFZXK7+IlrGzhvdRXVnmMStYUCKdBPzmZwH1+8Q=="],
 
@@ -633,7 +638,7 @@
 
     "magic-string": ["magic-string@0.30.21", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.5" } }, "sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ=="],
 
-    "mediabunny": ["mediabunny@1.65.1", "", { "dependencies": { "@types/dom-mediacapture-transform": "^0.1.11", "@types/dom-webcodecs": "0.1.13" } }, "sha512-SDyhXooCNd8TYKNLf9jC4o/0I0MTft1pYc5/k4ztkKbGEMvcbYXWrAri5SozEu7DHI8PsG9IfN9XwKmPOg/VkQ=="],
+    "mediabunny": ["mediabunny@1.65.2", "", { "dependencies": { "@types/dom-mediacapture-transform": "^0.1.11", "@types/dom-webcodecs": "0.1.13" } }, "sha512-goZpibvo/5hkc/56WVNm93Ini+o7K4y8aXA20c/BN1B+m3L5aHQa8MTvO+S1APg/YI8kMILtrX6QCqUtxLW7bA=="],
 
     "ms": ["ms@2.1.3", "", {}, "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA=="],
 
@@ -700,6 +705,8 @@
     "tinypool": ["tinypool@2.2.0", "", {}, "sha512-jBrmx4lYmaC9k/mgPbylxs7kBUxHtD8256up+HjLaDFfXScKJQyil+SWXSvhAtT7XHo+yTVlpB81PGmHP8oLSQ=="],
 
     "tslib": ["tslib@2.9.1", "", {}, "sha512-a4Ux9VKuIMHsOS7ENbEq6hK2ZGYIT27Rtl0E4eD9KqwxhKiQeMZE/9xb3IdYwWaSOyIBQLExhQgXDTYoiCxnWA=="],
+
+    "turbores": ["turbores@1.2.4", "", { "optionalDependencies": { "@rollup/rollup-linux-x64-gnu": "4.62.1" } }, "sha512-t1or4DcDMhNoA7PN3ruKbxCnb5pCvvocpJVXnD4tcDX3N3z+JBRC04NYntpR0zzSQYT+iOwFUoPzObs5hh70lQ=="],
 
     "typescript": ["typescript@7.0.2", "", { "optionalDependencies": { "@typescript/typescript-aix-ppc64": "7.0.2", "@typescript/typescript-darwin-arm64": "7.0.2", "@typescript/typescript-darwin-x64": "7.0.2", "@typescript/typescript-freebsd-arm64": "7.0.2", "@typescript/typescript-freebsd-x64": "7.0.2", "@typescript/typescript-linux-arm": "7.0.2", "@typescript/typescript-linux-arm64": "7.0.2", "@typescript/typescript-linux-loong64": "7.0.2", "@typescript/typescript-linux-mips64el": "7.0.2", "@typescript/typescript-linux-ppc64": "7.0.2", "@typescript/typescript-linux-riscv64": "7.0.2", "@typescript/typescript-linux-s390x": "7.0.2", "@typescript/typescript-linux-x64": "7.0.2", "@typescript/typescript-netbsd-arm64": "7.0.2", "@typescript/typescript-netbsd-x64": "7.0.2", "@typescript/typescript-openbsd-arm64": "7.0.2", "@typescript/typescript-openbsd-x64": "7.0.2", "@typescript/typescript-sunos-x64": "7.0.2", "@typescript/typescript-win32-arm64": "7.0.2", "@typescript/typescript-win32-x64": "7.0.2" }, "bin": { "tsc": "bin/tsc" } }, "sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA=="],
 

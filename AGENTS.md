@@ -25,7 +25,7 @@ bun run test:rust
 - `src/editors/<kind>`: one folder per editor; `src/editor`: what they share; `src/media`: reading, decoding, saving.
 - `src/workers`: everything heavy runs off the main thread. `src/document`: rules shared by timed editors.
 - `src/app`: site shell, pages and the service worker's client; `messages/`: every string, in both languages.
-- `patches/`: bun patches of Mediabunny (Dolby TrueHD, HDR) and JASSUB. Port them when upgrading: `bun patch <pkg>`,
+- `patches/`: bun patches of Mediabunny (TrueHD in transport streams, HDR, 10 bits) and JASSUB. Port them when upgrading: `bun patch <pkg>`,
   reapply with `patch -p1`, delete any `.rej` or `.orig` left behind, then `bun patch --commit`.
 - `vendor/gifski`: gifski without threads for WebAssembly, see its `VIXELY.md`.
 

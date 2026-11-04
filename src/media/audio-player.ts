@@ -3,7 +3,7 @@ import { type GainPoint, gainAt } from '@/document/gain-curve';
 import { type Range, sameRanges, toOutput, toSource, totalLength } from '@/document/timemap';
 import { findAudioTrack } from './audio-tracks';
 import { DECODER_PREROLL } from './decoder';
-import { canDecodeAudio } from './decoders';
+import { canDecode } from './decoders';
 import { sameCompressor } from './dynamics';
 import { listeningGain, useListening } from './listening';
 import { EQ_BANDS, EQ_Q, type Planar, type SoundChanges, SoundProcessor } from './sound';
@@ -69,7 +69,7 @@ export class AudioPlayer {
 	constructor(file: File, track: number | null = null) {
 		this.input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
 		this.sink = findAudioTrack(this.input, track)
-			.then(async (track) => (track && (await canDecodeAudio(track)) ? new AudioBufferSink(track) : null))
+			.then(async (track) => (track && (await canDecode(track)) ? new AudioBufferSink(track) : null))
 			.catch(() => null);
 	}
 

@@ -3,6 +3,7 @@ import type { GainPoint } from '@/document/gain-curve';
 import { type Range, toOutput, toSource, totalLength } from '@/document/timemap';
 import { AudioPlayer } from './audio-player';
 import { type AudioTrackInfo, listAudioTracks } from './audio-tracks';
+import { canDecode } from './decoders';
 import type { HeardSound } from './sound';
 
 export interface MediaDetails {
@@ -99,7 +100,7 @@ export class MediaPlayer {
 		]);
 		this.duration = duration;
 		let size: MediaDetails['video'] = null;
-		if (video && (await video.canDecode())) {
+		if (video && (await canDecode(video))) {
 			this.videoTrack = video;
 			this.sink = new VideoSampleSink(video);
 			const [width, height, first] = await Promise.all([

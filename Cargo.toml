@@ -10,3 +10,11 @@ codegen-units = 1
 # gifski patched to run without threads in WebAssembly: see vendor/gifski/VIXELY.md.
 [patch.crates-io]
 gifski = { path = "vendor/gifski" }
+
+# For tests: what the shipped WebAssembly needs (link-time optimisation) takes far longer than the
+# tests themselves.
+[profile.ci]
+inherits = "release"
+opt-level = 1
+lto = false
+codegen-units = 256
