@@ -11,7 +11,8 @@ const page = await ctx.newPage();
 const errors: string[] = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => {
-	if (m.type() === 'error') errors.push(m.text());
+	// The server answers 404 for an unknown task, as it should; the browser logs it.
+	if (m.type() === 'error' && !m.location().url.endsWith('/tools/nothing-here')) errors.push(m.text());
 });
 mkdirSync('shots', { recursive: true });
 const aside = page.locator('aside');
