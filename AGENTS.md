@@ -27,7 +27,7 @@ bun run test:rust
 - `src/app`: site shell, pages and the service worker's client; `messages/`: every string, in both languages.
 - `patches/`: bun patches of Mediabunny (TrueHD in transport streams, HDR, 10 bits) and JASSUB. Port them when upgrading: `bun patch <pkg>`,
   reapply with `patch -p1`, delete any `.rej` or `.orig` left behind, then `bun patch --commit`.
-- `vendor/gifski`: gifski without threads for WebAssembly, see its `VIXELY.md`.
+- `vendor/`: gifski without threads for WebAssembly, truehd without what took 15 GB to compile; see their `VIXELY.md`.
 
 ## Rules of the product
 

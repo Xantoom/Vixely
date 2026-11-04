@@ -22,8 +22,6 @@ interface Crate {
 	watch?: string[];
 	/** Built with WebAssembly threads and these Cargo features. */
 	threads?: string[];
-	/** Built in its own target folder, beside the others: for a slow crate with few dependencies. */
-	alone?: boolean;
 }
 
 const CRATES: Crate[] = [
@@ -33,8 +31,7 @@ const CRATES: Crate[] = [
 	{ dir: 'vixely-audio', out: 'src/wasm/vixely-audio', name: 'vixely_audio' },
 	{ dir: 'vixely-gif', out: 'src/wasm/vixely-gif', name: 'vixely_gif', watch: ['vendor/gifski'] },
 	{ dir: 'vixely-subs', out: 'src/wasm/vixely-subs', name: 'vixely_subs' },
-	// The truehd crate alone takes rustc four minutes (borrow checking, not optimisation).
-	{ dir: 'vixely-truehd', out: 'src/wasm/vixely-truehd', name: 'vixely_truehd', alone: true },
+	{ dir: 'vixely-truehd', out: 'src/wasm/vixely-truehd', name: 'vixely_truehd', watch: ['vendor/truehd'] },
 ];
 const force = process.argv.includes('--force') || process.env.CI === 'true';
 
@@ -107,7 +104,7 @@ async function build(crate: Crate): Promise<void> {
 					CARGO_TARGET_DIR: join(process.cwd(), 'target', 'threads'),
 				},
 			}
-		: { args: [], env: crate.alone ? { CARGO_TARGET_DIR: join(process.cwd(), 'target', crate.dir) } : {} };
+		: { args: [], env: {} };
 	const status = await new Promise<number | null>((resolve) => {
 		spawn('wasm-pack', [...args, ...threaded.args], { stdio: 'inherit', env: { ...env, ...threaded.env } }).on(
 			'close',
@@ -124,13 +121,12 @@ async function build(crate: Crate): Promise<void> {
 	}
 }
 
-// Lanes at once: the threaded build and the crates built alone have their own target folders, so
-// they run beside the others, which share theirs and go one after another.
+// Two lanes at once: the threaded build has its own target folder, so it runs beside the others,
+// which share theirs and go one after another.
 const lane = async (crates: Crate[]) => {
 	for (const crate of crates) {
 		// oxlint-disable-next-line no-await-in-loop -- these share a target folder
 		await build(crate);
 	}
 };
-const separate = (crate: Crate) => crate.threads || crate.alone;
-await Promise.all([lane(CRATES.filter((crate) => !separate(crate))), ...CRATES.filter(separate).map((crate) => lane([crate]))]);
+await Promise.all([lane(CRATES.filter((crate) => !crate.threads)), lane(CRATES.filter((crate) => crate.threads))]);
