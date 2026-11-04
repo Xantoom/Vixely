@@ -20,7 +20,7 @@ const field = page.getByRole('textbox', { name: 'Text' });
 await field.fill('WHEN THE EXPORT\nMATCHES THE PREVIEW');
 await field.blur();
 { const back = page.getByRole('button', { name: /^All layers/ }); if (await back.isVisible()) await back.click(); }
-await page.getByRole('tab', { name: 'Text' }).click();
+await page.getByRole('group', { name: 'Add a layer' }).getByRole('button', { name: 'Text' }).click();
 await page.getByRole('button', { name: 'Caption' }).click();
 await page.getByRole('textbox', { name: 'Text' }).fill('Lake at sunset');
 await page.getByRole('textbox', { name: 'Text' }).blur();
@@ -28,10 +28,10 @@ await page.waitForTimeout(300);
 await page.screenshot({ path: 'shots/overlay-text.png' });
 
 { const back = page.getByRole('button', { name: /^All layers/ }); if (await back.isVisible()) await back.click(); }
-await page.getByRole('tab', { name: 'Sticker' }).click();
+await page.getByRole('group', { name: 'Add a layer' }).getByRole('button', { name: 'Sticker' }).click();
 await page.getByRole('button', { name: '🔥' }).click();
 { const back = page.getByRole('button', { name: /^All layers/ }); if (await back.isVisible()) await back.click(); }
-await page.getByRole('tab', { name: 'Shape' }).click();
+await page.getByRole('group', { name: 'Add a layer' }).getByRole('button', { name: 'Shape' }).click();
 await page.getByRole('button', { name: 'Arrow' }).click();
 // Drag the arrow to the right and turn it with the knob.
 const arrow = page.getByRole('button', { name: 'Shape' });

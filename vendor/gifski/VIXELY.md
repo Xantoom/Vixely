@@ -10,4 +10,7 @@ Changed files: `src/lib.rs` (`new`, `write_frames`, `write_inner`) and `src/mini
 
 Also added, on every target: `Writer::set_dithering(false)` turns dithering off (flat colours for
 pixel art and emotes), through a `no_dithering` field of `SettingsExt`.
-Updating: copy a newer gifski release over this folder and reapply the marked blocks.
+Removed, as Vixely only uses the library: the command line program (`src/bin`), the C API
+(`src/c_api.rs`, `src/c_api/`) and upstream's README.
+
+Updating: copy a newer gifski release over this folder, reapply the marked blocks and remove the same parts.

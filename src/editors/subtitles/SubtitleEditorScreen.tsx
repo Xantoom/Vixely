@@ -14,11 +14,11 @@ import { lastEnd } from './document';
 import { FindPanel } from './FindPanel';
 import { isFontFile, useAddedFonts } from './font-sources';
 import { SubtitleExportFooter, SubtitleExportPanel, SubtitleInfoPanel, TimingPanel } from './panels';
-import { isPictures, useProjectReady, useSubtitleProject } from './project';
+import { useProjectReady, useSubtitleProject } from './project';
 import { useSubtitleDoc, useSubtitleEditor, useSubtitleUndoState } from './store';
 import { StylesPanel } from './StylesPanel';
 import { SubtitleBatchScreen } from './SubtitleBatchScreen';
-import { OcrPanel, TranslatePanel } from './tools';
+import { TranslatePanel } from './tools';
 import { useSubtitleShortcuts, Workspace } from './Workspace';
 
 /** Room after the last line when there is no video, so lines can be placed after it. */
@@ -48,8 +48,6 @@ function SingleSubtitleScreen({ initialTool }: { initialTool?: ToolId }) {
 	const [tool, setTool] = useState<ToolId>(initialTool && initialTool !== 'lines' ? initialTool : 'info');
 	const projectReady = useProjectReady();
 	const ready = opened !== null && projectFile === opened.file && projectReady;
-	// Text recognition needs subtitles made of pictures.
-	const pictures = useSubtitleProject((state) => state.tracks.some(isPictures));
 	const tools: ToolId[] = [
 		'info',
 		'timing',
@@ -57,7 +55,6 @@ function SingleSubtitleScreen({ initialTool }: { initialTool?: ToolId }) {
 		// Styles belong to text: not to subtitles made of pictures. Before a file is open, the rail
 		// shows what most files get, not what the last one had.
 		...(opened && doc.format === 'pgs' ? [] : (['styles'] as const)),
-		...(opened && pictures ? (['ocr'] as const) : []),
 		'translate',
 	];
 
@@ -120,7 +117,6 @@ function SingleSubtitleScreen({ initialTool }: { initialTool?: ToolId }) {
 		if (tool === 'find') return <FindPanel />;
 		if (tool === 'styles') return <StylesPanel title={opened.file.name.replace(/\.[^.]+$/, '')} />;
 		if (tool === 'translate') return <TranslatePanel fileName={opened.file.name} />;
-		if (tool === 'ocr') return <OcrPanel fileName={opened.file.name} />;
 		if (tool === 'export') return <SubtitleExportPanel opened={opened} />;
 		return <SubtitleInfoPanel opened={opened} />;
 	};

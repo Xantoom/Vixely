@@ -14,7 +14,7 @@ function setMeta(selector: string, attribute: 'name' | 'property', key: string, 
 
 /**
  * The page's title and description, in the tab and for links shared from it. The build writes
- * the same into each page's HTML for search engines (scripts/prerender.ts).
+ * the same into each page's HTML for search engines (scripts/prerender.tsx).
  */
 export function usePageHead(title: string | null, description?: string) {
 	const locale = useLocale();

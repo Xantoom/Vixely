@@ -19,7 +19,7 @@ page.on('console', (m) => {
 });
 const aside = page.locator('aside');
 
-await page.goto(base);
+await page.goto(`${base}/video`);
 if (browserName === 'chromium') {
 	const cdp = await ctx.newCDPSession(page);
 	const { installabilityErrors } = (await cdp.send('Page.getInstallabilityErrors')) as { installabilityErrors: { errorId: string }[] };

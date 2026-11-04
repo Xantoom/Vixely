@@ -121,6 +121,8 @@ function Rail({
 		>
 			<div
 				ref={ref}
+				// Disabled tools take no focus: the rail itself does, so a keyboard can still scroll it.
+				tabIndex={disabled ? 0 : undefined}
 				style={{ '--fade-x': fadeMask(edges, 'x'), '--fade-y': fadeMask(edges, 'y') }}
 				className="relative flex min-h-0 min-w-0 flex-1 gap-1 [scrollbar-width:none] max-md:overflow-x-auto max-md:px-1.5 max-md:py-1.5 max-md:[mask-image:var(--fade-x)] md:h-full md:flex-col md:items-stretch md:overflow-y-auto md:px-1.5 md:py-3 md:[mask-image:var(--fade-y)]"
 			>
@@ -558,6 +560,7 @@ export function EditorLayout({
 		>
 			<AppBar
 				editor={kind}
+				heading={task ? task.title() : editor.page()}
 				fileName={fileName}
 				actions={shownActions}
 				from={from}
@@ -591,8 +594,6 @@ export function EditorLayout({
 				// it shows comes in, from that editor's side.
 				className={`ease-out-soft grid min-h-0 flex-1 grid-cols-1 transition-[grid-template-columns] duration-240 md:grid-rows-[minmax(0,1fr)_auto] ${phoneRows} ${open ? 'md:grid-cols-[var(--rail-w)_var(--panel-w)_minmax(0,1fr)]' : 'md:grid-cols-[var(--rail-w)_0px_minmax(0,1fr)]'}`}
 			>
-				{/* First, before the panel's headings; out of the grid's flow, as it isn't seen. */}
-				<h1 className="sr-only">{task ? task.title() : editor.page()}</h1>
 				<div className="z-30 max-md:order-4 md:row-span-2">
 					<Rail
 						tools={(tools ?? editor.tools).filter((id) => id !== 'export')}

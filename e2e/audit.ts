@@ -77,6 +77,7 @@ for (const scheme of ['light', 'dark'] as const) {
 		const count = await tools.count();
 		for (let i = 0; i < count; i++) {
 			const tool = tools.nth(i);
+			if (!(await tool.isVisible())) continue;
 			const name = (await tool.getAttribute('aria-label')) ?? (await tool.innerText());
 			if (await tool.isDisabled()) continue;
 			await tool.click();

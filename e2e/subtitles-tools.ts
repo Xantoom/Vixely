@@ -1,6 +1,6 @@
 /**
  * The subtitle editor's own tools: an SRT translated by hand into English with the original beside
- * each line, left for the original, then deleted; a Blu-ray .sup read into text. Tesseract's English data is downloaded the first time.
+ * each line, left for the original, then deleted.
  */
 import { engine, BASE } from './engine';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -36,7 +36,7 @@ await page.waitForSelector('[role=grid]', { timeout: 10000 });
 await tools.getByRole('button', { name: 'Translate', exact: true }).click();
 await aside.getByLabel('Into').click();
 await page.getByRole('option', { name: 'English' }).click();
-await aside.getByRole('button', { name: 'Start translating' }).click();
+await aside.getByRole('button', { name: 'Translate by hand' }).click();
 const text = page.getByLabel('Text', { exact: true });
 await page.getByRole('grid').getByRole('row').nth(1).click();
 await text.fill('First line added');
@@ -62,23 +62,6 @@ console.log('asked:', await ask.innerText().then((t) => t.replace(/\s+/g, ' ')))
 await ask.getByRole('button', { name: 'Delete', exact: true }).click();
 await tools.getByRole('button', { name: 'Info', exact: true }).click();
 console.log('tracks left:', (await aside.getByRole('radiogroup', { name: 'Tracks' }).innerText().catch(() => 'no track list')).replace(/\s+/g, ' '), '| grid', (await grid()).slice(0, 60));
-
-// 2. Blu-ray pictures read into text.
-await page.goto(`${BASE}/subtitles`);
-await page.setInputFiles('input[type=file]', 'samples/sup2.sup');
-await page.waitForSelector('[role=grid]', { timeout: 30000 });
-await tools.getByRole('button', { name: 'Read text', exact: true }).click();
-await aside.getByLabel('Language').click();
-await page.getByRole('option', { name: 'English' }).click();
-const t1 = Date.now();
-await aside.getByRole('button', { name: 'Read the text' }).click();
-await page.waitForFunction(
-	() => !document.querySelector('[role=grid]')?.textContent?.includes('Picture'),
-	null,
-	{ timeout: 300000 },
-);
-console.log(`read in ${Date.now() - t1} ms:`, await grid());
-await page.screenshot({ path: 'shots/ocr.png' });
 
 console.log(errors.length ? `errors: ${errors.join(' | ')}` : 'no errors');
 await browser.close();

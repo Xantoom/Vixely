@@ -25,3 +25,32 @@ export function useLeaveGuard(active: boolean) {
 		};
 	}, [active]);
 }
+
+/** Keeps the screen on while `active`: a phone going to sleep would stop an export. */
+export function useWakeLock(active: boolean) {
+	useEffect(() => {
+		if (!active || !('wakeLock' in navigator)) return;
+		let lock: WakeLockSentinel | null = null;
+		let stopped = false;
+		const request = async () => {
+			try {
+				const next = await navigator.wakeLock.request('screen');
+				if (stopped) void next.release();
+				else lock = next;
+			} catch {
+				// Refused, as on low battery: the export goes on as long as the screen does.
+			}
+		};
+		// The lock ends when the page is hidden.
+		const onVisible = () => {
+			if (document.visibilityState === 'visible') void request();
+		};
+		void request();
+		document.addEventListener('visibilitychange', onVisible);
+		return () => {
+			stopped = true;
+			document.removeEventListener('visibilitychange', onVisible);
+			void lock?.release();
+		};
+	}, [active]);
+}

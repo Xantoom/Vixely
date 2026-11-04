@@ -92,7 +92,6 @@ export const ADJUSTMENT_IDS: AdjustmentId[] = [
 	'grain',
 ];
 
-/** The range of each adjustment. */
 export const ADJUSTMENT_RANGE: Record<AdjustmentId, [min: number, max: number]> = {
 	exposure: [-100, 100],
 	brightness: [-100, 100],

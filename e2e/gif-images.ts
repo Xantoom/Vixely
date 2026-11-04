@@ -79,7 +79,7 @@ console.log('shift range:', ranged, '| after Escape', await list.locator('[aria-
 // 6. Resize: 50 %, then the height unlinked and set by hand, sharp pixels.
 const tools = page.locator('nav[aria-label="Editing tools"]');
 await tools.getByRole('button', { name: 'Resize' }).click();
-await page.getByRole('radio', { name: '50 %' }).click();
+await page.getByRole('radio', { name: '50%' }).click();
 console.log('50 %:', await page.getByLabel('Width').inputValue(), '×', await page.getByLabel('Height').inputValue());
 await page.getByRole('button', { name: 'Keep proportions' }).click();
 await page.getByLabel('Height').fill('200');

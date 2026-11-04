@@ -18,6 +18,7 @@ src/routeTree.gen.ts
 src/paraglide/
 src/wasm/vixely-core/
 src/wasm/vixely-image/
+src/wasm/vixely-image-mt/
 src/wasm/vixely-audio/
 src/wasm/vixely-gif/
 src/wasm/vixely-subs/
@@ -27,6 +28,6 @@ project.inlang/.gitignore
 target/
 .tanstack/
 
-# Local assistant settings
+# Local tooling
 .claude/
-src/wasm/vixely-image-mt/
+.impeccable/

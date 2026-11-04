@@ -12,7 +12,6 @@ const TOOLS = new Set<string>([
 	'volume',
 	'sound',
 	'translate',
-	'ocr',
 	'speed',
 	'lines',
 	'timing',

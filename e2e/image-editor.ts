@@ -74,7 +74,7 @@ console.log('WebP lossless', out.data.length, out.data.subarray(12, 16).toString
 await rail.getByRole('button', { name: 'Crop' }).click();
 await page.getByRole('slider', { name: 'Straighten' }).fill('6');
 await rail.getByRole('button', { name: 'Resize' }).click();
-await page.getByRole('radio', { name: '50 %' }).click();
+await page.getByRole('radio', { name: '50%' }).click();
 console.log('resized:', await page.locator('div[data-status]').innerText());
 await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
 await page.locator('#export-format').click();
@@ -88,10 +88,10 @@ console.log('limited', out.name, out.data.length, out.data.length <= 15000 ? 'FI
 // A pixelated zone and a line drawn with the brush, in the file.
 await rail.getByRole('button', { name: 'Layers' }).click();
 { const back = page.getByRole('button', { name: /^All layers/ }); if (await back.isVisible()) await back.click(); }
-await page.getByRole('tab', { name: 'Blur' }).click();
+await page.getByRole('group', { name: 'Add a layer' }).getByRole('button', { name: 'Blur' }).click();
 await page.getByRole('radio', { name: 'Pixelate' }).click();
 { const back = page.getByRole('button', { name: /^All layers/ }); if (await back.isVisible()) await back.click(); }
-await page.getByRole('tab', { name: 'Draw' }).click();
+await page.getByRole('group', { name: 'Add a layer' }).getByRole('button', { name: 'Draw' }).click();
 const surface = (await page.getByLabel('Drawing surface').boundingBox())!;
 await page.mouse.move(surface.x + surface.width * 0.2, surface.y + surface.height * 0.8);
 await page.mouse.down();

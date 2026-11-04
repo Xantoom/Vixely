@@ -15,7 +15,6 @@ export type ToolId =
 	| 'volume'
 	| 'sound'
 	| 'translate'
-	| 'ocr'
 	| 'speed'
 	| 'lines'
 	| 'timing'
@@ -73,7 +72,7 @@ export const EDITORS: Record<MediaKind, EditorDefinition> = {
 		path: '/subtitles',
 		label: () => m.media_subtitles(),
 		page: () => m.editor_page_subtitles(),
-		tools: ['info', 'timing', 'ocr', 'translate'],
+		tools: ['info', 'timing', 'translate'],
 		timed: true,
 	},
 };
@@ -96,7 +95,6 @@ export const TOOL_LABELS: Record<ToolId, () => string> = {
 	volume: () => m.tool_volume(),
 	sound: () => m.tool_sound(),
 	translate: () => m.tool_translate(),
-	ocr: () => m.tool_ocr(),
 	speed: () => m.tool_speed(),
 	lines: () => m.tool_lines(),
 	timing: () => m.tool_timing(),

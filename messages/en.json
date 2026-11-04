@@ -402,7 +402,6 @@
 	"tool_volume": "Volume",
 	"tool_sound": "Sound",
 	"tool_translate": "Translate",
-	"tool_ocr": "Read text",
 	"denoise_title": "Noise reduction",
 	"denoise_amount": "Strength",
 	"denoise_off": "Off",
@@ -686,12 +685,6 @@
 		}
 	],
 	"translate_delete_confirm": "Delete",
-	"ocr_language": "Language",
-	"ocr_start": "Read the text",
-	"work_parts": "{done} of {total} parts heard",
-	"work_failed": "This could not be done. Check the connection for the first download.",
-	"work_downloading": "Downloading, {percent}%",
-	"work_lines": "{done} of {total} lines",
 	"subs_timing_title": "Timing",
 	"subs_shift": "Shift",
 	"subs_shift_by": "Shift by",
@@ -1248,5 +1241,9 @@
 	"export_picture": "Picture",
 	"export_quality_size": "Quality and size",
 	"encoding_copy_description": "Nothing encoded again: quality intact, done in seconds.",
-	"encoding_convert_description": "Applies every edit, at the size and quality chosen."
+	"encoding_convert_description": "Applies every edit, at the size and quality chosen.",
+	"error_title": "Something went wrong",
+	"error_body": "Reload the page to start again. Your original files are untouched.",
+	"error_reload": "Reload",
+	"export_storage_full": "There is not enough free space on this device."
 }

@@ -37,11 +37,19 @@ function generousConnection(): boolean {
 	return !connection?.saveData && !/2g/.test(connection?.effectiveType ?? '');
 }
 
-/** Caches the rest of the app in the background, once the page is idle, so it all works offline. */
-function warm(worker: ServiceWorker | null) {
-	if (!worker || !generousConnection()) return;
+let warmed = false;
+
+/**
+ * Caches the rest of the app in the background, once the page is idle, so it all works offline.
+ * Asked by those who edit: someone reading a page downloads nothing more.
+ */
+export function warmApp() {
+	if (warmed || !import.meta.env.PROD || !('serviceWorker' in navigator) || !generousConnection()) return;
+	warmed = true;
 	const ask = () => {
-		worker.postMessage({ type: 'warm' });
+		void navigator.serviceWorker.ready.then(({ active }) => {
+			active?.postMessage({ type: 'warm' });
+		});
 	};
 	if ('requestIdleCallback' in window) requestIdleCallback(ask, { timeout: 10_000 });
 	else setTimeout(ask, 3000);
@@ -75,9 +83,9 @@ export function startPwa() {
 	window.addEventListener('load', () => {
 		navigator.serviceWorker
 			.register('/sw.js')
-			.then(async (found) => {
+			.then((found) => {
 				watch(found);
-				warm((await navigator.serviceWorker.ready).active);
+				if (matchMedia('(display-mode: standalone)').matches) warmApp();
 			})
 			.catch(() => {
 				// Without it the site still works, online.

@@ -6,6 +6,7 @@
  */
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { PAGES } from '../src/app/pages/content';
 import { TASKS } from '../src/app/tasks';
 import { m } from '../src/paraglide/messages.js';
@@ -24,6 +25,8 @@ interface Page {
 	description: string;
 	/** Pages of little interest to search engines, such as the legal notice. */
 	index?: boolean;
+	/** Its text, for those who read the page without running the app. */
+	sections?: ReturnType<typeof PAGES.about>['sections'];
 	/**
 	 * Its page component, whose code is announced to the browser early. An editor's own code is
 	 * left out: the empty editor doesn't need it, and it would slow the first picture down.
@@ -63,6 +66,7 @@ const pages: Page[] = [
 			title: `${content.title} | Vixely`,
 			description: content.description,
 			index: name === 'about',
+			sections: content.sections,
 			sources: [route(name)],
 		};
 	}),
@@ -72,6 +76,24 @@ const pages: Page[] = [
 
 function escape(text: string): string {
 	return text.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+}
+
+/** The page without JavaScript: its title, what it is about, and its text when it is all text. */
+function fallback(page: Page): string {
+	const text = page.sections?.map(({ title, body }) => (
+		<section key={title}>
+			<h2>{title}</h2>
+			{body}
+		</section>
+	));
+	const main = (
+		<main>
+			<h1>{page.title}</h1>
+			<p>{page.description}</p>
+			{text}
+		</main>
+	);
+	return `<noscript>${renderToStaticMarkup(main)}</noscript>`;
 }
 
 function head(page: Page): string {
@@ -138,7 +160,9 @@ function preloadsOf(page: Page): string {
 }
 
 for (const page of pages) {
-	const html = withoutDescription.replace(placeholder, `${head(page)}\n\t\t${preloadsOf(page)}\n\t\t`);
+	const html = withoutDescription
+		.replace(placeholder, `${head(page)}\n\t\t${preloadsOf(page)}\n\t\t`)
+		.replace('<div id="root"></div>', `<div id="root"></div>\n\t\t${fallback(page)}`);
 	// `/tools/compress-video` is served from `tools/compress-video.html` (see nginx.conf).
 	const file = page.path === '/' ? join(DIST, 'index.html') : join(DIST, `${page.path.slice(1)}.html`);
 	mkdirSync(dirname(file), { recursive: true });

@@ -333,16 +333,6 @@ export function duplicateFrames(
 	return { doc: { ...doc, copies, order }, copies: made };
 }
 
-/** The frame `key` moved to `index` among the frames kept, forward. */
-export function moveFrame(doc: GifDoc, timing: readonly SourceTiming[] | null, key: number, index: number): GifDoc {
-	const keys = keptKeys(doc, timing);
-	const from = keys.indexOf(key);
-	if (from < 0) return doc;
-	keys.splice(from, 1);
-	keys.splice(Math.min(keys.length, Math.max(0, index)), 0, key);
-	return { ...doc, order: keys };
-}
-
 /** Frames shown `seconds` each on the output, whatever the speed. */
 export function setFrameDelays(doc: GifDoc, keys: readonly number[], seconds: number): GifDoc {
 	const delays = { ...doc.delays };

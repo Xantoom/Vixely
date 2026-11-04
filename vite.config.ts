@@ -16,6 +16,9 @@ const isolationHeaders = {
 
 const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
 
+// The preview also runs under the site's policy, so the browser checks see what it blocks.
+const policy = /Content-Security-Policy "([^"]+)"/.exec(readFileSync(new URL('./nginx.conf', import.meta.url), 'utf8'))?.[1] ?? '';
+
 export default defineConfig({
 	// The app's version, written into the files it makes (ASS scripts name it as their editor).
 	define: { __VIXELY_VERSION__: JSON.stringify(version) },
@@ -35,6 +38,8 @@ export default defineConfig({
 			project: './project.inlang',
 			outdir: './src/paraglide',
 			emitTsDeclarations: true,
+			// On disk: scripts/prerender.tsx reads the messages without Vite.
+			outputStructure: 'message-modules',
 			// Client-only app: remember the choice locally, otherwise follow the browser language.
 			strategy: ['localStorage', 'preferredLanguage', 'baseLocale'],
 		}),
@@ -53,8 +58,10 @@ export default defineConfig({
 		],
 	},
 	server: { headers: isolationHeaders },
-	preview: { headers: isolationHeaders },
-	// The manifest tells scripts/prerender.ts which files each page needs, to announce them early.
+	preview: { headers: { ...isolationHeaders, 'Content-Security-Policy': policy } },
+	// The manifest tells scripts/prerender.tsx which files each page needs, to announce them early.
 	build: { target: 'es2023', manifest: true },
+	// Workers share chunks with the app: the default format copies what they import lazily into each.
+	worker: { format: 'es' },
 	test: { environment: 'node', include: ['src/**/*.test.ts'] },
 });

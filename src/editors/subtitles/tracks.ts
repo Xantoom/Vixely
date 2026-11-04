@@ -15,7 +15,7 @@ export type TrackKind = 'srt' | 'ass' | 'vtt' | 'wvtt' | 'tx3g' | 'pgs' | 'vobsu
 /** Kinds stored as pictures: Blu-ray (PGS), DVD (VobSub) and TV (DVB) subtitles. */
 const PICTURE_KINDS: ReadonlySet<TrackKind> = new Set(['pgs', 'vobsub', 'dvb']);
 
-export function isPictureKind(kind: TrackKind | null): boolean {
+function isPictureKind(kind: TrackKind | null): boolean {
 	return kind !== null && PICTURE_KINDS.has(kind);
 }
 

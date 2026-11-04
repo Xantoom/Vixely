@@ -402,7 +402,6 @@
 	"tool_volume": "Volume",
 	"tool_sound": "Son",
 	"tool_translate": "Traduire",
-	"tool_ocr": "Lire le texte",
 	"denoise_title": "Réduction de bruit",
 	"denoise_amount": "Intensité",
 	"denoise_off": "Désactivée",
@@ -701,42 +700,6 @@
 		}
 	],
 	"translate_delete_confirm": "Supprimer",
-	"ocr_language": "Langue",
-	"ocr_start": "Lire le texte",
-	"work_parts": [
-		{
-			"declarations": [
-				"input done",
-				"input total",
-				"local donePlural = done: plural"
-			],
-			"selectors": [
-				"donePlural"
-			],
-			"match": {
-				"donePlural=one": "{done} partie écoutée sur {total}",
-				"donePlural=other": "{done} parties écoutées sur {total}"
-			}
-		}
-	],
-	"work_failed": "Impossible d’aller au bout. Vérifiez la connexion pour le premier téléchargement.",
-	"work_downloading": "Téléchargement, {percent} %",
-	"work_lines": [
-		{
-			"declarations": [
-				"input done",
-				"input total",
-				"local donePlural = done: plural"
-			],
-			"selectors": [
-				"donePlural"
-			],
-			"match": {
-				"donePlural=one": "{done} réplique sur {total}",
-				"donePlural=other": "{done} répliques sur {total}"
-			}
-		}
-	],
 	"subs_timing_title": "Synchro",
 	"subs_shift": "Décalage",
 	"subs_shift_by": "Décaler de",
@@ -1293,5 +1256,9 @@
 	"export_picture": "Image",
 	"export_quality_size": "Qualité et taille",
 	"encoding_copy_description": "Rien n’est réencodé : qualité intacte, en quelques secondes.",
-	"encoding_convert_description": "Applique toutes les retouches, à la taille et la qualité choisies."
+	"encoding_convert_description": "Applique toutes les retouches, à la taille et la qualité choisies.",
+	"error_title": "Une erreur est survenue",
+	"error_body": "Rechargez la page pour recommencer. Vos fichiers d’origine ne sont pas touchés.",
+	"error_reload": "Recharger",
+	"export_storage_full": "Il n’y a pas assez d’espace libre sur cet appareil."
 }

@@ -47,7 +47,6 @@ use ordered_channel::Receiver as OrdQueueIter;
 use ordered_channel::Sender as OrdQueue;
 pub mod progress;
 use crate::progress::*;
-pub mod c_api;
 mod denoise;
 use crate::denoise::*;
 pub mod collector;

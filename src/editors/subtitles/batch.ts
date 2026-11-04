@@ -38,7 +38,6 @@ export const useSubtitleBatch = create<BatchState>((set) => ({
 	},
 }));
 
-/** A file of the batch, read. */
 export type ReadFile = { doc: SubtitleDoc } | { doc: null };
 
 export async function readSubtitleFile(file: File, format: string): Promise<ReadFile> {

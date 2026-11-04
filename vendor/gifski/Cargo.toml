@@ -17,10 +17,8 @@ version = "1.34.0"
 authors = ["Kornel <kornel@geekhood.net>"]
 build = false
 include = [
-    "/README.md",
     "/Cargo.toml",
     "/src/**/*.rs",
-    "/src/bin/*.rs",
 ]
 autolib = false
 autobins = false
@@ -30,7 +28,6 @@ autobenches = false
 description = "pngquant-based GIF maker for nice-looking animGIFs"
 homepage = "https://gif.ski"
 documentation = "https://docs.rs/gifski"
-readme = "README.md"
 keywords = [
     "gif",
     "encoder",
@@ -91,12 +88,6 @@ crate-type = [
     "cdylib",
 ]
 path = "src/lib.rs"
-
-[[bin]]
-name = "gifski"
-path = "src/bin/gifski.rs"
-doctest = false
-required-features = ["binary"]
 
 [dependencies.clap]
 version = "4.5.32"

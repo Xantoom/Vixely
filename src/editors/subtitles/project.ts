@@ -9,7 +9,7 @@ import type { SubtitleDoc } from './document';
 import { parseSubtitles } from './formats';
 import { decodeText, detectEncoding, type EncodingId } from './formats/encoding';
 import { type SubtitleExportSettings, useSubtitleEditor } from './store';
-import { type BatchLines, isPictureKind, preferredTrack, supDoc, TrackReader, trackKind } from './tracks';
+import { type BatchLines, preferredTrack, supDoc, TrackReader, trackKind } from './tracks';
 
 /**
  * A track of the video by its number, the subtitles of a subtitle file, new subtitles, or a
@@ -611,10 +611,4 @@ export function applyWhole(change: (doc: SubtitleDoc) => SubtitleDoc) {
 		const editor = useSubtitleEditor.getState();
 		if (editor.key === shown) editor.apply(change);
 	});
-}
-
-/** Whether a track holds pictures (PGS, VobSub or DVB), read already or not yet. */
-export function isPictures(track: ProjectTrack): boolean {
-	if (track.original) return track.original.format === 'pgs';
-	return track.reading === true && track.info !== null && isPictureKind(trackKind(track.info));
 }

@@ -30,13 +30,13 @@ export function SiteHeader() {
 					<LogoMark size={30} />
 					<span className="text-lead font-bold tracking-[-0.02em]">Vixely</span>
 				</Link>
-				<nav aria-label={copy.nav.label} className="flex gap-6 max-md:hidden">
+				<nav aria-label={copy.nav.label} className="flex gap-6 max-lg:hidden">
 					{sections.map(([hash, label]) => (
 						<Link
 							key={hash}
 							to="/"
 							hash={hash}
-							className="text-ui text-ink-2 hover:text-ink font-medium transition-colors"
+							className="text-ui text-ink-2 hover:text-ink flex h-10 items-center font-medium transition-colors"
 						>
 							{label}
 						</Link>

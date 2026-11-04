@@ -45,7 +45,6 @@ export function SitePage({ content }: { content: PageContent }) {
 	);
 }
 
-/** A link in the text of a page. */
 export function TextLink({ href, children }: { href: string; children: ReactNode }) {
 	return (
 		<a href={href} className="underline underline-offset-[3px] hover:no-underline">

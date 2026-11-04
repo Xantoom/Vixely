@@ -28,6 +28,8 @@ interface AppBarProps {
 	actions?: EditorActions;
 	/** Opens the search of actions (Ctrl or ⌘ + K). */
 	onSearch?: () => void;
+	/** The page's title for screen readers, in the bar so that it comes before the panel's headings. */
+	heading?: string;
 	/** The editor just left for this one, if any: the bar shows the move. */
 	from?: MediaKind | null;
 }
@@ -91,7 +93,7 @@ function EditorTabs({ current, from }: { current: MediaKind; from: MediaKind | n
 	);
 }
 
-export function AppBar({ editor, fileName, actions, onSearch, from = null }: AppBarProps) {
+export function AppBar({ editor, fileName, actions, onSearch, heading, from = null }: AppBarProps) {
 	const updateReady = usePwa((state) => state.updateReady);
 	const installable = usePwa((state) => state.installable);
 
@@ -99,6 +101,7 @@ export function AppBar({ editor, fileName, actions, onSearch, from = null }: App
 		<header
 			className={`border-line bg-bg relative grid h-13 flex-none grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] max-md:grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b px-3 ${editor ? 'z-30' : ''}`}
 		>
+			{heading && <h1 className="sr-only">{heading}</h1>}
 			<div className="flex min-w-0 items-center gap-1">
 				{/* In an editor the mark sits over the tools' rail, centred on it, as large as Export's icon. */}
 				<span className={editor ? 'grid flex-none place-items-center md:-ml-3 md:w-(--rail-w)' : 'contents'}>

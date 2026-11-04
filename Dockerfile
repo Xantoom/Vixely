@@ -11,13 +11,12 @@ ARG BUN_IMAGE=oven/bun:1.4.3
 FROM ${BUN_IMAGE} AS toolchain
 # Rust and wasm-pack compile the crates to WebAssembly.
 # clang and llvm compile the C parts of the image codecs (libdeflate) to WebAssembly.
-# The path comes first: wasm-pack's installer looks for Rust.
 ENV PATH="/root/.cargo/bin:${PATH}"
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates build-essential clang llvm && \
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --target wasm32-unknown-unknown && \
     # The multithreaded image codecs rebuild the standard library: a pinned nightly (see scripts/build-wasm.ts).
     rustup toolchain install nightly-2026-09-20 --profile minimal --component rust-src --target wasm32-unknown-unknown && \
-    curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh && \
+    curl -sSfL https://github.com/wasm-bindgen/wasm-pack/releases/download/v0.13.1/wasm-pack-v0.13.1-x86_64-unknown-linux-musl.tar.gz | tar xz --strip-components=1 -C /usr/local/bin wasm-pack-v0.13.1-x86_64-unknown-linux-musl/wasm-pack && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # ── Stage 2: the crates, from their own sources only ──

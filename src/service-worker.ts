@@ -8,8 +8,6 @@
  * - Pages come from the network while there is one, so a new version shows up at once; the cache
  *   answers when there isn't. Files named by their content never change: the cache answers first.
  * - Files shared with the installed app (Android's share sheet) are kept until the page takes them.
- *
- * Other sites (models, language data) are left alone: their own caches keep them.
  */
 
 interface ExtendableEvent extends Event {
@@ -35,7 +33,7 @@ interface WorkerScope {
 declare const self: WorkerScope;
 /**
  * Filled in by the build: the files cached at install, those cached in the background after, and
- * those only cached once used (speech recognition and text recognition, tens of megabytes).
+ * those only cached once used (subtitle fonts).
  */
 declare const SHELL: string[];
 declare const REST: string[];

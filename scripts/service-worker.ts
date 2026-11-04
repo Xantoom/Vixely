@@ -20,12 +20,21 @@ const files = walk(DIST)
 	.filter((path) => !['/sw.js', '/robots.txt', '/sitemap.xml', '/og-image.png'].includes(path) && !path.startsWith('/.vite/'))
 	.toSorted();
 
-// Text recognition: tens of megabytes most visitors never use. And the fonts of subtitles, each
-// fetched once a script names it: the faces only subtitles use (the others are the image editor's
-// too) and the WOFF copies turned into fonts attached to exports.
+// Cached once used, not ahead: the fonts of subtitles and the WOFF copies attached to exports, the
+// pictures of the home page, what only rare files need (DTS, AC-3) and the builds of the image and
+// subtitle engines for browsers without threads or SIMD.
 const SUBTITLE_FONTS =
 	/\/(arimo|tinos|cousine|gelasio|comic-neue|carlito|geist|geist-mono|oswald|playfair-display|caveat)-latin(-ext)?-(400|700)-(normal|italic)-[^/]+\.woff2$/;
-const lazy = files.filter((path) => /tesseract-core|ocr\.worker/.test(path) || SUBTITLE_FONTS.test(path) || path.endsWith('.woff'));
+const importsMemory = (path: string) =>
+	WebAssembly.Module.imports(new WebAssembly.Module(readFileSync(join(DIST, path)))).some(({ kind }) => kind === 'memory');
+const lazy = files.filter(
+	(path) =>
+		SUBTITLE_FONTS.test(path) ||
+		path.endsWith('.woff') ||
+		path.startsWith('/shots/') ||
+		/\/mediabunny-(dts|ac3)-|\/jassub-worker-[^m/][^/]*\.wasm$/.test(path) ||
+		(/\/vixely_image_bg-[^/]+\.wasm$/.test(path) && !importsMemory(path)),
+);
 // The pages, what the first page loads, and the app's icons.
 const index = readFileSync(join(DIST, 'index.html'), 'utf8');
 const linked = new Set([...index.matchAll(/(?:src|href)="(\/[^"]+)"/g)].map((match) => match[1]));

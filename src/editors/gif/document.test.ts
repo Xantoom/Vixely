@@ -6,7 +6,6 @@ import {
 	frameAt,
 	frameKey,
 	frameLayout,
-	moveFrame,
 	moveFrames,
 	setFrameDelays,
 	framesUntouched,
@@ -48,7 +47,7 @@ describe('gif document', () => {
 	});
 
 	it('moves a frame and sets frame delays', () => {
-		let doc = moveFrame({ ...createGifDoc(1, null), removed: [frameKey(0.5)] }, timing, frameKey(0.8), 0);
+		let doc = moveFrames({ ...createGifDoc(1, null), removed: [frameKey(0.5)] }, timing, [frameKey(0.8)], 0);
 		expect(
 			outputFrames(doc, timing)
 				.map((frame) => frame.source)

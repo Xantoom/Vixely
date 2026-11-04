@@ -69,7 +69,7 @@ export function DropZone({
 	};
 
 	return (
-		<div className="grid gap-3">
+		<div className="grid grid-cols-[minmax(0,1fr)] gap-3">
 			<div
 				role="button"
 				tabIndex={0}
@@ -127,7 +127,7 @@ export function DropZone({
 			</div>
 			<div className="flex flex-wrap gap-2">
 				<form
-					className="flex min-w-64 flex-1 gap-2"
+					className="flex min-w-[min(16rem,100%)] flex-1 gap-2"
 					onSubmit={(event) => {
 						event.preventDefault();
 						if (address.trim()) void download(async () => fetchFile(address));

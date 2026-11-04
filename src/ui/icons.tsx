@@ -22,7 +22,6 @@ import {
 	GalleryHorizontalEnd,
 	AudioWaveform,
 	Languages,
-	ScanText,
 } from 'lucide-react';
 import type { MediaKind, ToolId } from '@/editors/registry';
 
@@ -70,7 +69,6 @@ export const TOOL_ICONS: Record<ToolId, LucideIcon> = {
 	volume: Volume2,
 	sound: AudioWaveform,
 	translate: Languages,
-	ocr: ScanText,
 	speed: Gauge,
 	lines: ListVideo,
 	timing: Timer,

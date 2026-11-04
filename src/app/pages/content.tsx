@@ -8,7 +8,7 @@ import { type PageContent, TextLink } from './SitePage';
 
 const ISSUES = 'https://github.com/Xantoom/Vixely/issues';
 const SOURCE = 'https://github.com/Xantoom/Vixely';
-const UPDATED = { en: 'Last updated September 26, 2026', fr: 'Mis à jour le 26 septembre 2026' };
+const UPDATED = { en: 'Last updated November 4, 2026', fr: 'Mis à jour le 4 novembre 2026' };
 
 type Locale = 'en' | 'fr';
 
@@ -20,7 +20,6 @@ const CREDITS = [
 	['Mediabunny', 'https://mediabunny.dev'],
 	['FFmpeg (AC-3, E-AC-3, DTS and AAC coders)', 'https://ffmpeg.org'],
 	['RNNoise / nnnoiseless', 'https://github.com/jneem/nnnoiseless'],
-	['Tesseract / tesseract.js-core', 'https://github.com/naptha/tesseract.js-core'],
 	['LAME', 'https://lame.sourceforge.io'],
 	['libFLAC', 'https://xiph.org/flac/'],
 	['gifski', 'https://gif.ski'],
@@ -170,8 +169,18 @@ function privacy(lang: Locale): PageContent {
 					body: (
 						<p>
 							Vixely works entirely in your browser. The files you open are read, edited and saved on your
-							device and are never sent anywhere. Large exports may be written for a moment to your
-							browser's private storage before they are saved; they are deleted afterwards.
+							device and are never sent anywhere. Large exports pass through your browser's private
+							storage before they are saved; they are deleted a few minutes later, or at your next visit
+							at the latest.
+						</p>
+					),
+				},
+				{
+					title: 'Files opened from an address',
+					body: (
+						<p>
+							A file you open from its address is downloaded by your browser straight from that site,
+							which sees your IP address as it does for any visit. Vixely is not involved.
 						</p>
 					),
 				},
@@ -179,20 +188,11 @@ function privacy(lang: Locale): PageContent {
 					title: 'On your device',
 					body: (
 						<p>
-							Vixely remembers your theme and your language in your browser's local storage. The site's
-							own code is kept there too, so it works without a network. It sets no cookie. You can clear
-							all of this at any time from your browser's settings.
-						</p>
-					),
-				},
-				{
-					title: 'Downloaded when needed',
-					body: (
-						<p>
-							Text recognition needs data too large to come with the site, downloaded the first time it is
-							used and then kept by your browser: its languages (Tesseract, from{' '}
-							<TextLink href="https://www.jsdelivr.com">jsDelivr</TextLink>). This server sees a download,
-							like any web request; your files and what is written in them stay on your device.
+							Your browser's local storage keeps your theme, language, volume, preferred video encoder and
+							subtitle advice setting, and the site's own code is kept so it works without a network. If
+							you allow it, your browser lists your computer's fonts for subtitles; that list stays on
+							your device. Vixely sets no cookie. You can clear all of this at any time from your
+							browser's settings.
 						</p>
 					),
 				},
@@ -201,8 +201,11 @@ function privacy(lang: Locale): PageContent {
 					title: 'Hosting',
 					body: (
 						<p>
-							The site is served by Railway, whose servers, like any web server, see the IP address of
-							each request and may keep it in their logs for a short time for security and operation.
+							The site is served by Railway through Cloudflare's network. Like any web server, they see
+							the IP address of each request and may keep it in their logs for a short time, for the
+							site's security and operation, which is the legitimate interest it rests on (article 6(1)(f)
+							of the GDPR). Both are American companies, so this data may be processed in the United
+							States.
 						</p>
 					),
 				},
@@ -210,8 +213,9 @@ function privacy(lang: Locale): PageContent {
 					title: 'Your rights',
 					body: (
 						<p>
-							Under the GDPR you may ask to access or delete data concerning you. As Vixely holds none
-							beyond what is described above, questions can be asked on{' '}
+							The controller is the publisher named in the <TextLink href="/legal">legal notice</TextLink>
+							. Under the GDPR you may ask to access or delete data concerning you, or object to its use.
+							As Vixely holds none beyond what is described above, questions can be asked on{' '}
 							<TextLink href={ISSUES}>GitHub</TextLink>. You may also contact the French data protection
 							authority, the <TextLink href="https://www.cnil.fr">CNIL</TextLink>.
 						</p>
@@ -230,8 +234,17 @@ function privacy(lang: Locale): PageContent {
 						<p>
 							Vixely fonctionne entièrement dans votre navigateur. Les fichiers que vous ouvrez sont lus,
 							modifiés et enregistrés sur votre appareil, et ne sont jamais envoyés nulle part. Les gros
-							exports peuvent passer un instant par le stockage privé de votre navigateur avant d’être
-							enregistrés ; ils y sont ensuite effacés.
+							exports passent par le stockage privé de votre navigateur avant d’être enregistrés ; ils y
+							sont effacés quelques minutes plus tard, ou au plus tard à votre prochaine visite.
+						</p>
+					),
+				},
+				{
+					title: 'Fichiers ouverts depuis une adresse',
+					body: (
+						<p>
+							Un fichier ouvert depuis son adresse est téléchargé par votre navigateur directement sur ce
+							site, qui voit votre adresse IP comme pour toute visite. Vixely n’intervient pas.
 						</p>
 					),
 				},
@@ -239,21 +252,11 @@ function privacy(lang: Locale): PageContent {
 					title: 'Sur votre appareil',
 					body: (
 						<p>
-							Vixely retient votre thème et votre langue dans le stockage local de votre navigateur. Le
-							code du site y est gardé aussi, pour qu’il marche sans réseau. Il ne dépose aucun cookie.
-							Vous pouvez tout effacer à tout moment depuis votre navigateur.
-						</p>
-					),
-				},
-				{
-					title: 'Téléchargé au besoin',
-					body: (
-						<p>
-							La reconnaissance de texte a besoin de données trop lourdes pour venir avec le site,
-							téléchargées à sa première utilisation puis gardées par votre navigateur : ses langues
-							(Tesseract, depuis <TextLink href="https://www.jsdelivr.com">jsDelivr</TextLink>). Ce
-							serveur voit un téléchargement, comme toute requête web ; vos fichiers et ce qui s’y lit
-							restent sur votre appareil.
+							Le stockage local de votre navigateur garde votre thème, votre langue, votre volume, votre
+							encodeur vidéo préféré et le réglage des conseils de sous-titres, et le code du site y est
+							gardé pour qu’il marche sans réseau. Si vous l’autorisez, votre navigateur liste les polices
+							de votre ordinateur pour les sous-titres ; cette liste reste sur votre appareil. Vixely ne
+							dépose aucun cookie. Vous pouvez tout effacer à tout moment depuis votre navigateur.
 						</p>
 					),
 				},
@@ -262,9 +265,11 @@ function privacy(lang: Locale): PageContent {
 					title: 'Hébergement',
 					body: (
 						<p>
-							Le site est servi par Railway, dont les serveurs, comme tout serveur web, voient l’adresse
-							IP de chaque requête et peuvent la garder peu de temps dans leurs journaux, pour la sécurité
-							et le fonctionnement.
+							Le site est servi par Railway à travers le réseau de Cloudflare. Comme tout serveur web, ils
+							voient l’adresse IP de chaque requête et peuvent la garder peu de temps dans leurs journaux,
+							pour la sécurité et le fonctionnement du site : c’est l’intérêt légitime sur lequel ce
+							traitement repose (article 6.1.f du RGPD). Ces deux sociétés sont américaines, ces données
+							peuvent donc être traitées aux États-Unis.
 						</p>
 					),
 				},
@@ -272,9 +277,11 @@ function privacy(lang: Locale): PageContent {
 					title: 'Vos droits',
 					body: (
 						<p>
-							Le RGPD vous permet de demander l’accès aux données vous concernant ou leur effacement.
-							Vixely n’en détenant pas d’autres que celles décrites ici, vos questions peuvent être posées
-							sur <TextLink href={ISSUES}>GitHub</TextLink>. Vous pouvez aussi saisir la{' '}
+							Le responsable du traitement est l’éditeur indiqué dans les{' '}
+							<TextLink href="/legal">mentions légales</TextLink>. Le RGPD vous permet de demander l’accès
+							à vos données, leur suppression, ou de vous opposer à leur utilisation. Vixely n’en détenant
+							pas d’autres que celles décrites ici, vos questions peuvent être posées sur{' '}
+							<TextLink href={ISSUES}>GitHub</TextLink>. Vous pouvez aussi saisir la{' '}
 							<TextLink href="https://www.cnil.fr">CNIL</TextLink>.
 						</p>
 					),

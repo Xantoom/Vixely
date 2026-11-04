@@ -12,13 +12,7 @@
 		<link rel="manifest" href="/manifest.webmanifest" />
 		<meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
 		<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#161618" />
-		<script>
-			// Apply the saved theme before the first paint to avoid a flash of the wrong theme.
-			try {
-				const theme = localStorage.getItem('vixely:theme');
-				if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
-			} catch {}
-		</script>
+		<script src="/theme.js"></script>
 	</head>
 	<body>
 		<div id="root"></div>

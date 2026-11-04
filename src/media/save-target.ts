@@ -28,13 +28,41 @@ const TEMPORARY_PREFIX = 'vixely-export-';
  * export is cancelled too, which would keep a partial file. Commit and discard decide instead.
  */
 function forwardWrites(writable: FileSystemWritableFileStream): WritableStream<StreamTargetChunk> {
-	return new WritableStream<StreamTargetChunk>({ write: async (chunk) => writable.write(chunk) });
+	return new WritableStream<StreamTargetChunk>({ write: async (chunk) => writing(writable.write(chunk)) });
 }
 
-/** Removes files left in private storage by earlier exports, once their download had time to start. */
+/** How long a finished export stays in private storage, for its download to complete. */
+const DOWNLOAD_TIME = 5 * 60_000;
+
+let storageFull = false;
+
+/** Whether the last write ran out of space on the device. */
+export function ranOutOfStorage(): boolean {
+	return storageFull;
+}
+
+async function writing<T>(work: Promise<T>): Promise<T> {
+	try {
+		return await work;
+	} catch (error) {
+		if (error instanceof DOMException && error.name === 'QuotaExceededError') storageFull = true;
+		throw error;
+	}
+}
+
+/** Removes files left in private storage by earlier exports. One still being written refuses. */
 async function removeLeftovers(root: FileSystemDirectoryHandle) {
 	for await (const name of root.keys()) {
 		if (name.startsWith(TEMPORARY_PREFIX)) await root.removeEntry(name).catch(() => undefined);
+	}
+}
+
+/** What a closed tab left in private storage goes at the next visit. */
+export async function clearLeftovers() {
+	try {
+		await removeLeftovers(await navigator.storage.getDirectory());
+	} catch {
+		// No private storage: nothing was left in it.
 	}
 }
 
@@ -43,7 +71,7 @@ async function fileTarget(handle: FileSystemFileHandle, remove?: () => Promise<v
 	const writable = await handle.createWritable();
 	return {
 		target: new StreamTarget(forwardWrites(writable), { chunked: true, chunkSize: CHUNK_SIZE }),
-		append: async (data) => writable.write(data.slice()),
+		append: async (data) => writing(writable.write(data.slice())),
 		commit: async () => writable.close(),
 		discard: async () => {
 			await writable.abort();
@@ -57,6 +85,7 @@ async function fileTarget(handle: FileSystemFileHandle, remove?: () => Promise<v
  * or built in memory when there is none (private browsing in some browsers).
  */
 export async function downloadTarget(name: string, type: SaveType): Promise<SaveTarget> {
+	storageFull = false;
 	try {
 		const root = await navigator.storage.getDirectory();
 		await removeLeftovers(root);
@@ -65,10 +94,13 @@ export async function downloadTarget(name: string, type: SaveType): Promise<Save
 		const writable = await handle.createWritable();
 		return {
 			target: new StreamTarget(forwardWrites(writable), { chunked: true, chunkSize: CHUNK_SIZE }),
-			append: async (data) => writable.write(data.slice()),
+			append: async (data) => writing(writable.write(data.slice())),
 			commit: async () => {
 				await writable.close();
 				download(await handle.getFile(), name);
+				setTimeout(() => {
+					void root.removeEntry(entry).catch(() => undefined);
+				}, DOWNLOAD_TIME);
 			},
 			discard: async () => {
 				await writable.abort();

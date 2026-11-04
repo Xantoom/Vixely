@@ -101,6 +101,7 @@ for (const [path, file, ready] of EDITORS) {
 	const tools = page.locator('nav[aria-label="Editing tools"] button');
 	for (let i = 0; i < (await tools.count()); i++) {
 		const tool = tools.nth(i);
+		if (!(await tool.isVisible())) continue;
 		if (await tool.isDisabled()) continue;
 		const name = await tool.innerText();
 		await tool.click();

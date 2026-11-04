@@ -232,7 +232,7 @@ pub fn jxl_distance(quality: f32) -> f32 {
 
 /// JPEG XL. Quality 100 encodes losslessly. `effort` goes from 1 (fastest) to 9.
 ///
-/// jxl-encoder 0.3 writes files that decoders can't read back once the image spans several
+/// jxl-encoder 0.3.1 writes files that decoders can't read back once the image spans several
 /// 256×256 groups, in two cases: lossless with ANS entropy coding, and an alpha channel at lossy
 /// effort 3 and above. Lossless therefore uses Huffman coding, and transparent lossy images stay at
 /// effort 2. Opaque lossy images, the common case, go through as RGB with every option.

@@ -1,0 +1,39 @@
+diff --git a/dist/worker/renderers/2d-renderer.js b/dist/worker/renderers/2d-renderer.js
+index 3e60dc77c4d4c1a97d476a1b99f3168427d95ec4..1c1e848c1c4dc75c9ca90e54594e8e9aa2b80528 100644
+--- a/dist/worker/renderers/2d-renderer.js
++++ b/dist/worker/renderers/2d-renderer.js
+@@ -5,7 +5,7 @@ import { CanvasRendererBase } from "./canvas-base.js";
+ const clamp = (v) => (v < 0 ? 0 : v > 1 ? 255 : Math.round(v * 255));
+ const CTX_OPTS = {
+     alpha: true,
+-    desynchronized: true,
++    desynchronized: false,
+     willReadFrequently: false
+ };
+ export class Canvas2DRenderer extends CanvasRendererBase {
+diff --git a/dist/worker/renderers/webgl1-renderer.js b/dist/worker/renderers/webgl1-renderer.js
+index 437f2fade6bd03c606357c51da67a1338deba8d2..6f7a4eb8ad3c94a1a205570705fa7bba9a9e1e00 100644
+--- a/dist/worker/renderers/webgl1-renderer.js
++++ b/dist/worker/renderers/webgl1-renderer.js
+@@ -137,7 +137,7 @@ export class WebGL1Renderer extends WebGLRendererBase {
+             depth: false,
+             preserveDrawingBuffer: false,
+             stencil: false,
+-            desynchronized: true,
++            desynchronized: false,
+             powerPreference: 'default'
+         });
+         if (!gl) {
+diff --git a/dist/worker/renderers/webgl2-renderer.js b/dist/worker/renderers/webgl2-renderer.js
+index ffe5a95ce4d961a2c4344cbab62d8f53bddb5413..3a3a902f76c3591c7e2821662163f72418ab816a 100644
+--- a/dist/worker/renderers/webgl2-renderer.js
++++ b/dist/worker/renderers/webgl2-renderer.js
+@@ -141,7 +141,7 @@ export class WebGL2Renderer extends WebGLRendererBase {
+             depth: false,
+             preserveDrawingBuffer: false,
+             stencil: false,
+-            desynchronized: true,
++            desynchronized: false,
+             powerPreference: 'default'
+         });
+         if (!gl) {

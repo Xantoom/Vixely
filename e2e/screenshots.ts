@@ -106,7 +106,7 @@ export const SHOTS: Record<string, Shot> = {
 		await tool(page, t('Translate', 'Traduire'));
 		await aside(page).getByLabel(t('Into', 'Vers')).click();
 		await page.getByRole('option', { name: t('Spanish', 'espagnol') }).click();
-		await aside(page).getByRole('button', { name: t('Start translating', 'Commencer la traduction') }).click();
+		await aside(page).getByRole('button', { name: t('Translate by hand', 'Traduire à la main') }).click();
 		await page.getByRole('grid').getByRole('row').nth(1).click();
 		const text = page.getByLabel(t('Text', 'Texte'), { exact: true });
 		await text.fill('El sol se pone sobre el lago.');
