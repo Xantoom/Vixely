@@ -1,0 +1,37 @@
+// Vixely on Cloudflare Workers: the built site (dist/) served as static assets, no Worker code.
+// The headers and health check nginx.conf gave on Railway are in public/_headers and
+// public/healthz; .github/workflows/cloudflare.yml builds and deploys.
+//
+//   wrangler deploy                 → "vixely", production (the main branch)
+//   wrangler deploy --env preprod   → "vixely-preprod" (the v1 branch)
+//
+// vixely.app and www.vixely.app are attached to the production Worker as Custom Domains in the
+// Cloudflare dashboard (Workers & Pages → vixely → Settings → Domains & Routes).
+{
+	"name": "vixely",
+	"account_id": "480ab55dd9b66a585ffd0d71676d26d2",
+	"compatibility_date": "2026-11-13",
+	"assets": {
+		"directory": "./dist",
+		// Routes are prerendered as video/index.html and so on: /video serves it, /video/ is sent
+		// to /video.
+		"html_handling": "drop-trailing-slash",
+		// The app is a single-page application: any other address gets index.html (200), like
+		// nginx's try_files … /index.html.
+		"not_found_handling": "single-page-application",
+	},
+	"workers_dev": true,
+	"preview_urls": false,
+	"env": {
+		"preprod": {
+			"name": "vixely-preprod",
+			"assets": {
+				"directory": "./dist",
+				"html_handling": "drop-trailing-slash",
+				"not_found_handling": "single-page-application",
+			},
+			"workers_dev": true,
+			"preview_urls": false,
+		},
+	},
+}
