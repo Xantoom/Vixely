@@ -1,0 +1,39 @@
+name: Visits
+
+# The pages shown on vixely.app, as counted by worker/index.ts, in the run's summary.
+# Actions → Visits → Run workflow. Needs the repository secret CLOUDFLARE_ANALYTICS_TOKEN
+# (a Cloudflare token with "Account Analytics: Read").
+on:
+    workflow_dispatch:
+        inputs:
+            days:
+                description: Days
+                default: '7'
+            site:
+                description: Site
+                type: choice
+                options: [production, preprod]
+                default: production
+
+permissions:
+    contents: read
+
+jobs:
+    visits:
+        name: Visits
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  sparse-checkout: scripts/visits.ts
+                  sparse-checkout-cone-mode: false
+
+            - uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: 1.4.3
+
+            - name: Read the counts
+              env:
+                  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_ANALYTICS_TOKEN }}
+                  DAYS: ${{ inputs.days }}
+              run: bun scripts/visits.ts "$DAYS" ${{ inputs.site == 'preprod' && '--preprod' || '' }} >> "$GITHUB_STEP_SUMMARY"

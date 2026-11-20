@@ -4,7 +4,8 @@
  *
  *   CLOUDFLARE_API_TOKEN=… bun scripts/visits.ts [days] [--preprod]
  *
- * The token needs the "Account Analytics: Read" permission.
+ * The token needs the "Account Analytics: Read" permission. Written as Markdown tables, which the
+ * Visits workflow shows in its summary (.github/workflows/visits.yml).
  */
 
 const ACCOUNT = '480ab55dd9b66a585ffd0d71676d26d2';
@@ -30,10 +31,10 @@ async function top(column: keyof typeof COLUMNS, limit: number): Promise<{ key: 
 	return data.map((row) => ({ key: row.key || '(none)', visits: Number(row.visits) }));
 }
 
-console.log(`Last ${days} days, ${dataset}`);
+console.log(`## Visits, last ${days} days (${dataset})`);
 for (const [column, limit] of [['page', 40], ['language', 5], ['screen', 5], ['country', 15], ['from', 15]] as const) {
 	// oxlint-disable-next-line no-await-in-loop -- one table after the other, in order
 	const rows = await top(column, limit);
-	console.log(`\n${column}`);
-	for (const { key, visits } of rows) console.log(`${String(visits).padStart(8)}  ${key}`);
+	console.log(`\n| ${column} | visits |\n| --- | ---: |`);
+	for (const { key, visits } of rows) console.log(`| ${key} | ${visits} |`);
 }
