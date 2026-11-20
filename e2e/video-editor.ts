@@ -88,6 +88,8 @@ console.log('3 s from 0:01 past a 0:03 → 0:08 cut, with sound:', await time())
 // 3. A picture opened in the image editor, with the video's crop.
 await tools.getByRole('button', { name: 'Crop' }).click();
 await aside.getByRole('radio', { name: /16:9/ }).click();
+// The size is in a section folded by default.
+await aside.getByRole('button', { name: 'Position and size', expanded: false }).click();
 await aside.getByLabel('Width').fill('960');
 await aside.getByLabel('Width').press('Enter');
 // The picture on screen, downloaded as the video has it.

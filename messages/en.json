@@ -930,6 +930,7 @@
 	"container_unavailable": "This browser encodes none of its codecs",
 	"audio_copy_container": "This sound can't go as it is in a {container} file",
 	"mux_blocked_webm": "WebM files don't hold these subtitles",
+	"convert_over_limit": "Can't get this video under {limit}. Try a smaller height or a shorter passage.",
 	"convert_no_video_encoder": "This browser can't encode the pictures with these settings. Try another codec or a smaller height.",
 	"convert_no_audio_encoder": "This browser can't encode the sound with these settings. Try another codec.",
 	"close_panel": "Close the panel",

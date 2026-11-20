@@ -73,6 +73,7 @@ async function handle(request: GifRequest) {
 		const pixels = new Uint8Array(request.rgba);
 		if (writer?.format === 'gif') writer.writer.add_frame(pixels, request.width, request.height, request.pts);
 		else writer?.writer.add_frame(pixels, request.duration * 1000);
+		post({ type: 'added' });
 	} else if (request.type === 'trim') {
 		const gif = await load();
 		const bytes = gif.trim_gif(new Uint8Array(request.bytes), request.start, request.end, request.repeat);

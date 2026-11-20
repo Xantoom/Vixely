@@ -19,7 +19,7 @@ export async function probeMediaTracks(file: File): Promise<MediaTrackInfo[]> {
 					track.getDisposition(),
 				]);
 				return {
-					id: track.id,
+					id: track.containerId,
 					kind: track.isVideoTrack() ? 'video' : 'audio',
 					codec: codec ? codecName(codec) : '',
 					language,

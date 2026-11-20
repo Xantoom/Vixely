@@ -33,6 +33,17 @@ describe('find and replace', () => {
 		expect(findMatches(french, query('été', { wholeWord: true }))).toHaveLength(1);
 	});
 
+	it('replaces by expressions that look around the match', () => {
+		const line: SubtitleDoc = { ...doc, cues: [{ id: 9, start: 0, end: 1, text: 'foobar bar' }] };
+		const ahead = query('(?<=foo)(b)ar', { regex: true });
+		const [found] = findMatches(line, ahead);
+		expect(found).toEqual({ id: 9, index: 3, length: 3 });
+		expect(found && replaceMatch(line, ahead, found, '$1AZ').cues[0]?.text).toBe('foobAZ bar');
+		const all = replaceAll(line, ahead, 'BAZ');
+		expect(all.count).toBe(1);
+		expect(all.doc.cues[0]?.text).toBe('fooBAZ bar');
+	});
+
 	it('replaces one match, then all, with groups by expression', () => {
 		const [first] = findMatches(doc, query('the'));
 		const one = first ? replaceMatch(doc, query('the'), first, 'a') : doc;

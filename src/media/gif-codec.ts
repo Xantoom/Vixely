@@ -32,6 +32,8 @@ export type GifResponse =
 	| { type: 'size'; width: number; height: number }
 	| { type: 'frame'; bitmap: ImageBitmap; delay: number }
 	| { type: 'done' }
+	/** A frame given to the encoder was taken in: the next may come. */
+	| { type: 'added' }
 	| { type: 'gif'; bytes: Uint8Array }
 	| { type: 'webp-still'; id: number; bytes: Uint8Array }
 	| { type: 'error'; message: string };
@@ -50,7 +52,9 @@ export async function decodeAnimation(
 	onFrame: (bitmap: ImageBitmap, delay: number) => void,
 	signal?: AbortSignal,
 ): Promise<{ width: number; height: number }> {
+	if (signal?.aborted) throw new DOMException('Decoding was stopped.', 'AbortError');
 	const bytes = await file.arrayBuffer();
+	if (signal?.aborted) throw new DOMException('Decoding was stopped.', 'AbortError');
 	const worker = spawn();
 	return new Promise((resolve, reject) => {
 		let size = { width: 0, height: 0 };
@@ -68,9 +72,15 @@ export async function decodeAnimation(
 				worker.terminate();
 				resolve(size);
 			} else if (message.type === 'error') {
+				signal?.removeEventListener('abort', stop);
 				worker.terminate();
 				reject(new Error(message.message));
 			}
+		};
+		worker.onerror = () => {
+			signal?.removeEventListener('abort', stop);
+			worker.terminate();
+			reject(new Error('The animation could not be decoded.'));
 		};
 		const request: GifRequest = { type: 'decode', bytes, format };
 		worker.postMessage(request, [bytes]);
@@ -81,11 +91,22 @@ export async function decodeAnimation(
 export class GifEncoder {
 	private worker = spawn();
 	private result: Promise<Uint8Array>;
+	private stop: (error: Error) => void = () => undefined;
+	/** Frames handed over and not taken in yet, and who waits for room. */
+	private inFlight = 0;
+	private room: (() => void) | null = null;
 
 	constructor(options: EncodeOptions) {
 		this.result = new Promise((resolve, reject) => {
+			this.stop = reject;
 			this.worker.onmessage = (event: MessageEvent<GifResponse>) => {
 				const message = event.data;
+				if (message.type === 'added') {
+					this.inFlight -= 1;
+					this.room?.();
+					this.room = null;
+					return;
+				}
 				if (message.type === 'gif') resolve(message.bytes);
 				else if (message.type === 'error') reject(new Error(message.message));
 				if (message.type === 'gif' || message.type === 'error') this.worker.terminate();
@@ -94,15 +115,49 @@ export class GifEncoder {
 				reject(new Error('The GIF encoder failed.'));
 			};
 		});
+		this.result.then(
+			() => {
+				this.ended = true;
+			},
+			() => {
+				this.ended = true;
+			},
+		);
 		const begin: GifRequest = { type: 'begin', ...options };
 		this.worker.postMessage(begin);
 	}
 
-	/** Adds a frame shown from `pts` for `duration` seconds. The pixels are transferred, not copied. */
-	addFrame(rgba: Uint8ClampedArray<ArrayBuffer>, width: number, height: number, pts: number, duration: number) {
+	/**
+	 * Adds a frame shown from `pts` for `duration` seconds. The pixels are transferred, not copied.
+	 * Resolves once the encoder has room: frames drawn faster than it takes them would otherwise
+	 * pile up in memory, uncompressed.
+	 */
+	async addFrame(
+		rgba: Uint8ClampedArray<ArrayBuffer>,
+		width: number,
+		height: number,
+		pts: number,
+		duration: number,
+	): Promise<void> {
 		const request: GifRequest = { type: 'frame', rgba: rgba.buffer, width, height, pts, duration };
+		this.inFlight += 1;
 		this.worker.postMessage(request, [rgba.buffer]);
+		// A few frames ahead keep the encoder busy, about 30 MB at 1080p.
+		while (this.inFlight >= GifEncoder.AHEAD) {
+			// Stopped or failed: the result says why, and nothing more is taken in.
+			// oxlint-disable-next-line no-await-in-loop
+			await Promise.race([
+				new Promise<void>((resolve) => {
+					this.room = resolve;
+				}),
+				this.result.then(() => undefined),
+			]);
+			if (this.ended) return;
+		}
 	}
+
+	private static readonly AHEAD = 4;
+	private ended = false;
 
 	/** Encodes the frames added and resolves with the GIF file. */
 	async finish(): Promise<Uint8Array> {
@@ -111,8 +166,10 @@ export class GifEncoder {
 		return this.result;
 	}
 
+	/** Stops the encoder: `finish` rejects with an AbortError rather than waiting forever. */
 	cancel() {
 		this.worker.terminate();
+		this.stop(new DOMException('The export was stopped.', 'AbortError'));
 	}
 }
 

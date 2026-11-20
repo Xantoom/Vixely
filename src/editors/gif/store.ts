@@ -63,6 +63,8 @@ interface GifEditorState {
 	setPlaying: (playing: boolean) => void;
 	setCropAspect: (aspect: AspectId) => void;
 	setExport: (settings: Partial<GifExportSettings>) => void;
+	/** The source's own loop count, once read, for the file it belongs to. */
+	adoptRepeat: (owner: object, repeat: number) => void;
 }
 
 function defaultExport(copyable: boolean): GifExportSettings {
@@ -153,6 +155,11 @@ export const useGifEditor = create<GifEditorState>((set, get) => ({
 	setExport(settings) {
 		// A change by hand means the settings are no longer the preset's.
 		set({ exportSettings: { ...get().exportSettings, preset: null, ...settings } });
+	},
+
+	adoptRepeat(owner, repeat) {
+		if (get().owner !== owner) return;
+		set({ exportSettings: { ...get().exportSettings, repeat } });
 	},
 }));
 

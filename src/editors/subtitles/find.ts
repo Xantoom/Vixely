@@ -48,10 +48,17 @@ export function findMatches(doc: SubtitleDoc, query: FindQuery): Match[] {
 	return matches;
 }
 
-/** What one match becomes: `$1` and the like refer to groups when searching by expression. */
-function replacement(match: string, query: FindQuery, pattern: RegExp, by: string): string {
+/**
+ * What the match at `index` of `text`, `length` long, becomes: `$1` and the like refer to groups
+ * when searching by expression. The expression runs on the whole line from there, so what it
+ * looks for around the match (`(?<=foo)bar`) is still seen.
+ */
+function replacement(text: string, index: number, length: number, query: FindQuery, pattern: RegExp, by: string) {
 	if (!query.regex) return by;
-	return match.replace(new RegExp(pattern.source, pattern.flags.replace('g', '')), by);
+	const sticky = new RegExp(pattern.source, `${pattern.flags.replace('g', '')}y`);
+	sticky.lastIndex = index;
+	const replaced = text.replace(sticky, by);
+	return replaced.slice(index, replaced.length - (text.length - index - length));
 }
 
 /** The document with one match replaced. */
@@ -62,10 +69,9 @@ export function replaceMatch(doc: SubtitleDoc, query: FindQuery, match: Match, b
 		...doc,
 		cues: doc.cues.map((cue) => {
 			if (cue.id !== match.id) return cue;
-			const found = cue.text.slice(match.index, match.index + match.length);
 			const text =
 				cue.text.slice(0, match.index) +
-				replacement(found, query, pattern, by) +
+				replacement(cue.text, match.index, match.length, query, pattern, by) +
 				cue.text.slice(match.index + match.length);
 			return { ...cue, text };
 		}),
@@ -80,10 +86,12 @@ export function replaceAll(doc: SubtitleDoc, query: FindQuery, by: string): { do
 	const shown = new Set(gridLines(doc).map((cue) => cue.id));
 	const cues = doc.cues.map((cue) => {
 		if (!shown.has(cue.id)) return cue;
-		const text = cue.text.replace(pattern, (found: string) => {
+		const text = cue.text.replace(pattern, (found: string, ...rest: unknown[]) => {
 			if (found.length === 0) return found;
 			count += 1;
-			return replacement(found, query, pattern, by);
+			// After the groups come the match's place, then the whole line (and named groups).
+			const index = rest.find((value) => typeof value === 'number') ?? 0;
+			return replacement(cue.text, index, found.length, query, pattern, by);
 		});
 		return text === cue.text ? cue : { ...cue, text };
 	});

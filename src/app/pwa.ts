@@ -32,7 +32,7 @@ let registration: ServiceWorkerRegistration | null = null;
 let installPrompt: InstallPrompt | null = null;
 
 /** Whether the connection is one to spare: no data saver, not 2G. */
-function generousConnection(): boolean {
+export function generousConnection(): boolean {
 	const connection = navigator.connection;
 	return !connection?.saveData && !/2g/.test(connection?.effectiveType ?? '');
 }

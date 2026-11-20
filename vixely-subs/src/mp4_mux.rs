@@ -229,26 +229,42 @@ impl TextTrack {
 			})
 			.collect();
 		lines.sort_by_key(|line| line.0);
-		let mut durations = Vec::new();
-		let mut samples = Vec::new();
+		// Timed text shows one sample at a time: where lines overlap, a sample holds them all, one
+		// per row in the order they start, so none is lost.
+		let mut bounds: Vec<u64> = lines.iter().flat_map(|&(start, end, _)| [start, end]).collect();
+		bounds.sort_unstable();
+		bounds.dedup();
+		let mut durations: Vec<u32> = Vec::new();
+		let mut samples: Vec<Vec<u8>> = Vec::new();
 		let mut time = 0u64;
-		for (index, &(start, end, text)) in lines.iter().enumerate() {
-			// Timed text shows one line at a time: an overlapping line ends where the next starts.
-			let end = lines.get(index + 1).map_or(end, |next| end.min(next.0.max(start)));
-			let start = start.max(time);
-			if end <= start {
+		for pair in bounds.windows(2) {
+			let (from, to) = (pair[0], pair[1]);
+			let shown: Vec<&[u8]> = lines
+				.iter()
+				.filter(|&&(start, end, _)| start < to && end > from)
+				.map(|&(_, _, text)| text)
+				.collect();
+			if shown.is_empty() {
 				continue;
 			}
-			if start > time {
-				durations.push((start - time) as u32);
-				samples.push(vec![0, 0]);
-			}
+			let text = shown.join(&b"\n"[..]);
 			let text = &text[..text.len().min(u16::MAX as usize)];
 			let mut sample = (text.len() as u16).to_be_bytes().to_vec();
 			sample.extend_from_slice(text);
-			durations.push((end - start) as u32);
-			samples.push(sample);
-			time = end;
+			if from > time {
+				durations.push((from - time) as u32);
+				samples.push(vec![0, 0]);
+			}
+			let length = (to - from) as u32;
+			match (samples.last(), durations.last_mut()) {
+				// The same lines go on: one sample, longer.
+				(Some(last), Some(duration)) if from == time && *last == sample => *duration += length,
+				_ => {
+					durations.push(length);
+					samples.push(sample);
+				}
+			}
+			time = to;
 		}
 		TextTrack {
 			id,
@@ -664,6 +680,30 @@ mod tests {
 			let at = ftyp.len() as u32 + 8;
 			[ftyp, mdat, build(at)].concat()
 		}
+	}
+
+	#[test]
+	fn simultaneous_lines_share_a_sample() {
+		let packet = |start_ms: f64, duration_ms: f64, text: &[u8]| Packet {
+			start_ms,
+			duration_ms: Some(duration_ms),
+			data: text.to_vec(),
+		};
+		let stream = Stream {
+			codec: "tx3g".into(),
+			private: Vec::new(),
+			packets: vec![
+				packet(1000.0, 1000.0, b"ALICE"),
+				packet(1000.0, 1000.0, b"BOB"),
+				packet(1500.0, 1000.0, b"CAROL"),
+			],
+		};
+		let track = TextTrack::new(2, &stream, "eng", "", false);
+		let text = |sample: &Vec<u8>| String::from_utf8(sample[2..].to_vec()).unwrap();
+		let shown: Vec<String> = track.samples.iter().map(text).collect();
+		assert_eq!(shown, ["", "ALICE\nBOB", "ALICE\nBOB\nCAROL", "CAROL"]);
+		assert_eq!(track.durations, [1000, 500, 500, 500]);
+		assert_eq!(track.duration, 2500);
 	}
 
 	fn write(bytes: Vec<u8>, plan: &Plan, streams: &[Stream]) -> Vec<u8> {

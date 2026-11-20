@@ -119,13 +119,8 @@ function head(page: Page): string {
 		.join('\n\t\t');
 }
 
-// The interface's font loads with the page rather than once the style sheet asks for it: text is
-// drawn once, in its own font, instead of moving when the font arrives.
-const fonts = readdirSync(join(DIST, 'assets')).filter((name) => /^geist-latin-wght-normal-.*\.woff2$/.test(name));
-const preloads = fonts
-	.map((name) => `<link rel="preload" href="/assets/${name}" as="font" type="font/woff2" crossorigin />`)
-	.join('\n\t\t');
-const template = readFileSync(join(DIST, 'index.html'), 'utf8').replace('</head>', `\t${preloads}\n\t</head>`);
+// The interface uses the system's own font: nothing to preload. Geist is only a text layer's.
+const template = readFileSync(join(DIST, 'index.html'), 'utf8');
 const placeholder = /<title>[^<]*<\/title>\s*/;
 if (!placeholder.test(template)) throw new Error('No <title> in dist/index.html');
 const withoutDescription = template.replace(/\s*<meta name="description"[^>]*>/, '');

@@ -2,6 +2,7 @@ import { Check } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { isShortened } from '@/document/kept';
 import { ExportAnnounce } from '@/editor/ExportAnnounce';
+import { formatBytes } from '@/lib/format';
 import { outputName } from '@/media/save';
 import { openSaveTarget } from '@/media/save-target';
 import type { OpenedFile } from '@/media/session';
@@ -11,7 +12,7 @@ import { whenRead } from '../subtitles/project';
 import { useSubtitleEditor } from '../subtitles/store';
 import { pictureChange, type VideoDoc } from './document';
 import { chooseEncoding, CONTAINERS, EncoderMissing, type VideoExportSettings, type VideoSource } from './export';
-import { exportConverted, exportVideo, muxContainer, soundChanged, useMuxTracks } from './mux';
+import { exportConverted, exportVideo, muxContainer, SizeLimitError, soundChanged, useMuxTracks } from './mux';
 import { useVideoEditor } from './store';
 
 /** A conversion to run instead of copying the tracks. */
@@ -107,13 +108,19 @@ export function MuxFooter({
 		} catch (error) {
 			await save.discard().catch(() => undefined);
 			const onGpu = settings?.mode === 'encode' && settings.encoder === 'gpu';
-			setGpuFailed(onGpu && !(error instanceof EncoderMissing && error.kind === 'audio'));
+			setGpuFailed(
+				onGpu &&
+					!(error instanceof EncoderMissing && error.kind === 'audio') &&
+					!(error instanceof SizeLimitError),
+			);
 			setFailure(
 				error instanceof EncoderMissing
 					? error.kind === 'video'
 						? m.convert_no_video_encoder()
 						: m.convert_no_audio_encoder()
-					: null,
+					: error instanceof SizeLimitError
+						? m.convert_over_limit({ limit: formatBytes(error.limit) })
+						: null,
 			);
 			setStatus(error instanceof DOMException && error.name === 'AbortError' ? 'idle' : 'failed');
 		} finally {
@@ -126,7 +133,9 @@ export function MuxFooter({
 		const chosen = convert?.settings;
 		const source = useVideoEditor.getState().exportSource;
 		if (!chosen || !source) return;
-		const encoding = chooseEncoding(source.encoders, CONTAINERS[chosen.container].codecs, chosen.codec, 'software');
+		// Only the processor's encoders: a codec the graphics card alone writes would fail the same way.
+		const encoders = { ...source.encoders, gpu: [] };
+		const encoding = chooseEncoding(encoders, CONTAINERS[chosen.container].codecs, chosen.codec, 'software');
 		useVideoEditor.getState().setExport(encoding);
 		void run({ ...chosen, ...encoding });
 	};
@@ -136,8 +145,8 @@ export function MuxFooter({
 			{status === 'saving' && (
 				<div className="bg-surface-2 h-1 overflow-hidden rounded-full" aria-hidden="true">
 					<div
-						className="bg-ed h-full transition-[width] duration-200"
-						style={{ width: `${progress * 100}%` }}
+						className="bg-ed h-full origin-left transition-transform duration-200"
+						style={{ transform: `scaleX(${progress})` }}
 					/>
 				</div>
 			)}

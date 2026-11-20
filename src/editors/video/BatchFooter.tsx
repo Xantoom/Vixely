@@ -73,8 +73,8 @@ export function VideoBatchFooter({
 			{status === 'saving' && (
 				<div className="bg-surface-2 h-1 overflow-hidden rounded-full" aria-hidden="true">
 					<div
-						className="bg-ed h-full transition-[width] duration-200"
-						style={{ width: `${progress * 100}%` }}
+						className="bg-ed h-full origin-left transition-transform duration-200"
+						style={{ transform: `scaleX(${progress})` }}
 					/>
 				</div>
 			)}

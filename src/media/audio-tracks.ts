@@ -21,11 +21,11 @@ export interface AudioTrackInfo {
 export async function findAudioTrack(input: Input, id: number | null | undefined): Promise<InputAudioTrack | null> {
 	if (id === null || id === undefined) return input.getPrimaryAudioTrack();
 	const tracks = await input.getAudioTracks();
-	return tracks.find((track) => track.id === id) ?? null;
+	return tracks.find((track) => track.containerId === id) ?? null;
 }
 
 /** What players show of an audio track. */
-async function describe(track: InputAudioTrack, id = track.id): Promise<AudioTrackInfo> {
+async function describe(track: InputAudioTrack, id = track.containerId): Promise<AudioTrackInfo> {
 	const [language, name, codec, channels, sampleRate, disposition, playable] = await Promise.all([
 		track.getLanguageCode(),
 		track.getName(),

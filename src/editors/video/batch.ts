@@ -15,6 +15,8 @@ import { createVideoDoc } from './document';
 import {
 	bitDepthOf,
 	CONTAINERS,
+	outputSize,
+	presetPicture,
 	presetSettings,
 	readVideoSource,
 	resolveAudio,
@@ -78,8 +80,8 @@ async function soundTracks(
 					track.getDisposition(),
 				]);
 				return {
-					...baseTrack(`audio-${track.id}`, 'audio'),
-					number: track.id,
+					...baseTrack(`audio-${track.containerId}`, 'audio'),
+					number: track.containerId,
 					codec: codec ? audioCodecName(codec) : '',
 					language,
 					name: name ?? '',
@@ -166,6 +168,11 @@ export async function exportVideoBatch(job: VideoBatchJob): Promise<number> {
 			// A platform's settings depend on each video: its height, its frame rate.
 			// oxlint-disable-next-line no-await-in-loop
 			const encoders = await videoEncoders(sound.upright);
+			// A platform with a frame of its own (9:16 for TikTok) crops each video to it, from the middle.
+			const blank = createVideoDoc(sound.duration);
+			const doc = settings.preset
+				? { ...blank, picture: presetPicture(blank.picture, sound.upright, settings.preset) }
+				: blank;
 			const own = settings.preset
 				? {
 						...settings,
@@ -173,7 +180,7 @@ export async function exportVideoBatch(job: VideoBatchJob): Promise<number> {
 							settings.preset,
 							source,
 							encoders,
-							shortSide(sound.upright),
+							shortSide(outputSize(doc.picture, sound.upright, null)),
 							settings.encoder,
 						),
 					}
@@ -196,7 +203,7 @@ export async function exportVideoBatch(job: VideoBatchJob): Promise<number> {
 					title: item.file.name.replace(/\.[^.]+$/, ''),
 					docs: subtitles.docs,
 					fonts: subtitles.fonts,
-					doc: createVideoDoc(sound.duration),
+					doc,
 					settings: { ...own, mode: 'encode', burn: null, audio: resolveAudio(own, source) },
 					upright: sound.upright,
 					source,

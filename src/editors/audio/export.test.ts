@@ -5,6 +5,7 @@ import {
 	copyBlocker,
 	outputChannels,
 	outputRate,
+	outputType,
 	settingsFromSource,
 	type SourceFormat,
 } from './export';
@@ -34,6 +35,13 @@ describe('audio export settings', () => {
 		// Opus always runs at 48 kHz.
 		expect(outputRate({ ...base, format: 'opus' }, source(44_100))).toBe(48_000);
 		expect(outputRate({ ...base, sampleRate: 48_000 }, source(44_100))).toBe(48_000);
+	});
+
+	it('names the file after the format written: an edit that encodes again leaves the copy', () => {
+		const wav: SourceFormat = { codec: 'pcm-s16', sampleRate: 44_100, channels: 2, bitrate: null, bitDepth: 16 };
+		const copy = { ...base, mode: 'copy' as const, format: 'mp3' as const };
+		expect(outputType(copy, wav, createAudioDoc(10)).extension).toBe('wav');
+		expect(outputType(copy, wav, { ...createAudioDoc(10), gain: 3 }).extension).toBe('mp3');
 	});
 
 	it('folds wide layouts to stereo for lossy formats only', () => {

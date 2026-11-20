@@ -1,3 +1,4 @@
+import { onFilesClosed } from './session';
 import type { ThumbnailMessage, ThumbnailRequest } from './thumbnails-protocol';
 
 /**
@@ -62,6 +63,16 @@ export class Thumbnails {
 /** Filmstrips kept, the most recent last: going to another editor and back decodes nothing again. */
 const kept: { file: File; height: number; thumbnails: Thumbnails }[] = [];
 const KEPT_FILMSTRIPS = 3;
+
+// A file closed takes its pictures with it, unless a timeline still shows them.
+onFilesClosed((isGone) => {
+	for (const entry of kept.filter(
+		(candidate) => candidate.thumbnails.listeners.size === 0 && isGone(candidate.file),
+	)) {
+		entry.thumbnails.dispose();
+		kept.splice(kept.indexOf(entry), 1);
+	}
+});
 
 /**
  * The pictures of a video at this height, made once and shared: `onChange` hears of new ones

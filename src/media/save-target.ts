@@ -198,6 +198,32 @@ export async function openSaveTarget(name: string, type: SaveType): Promise<Save
 	return downloadTarget(name, type);
 }
 
+/**
+ * A new file in a folder the user picked: a file already there under the name is never written
+ * over, nor deleted when the export is thrown away; the new one gets a number, as downloads do.
+ */
+async function newFileIn(folder: FileSystemDirectoryHandle, name: string): Promise<SaveTarget> {
+	const dot = name.lastIndexOf('.');
+	const [stem, extension] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ''];
+	for (let number = 1; ; number++) {
+		const free = number === 1 ? name : `${stem} (${number})${extension}`;
+		// oxlint-disable-next-line no-await-in-loop -- one name after the other until one is free
+		const taken = await folder.getFileHandle(free).then(
+			() => true,
+			(error: unknown) => {
+				if (error instanceof DOMException && error.name === 'NotFoundError') return false;
+				// A folder of that name takes it too; anything else (permission lost) stops the export.
+				if (error instanceof DOMException && error.name === 'TypeMismatchError') return true;
+				throw error;
+			},
+		);
+		if (taken) continue;
+		// oxlint-disable-next-line no-await-in-loop
+		const handle = await folder.getFileHandle(free, { create: true });
+		return fileTarget(handle, async () => folder.removeEntry(free).catch(() => undefined));
+	}
+}
+
 /** Opens one destination per file of a batch. */
 export type BatchDestination = (name: string, type: SaveType) => Promise<SaveTarget>;
 
@@ -210,10 +236,7 @@ export async function openBatchDestination(startIn: 'music' | 'pictures'): Promi
 	if (window.showDirectoryPicker) {
 		try {
 			const folder = await window.showDirectoryPicker({ mode: 'readwrite', startIn });
-			return async (name) => {
-				const handle = await folder.getFileHandle(name, { create: true });
-				return fileTarget(handle, async () => folder.removeEntry(name));
-			};
+			return async (name) => newFileIn(folder, name);
 		} catch (error) {
 			if (isPickerCancel(error)) return null;
 		}
@@ -242,8 +265,7 @@ export async function openFolderTargets(startIn: 'videos' | 'music'): Promise<Fo
 	}
 	return {
 		async open(name) {
-			const handle = await folder.getFileHandle(name, { create: true });
-			return fileTarget(handle, async () => folder.removeEntry(name).catch(() => undefined));
+			return newFileIn(folder, name);
 		},
 	};
 }

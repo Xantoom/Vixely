@@ -3,7 +3,9 @@
  * preview draws it, PGS pictures where the disc places them.
  */
 import defaultFont from 'jassub/dist/default.woff2?url';
+import modernLoader from 'jassub/dist/wasm/jassub-worker-modern.js?url';
 import modernWasm from 'jassub/dist/wasm/jassub-worker-modern.wasm?url';
+import loader from 'jassub/dist/wasm/jassub-worker.js?url';
 import wasm from 'jassub/dist/wasm/jassub-worker.wasm?url';
 import type { BurnRequest, BurnResponse } from '@/media/burn-protocol';
 import type { Size } from '../image/document';
@@ -72,19 +74,32 @@ async function textBurner(script: string, fonts: readonly (Uint8Array | string)[
 		type: 'module',
 		name: 'vixely-burn',
 	});
-	const pending = new Map<number, (response: Extract<BurnResponse, { type: 'rendered' }>) => void>();
+	type Rendered = Extract<BurnResponse, { type: 'rendered' }>;
+	const pending = new Map<number, { resolve: (response: Rendered) => void; reject: (error: Error) => void }>();
 	let next = 0;
+	// A failure after opening fails the frames waiting too, rather than leaving the export waiting.
+	let broken: Error | null = null;
+	const fail = (error: Error) => {
+		broken = error;
+		for (const request of pending.values()) request.reject(error);
+		pending.clear();
+	};
 	const opened = new Promise<void>((resolve, reject) => {
 		worker.onmessage = ({ data }: MessageEvent<BurnResponse>) => {
 			if (data.type === 'opened') resolve();
-			else if (data.type === 'failed') reject(new Error(data.message));
-			else {
-				pending.get(data.id)?.(data);
+			else if (data.type === 'failed') {
+				const error = new Error(data.message);
+				reject(error);
+				fail(error);
+			} else {
+				pending.get(data.id)?.resolve(data);
 				pending.delete(data.id);
 			}
 		};
 		worker.onerror = (event) => {
-			reject(new Error(event.message));
+			const error = new Error(event.message);
+			reject(error);
+			fail(error);
 		};
 	});
 	const width = Math.max(1, Math.round(box.width));
@@ -95,6 +110,7 @@ async function textBurner(script: string, fonts: readonly (Uint8Array | string)[
 		// The fallback font (Liberation Sans, metric-compatible with Arial), as the preview has it.
 		fonts: [new URL(defaultFont, location.href).href, ...fonts],
 		wasmUrl: new URL(JASSUB._supportsSIMD ? modernWasm : wasm, location.href).href,
+		wasmWorkerUrl: new URL(JASSUB._supportsSIMD ? modernLoader : loader, location.href).href,
 		width,
 		height,
 	};
@@ -110,8 +126,9 @@ async function textBurner(script: string, fonts: readonly (Uint8Array | string)[
 	return {
 		async draw(context, time) {
 			const id = next++;
-			const response = await new Promise<Extract<BurnResponse, { type: 'rendered' }>>((resolve) => {
-				pending.set(id, resolve);
+			if (broken) throw broken;
+			const response = await new Promise<Rendered>((resolve, reject) => {
+				pending.set(id, { resolve, reject });
 				worker.postMessage({ type: 'render', id, time } satisfies BurnRequest);
 			});
 			if (!response.same) {

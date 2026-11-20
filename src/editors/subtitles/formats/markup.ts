@@ -68,9 +68,13 @@ const ENTITIES: Record<string, string> = {
 
 function decodeEntities(text: string): string {
 	return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (whole, name: string) => {
-		if (name.startsWith('#x') || name.startsWith('#X'))
-			return String.fromCodePoint(Number.parseInt(name.slice(2), 16));
-		if (name.startsWith('#')) return String.fromCodePoint(Number(name.slice(1)));
+		if (name.startsWith('#')) {
+			const hex = name.startsWith('#x') || name.startsWith('#X');
+			const point = hex ? Number.parseInt(name.slice(2), 16) : Number(name.slice(1));
+			// Beyond Unicode, or a lone surrogate half: shown as written, like an unknown name.
+			if (point > 0x10ffff || (point >= 0xd800 && point <= 0xdfff)) return whole;
+			return String.fromCodePoint(point);
+		}
 		return ENTITIES[name.toLowerCase()] ?? whole;
 	});
 }

@@ -510,13 +510,15 @@ export async function exportVideo(
  * Subtitle lines placed on the edited video's time: those in removed passages go, the others
  * move up by what was removed before them.
  */
-export function cutSubtitles(doc: SubtitleDoc, ranges: readonly Range[]): SubtitleDoc {
+export function cutSubtitles(doc: SubtitleDoc, ranges: readonly Range[] | null, speed = 1): SubtitleDoc {
+	if (!ranges && speed === 1) return doc;
 	const cues = doc.cues.flatMap((cue) => {
 		const start = cue.start / 1000;
 		const end = cue.end / 1000;
-		if (!ranges.some((range) => range.start < end && range.end > start)) return [];
-		const from = Math.round(toOutput(ranges, start) * 1000);
-		const to = Math.round(toOutput(ranges, end) * 1000);
+		if (ranges && !ranges.some((range) => range.start < end && range.end > start)) return [];
+		// On the output's time: the passages removed closed up, then the speed applied.
+		const from = Math.round(((ranges ? toOutput(ranges, start) : start) * 1000) / speed);
+		const to = Math.round(((ranges ? toOutput(ranges, end) : end) * 1000) / speed);
 		return to > from ? [{ ...cue, start: from, end: to }] : [];
 	});
 	return { ...doc, cues };
@@ -555,11 +557,15 @@ function burnJob(job: ConvertedJob): BurnJob | null {
  * source, the codec and the size limit, the sound taking its share (copied tracks at their own
  * bitrate). Also the sound's bitrate and the size expected, in MB.
  */
-async function plannedSettings(
-	job: ConvertedJob,
-): Promise<{ settings: VideoExportSettings; audio: number; estimate: number | null }> {
+async function plannedSettings(job: ConvertedJob): Promise<{
+	settings: VideoExportSettings;
+	audio: number;
+	/** Each sound track's planned rate, in kb/s. */
+	rates: ReadonlyMap<MuxTrack, number>;
+	estimate: number | null;
+}> {
 	const { settings, doc } = job;
-	if (settings.mode !== 'encode') return { settings, audio: 0, estimate: null };
+	if (settings.mode !== 'encode') return { settings, audio: 0, rates: new Map(), estimate: null };
 	const sound = job.tracks.filter((track) => track.kind === 'audio' && track.include);
 	const copied = sound.flatMap((track) =>
 		settings.audio === 'copy' && !soundEdited(track) && !track.encode && track.number !== null
@@ -567,15 +573,16 @@ async function plannedSettings(
 			: [],
 	);
 	const measured = copied.length > 0 ? await audioBitrates(job.file, copied) : new Map<number, number>();
-	const audio = sound.reduce(
-		(total, track) =>
-			total +
-			(track.encode?.bitrate ??
+	const rates = new Map(
+		sound.map((track) => [
+			track,
+			track.encode?.bitrate ??
 				(track.number !== null && measured.has(track.number)
 					? (measured.get(track.number) ?? 0)
-					: settings.audioBitrate)),
-		0,
+					: settings.audioBitrate),
+		]),
 	);
+	const audio = [...rates.values()].reduce((total, rate) => total + rate, 0);
 	const plan = planVideo({
 		settings,
 		picture: doc.picture,
@@ -584,14 +591,30 @@ async function plannedSettings(
 		audio,
 		source: job.source,
 	});
-	return { settings: planned(settings, plan), audio, estimate: plan.estimate };
+	return { settings: planned(settings, plan), audio, rates, estimate: plan.estimate };
 }
 
 /** Bytes in a size limit of `megabytes`, as the size limits count them. */
 const limitBytes = (megabytes: number) => megabytes * 1_000_000;
 
-/** Share of the limit a first try may reach before the file is written again, smaller. */
+/** Share of the limit a try may reach before the file is written again, smaller. */
 const LIMIT_SLACK = 0.99;
+
+/** Tries at a size limit before giving up: each one smaller by what the last went over. */
+const LIMIT_TRIES = 3;
+
+/** Bytes a subtitle track adds to a file: its packets, and a little for each one's header. */
+function streamBytes(stream: StreamData): number {
+	return stream.data.length + stream.private.length + stream.starts.length * 24;
+}
+
+/** Thrown when a video can't be brought under its size limit: nothing over it is saved. */
+export class SizeLimitError extends Error {
+	constructor(readonly limit: number) {
+		super(`The video doesn't fit in ${limit} bytes`);
+		this.name = 'SizeLimitError';
+	}
+}
 
 /** Copies a written file into the save target, a few megabytes at a time. */
 async function copyInto(file: File, save: SaveTarget) {
@@ -627,7 +650,7 @@ export async function exportConverted(
 	signal: AbortSignal,
 ): Promise<void> {
 	const { doc } = job;
-	const { settings, audio: soundRate, estimate } = await plannedSettings(job);
+	const { settings, rates, estimate } = await plannedSettings(job);
 	const { container } = settings;
 	// MP4 and MOV small enough to be held in memory get their index first, for players and
 	// services to start before the end: messaging apps stream them. A copy weighs what the source does.
@@ -699,6 +722,37 @@ export async function exportConverted(
 		return file;
 	};
 
+	/** The subtitle tracks as they go in the file, placed on the output's time. */
+	const subtitleStreams = async (ranges: readonly Range[] | null) => {
+		const mkv = container === 'mkv';
+		const list: StreamData[] = [];
+		const tracks: AddedTrack[] = [];
+		// Fonts named by the ASS subtitles written, which go with them in Matroska.
+		const families = new Set<string>();
+		for (const track of subtitles) {
+			const subtitleDoc = currentDoc(job, track);
+			if (!subtitleDoc) continue;
+			const placed = cutSubtitles(subtitleDoc, ranges, settings.mode === 'encode' ? speedOf(doc) : 1);
+			if (mkv && placed.format === 'ass')
+				for (const family of scriptFamilies(toAssScript(placed, job.title))) families.add(family);
+			// oxlint-disable-next-line no-await-in-loop -- one track at a time keeps memory low
+			list.push(await (mkv ? matroskaStream(placed) : timedTextStream(placed)));
+			tracks.push({
+				stream: list.length - 1,
+				language: track.language,
+				name: track.name,
+				default: track.default,
+				forced: track.forced,
+			});
+		}
+		const fonts =
+			families.size > 0
+				? await fontAttachments([...families], job.fonts ?? useSubtitleProject.getState().fonts)
+				: [];
+		return { list, tracks, fonts };
+	};
+	let streams: Awaited<ReturnType<typeof subtitleStreams>> | null = null;
+
 	try {
 		let written = last ? null : await scratch();
 		const target = written?.target ?? save.target;
@@ -718,20 +772,38 @@ export async function exportConverted(
 			await convertVideo(convert, target, step(0), signal);
 			if (checked && settings.sizeLimit !== null && written) {
 				const limit = limitBytes(settings.sizeLimit);
-				const size = (await written.file()).size;
-				if (size > limit * LIMIT_SLACK) {
+				const bytesOf = (tracks: readonly { track: MuxTrack }[]) =>
+					(tracks.reduce((sum, { track }) => sum + (rates.get(track) ?? 0), 0) * 1000 * videoLength(doc)) / 8;
+				// What this pass wrote besides the pictures, then what the later ones add: sound from
+				// other files or copied part by part, and subtitles. The file saved is all of it.
+				const passSound = bytesOf(encodedOwn);
+				streams = remuxed ? await subtitleStreams(kept) : null;
+				const later =
+					bytesOf([...copiedCut, ...added]) +
+					(streams?.list.reduce((sum, stream) => sum + streamBytes(stream), 0) ?? 0) +
+					(streams?.fonts.reduce((sum, font) => sum + font.bytes.length, 0) ?? 0);
+				let bitrate = settings.bitrate;
+				let size = (await written.file()).size;
+				for (let tries = 1; size + later > limit * LIMIT_SLACK; tries++) {
+					if (tries === LIMIT_TRIES || bitrate <= 50) throw new SizeLimitError(limit);
 					// Over the limit: the pictures again, their bitrate brought down by what went over,
 					// kept constant this time.
-					const sound = (soundRate * 1000 * videoLength(doc)) / 8;
-					const share = Math.max(0.1, (limit * 0.95 - sound) / Math.max(1, size - sound));
+					const pictures = Math.max(1, size - passSound);
+					const share = Math.max(0.1, Math.min(0.95, (limit * 0.95 - later - passSound) / pictures));
+					bitrate = Math.max(50, Math.floor(bitrate * share));
+					// oxlint-disable-next-line no-await-in-loop -- each try decides the next
+					await written.remove();
+					// oxlint-disable-next-line no-await-in-loop
 					written = await scratch();
-					const smaller = { ...settings, bitrate: Math.max(50, Math.floor(settings.bitrate * share)) };
+					// oxlint-disable-next-line no-await-in-loop
 					await convertVideo(
-						{ ...convert, settings: smaller, strict: true },
+						{ ...convert, settings: { ...settings, bitrate }, strict: true },
 						written.target,
 						step(0),
 						signal,
 					);
+					// oxlint-disable-next-line no-await-in-loop
+					size = (await written.file()).size;
 				}
 				if (!merge && !remuxed) await copyInto(await written.file(), save);
 			}
@@ -757,7 +829,8 @@ export async function exportConverted(
 		}
 
 		if (merge && written) {
-			const converted = await written.file();
+			const read = written;
+			const converted = await read.file();
 			written = remuxed ? await scratch() : null;
 			const audio = [
 				// Already encoded with their level: copied as they are. Those kept as they are come from
@@ -772,8 +845,13 @@ export async function exportConverted(
 								encode: null,
 							},
 				),
+				// Sped up, it stops where the source's pictures do, not where the faster output does.
 				...added.map((entry) =>
-					addedPlan(entry, settings.audio === 'copy' ? null : settings.audio, kept ?? undefined),
+					addedPlan(
+						entry,
+						settings.audio === 'copy' ? null : settings.audio,
+						kept ?? (timeShaped(doc) ? keptRanges(doc) : undefined),
+					),
 				),
 			];
 			await copyTracks(
@@ -782,34 +860,22 @@ export async function exportConverted(
 				step(1),
 				signal,
 			);
+			// Read whole: its room on disk is given back before the next pass writes.
+			await read.remove();
 		}
 
 		if (remuxed && written) {
 			const converted = await written.file();
-			const mkv = container === 'mkv';
-			const streams: StreamData[] = [];
-			const tracks: AddedTrack[] = [];
-			for (const track of subtitles) {
-				const subtitleDoc = currentDoc(job, track);
-				if (!subtitleDoc) continue;
-				const placed = ranges ? cutSubtitles(subtitleDoc, ranges) : subtitleDoc;
-				// oxlint-disable-next-line no-await-in-loop -- one track at a time keeps memory low
-				streams.push(await (mkv ? matroskaStream(placed) : timedTextStream(placed)));
-				tracks.push({
-					stream: streams.length - 1,
-					language: track.language,
-					name: track.name,
-					default: track.default,
-					forced: track.forced,
-				});
-			}
+			const { list, tracks, fonts } = streams ?? (await subtitleStreams(ranges));
 			await remux(
 				{
 					file: converted,
 					choices: [],
 					added: tracks,
-					streams,
-					// The fonts come with the tags the first pass copied; a cover chosen here is among them.
+					streams: list,
+					// The source's fonts come with the tags the first pass copied, a cover chosen here
+					// among them; those the subtitles name besides (added, Vixely's) are attached here.
+					fonts,
 					title,
 				},
 				save,

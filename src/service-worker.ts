@@ -102,13 +102,19 @@ function pageFile(pathname: string): string {
 	return everything.has(file) ? file : '/index.html';
 }
 
-async function page(request: Request): Promise<Response> {
+async function page(request: Request, keep: (work: Promise<unknown>) => void): Promise<Response> {
 	const cache = await caches.open(CACHE);
 	const file = pageFile(new URL(request.url).pathname);
-	const network = fetch(request).then(async (response) => {
-		if (response.ok) await cache.put(file, response.clone());
-		return response;
-	});
+	const network = fetch(request);
+	// The page shows as soon as it arrives; its copy is kept meanwhile. Asked for now, while the
+	// answer is pending: the worker may only be kept alive for it until then.
+	keep(
+		network
+			.then(async (response) => {
+				if (response.ok) await cache.put(file, response.clone());
+			})
+			.catch(() => undefined),
+	);
 	const waited = new Promise<null>((resolve) => {
 		setTimeout(() => {
 			resolve(null);
@@ -123,13 +129,14 @@ async function page(request: Request): Promise<Response> {
 	return (await cache.match(file)) ?? (await cache.match('/index.html')) ?? network;
 }
 
-async function file(request: Request, path: string): Promise<Response> {
+async function file(request: Request, path: string, keep: (work: Promise<unknown>) => void): Promise<Response> {
 	const cache = await caches.open(CACHE);
 	const cached = await cache.match(path);
 	if (cached) return cached;
 	const response = await fetch(request);
-	// Parts of a file (media seeking) are never kept, only whole ones of this version.
-	if (response.status === 200 && everything.has(path)) await cache.put(path, response.clone());
+	// Parts of a file (media seeking) are never kept, only whole ones of this version. Kept while
+	// the page already reads it: a large WebAssembly module starts compiling as it streams in.
+	if (response.status === 200 && everything.has(path)) keep(cache.put(path, response.clone()).catch(() => undefined));
 	return response;
 }
 
@@ -186,11 +193,14 @@ self.addEventListener('fetch', (event) => {
 		return;
 	}
 	if (request.method !== 'GET' || request.headers.has('range')) return;
+	const keep = (work: Promise<unknown>) => {
+		event.waitUntil(work);
+	};
 	if (request.mode === 'navigate') {
-		event.respondWith(page(request));
+		event.respondWith(page(request, keep));
 		return;
 	}
-	if (everything.has(url.pathname)) event.respondWith(file(request, url.pathname));
+	if (everything.has(url.pathname)) event.respondWith(file(request, url.pathname, keep));
 });
 
 export {};

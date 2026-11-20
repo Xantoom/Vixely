@@ -263,7 +263,11 @@ export class MediaPlayer {
 			return;
 		}
 		this.stopPictures();
-		if (!this.audio) this.anchor = { page: performance.now(), output: toOutput(this.played(), target) };
+		if (!this.audio) {
+			this.anchor = { page: performance.now(), output: toOutput(this.played(), target) };
+			// The clock ran with the pictures stopped: it starts again with the new ones.
+			if (this.clockPlaying) void this.tick(this.run);
+		}
 		void this.playPictures(this.run, target);
 	}
 

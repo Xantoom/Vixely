@@ -112,28 +112,51 @@ export function checkLines(doc: SubtitleDoc, rules: Rules = RULES): Map<number, 
 		dialogue.push({ cue, lines: lines.length });
 	}
 	dialogue.sort((a, b) => a.cue.start - b.cue.start || a.cue.end - b.cue.end);
-	for (let i = 0; i < dialogue.length; i++) {
+	// In linear time or near it, so long tracks and tracks of overlapping lines stay quick to check.
+	const count = dialogue.length;
+	const starts = dialogue.map(({ cue }) => cue.start);
+	/** The first line after `i` that starts once line `i` has ended: those between overlap it. */
+	const after = (i: number, end: number) => {
+		let [low, high] = [i + 1, count];
+		while (low < high) {
+			const middle = (low + high) >> 1;
+			if ((starts[middle] ?? 0) >= end) high = middle;
+			else low = middle + 1;
+		}
+		return low;
+	};
+	// Lines shown together beyond two are too many: counts above the limit all weigh the same.
+	const cap = rules.maxLines + 1;
+	const weight = dialogue.map(({ lines }) => Math.min(lines, cap));
+	const total = [0];
+	for (const lines of dialogue.map((entry) => entry.lines)) total.push((total.at(-1) ?? 0) + lines);
+	/** For each weight, the next line at or after each index that weighs at least as much. */
+	const nextHeavy = Array.from({ length: cap + 1 }, () => new Int32Array(count + 1).fill(count));
+	for (let i = count - 1; i >= 0; i--)
+		for (let at = 1; at <= cap; at++) {
+			const row = nextHeavy[at]!;
+			row[i] = (weight[i] ?? 0) >= at ? i : (row[i + 1] ?? count);
+		}
+	/** For each weight, the latest end among the lines so far that weigh at least as much. */
+	const latestEnd = Array.from({ length: cap + 1 }, () => Number.NEGATIVE_INFINITY);
+	for (let i = 0; i < count; i++) {
 		const { cue, lines } = dialogue[i]!;
+		const end = after(i, cue.end);
 		// The next line that starts after this one ends: a gap too short flickers.
-		let next: (typeof dialogue)[number] | undefined;
-		for (let j = i + 1; j < dialogue.length && !next; j++)
-			if (dialogue[j]!.cue.start >= cue.end) next = dialogue[j];
+		const next = dialogue[end];
 		if (next) {
 			const gap = next.cue.start - cue.end;
 			if (gap > rules.joinedGap && gap < rules.minGap) flag(cue, 'gap');
 		}
 		// Lines shown together, stacked at the bottom: more than two lines is too many to read.
-		let shown = lines;
-		for (let j = i + 1; j < dialogue.length; j++) {
-			const other = dialogue[j]!;
-			if (other.cue.start >= cue.end) break;
-			shown += other.lines;
-			if (lines + other.lines > rules.maxLines) {
-				flag(cue, 'stack');
-				flag(other.cue, 'stack');
-			}
-		}
-		if (shown > rules.maxLines && shown !== lines) flag(cue, 'stack');
+		const shown = lines + (total[end] ?? 0) - (total[i + 1] ?? 0);
+		if (shown > rules.maxLines && end > i + 1) flag(cue, 'stack');
+		// Two lines together over the limit: both are flagged, this one with any later one…
+		const heavier = Math.max(1, rules.maxLines - lines + 1);
+		if ((nextHeavy[Math.min(heavier, cap)]?.[i + 1] ?? count) < end) flag(cue, 'stack');
+		// … and with any earlier one still showing.
+		if ((latestEnd[Math.min(heavier, cap)] ?? Number.NEGATIVE_INFINITY) > cue.start) flag(cue, 'stack');
+		for (let at = 1; at <= (weight[i] ?? 0); at++) latestEnd[at] = Math.max(latestEnd[at] ?? 0, cue.end);
 	}
 	return issues;
 }

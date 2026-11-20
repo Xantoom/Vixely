@@ -52,9 +52,14 @@ export function ImageEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 		load(owner);
 		// The export starts from the file's own format and quality; a batch, from its first image.
 		const { file, format } = opened;
+		let live = true;
 		void sourceExportSettings(file, format).then((settings) => {
-			adoptSource(owner, settings);
+			// Another image opened meanwhile has its own settings: these would replace them.
+			if (live) adoptSource(owner, settings);
 		});
+		return () => {
+			live = false;
+		};
 	}, [batchKey, opened, load, adoptSource]);
 
 	// Switching images within a batch adapts the edits to the new image's size.

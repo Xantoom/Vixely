@@ -46,7 +46,11 @@ async function framePng(engine: GifEngine, frame: OutputFrame, index: number, na
 	const context = canvas.getContext('2d');
 	if (!context) return null;
 	const composer = new FrameComposer();
-	composer.draw(context, full, source, doc, layout, { time: frame.start, length: engine.length });
+	composer.draw(context, full, source, doc, layout, {
+		time: frame.start,
+		source: frame.source,
+		length: engine.length,
+	});
 	composer.dispose();
 	const blob = await canvas.convertToBlob({ type: 'image/png' });
 	const base = name.replace(/\.[^.]+$/, '');
@@ -89,7 +93,11 @@ function Thumbnail({
 				const scale = Math.min(THUMB / layout.width, THUMB / layout.height);
 				canvas.width = Math.max(1, Math.round(layout.width * scale * ratio));
 				canvas.height = Math.max(1, Math.round(layout.height * scale * ratio));
-				composer.draw(context, picture, source, doc, layout, { time: frame.start, length: engine.length });
+				composer.draw(context, picture, source, doc, layout, {
+					time: frame.start,
+					source: frame.source,
+					length: engine.length,
+				});
 			});
 		});
 		observer.observe(canvas);

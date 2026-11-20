@@ -91,7 +91,7 @@ export function createGifDoc(duration: number, fps: number | null): GifDoc {
 	};
 }
 
-/** The source time of a frame as kept in `removed`. */
+/** The source time where a frame starts, as kept in `removed`, `delays`, `order` and `copies`. */
 export function frameKey(source: number): number {
 	return Math.round(source * 1000);
 }
@@ -229,7 +229,9 @@ function forwardFrames(doc: GifDoc, timing: readonly SourceTiming[] | null): For
 			.flatMap((frame) => {
 				const from = Math.max(frame.start, start);
 				const to = Math.min(frame.start + frame.duration, end);
-				const key = frameKey(from);
+				// The frame is known by where it starts in the source, wherever the trim cuts it: a
+				// frame left out, timed or copied stays so when the trim moves.
+				const key = frameKey(frame.start);
 				const keys = [key, ...copies.filter((copy) => copy.of === key).map((copy) => copy.copy)];
 				return keys.map((own) => ({
 					key: own,

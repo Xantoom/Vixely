@@ -6,8 +6,10 @@
 
 use std::io::Cursor;
 
-use symphonia::core::audio::{AudioBufferRef, Signal};
-use symphonia::core::codecs::{CODEC_TYPE_ALAC, Decoder, DecoderOptions};
+use symphonia::core::audio::{Audio, GenericAudioBufferRef};
+use symphonia::core::codecs::CodecParameters;
+use symphonia::core::codecs::audio::well_known::CODEC_ID_ALAC;
+use symphonia::core::codecs::audio::{AudioDecoder, AudioDecoderOptions};
 use symphonia::core::errors::Error as SymphoniaError;
 use symphonia::core::formats::{FormatOptions, FormatReader};
 use symphonia::core::io::MediaSourceStream;
@@ -142,15 +144,18 @@ pub struct Pcm {
 pub fn decode_alac(file: Vec<u8>) -> Result<Pcm, String> {
 	let failed = |error: SymphoniaError| format!("ALAC: {error}");
 	let stream = MediaSourceStream::new(Box::new(Cursor::new(file)), Default::default());
-	let mut reader = IsoMp4Reader::try_new(stream, &FormatOptions::default()).map_err(failed)?;
-	let track = reader
+	let mut reader = IsoMp4Reader::try_new(stream, FormatOptions::default()).map_err(failed)?;
+	let (id, params, frames) = reader
 		.tracks()
 		.iter()
-		.find(|track| track.codec_params.codec == CODEC_TYPE_ALAC)
+		.find_map(|track| match &track.codec_params {
+			Some(CodecParameters::Audio(params)) if params.codec == CODEC_ID_ALAC => {
+				Some((track.id, params.clone(), track.num_frames))
+			}
+			_ => None,
+		})
 		.ok_or("no Apple Lossless track")?;
-	let id = track.id;
-	let params = track.codec_params.clone();
-	let mut decoder = AlacDecoder::try_new(&params, &DecoderOptions::default()).map_err(failed)?;
+	let mut decoder = AlacDecoder::try_new(&params, &AudioDecoderOptions::default()).map_err(failed)?;
 	// The channels, rate and depth are in the codec setup (the "magic cookie"), which the decoder
 	// has just checked.
 	let cookie = params.extra_data.as_deref().ok_or("ALAC: no codec setup")?;
@@ -164,27 +169,28 @@ pub fn decode_alac(file: Vec<u8>) -> Result<Pcm, String> {
 	} else {
 		4
 	};
-	let frames = params.n_frames.unwrap_or(0) as usize;
+	let frames = frames.unwrap_or(0) as usize;
 	let mut data = Vec::with_capacity(frames * usize::from(channels) * bytes);
 	loop {
 		let packet = match reader.next_packet() {
-			Ok(packet) => packet,
+			Ok(Some(packet)) => packet,
+			Ok(None) => break,
 			Err(SymphoniaError::IoError(error)) if error.kind() == std::io::ErrorKind::UnexpectedEof => break,
 			Err(error) => return Err(failed(error)),
 		};
-		if packet.track_id() != id {
+		if packet.track_id != id {
 			continue;
 		}
 		let buffer = match decoder.decode(&packet) {
-			Ok(AudioBufferRef::S32(buffer)) => buffer,
+			Ok(GenericAudioBufferRef::S32(buffer)) => buffer,
 			Ok(_) => return Err("ALAC: unexpected sample format".into()),
 			// A damaged packet is skipped, as players do.
 			Err(SymphoniaError::DecodeError(_)) => continue,
 			Err(error) => return Err(failed(error)),
 		};
-		let planes = buffer.planes();
+		let planes: Vec<&[i32]> = buffer.iter_planes().collect();
 		for frame in 0..buffer.frames() {
-			for plane in planes.planes() {
+			for plane in &planes {
 				// Samples come scaled to 32 bits: the top bytes are the sample.
 				data.extend_from_slice(&plane[frame].to_le_bytes()[4 - bytes..]);
 			}

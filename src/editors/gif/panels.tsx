@@ -455,7 +455,11 @@ export function ExportPanel({ engine, isGif }: { engine: GifEngine; isGif: boole
 						options={[
 							{ value: '0', label: m.loop_forever() },
 							{ value: '-1', label: m.loop_once() },
-							...[2, 3, 5].map((count) => ({ value: String(count - 1), label: m.loop_times({ count }) })),
+							// The source's own count, when it is none of the usual ones.
+							...[...new Set([2, 3, 5, settings.repeat + 1])]
+								.filter((count) => count > 1)
+								.toSorted((a, b) => a - b)
+								.map((count) => ({ value: String(count - 1), label: m.loop_times({ count }) })),
 						]}
 						onChange={(value) => {
 							setExport({ repeat: Number(value) });
@@ -615,8 +619,8 @@ export function ExportFooter({
 			{status === 'saving' && (
 				<div className="bg-surface-2 h-1 overflow-hidden rounded-full" aria-hidden="true">
 					<div
-						className={`bg-ed h-full transition-[width] duration-200 ${progress === null ? 'animate-pulse' : ''}`}
-						style={{ width: `${(progress ?? 1) * 100}%` }}
+						className={`bg-ed h-full origin-left transition-transform duration-200 ${progress === null ? 'animate-pulse' : ''}`}
+						style={{ transform: `scaleX(${progress ?? 1})` }}
 					/>
 				</div>
 			)}

@@ -945,6 +945,7 @@
 	"container_unavailable": "Ce navigateur n’encode aucun de ses codecs",
 	"audio_copy_container": "Ce son ne peut pas aller tel quel dans un fichier {container}",
 	"mux_blocked_webm": "Les fichiers WebM ne peuvent pas contenir ces sous-titres",
+	"convert_over_limit": "Impossible de faire passer cette vidéo sous {limit}. Essayez une hauteur plus petite ou un passage plus court.",
 	"convert_no_video_encoder": "Ce navigateur ne sait pas encoder l’image avec ces réglages. Essayez un autre codec ou une hauteur plus petite.",
 	"convert_no_audio_encoder": "Ce navigateur ne sait pas encoder le son avec ces réglages. Essayez un autre codec.",
 	"close_panel": "Fermer le panneau",

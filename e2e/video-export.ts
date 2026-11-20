@@ -204,6 +204,27 @@ const burned = await convert('burned.mp4', async () => {
 });
 probe(burned);
 frames(burned, [7.5, 10.5], 'burned');
+// A line is on screen at 7.5 s: the bottom of the picture must differ from the source's there.
+// Re-encoding moves pixels a little; a line of text moves some of them a lot (0 % without one,
+// 2.5 % with "English line 3").
+const bottom = (path: string, time: number) => {
+	if (!ffprobe) return null;
+	const ffmpeg = ffprobe.replace(/ffprobe$/, 'ffmpeg');
+	const args = ['-v', 'error', '-ss', String(time), '-i', path, '-frames:v', '1'];
+	const filter = ['-vf', 'scale=320:180,crop=320:40:0:140', '-pix_fmt', 'gray', '-f', 'rawvideo', '-'];
+	return spawnSync(ffmpeg, [...args, ...filter]).stdout as Buffer;
+};
+const drawn = bottom(burned, 7.5);
+const plain = bottom(sample('short.mkv'), 7.5);
+if (drawn && plain && drawn.length === plain.length && drawn.length > 0) {
+	let changed = 0;
+	for (let index = 0; index < drawn.length; index++) {
+		if (Math.abs((drawn[index] ?? 0) - (plain[index] ?? 0)) > 60) changed++;
+	}
+	const share = (100 * changed) / drawn.length;
+	console.log('  burned line, pixels changed:', `${share.toFixed(2)} %`);
+	if (share < 0.5) errors.push(`burned subtitles missing (${share.toFixed(2)} % of pixels changed)`);
+}
 
 // 10. PGS burned in, over the first 6 s.
 await open(sample('sample.mkv'));

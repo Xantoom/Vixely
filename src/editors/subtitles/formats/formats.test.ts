@@ -180,6 +180,8 @@ describe('markup', () => {
 
 	it('escapes WebVTT and keeps tags nested', () => {
 		expect(convertText('a < b & c', 'srt', 'vtt')).toBe('a &lt; b &amp; c');
+		// Numbers beyond Unicode or lone surrogate halves stay as written instead of failing.
+		expect(convertText('a &#1114112; &#xD800; &#233;', 'vtt', 'srt')).toBe('a &#1114112; &#xD800; é');
 		expect(convertText('{\\i1}a{\\b1}b{\\i0}c{\\b0}', 'ass', 'srt')).toBe('<i>a<b>b</b></i><b>c</b>');
 	});
 

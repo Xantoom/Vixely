@@ -45,9 +45,19 @@ function change(before: number, after: number): string {
 	return `${after <= before ? '−' : '+'}${formatPercent(Math.abs(Math.round((1 - after / before) * 100)))}`;
 }
 
+/** A file encoded in the background, with what it was made from. */
+interface Estimate {
+	blob: Blob;
+	source: ImageBitmap;
+	doc: ImageDoc;
+	settings: ExportSettings;
+	photo: PhotoMetadata | null;
+}
+
 /**
- * The size the file will have, encoded in the background once the settings stop moving. One
- * encoding at a time: settings changed meanwhile are encoded once it ends.
+ * The file the export will save, encoded in the background once the settings stop moving: its
+ * size shows, and saving it with nothing changed takes it as it is rather than encoding it again.
+ * One encoding at a time; one overtaken by a change stops at its next step.
  */
 function useEstimate(
 	source: ImageBitmap,
@@ -55,39 +65,39 @@ function useEstimate(
 	settings: ExportSettings,
 	photo: PhotoMetadata | null,
 	on: boolean,
-) {
-	const [estimate, setEstimate] = useState<{ bytes: number; doc: ImageDoc; settings: ExportSettings } | null>(null);
-	const busy = useRef(false);
-	const wanted = useRef<{ doc: ImageDoc; settings: ExportSettings } | null>(null);
+): Estimate | null {
+	const [estimate, setEstimate] = useState<Estimate | null>(null);
+	const running = useRef<AbortController | null>(null);
 	useEffect(() => {
 		if (!on) return;
 		const timer = setTimeout(() => {
-			wanted.current = { doc, settings };
-			if (busy.current) return;
-			const run = async () => {
-				busy.current = true;
-				while (wanted.current) {
-					const job = wanted.current;
-					wanted.current = null;
-					try {
-						// One after the other: each estimate only matters once the previous one is done.
-						// oxlint-disable-next-line no-await-in-loop
-						const blob = await exportImage(source, job.doc, job.settings, photo);
-						setEstimate({ bytes: blob.size, ...job });
-					} catch {
-						setEstimate(null);
-					}
-				}
-				busy.current = false;
-			};
-			void run();
+			running.current?.abort();
+			const controller = new AbortController();
+			running.current = controller;
+			void exportImage(source, doc, settings, photo, controller.signal).then(
+				(blob) => {
+					if (!controller.signal.aborted) setEstimate({ blob, source, doc, settings, photo });
+				},
+				() => {
+					if (!controller.signal.aborted) setEstimate(null);
+				},
+			);
 		}, ESTIMATE_DELAY);
 		return () => {
 			clearTimeout(timer);
+			// Anything changed, or the panel closed: the encoding under way is no longer wanted.
+			running.current?.abort();
+			running.current = null;
 		};
 	}, [source, doc, settings, photo, on]);
-	// Shown only while it matches what is set.
-	return estimate?.doc === doc && estimate.settings === settings ? estimate.bytes : null;
+	// Only while it matches what is set.
+	return estimate &&
+		estimate.source === source &&
+		estimate.doc === doc &&
+		estimate.settings === settings &&
+		estimate.photo === photo
+		? estimate
+		: null;
 }
 
 export function ExportFooter({ source, file, photo, batch, onStatus, onRunning }: ExportFooterProps) {
@@ -115,7 +125,8 @@ export function ExportFooter({ source, file, photo, batch, onStatus, onRunning }
 		setStatus('saving');
 		setWeights(null);
 		try {
-			const blob = await exportImage(source, doc, settings, photo);
+			// Encoded already for the estimate, with nothing changed since: saved as it is.
+			const blob = estimate?.blob ?? (await exportImage(source, doc, settings, photo));
 			setWeights({ before: file.size, after: blob.size });
 			setStatus((await saveFile(blob, exportName(file.name, settings.format))) ? 'saved' : 'idle');
 		} catch {
@@ -185,14 +196,17 @@ export function ExportFooter({ source, file, photo, batch, onStatus, onRunning }
 				<p className="text-small text-muted tabular text-center" aria-live="polite">
 					{estimate === null
 						? m.weight_estimating()
-						: m.weight_estimate({ after: formatBytes(estimate), change: change(file.size, estimate) })}
+						: m.weight_estimate({
+								after: formatBytes(estimate.blob.size),
+								change: change(file.size, estimate.blob.size),
+							})}
 				</p>
 			)}
 			{batch && status === 'saving' && (
 				<div className="bg-surface-2 h-1 overflow-hidden rounded-full" aria-hidden="true">
 					<div
-						className="bg-ed h-full transition-[width] duration-300"
-						style={{ width: `${(progress.done / Math.max(progress.total, 1)) * 100}%` }}
+						className="bg-ed h-full origin-left transition-transform duration-300"
+						style={{ transform: `scaleX(${progress.done / Math.max(progress.total, 1)})` }}
 					/>
 				</div>
 			)}

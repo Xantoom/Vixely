@@ -256,8 +256,10 @@ function copyTarget(codec: AudioCodec): CopyTarget | null {
 export function outputType(
 	settings: AudioExportSettings,
 	source: SourceFormat,
+	doc: AudioDoc,
 ): { extension: string; mime: string; label: string } {
-	if (settings.mode === 'copy' && source.codec) {
+	// Copying is only asked for: an edit of the sound encodes again, in the format chosen.
+	if (settings.mode === 'copy' && source.codec && copyBlocker(doc, source) === null) {
 		const target = copyTarget(source.codec);
 		if (target) return target;
 	}

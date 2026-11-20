@@ -1,4 +1,5 @@
 import { type ComponentType, lazy, Suspense, useEffect, useState } from 'react';
+import { generousConnection } from '@/app/pwa';
 import { EDITOR_ORDER, type MediaKind, type ToolId } from '@/editors/registry';
 import { useSession } from '@/media/session';
 import { EditorLayout } from './EditorLayout';
@@ -57,11 +58,21 @@ export function EditorScreen({ kind, initialTool }: { kind: MediaKind; initialTo
 	}, [hasFile, kind]);
 
 	useEffect(() => {
-		// This editor first, then the others, so going from one to another is instant too.
+		// This editor first; then, where the connection spares it, the others one at a time when the
+		// page is idle again, so going from one to another is instant too without competing with it.
 		const load = () =>
-			void loadScreen(kind).then(async () =>
-				Promise.all(EDITOR_ORDER.filter((other) => other !== kind).map(loadScreen)),
-			);
+			void loadScreen(kind).then(() => {
+				if (!generousConnection()) return;
+				const others = EDITOR_ORDER.filter((other) => other !== kind);
+				const next = () => {
+					const other = others.shift();
+					if (!other) return;
+					const go = () => void loadScreen(other).then(next);
+					if ('requestIdleCallback' in window) requestIdleCallback(go, { timeout: 5000 });
+					else setTimeout(go, 500);
+				};
+				next();
+			});
 		if ('requestIdleCallback' in window) {
 			const id = requestIdleCallback(load, { timeout: 2000 });
 			return () => {

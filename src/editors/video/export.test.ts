@@ -106,6 +106,11 @@ describe('subtitles of a cut video', () => {
 			['after', 11_000, 12_000],
 		]);
 	});
+	it('follow the speed of the video', () => {
+		const cues = cutSubtitles(doc, null, 2).cues.map((cue) => [cue.start, cue.end]);
+		expect(cues[0]).toEqual([500, 1000]);
+		expect(cutSubtitles(doc, null, 1)).toBe(doc);
+	});
 });
 
 describe('mergeParts', () => {

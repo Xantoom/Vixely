@@ -77,7 +77,7 @@ export async function exportAudioBatch(job: AudioBatchJob): Promise<number> {
 			}
 			if (signal.aborted) break;
 			// Kept encodings differ from file to file: each file gets its own type.
-			const type = outputType(settings, source);
+			const type = outputType(settings, source, doc);
 			const name = uniqueName(outputName(item.file.name, type.extension), taken);
 			// oxlint-disable-next-line no-await-in-loop
 			const save = await job.destination(name, {

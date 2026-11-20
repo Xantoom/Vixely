@@ -1,3 +1,19 @@
+diff --git a/dist/mediabunny.d.ts b/dist/mediabunny.d.ts
+index f16f9c025c1fce05977808a333af669b9cb6a80b..5a321d9369be8bc1abf2ede6154af899fc427b7b 100644
+--- a/dist/mediabunny.d.ts
++++ b/dist/mediabunny.d.ts
+@@ -2702,6 +2702,11 @@ export declare abstract class InputTrack {
+      * {@link Input.getTracks}.
+      */
+     get id(): number;
++    /**
++     * The track's own number in its container: the Matroska track number, the MP4 track ID, the MPEG-TS PID or the
++     * Ogg serial number; 1 for formats with a single track. What `id` was before 1.66.
++     */
++    get containerId(): number;
+     /**
+      * The 1-based index of this track among all tracks of the same type in the input file. For example, the first
+      * video track has number 1, the second video track has number 2, and so on. The index refers to the order in
 diff --git a/dist/modules/src/conversion.d.ts b/dist/modules/src/conversion.d.ts
 index e1b1d386a3949d4b9833cc4ce3a47713447af786..fbed99a950d7521022089a39ec80061e90b977c3 100644
 --- a/dist/modules/src/conversion.d.ts
@@ -24,10 +40,10 @@ index e1b1d386a3949d4b9833cc4ce3a47713447af786..fbed99a950d7521022089a39ec80061e
      forceTranscode?: boolean;
      /**
 diff --git a/dist/modules/src/conversion.js b/dist/modules/src/conversion.js
-index 87ff3745b62d10b299e35ad28db7df1b54982720..6c07059e93998f7237f43cded50c8ecde67e4c3d 100644
+index e9fc7701ca4be2548027543f0f8080ac28741d31..7953186813ff38750f448661e22dccb2c369f305 100644
 --- a/dist/modules/src/conversion.js
 +++ b/dist/modules/src/conversion.js
-@@ -1142,6 +1142,8 @@ export class Conversion {
+@@ -1179,6 +1179,8 @@ export class Conversion {
                  sizeChangeBehavior: trackOptions.fit ?? 'passThrough',
                  alpha,
                  hardwareAcceleration: trackOptions.hardwareAcceleration,
@@ -36,7 +52,7 @@ index 87ff3745b62d10b299e35ad28db7df1b54982720..6c07059e93998f7237f43cded50c8ecd
                  transform: {},
              };
              assert(encodingConfig.transform);
-@@ -1299,6 +1301,8 @@ export class Conversion {
+@@ -1335,6 +1337,8 @@ export class Conversion {
              flip: outputTrackFlip,
              transformationMatrix: outputTrackMatrix ?? undefined,
              canBeTransparent,
@@ -46,7 +62,7 @@ index 87ff3745b62d10b299e35ad28db7df1b54982720..6c07059e93998f7237f43cded50c8ecd
              bitrate: bitrate ?? undefined,
              averageBitrate: averageBitrate ?? undefined,
 diff --git a/dist/modules/src/encode.d.ts b/dist/modules/src/encode.d.ts
-index a3cdbb4f6e5ad5d07d772ac5447de646a3f076a8..91f768238e82a485d21ce4f1624dc3e928ca09f1 100644
+index 1d8493a352a040e4badbcea78d29d46f01b3ca5d..509def3050fedac368d7901f9b44aa1decc71bf7 100644
 --- a/dist/modules/src/encode.d.ts
 +++ b/dist/modules/src/encode.d.ts
 @@ -148,6 +148,11 @@ export type VideoEncodingAdditionalOptions = {
@@ -62,10 +78,10 @@ index a3cdbb4f6e5ad5d07d772ac5447de646a3f076a8..91f768238e82a485d21ce4f1624dc3e9
       * The latency mode used by the encoder; controls the performance-quality tradeoff.
       *
 diff --git a/dist/modules/src/encode.js b/dist/modules/src/encode.js
-index a901b445570a253be185ab020882508d4cde3743..d9ad54d2f9c5884c4a1bd0d7e43f7b472695a583 100644
+index c64161d95c0a541cfd6dc46cb370298539d640b1..c9abf3f6c3753f3383577a874f853728b6376c8b 100644
 --- a/dist/modules/src/encode.js
 +++ b/dist/modules/src/encode.js
-@@ -113,6 +113,9 @@ export const validateVideoEncodingAdditionalOptions = (codec, options) => {
+@@ -116,6 +116,9 @@ export const validateVideoEncodingAdditionalOptions = (codec, options) => {
      if (bitrateMode !== undefined && !['constant', 'variable'].includes(bitrateMode)) {
          throw new TypeError('bitrateMode, when provided, must be \'constant\' or \'variable\'.');
      }
@@ -75,7 +91,7 @@ index a901b445570a253be185ab020882508d4cde3743..d9ad54d2f9c5884c4a1bd0d7e43f7b47
      if (options.latencyMode !== undefined && !['quality', 'realtime'].includes(options.latencyMode)) {
          throw new TypeError('latencyMode, when provided, must be \'quality\' or \'realtime\'.');
      }
-@@ -143,7 +146,7 @@ export const buildVideoEncoderConfigs = (options) => {
+@@ -146,7 +149,7 @@ export const buildVideoEncoderConfigs = (options) => {
      const fallbackBitrateMode = options.bitrateMode;
      const rateControl = options.quality._toVideoRateControl(options.codec, options.width, options.height, fallbackBitrateMode);
      const buildConfig = (bitrate, bitrateMode, bitrateEstimate) => ({
@@ -84,11 +100,58 @@ index a901b445570a253be185ab020882508d4cde3743..d9ad54d2f9c5884c4a1bd0d7e43f7b47
          width: options.width,
          height: options.height,
          displayWidth: options.squarePixelWidth,
+diff --git a/dist/modules/src/input-track.d.ts b/dist/modules/src/input-track.d.ts
+index 81909cf83db9c3885b5b4a52b6e940f54db31de9..cd6797b6542d4fd6f34fe384eec725765b0d831f 100644
+--- a/dist/modules/src/input-track.d.ts
++++ b/dist/modules/src/input-track.d.ts
+@@ -161,6 +161,11 @@ export declare abstract class InputTrack {
+      * {@link Input.getTracks}.
+      */
+     get id(): number;
++    /**
++     * The track's own number in its container: the Matroska track number, the MP4 track ID, the MPEG-TS PID or the
++     * Ogg serial number; 1 for formats with a single track. What `id` was before 1.66.
++     */
++    get containerId(): number;
+     /**
+      * The 1-based index of this track among all tracks of the same type in the input file. For example, the first
+      * video track has number 1, the second video track has number 2, and so on. The index refers to the order in
+diff --git a/dist/modules/src/input-track.js b/dist/modules/src/input-track.js
+index ec929d868af7e9d3e119952d883a74c9c6bee416..380f3496d69f5838713303efbeada36f8d23055d 100644
+--- a/dist/modules/src/input-track.js
++++ b/dist/modules/src/input-track.js
+@@ -42,6 +42,26 @@ export class InputTrack {
+         assert(index !== -1);
+         return index + 1;
+     }
++    /**
++     * The track's own number in its container: the Matroska track number, the MP4 track ID, the MPEG-TS PID or the
++     * Ogg serial number; 1 for formats with a single track. What `id` was before 1.66.
++     */
++    get containerId() {
++        const backing = this._backing;
++        if (backing.internalTrack && typeof backing.internalTrack.id === 'number') {
++            return backing.internalTrack.id;
++        }
++        if (backing.elementaryStream) {
++            return backing.elementaryStream.pid;
++        }
++        if (backing.bitstream) {
++            return backing.bitstream.serialNumber;
++        }
++        if (backing.decl && typeof backing.decl.id === 'number') {
++            return backing.decl.id;
++        }
++        return 1;
++    }
+     /**
+      * The 1-based index of this track among all tracks of the same type in the input file. For example, the first
+      * video track has number 1, the second video track has number 2, and so on. The index refers to the order in
 diff --git a/dist/modules/src/isobmff/isobmff-boxes.js b/dist/modules/src/isobmff/isobmff-boxes.js
-index 39cb4984b72cf85d86cc448e2a9ecc0fe82ae9c9..4472d0b8a8876ed16a12728c240c523a669695d2 100644
+index a905b67bdd40e595a27b0c2428b81e15a5d382f5..7b8114fda0e4c5188d3fc81a0bea710836fca28b 100644
 --- a/dist/modules/src/isobmff/isobmff-boxes.js
 +++ b/dist/modules/src/isobmff/isobmff-boxes.js
-@@ -551,7 +551,7 @@ export const stsd = (trackData) => {
+@@ -560,7 +560,7 @@ export const stsd = (trackData) => {
      ]);
  };
  /** Video Sample Description Box: Contains information that defines how to interpret video media data. */
@@ -97,7 +160,7 @@ index 39cb4984b72cf85d86cc448e2a9ecc0fe82ae9c9..4472d0b8a8876ed16a12728c240c523a
      Array(6).fill(0), // Reserved
      u16(1), // Data reference index
      u16(0), // Pre-defined
-@@ -575,8 +575,42 @@ export const videoSampleDescription = (compressionType, trackData) => box(compre
+@@ -584,8 +584,42 @@ export const videoSampleDescription = (compressionType, trackData) => box(compre
      colorSpaceIsEmpty(trackData.info.decoderConfig.colorSpace)
          ? null
          : colr(trackData),
@@ -141,10 +204,10 @@ index 39cb4984b72cf85d86cc448e2a9ecc0fe82ae9c9..4472d0b8a8876ed16a12728c240c523a
  export const btrt = (trackData) => {
      if (trackData.avgBitrate === 0 && trackData.maxBitrate === 0) {
 diff --git a/dist/modules/src/matroska/matroska-muxer.js b/dist/modules/src/matroska/matroska-muxer.js
-index a1d23087a6a2a05b8e8950c458be623b259d9492..ce04cfdb89c0f194df1c987a23381b086d53783f 100644
+index 22e4a324c2cccf1cdf2cd90a24099e8300725a61..85322ff5452655fc751fde6e2f8da5caa1f4165c 100644
 --- a/dist/modules/src/matroska/matroska-muxer.js
 +++ b/dist/modules/src/matroska/matroska-muxer.js
-@@ -238,6 +238,9 @@ export class MatroskaMuxer extends Muxer {
+@@ -249,6 +249,9 @@ export class MatroskaMuxer extends Muxer {
                          ? { id: EBMLId.Name, data: new EBMLUnicodeString(trackData.track.metadata.name) }
                          : null,
                      (trackData.type === 'video' ? this.videoSpecificTrackInfo(trackData) : null),
@@ -154,7 +217,7 @@ index a1d23087a6a2a05b8e8950c458be623b259d9492..ce04cfdb89c0f194df1c987a23381b08
                      (trackData.type === 'audio' ? this.audioSpecificTrackInfo(trackData) : null),
                      (trackData.type === 'subtitle' ? this.subtitleSpecificTrackInfo(trackData) : null),
                  ] });
-@@ -291,7 +294,7 @@ export class MatroskaMuxer extends Muxer {
+@@ -302,7 +305,7 @@ export class MatroskaMuxer extends Muxer {
                  (hasNonSquarePixelAspectRatio ? { id: EBMLId.DisplayHeight, data: trackData.info.aspectRatio.den } : null),
                  (hasNonSquarePixelAspectRatio ? { id: EBMLId.DisplayUnit, data: 3 } : null), // 3 = display aspect ratio
                  trackData.info.alphaMode ? { id: EBMLId.AlphaMode, data: 1 } : null,
@@ -163,7 +226,7 @@ index a1d23087a6a2a05b8e8950c458be623b259d9492..ce04cfdb89c0f194df1c987a23381b08
                      ? null
                      : {
                          id: EBMLId.Colour,
-@@ -314,6 +317,7 @@ export class MatroskaMuxer extends Muxer {
+@@ -325,6 +328,7 @@ export class MatroskaMuxer extends Muxer {
                                  id: EBMLId.Range,
                                  data: colorSpace?.fullRange != null ? (colorSpace.fullRange ? 2 : 1) : 0,
                              },
@@ -171,8 +234,8 @@ index a1d23087a6a2a05b8e8950c458be623b259d9492..ce04cfdb89c0f194df1c987a23381b08
                          ],
                      }),
                  (roll || yaw || pitch
-@@ -1173,3 +1177,37 @@ export class MatroskaMuxer extends Muxer {
-         release();
+@@ -1186,3 +1190,37 @@ export class MatroskaMuxer extends Muxer {
+         }
      }
  }
 +
@@ -210,10 +273,10 @@ index a1d23087a6a2a05b8e8950c458be623b259d9492..ce04cfdb89c0f194df1c987a23381b08
 +        { id: 0x41ED, data: toUint8Array(dolbyVision.record) },
 +    ] });
 diff --git a/dist/modules/src/mpeg-ts/mpeg-ts-demuxer.js b/dist/modules/src/mpeg-ts/mpeg-ts-demuxer.js
-index 2da6b042a68300b074a2f79b540d412ff51c5209..93e333672cad5120d396a59e73230a688e0f0a54 100644
+index 9222bcc28556f62f468e24472087522db5668ee9..3e9febf1d084e10938a2ede7aaf4077f0e4a6343 100644
 --- a/dist/modules/src/mpeg-ts/mpeg-ts-demuxer.js
 +++ b/dist/modules/src/mpeg-ts/mpeg-ts-demuxer.js
-@@ -275,6 +275,21 @@ export class MpegTsDemuxer extends Demuxer {
+@@ -280,6 +280,21 @@ export class MpegTsDemuxer extends Demuxer {
                                  }
                                  ;
                                  break;
@@ -235,7 +298,7 @@ index 2da6b042a68300b074a2f79b540d412ff51c5209..93e333672cad5120d396a59e73230a68
                              case 6 /* MpegTsStreamType.PRIVATE_DATA */:
                                  {
                                      if (hasEac3Descriptor) {
-@@ -469,6 +484,11 @@ export class MpegTsDemuxer extends Demuxer {
+@@ -479,6 +494,11 @@ export class MpegTsDemuxer extends Demuxer {
                          }
                          else {
                              await context.markNextPacket();
@@ -247,7 +310,7 @@ index 2da6b042a68300b074a2f79b540d412ff51c5209..93e333672cad5120d396a59e73230a68
                              if (!context.suppliedPacket) {
                                  throw new Error(`Couldn't parse first media packet for Elementary Stream with`
                                      + ` PID ${elementaryStream.pid}`);
-@@ -534,6 +554,14 @@ export class MpegTsDemuxer extends Demuxer {
+@@ -559,6 +579,14 @@ export class MpegTsDemuxer extends Demuxer {
                                      elementaryStream.info.dtsFormat = frameInfo.hasExtensions ? 'dtsh' : 'dtsc';
                                  }
                              }
@@ -262,7 +325,7 @@ index 2da6b042a68300b074a2f79b540d412ff51c5209..93e333672cad5120d396a59e73230a68
                              else {
                                  throw new Error('Unhandled.');
                              }
-@@ -1363,7 +1391,8 @@ class MpegTsAudioTrackBacking extends MpegTsTrackBacking {
+@@ -1350,7 +1378,8 @@ class MpegTsAudioTrackBacking extends MpegTsTrackBacking {
          return this.elementaryStream.info.decoderConfig;
      }
      allPacketsAreKeyPackets() {
@@ -272,16 +335,16 @@ index 2da6b042a68300b074a2f79b540d412ff51c5209..93e333672cad5120d396a59e73230a68
      }
      getReorderSize() {
          return 0; // No reordering, since no B-frames because goated
-@@ -1420,6 +1449,8 @@ class PacketReadingContext {
+@@ -1411,6 +1440,8 @@ class PacketReadingContext {
          this.pid = elementaryStream.pid;
          this.demuxer = elementaryStream.demuxer;
-         this.startingPesPacket = startingPesPacket;
+         this.nextTsPacketPos = pesPacketStartPos;
 +        /** Where the next TrueHD access unit starts, once one is found. */
 +        this.trueHdNextPos = null;
      }
      ensureBuffered(length) {
          const remaining = this.endPos - this.currentPos;
-@@ -1696,6 +1727,62 @@ class PacketReadingContext {
+@@ -1662,6 +1693,65 @@ class PacketReadingContext {
                  return this.supplyPacket(packetLength, 0);
              }
          }
@@ -318,8 +381,11 @@ index 2da6b042a68300b074a2f79b540d412ff51c5209..93e333672cad5120d396a59e73230a68
 +                }
 +                const length = (((head[0] & 0x0f) << 8) | head[1]) * 2;
 +                const major = isTrueHdMajorSync(head);
-+                const pesPacketStart = pos === this.currentPesPacketPos
-+                    && length <= this.getCurrentPesPacket().data.byteLength;
++                // The start of a PES packet's data, the unit fitting before the next one where that is known
++                const pesPacketIndex = this.pesPacketDataStartPositions.indexOf(pos);
++                const nextPesPacketPos = this.pesPacketDataStartPositions[pesPacketIndex + 1];
++                const pesPacketStart = pesPacketIndex !== -1
++                    && (nextPesPacketPos === undefined || length <= nextPesPacketPos - pos);
 +                if (length >= TRUEHD_HEADER_SIZE && (major || pos === this.trueHdNextPos || pesPacketStart)) {
 +                    let buffered = this.ensureBuffered(length);
 +                    if (isThenable(buffered))
@@ -344,7 +410,7 @@ index 2da6b042a68300b074a2f79b540d412ff51c5209..93e333672cad5120d396a59e73230a68
          else {
              const codec = elementaryStream.info.codec;
              const CHUNK_SIZE = 128;
-@@ -2063,3 +2150,53 @@ class PacketBuffer {
+@@ -2068,3 +2158,53 @@ class PacketBuffer {
          this.reorderBuffer.length = 0;
      }
  }
@@ -399,10 +465,10 @@ index 2da6b042a68300b074a2f79b540d412ff51c5209..93e333672cad5120d396a59e73230a68
 +        && (data[7] === 0xba || data[7] === 0xbb);
 +};
 diff --git a/dist/modules/src/output.d.ts b/dist/modules/src/output.d.ts
-index fdffa4ff9c0a86a4e9078c940381fd43e5494856..e0673474fa6543a7bda899a473751b727e9a1b6f 100644
+index 1c4bfbad7cadd3f2e5578e9379df5fbaed21ab43..231e966a18dcd12f3166c5b76d4645acc3227c9f 100644
 --- a/dist/modules/src/output.d.ts
 +++ b/dist/modules/src/output.d.ts
-@@ -161,6 +161,19 @@ export type BaseTrackMetadata = {
+@@ -162,6 +162,19 @@ export type BaseTrackMetadata = {
   * @public
   */
  export type VideoTrackMetadata = BaseTrackMetadata & {

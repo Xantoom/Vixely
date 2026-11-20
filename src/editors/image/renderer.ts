@@ -339,6 +339,19 @@ function compile(gl: WebGL2RenderingContext, type: number, code: string): WebGLS
 	return shader;
 }
 
+/** Pixel size of a picture handed to WebGL, when it says. */
+function pictureSize(source: TexImageSource): Size | null {
+	if (typeof VideoFrame !== 'undefined' && source instanceof VideoFrame)
+		return { width: source.displayWidth, height: source.displayHeight };
+	if (typeof HTMLVideoElement !== 'undefined' && source instanceof HTMLVideoElement)
+		return { width: source.videoWidth, height: source.videoHeight };
+	if (typeof HTMLImageElement !== 'undefined' && source instanceof HTMLImageElement)
+		return { width: source.naturalWidth, height: source.naturalHeight };
+	if ('width' in source && typeof source.width === 'number' && typeof source.height === 'number')
+		return { width: source.width, height: source.height };
+	return null;
+}
+
 class Program<U extends string> {
 	readonly program: WebGLProgram;
 	private readonly locations = new Map<U, WebGLUniformLocation | null>();
@@ -350,11 +363,16 @@ class Program<U extends string> {
 		names: U[],
 	) {
 		const program = gl.createProgram();
-		gl.attachShader(program, compile(gl, gl.VERTEX_SHADER, vertex));
-		gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, fragment));
+		const shaders = [compile(gl, gl.VERTEX_SHADER, vertex), compile(gl, gl.FRAGMENT_SHADER, fragment)];
+		for (const shader of shaders) gl.attachShader(program, shader);
 		// Both programs read the same quad at the same place.
 		gl.bindAttribLocation(program, 0, 'aPosition');
 		gl.linkProgram(program);
+		// Linked, the program no longer needs its shaders: they go with it rather than with the context.
+		for (const shader of shaders) {
+			gl.detachShader(program, shader);
+			gl.deleteShader(shader);
+		}
 		if (!gl.getProgramParameter(program, gl.LINK_STATUS))
 			throw new Error(gl.getProgramInfoLog(program) ?? 'Link error');
 		this.program = program;
@@ -389,6 +407,10 @@ export class ImageRenderer {
 	private readonly color: Program<ColorUniform>;
 	private readonly blur: Program<BlurUniform>;
 	private texture: WebGLTexture | null = null;
+	/** Size the texture was made at: a picture the same size is written into it, not made anew. */
+	private textureSize: Size | null = null;
+	/** The quad every pass draws. */
+	private readonly quad: WebGLBuffer;
 	/** The blur's intermediate pictures, at the size of the canvas. */
 	private targets: { width: number; height: number; pair: [Target, Target] } | null = null;
 	/** Intermediate pictures in half floats where the GPU can draw them, to keep smooth gradients. */
@@ -440,6 +462,7 @@ export class ImageRenderer {
 
 		// Two triangles covering the whole output.
 		const buffer = gl.createBuffer();
+		this.quad = buffer;
 		gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
 		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
 		gl.enableVertexAttribArray(0);
@@ -477,7 +500,13 @@ export class ImageRenderer {
 		this.texture ??= gl.createTexture();
 		gl.bindTexture(gl.TEXTURE_2D, this.texture);
 		gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, source);
+		const size = pictureSize(source);
+		if (size && this.textureSize?.width === size.width && this.textureSize.height === size.height)
+			gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, source);
+		else {
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, source);
+			this.textureSize = size;
+		}
 		// Mipmaps give clean downscaling when the preview or the export is smaller than the source.
 		gl.generateMipmap(gl.TEXTURE_2D);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
@@ -643,11 +672,49 @@ export class ImageRenderer {
 		return pixels;
 	}
 
+	/**
+	 * The same pixels as `readPixels`, read without holding the page: the GPU copies them into a
+	 * buffer while the page goes on, and they are taken once it is done. A 12 MP picture otherwise
+	 * stops the page for most of a second.
+	 */
+	async readPixelsAsync(): Promise<Uint8Array> {
+		const gl = this.gl;
+		const { width, height } = this.canvas;
+		const pixels = new Uint8Array(width * height * 4);
+		const buffer = gl.createBuffer();
+		gl.bindBuffer(gl.PIXEL_PACK_BUFFER, buffer);
+		gl.bufferData(gl.PIXEL_PACK_BUFFER, pixels.byteLength, gl.STREAM_READ);
+		gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, 0);
+		gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+		const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+		gl.flush();
+		try {
+			if (sync) {
+				for (;;) {
+					const state = gl.clientWaitSync(sync, 0, 0);
+					if (state === gl.WAIT_FAILED) throw new Error('The GPU did not answer');
+					if (state === gl.ALREADY_SIGNALED || state === gl.CONDITION_SATISFIED) break;
+					// oxlint-disable-next-line no-await-in-loop -- waits for the GPU, a step at a time
+					await new Promise((resolve) => setTimeout(resolve, 4));
+				}
+			}
+			gl.bindBuffer(gl.PIXEL_PACK_BUFFER, buffer);
+			gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, pixels);
+			gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+			return pixels;
+		} finally {
+			if (sync) gl.deleteSync(sync);
+			gl.deleteBuffer(buffer);
+		}
+	}
+
 	dispose(): void {
 		if (this.texture) this.gl.deleteTexture(this.texture);
 		this.releaseTargets();
 		this.color.dispose();
 		this.blur.dispose();
+		this.gl.deleteBuffer(this.quad);
 		this.texture = null;
+		this.textureSize = null;
 	}
 }

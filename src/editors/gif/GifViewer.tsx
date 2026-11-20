@@ -84,7 +84,7 @@ function GifPicture({
 				)
 			)
 				return;
-			const options = { time: frame.start, length, overlays: !overlays };
+			const options = { time: frame.start, source: frame.source, length, overlays: !overlays };
 			const original = originalRef.current;
 			if (comparing && original) {
 				if (original.width !== canvas.width) original.width = canvas.width;

@@ -163,6 +163,9 @@ export async function stillImages(files: readonly File[]): Promise<{ images: Sti
 	return { images, others: files.length - images.length };
 }
 
+/** Number of the latest drop: one started after another makes the first give way. */
+let latestOpen = 0;
+
 export const useSession = create<SessionState>((set, get) => ({
 	opened: {},
 	current: null,
@@ -177,11 +180,15 @@ export const useSession = create<SessionState>((set, get) => ({
 		if (!first) return null;
 		const reading =
 			files.length > 1 ? m.drop_reading_many({ count: files.length }) : m.drop_reading({ name: first.name });
+		const ticket = ++latestOpen;
+		// Another drop may have started while this one was being read: the latest wins.
+		const superseded = () => ticket !== latestOpen;
 		set({ reading, error: null });
 
 		// Still images dropped on the GIF editor become the frames of one animation.
 		if (prefer === 'gif') {
 			const { images, others } = await stillImages(files);
+			if (superseded()) return null;
 			if (images.length > 0 && (others === 0 || files.length > 1)) {
 				set({ reading: null });
 				return (await get().makeGif(images.map((image) => image.file))) ? 'gif' : null;
@@ -191,12 +198,17 @@ export const useSession = create<SessionState>((set, get) => ({
 		if (files.length > 1) {
 			const kind = await batchKindOf(files, prefer);
 			const { items, skipped } = kind ? await identifyBatch(files, kind) : { items: [], skipped: files.length };
+			if (superseded()) return null;
 			const [lead] = items;
 			if (!kind || !lead) {
 				set({ reading: null, error: { reason: 'unknown' } });
 				return null;
 			}
 			const opened = { ...(await read(lead.file, kind, lead.format)), kind };
+			if (superseded()) {
+				opened.poster?.close();
+				return null;
+			}
 			set({
 				reading: null,
 				opened: withOpened(get().opened, kind, opened),
@@ -210,6 +222,7 @@ export const useSession = create<SessionState>((set, get) => ({
 		}
 
 		const result = await identify(first);
+		if (superseded()) return null;
 		if (!result.ok) {
 			set({ reading: null, error: { reason: result.reason, format: result.format } });
 			return null;
@@ -221,8 +234,7 @@ export const useSession = create<SessionState>((set, get) => ({
 			});
 		}
 		const opened = await read(first, result.value.kind, result.value.format);
-		// Another drop may have started while this file was being read.
-		if (get().reading !== reading) {
+		if (superseded()) {
 			opened.poster?.close();
 			return null;
 		}
@@ -365,4 +377,23 @@ export const useSession = create<SessionState>((set, get) => ({
 /** The file `kind`'s editor has open, if any. */
 export function useOpened(kind: MediaKind): OpenedFile | null {
 	return useSession((state) => state.opened[kind] ?? null);
+}
+
+/** Whether a file is open in an editor, or in its batch: what is read of it is worth keeping. */
+export function isOpen(file: File): boolean {
+	const { opened, batch } = useSession.getState();
+	return (
+		Object.values(opened).some((entry) => entry.file === file) ||
+		(batch?.some((item) => item.file === file) ?? false)
+	);
+}
+
+/**
+ * Calls `release` with each file no longer open anywhere, as files are closed or replaced, so
+ * caches give back their memory rather than waiting for another file to push them out.
+ */
+export function onFilesClosed(release: (isGone: (file: File) => boolean) => void) {
+	useSession.subscribe((state, before) => {
+		if (state.opened !== before.opened || state.batch !== before.batch) release((file) => !isOpen(file));
+	});
 }

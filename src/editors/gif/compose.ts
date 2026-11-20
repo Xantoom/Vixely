@@ -33,6 +33,11 @@ function zonesInPicture(picture: ImageDoc, box: Rect, frame: Size): ImageDoc {
 export interface ComposeOptions {
 	/** Output time of the frame, for the fades and the grain. */
 	time: number;
+	/**
+	 * Source time of the frame: layers carried from a video, shown only part of the time, show
+	 * then. Unknown, every layer shows.
+	 */
+	source?: number;
 	/** Length of the output, for the fade out. */
 	length: number;
 	/** Shows the picture unedited, to compare. */
@@ -66,7 +71,7 @@ export class FrameComposer {
 		source: Size,
 		doc: GifDoc,
 		layout: FrameLayout,
-		{ time, length, original = false, overlays = true, sampling = 'smooth' }: ComposeOptions,
+		{ time, source: at, length, original = false, overlays = true, sampling = 'smooth' }: ComposeOptions,
 	): void {
 		const { width, height } = context.canvas;
 		// Across and down apart: an exact size may stretch the picture.
@@ -85,6 +90,7 @@ export class FrameComposer {
 			region: effectiveCrop(doc.picture, source),
 			original,
 			seed: time * 97,
+			time: at,
 			sampling,
 		});
 
@@ -99,7 +105,7 @@ export class FrameComposer {
 			context.restore();
 			return;
 		}
-		if (overlays) drawOverlays(context, doc.picture.overlays, { width, height });
+		if (overlays) drawOverlays(context, doc.picture.overlays, { width, height }, at);
 		const fade = fadeAmount(doc.fade, time, length);
 		if (fade > 0) {
 			context.globalAlpha = fade;

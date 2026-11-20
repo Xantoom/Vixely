@@ -65,8 +65,8 @@ function exifFor(settings: ExportSettings, photo: PhotoMetadata | null): Uint8Ar
 
 /**
  * The picture at `size`, drawn by the same renderer as the preview, its text and stickers by the
- * same code as the preview's. Gives a canvas, for icons, and straight RGBA pixels, rows from the
- * top, for the encoders.
+ * same code as the preview's. Gives straight RGBA pixels, rows from the top, for the encoders,
+ * and with `drawn`, a canvas holding the picture, for icons.
  */
 async function renderPicture(
 	source: ImageBitmap,
@@ -74,6 +74,7 @@ async function renderPicture(
 	size: Size,
 	opaque: boolean,
 	sampling: Sampling = 'smooth',
+	drawn = false,
 ): Promise<{ canvas: OffscreenCanvas; rgba: Uint8Array }> {
 	const canvas = new OffscreenCanvas(size.width, size.height);
 	const renderer = new ImageRenderer(canvas);
@@ -83,8 +84,9 @@ async function renderPicture(
 		if (doc.overlays.length === 0) {
 			// Read straight from WebGL: exact values, even for see-through pixels.
 			renderer.render(doc, { region, opaque, flipY: true, sampling });
-			const rgba = renderer.readPixels();
-			renderer.render(doc, { region, opaque, sampling });
+			const rgba = await renderer.readPixelsAsync().catch(() => renderer.readPixels());
+			// The canvas the right way up only for whoever draws it.
+			if (drawn) renderer.render(doc, { region, opaque, sampling });
 			return { canvas, rgba };
 		}
 		renderer.render(doc, { region, opaque, sampling });
@@ -110,18 +112,23 @@ export async function exportImage(
 	doc: ImageDoc,
 	settings: ExportSettings,
 	photo: PhotoMetadata | null,
+	/** Stops an export no longer wanted (an estimate overtaken) between its costly steps. */
+	signal?: AbortSignal,
 ): Promise<Blob> {
+	signal?.throwIfAborted();
 	const size = outputSize(doc, source, settings);
 	const { width, height } = size;
 	const info = FORMAT_INFO[settings.format];
 	if (settings.format === 'ico') return exportIco(source, doc, size, settings.sampling);
 
 	const { rgba } = await renderPicture(source, doc, size, !info.alpha, settings.sampling);
+	signal?.throwIfAborted();
 	if (settings.format === 'bmp') return new Blob([encodeBmp(rgba, width, height).slice()], { type: info.mime });
 	if (settings.format === 'tiff') return new Blob([encodeTiff(rgba, width, height).slice()], { type: info.mime });
 
 	const exif = exifFor(settings, photo);
 	const encode = async (quality: number, last: boolean): Promise<Blob> => {
+		signal?.throwIfAborted();
 		// The worker takes the pixels it is given: a copy, unless this is the last encode.
 		const base = { op: 'encode', rgba: last ? rgba : rgba.slice(), width, height, quality, exif } as const;
 		const bytes = await (settings.format === 'png'
@@ -136,7 +143,8 @@ export async function exportImage(
 		return new Blob([new Uint8Array(bytes)], { type: info.mime });
 	};
 	if (settings.maxKb === null || !usesQuality(settings)) return encode(settings.quality, true);
-	return fitWeight(encode, WEIGHT_QUALITY, settings.maxKb * 1000);
+	// Never above the quality the file would have without a limit: a ceiling doesn't inflate it.
+	return fitWeight(encode, Math.min(settings.quality, WEIGHT_QUALITY), settings.maxKb * 1000);
 }
 
 /**
@@ -191,7 +199,7 @@ async function exportIco(source: ImageBitmap, doc: ImageDoc, size: Size, samplin
 		};
 		// Sequential on purpose: one picture and one encoder call at a time.
 		// oxlint-disable-next-line no-await-in-loop
-		const picture = await renderPicture(source, doc, inner, false, sampling);
+		const picture = await renderPicture(source, doc, inner, false, sampling, true);
 		const square = new OffscreenCanvas(side, side);
 		const context = square.getContext('2d');
 		if (!context) throw new Error('No 2D canvas');

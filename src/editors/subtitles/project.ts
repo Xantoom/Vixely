@@ -154,8 +154,13 @@ function emptyDoc(): SubtitleDoc {
 
 const TEXT_FORMATS = new Set(['srt', 'vtt', 'ass']);
 
-/** Lines of a track read at once. */
+/** Lines of a track read first, at once: the first screen shows quickly. */
 const BATCH = 200;
+/**
+ * Lines read at once at most. Batches double up to it: each one copies the lines read before
+ * (and every state of an edit history), so a long track would otherwise copy them hundreds of times.
+ */
+const MAX_BATCH = 5000;
 
 /** A video's subtitles opened ahead, while the file is still being probed. */
 let prepared: { file: File; source: Promise<SubtitleSource> } | null = null;
@@ -302,9 +307,10 @@ export const useSubtitleProject = create<ProjectState>((set, get) => {
 				const at = read.get(id) ?? { next: 0, total: Number.POSITIVE_INFINITY };
 				if (!reader) return;
 				try {
-					const batch = await opened.batch(id, at.next, BATCH, onProgress);
+					const size = Math.min(MAX_BATCH, Math.max(BATCH, at.next));
+					const batch = await opened.batch(id, at.next, size, onProgress);
 					if (mine !== run) return;
-					const next = at.next + BATCH;
+					const next = at.next + size;
 					read.set(id, { next, total: batch.total });
 					const last = next >= batch.total;
 					const empty = at.next === 0 ? reader.empty(batch.packets.codecPrivate) : null;

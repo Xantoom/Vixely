@@ -1,6 +1,7 @@
 import type { Range } from '@/document/timemap';
 import { Loudness } from './loudness';
 import { PEAK_FRAMES, type PeaksLimit, type PeaksMessage, type PeaksOrigin, type PeaksRequest } from './peaks-protocol';
+import { onFilesClosed } from './session';
 
 /** Each summary level groups this many peaks of the level below. */
 const LEVEL_FACTOR = 16;
@@ -263,6 +264,8 @@ export function readPeaks(
 		done,
 		cancel: () => {
 			for (const worker of workers) worker.terminate();
+			// Whoever waits for the end hears of the stop, rather than waiting forever.
+			if (!peaks.complete) settle?.reject(new DOMException('The reading was stopped.', 'AbortError'));
 		},
 	};
 }
@@ -277,6 +280,14 @@ interface SharedPeaks {
 /** Waveforms kept, the most recent last: going to another editor and back reads nothing again. */
 const shared: SharedPeaks[] = [];
 const KEPT_WAVEFORMS = 4;
+
+// A file closed stops being read, and its waveform goes, unless a view still shows it.
+onFilesClosed((isGone) => {
+	for (const entry of shared.filter((candidate) => candidate.listeners.size === 0 && isGone(candidate.file))) {
+		entry.reader.cancel();
+		shared.splice(shared.indexOf(entry), 1);
+	}
+});
 
 /**
  * The waveform of a file's sound track, read once and shared by every editor that shows it:

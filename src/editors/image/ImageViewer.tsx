@@ -63,12 +63,22 @@ function Picture({
 		};
 	}, [source]);
 
+	// What the picture was last drawn from: a render for anything else (the export settings but
+	// sampling, a panel) leaves it as it is.
+	const drawn = useRef<readonly unknown[]>([]);
 	useEffect(() => {
 		const canvas = canvasRef.current;
 		const renderer = rendererRef.current;
 		if (!canvas || !renderer) return;
-		canvas.width = backingSize(region.width * scale, region.width);
-		canvas.height = backingSize(region.height * scale, region.height);
+		const width = backingSize(region.width * scale, region.width);
+		const height = backingSize(region.height * scale, region.height);
+		const inputs = [renderer, doc, cropping, comparing, sampling, region.x, region.y, width, height];
+		if (inputs.length === drawn.current.length && inputs.every((input, index) => input === drawn.current[index]))
+			return;
+		drawn.current = inputs;
+		// Setting a canvas's size clears it, even to the same size.
+		if (canvas.width !== width) canvas.width = width;
+		if (canvas.height !== height) canvas.height = height;
 		const shown = cropping ? wholePictureDoc(doc, crop, bounds) : doc;
 		if (comparing) {
 			renderer.render(shown, { region, original: true, sampling });

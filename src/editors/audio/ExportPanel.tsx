@@ -416,7 +416,7 @@ export function ExportFooter({
 	};
 
 	const exportOne = async () => {
-		const type = outputType(settings, source);
+		const type = outputType(settings, source, doc);
 		// The destination is asked first: the file picker only opens from the click itself.
 		const save = await openSaveTarget(outputName(file.name, type.extension), {
 			mime: type.mime,
@@ -476,7 +476,7 @@ export function ExportFooter({
 		}
 		return batch
 			? m.export_batch_audio_button({ count: batch.length })
-			: m.export_as({ format: outputType(settings, source).label });
+			: m.export_as({ format: outputType(settings, source, doc).label });
 	};
 
 	return (
@@ -484,8 +484,8 @@ export function ExportFooter({
 			{status === 'saving' && (
 				<div className="bg-surface-2 h-1 overflow-hidden rounded-full" aria-hidden="true">
 					<div
-						className="bg-ed h-full transition-[width] duration-200"
-						style={{ width: `${progress * 100}%` }}
+						className="bg-ed h-full origin-left transition-transform duration-200"
+						style={{ transform: `scaleX(${progress})` }}
 					/>
 				</div>
 			)}

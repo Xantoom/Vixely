@@ -35,7 +35,8 @@ import { containerHdr } from '@/media/report/container';
 import { changesSound, type SoundChanges } from '@/media/sound';
 import type { LogoId } from '@/ui/BrandLogo';
 import { ensureEncoder } from '../audio/export';
-import { effectiveCrop, type ImageDoc, type Size } from '../image/document';
+import { fitRatio } from '../image/crop';
+import { effectiveCrop, type ImageDoc, orientedSize, type Size } from '../image/document';
 import { ImageRenderer } from '../image/renderer';
 import { gainOf, PieceSound, placeAudio, placeRanges } from './audio-pieces';
 import { AudioShaper } from './audio-shaping';
@@ -329,6 +330,20 @@ function isCodecId(codec: VideoCodec | null): codec is VideoCodecId {
  * NVIDIA RTX 40, an Intel Arc, a Radeon RX 7000), HEVC often only on the card.
  */
 export async function videoEncoders(size: Size): Promise<VideoEncoders> {
+	// Asked again for each video of a batch and each opening: the browser's answer doesn't change.
+	const key = `${size.width}x${size.height}`;
+	let known = encodersBySize.get(key);
+	if (!known) {
+		known = findEncoders(size);
+		encodersBySize.set(key, known);
+		known.catch(() => encodersBySize.delete(key));
+	}
+	return known;
+}
+
+const encodersBySize = new Map<string, Promise<VideoEncoders>>();
+
+async function findEncoders(size: Size): Promise<VideoEncoders> {
 	const codecs: VideoCodecId[] = ['avc', 'hevc', 'vp9', 'av1'];
 	const on = async (hardwareAcceleration: Acceleration, bitDepth: 8 | 10, among: readonly VideoCodecId[]) => {
 		const found = await Promise.all(
@@ -369,6 +384,19 @@ const DEEP_PROBES: Partial<Record<VideoCodecId, VideoEncoderConfig>> = {
  * the first picture (Chrome behind its flags): one picture is encoded to know.
  */
 async function encodesDeep(codec: VideoCodecId, hardwareAcceleration: Acceleration): Promise<boolean> {
+	// One picture encoded, up to four seconds: tried once per codec and encoder, whatever the size.
+	const key = `${codec}:${hardwareAcceleration}`;
+	let known = deepTried.get(key);
+	if (!known) {
+		known = tryDeep(codec, hardwareAcceleration);
+		deepTried.set(key, known);
+	}
+	return known;
+}
+
+const deepTried = new Map<string, Promise<boolean>>();
+
+async function tryDeep(codec: VideoCodecId, hardwareAcceleration: Acceleration): Promise<boolean> {
 	const probe = DEEP_PROBES[codec];
 	if (!probe || typeof VideoEncoder === 'undefined' || typeof OffscreenCanvas === 'undefined') return false;
 	const config: VideoEncoderConfig = { ...probe, bitrate: 1_000_000, framerate: 30, hardwareAcceleration };
@@ -1101,9 +1129,11 @@ export function presetSettings(
 export async function audioBitrates(file: File, ids: readonly number[]): Promise<Map<number, number>> {
 	const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
 	try {
-		const tracks = (await input.getAudioTracks()).filter((track) => ids.includes(track.id));
+		const tracks = (await input.getAudioTracks()).filter((track) => ids.includes(track.containerId));
 		const stats = await Promise.all(
-			tracks.map(async (track) => [track.id, await track.computePacketStats(300).catch(() => null)] as const),
+			tracks.map(
+				async (track) => [track.containerId, await track.computePacketStats(300).catch(() => null)] as const,
+			),
 		);
 		return new Map(stats.map(([id, found]) => [id, Math.round((found?.averageBitrate ?? 0) / 1000)]));
 	} finally {
@@ -1119,6 +1149,15 @@ function even(value: number): number {
 /** The shorter side of a picture: what "720p" measures, upright or on its side. */
 export function shortSide(size: Size): number {
 	return Math.min(size.width, size.height);
+}
+
+/** The pictures as a preset leaves them: cropped from the middle to its frame, if it has one. */
+export function presetPicture(picture: ImageDoc, upright: Size, id: PresetId): ImageDoc {
+	const { aspect } = PRESETS[id];
+	if (!aspect) return picture;
+	const [width = 1, height = 1] = aspect.split(':').map(Number);
+	const bounds = orientedSize(upright, picture.rotation);
+	return { ...picture, crop: fitRatio({ x: 0, y: 0, ...bounds }, width / height) };
 }
 
 /**
@@ -1383,7 +1422,7 @@ export async function convertVideo(
 
 	const placed = placeRanges(ranges);
 	const audio = (track: InputAudioTrack): ConversionAudioOptions => {
-		const edit = job.audioTracks.get(track.id);
+		const edit = job.audioTracks.get(track.containerId);
 		if (edit === undefined) return { discard: true };
 		// Removed passages and sound changes are made on decoded sound: it is then encoded again.
 		const copy = settings.audio === 'copy' && !cuts && !soundChanges(edit) && !shaped;
@@ -1418,7 +1457,7 @@ export async function convertVideo(
 		// Packets copied as they are: only the trim applies. MP4 starts exactly at it, an edit list
 		// hiding the pictures before. Turns and mirrors are written for players to apply.
 		const turn = change === 'turn' ? editTurn(doc.picture) : null;
-		const copy = (track: InputAudioTrack) => (job.audioTracks.has(track.id) ? {} : { discard: true });
+		const copy = (track: InputAudioTrack) => (job.audioTracks.has(track.containerId) ? {} : { discard: true });
 		// The pictures are copied as they are: so is what the container says of their HDR.
 		const hdr = await containerHdr(job.file).catch(() => undefined);
 		try {

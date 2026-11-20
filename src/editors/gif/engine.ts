@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { type OpenedFile, stillImages, useSession } from '@/media/session';
+import { readGifInfo } from '@/media/gif-info';
+import { isOpen, onFilesClosed, type OpenedFile, stillImages, useSession } from '@/media/session';
 import {
 	createGifDoc,
 	FRAME_RATES,
@@ -78,7 +79,24 @@ let kept: { file: File; batchKey: object | null; source: FrameSource } | null = 
 function keep(file: File, batchKey: object | null, source: FrameSource) {
 	if (kept && kept.source !== source) kept.source.dispose();
 	kept = { file, batchKey, source };
+	// Left because the file was closed: nothing comes back to it.
+	if (!isOpen(file)) forget();
 }
+
+function forget() {
+	const stale = kept?.source;
+	kept = null;
+	// Freed once the views have let go of it.
+	if (stale)
+		setTimeout(() => {
+			stale.dispose();
+		}, 0);
+}
+
+// A file closed takes its decoded frames with it: they can weigh a gigabyte.
+onFilesClosed((isGone) => {
+	if (kept && isGone(kept.file)) forget();
+});
 
 export function useGifEngine(opened: OpenedFile | null, batchKey: object | null): GifEngine {
 	const doc = useGifDoc();
@@ -122,7 +140,18 @@ export function useGifEngine(opened: OpenedFile | null, batchKey: object | null)
 			const doc = { ...createGifDoc(next.duration, fps), ...carried };
 			// A batch keeps its export settings from file to file; a single file starts afresh.
 			if (batchKey && useGifEditor.getState().owner === batchKey) retarget(doc);
-			else load(batchKey ?? file, doc, !batchKey && !isVideo && format === 'gif');
+			else {
+				load(batchKey ?? file, doc, !batchKey && !isVideo && format === 'gif');
+				// A GIF made to play once, or a few times, is saved the same way unless changed.
+				if (!batchKey && format === 'gif')
+					void file
+						.arrayBuffer()
+						.then((buffer) => readGifInfo(new Uint8Array(buffer)))
+						.then((info) => {
+							if (info && !controller.signal.aborted)
+								useGifEditor.getState().adoptRepeat(file, info.loops === null ? -1 : info.loops);
+						});
+			}
 			latest.current = next;
 			setSource(next);
 			setReading(null);
@@ -200,9 +229,14 @@ export function useGifEngine(opened: OpenedFile | null, batchKey: object | null)
 	const length = outputLength(frames);
 
 	// Pictures of a video are read ahead, so playback is smooth from the second loop at the latest.
+	// Only a change of which pictures show reads again: a colour change shows the same ones.
+	const times = frames.map((frame) => frame.source);
+	const timesKey = times.join();
+	const timesRef = useRef(times);
+	timesRef.current = times;
 	useEffect(() => {
-		source?.prefetch(frames.map((frame) => frame.source));
-	}, [source, frames]);
+		source?.prefetch(timesRef.current);
+	}, [source, timesKey]);
 
 	// Playback loops, like the GIF will.
 	useEffect(() => {

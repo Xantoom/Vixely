@@ -7,6 +7,8 @@ export type BurnRequest =
 			/** Font files, or URLs of font files. */
 			fonts: (Uint8Array | string)[];
 			wasmUrl: string;
+			/** The module that loads it, which goes with that build. */
+			wasmWorkerUrl: string;
 			/** Size the subtitles are drawn at: the whole picture they lie on. */
 			width: number;
 			height: number;

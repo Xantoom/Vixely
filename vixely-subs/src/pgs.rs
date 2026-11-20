@@ -398,14 +398,15 @@ pub fn decode(set: &[u8]) -> Option<(Rect, Vec<u8>)> {
 		let Some((_, w, h, rle)) = normalizer.objects.get(&id) else {
 			continue;
 		};
-		let (ox, oy) = (
-			(u16_at(entry, 4) - rect.x) as usize,
-			(u16_at(entry, 6) - rect.y) as usize,
-		);
-		let indices = decode_rle(rle, *w as usize, *h as usize);
-		for row in 0..*h as usize {
-			for col in 0..*w as usize {
-				let color = colors[indices[row * *w as usize + col] as usize];
+		// An object outside the rectangle (positions near the edge of the 16-bit range, where the
+		// rectangle stopped growing) is clipped to it rather than written past the pixels.
+		let ox = u16_at(entry, 4).saturating_sub(rect.x) as usize;
+		let oy = u16_at(entry, 6).saturating_sub(rect.y) as usize;
+		let (w, h) = (*w as usize, *h as usize);
+		let indices = decode_rle(rle, w, h);
+		for row in 0..h.min(height.saturating_sub(oy)) {
+			for col in 0..w.min(width.saturating_sub(ox)) {
+				let color = colors.get(indices[row * w + col] as usize).copied().unwrap_or([0; 4]);
 				let target = ((oy + row) * width + ox + col) * 4;
 				pixels[target..target + 4].copy_from_slice(&color);
 			}
@@ -718,6 +719,35 @@ mod tests {
 			sup_segment(3000.0, END, &[]),
 		]
 		.concat()
+	}
+
+	#[test]
+	fn clips_an_object_at_the_edge_of_the_range() {
+		// A 2×1 object placed at x = 65535: the rectangle stops at the end of the 16-bit range.
+		let rle = encode_rle(&[1, 1], 2);
+		let mut pcs = [1920u16.to_be_bytes(), 1080u16.to_be_bytes()].concat();
+		pcs.extend([0x10, 0, 1, 0x80, 0, 0, 1, 0, 7, 0, 0]);
+		pcs.extend(65535u16.to_be_bytes());
+		pcs.extend(10u16.to_be_bytes());
+		let pds = [0u8, 0, 1, 235, 128, 128, 255];
+		let mut ods = vec![0, 7, 0, 0xC0];
+		ods.extend(&((rle.len() + 4) as u32).to_be_bytes()[1..]);
+		ods.extend(2u16.to_be_bytes());
+		ods.extend(1u16.to_be_bytes());
+		ods.extend(&rle);
+		let data = [
+			sup_segment(1000.0, PCS, &pcs),
+			sup_segment(1000.0, PDS, &pds),
+			sup_segment(1000.0, ODS, &ods),
+			sup_segment(1000.0, END, &[]),
+		]
+		.concat();
+		for picture in read_sup(&data) {
+			// Decoding must not write past its pixels.
+			if let Some((rect, pixels)) = decode(&picture.set) {
+				assert_eq!(pixels.len(), rect.width as usize * rect.height as usize * 4);
+			}
+		}
 	}
 
 	#[test]

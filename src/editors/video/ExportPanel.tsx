@@ -13,8 +13,7 @@ import { BrandLogo } from '@/ui/BrandLogo';
 import { Button } from '@/ui/Button';
 import { FieldRow, NumberField, OptionList, Select } from '@/ui/fields';
 import { carryVideoEdits } from '../gif/from-video';
-import { fitRatio } from '../image/crop';
-import { type ImageDoc, orientedSize, type Size } from '../image/document';
+import type { Size } from '../image/document';
 import { copiedRanges, copiesParts } from './copy-tracks';
 import { pictureChange, timeShaped, videoLength } from './document';
 import {
@@ -32,6 +31,7 @@ import {
 	type PresetId,
 	PRESETS,
 	planVideo,
+	presetPicture,
 	presetSettings,
 	QUALITY_LEVELS,
 	quantizerFor,
@@ -172,15 +172,6 @@ function useChangeExport() {
 	return (change: Partial<VideoExportSettings>) => {
 		set({ ...change, preset: null, bitrateCeiling: null });
 	};
-}
-
-/** The pictures as a preset leaves them: cropped from the middle to its frame, if it has one. */
-function presetPicture(picture: ImageDoc, upright: Size, id: PresetId): ImageDoc {
-	const { aspect } = PRESETS[id];
-	if (!aspect) return picture;
-	const [width = 1, height = 1] = aspect.split(':').map(Number);
-	const bounds = orientedSize(upright, picture.rotation);
-	return { ...picture, crop: fitRatio({ x: 0, y: 0, ...bounds }, width / height) };
 }
 
 /**

@@ -54,9 +54,14 @@ function frameIndex(frames: readonly SourceTiming[], time: number): number {
 	return low;
 }
 
-/** Browsers show delays under 20 ms as 100 ms; so does gifski's output, so the preview does too. */
-function effectiveDelay(milliseconds: number): number {
-	return (milliseconds < 20 ? 100 : milliseconds) / 1000;
+/**
+ * Delays as browsers play them: 10 ms or less shows as 100 ms in any format, and a GIF's 10 ms
+ * steps make that anything under 20 ms (gifski's output too, so the preview does the same). An
+ * APNG or WebP keeps its finer delays: 17 ms stays 17 ms.
+ */
+function effectiveDelay(milliseconds: number, format: 'gif' | 'webp' | 'apng'): number {
+	const fastest = format === 'gif' ? 20 : 11;
+	return (milliseconds < fastest ? 100 : milliseconds) / 1000;
 }
 
 /**
@@ -71,11 +76,12 @@ export async function openAnimation(
 ): Promise<FrameSource> {
 	const frames: Frame[] = [];
 	let clock = 0;
+	const kind = format === 'gif' ? 'gif' : format === 'webp' ? 'webp' : 'apng';
 	const { width, height } = await decodeAnimation(
 		file,
-		format === 'gif' ? 'gif' : format === 'webp' ? 'webp' : 'apng',
+		kind,
 		(bitmap, delay) => {
-			const duration = effectiveDelay(delay);
+			const duration = effectiveDelay(delay, kind);
 			frames.push({ bitmap, start: clock, duration });
 			clock += duration;
 			onProgress(frames.length);
@@ -85,10 +91,22 @@ export async function openAnimation(
 	return framesSource(frames, width, height);
 }
 
+/** Pictures decoded forward at a time when a video is read backwards: a few seconds of it. */
+const REVERSE_BLOCK = 48;
+
 /** Longest side of the pictures kept for the preview of a video. The export reads at full size. */
 const PREVIEW_SIZE = 960;
-/** Preview pictures kept in memory: about 20 seconds at 30 fps. */
+/** Preview pictures kept in memory, at most: about 20 seconds at 30 fps. */
 const CACHE_LIMIT = 600;
+
+/**
+ * Bytes the preview pictures may take: a share of the device's memory where the browser tells it
+ * (Chromium), between 256 and 512 MB. At 960 × 540 that is 120 to 240 pictures.
+ */
+function cacheBudget(): number {
+	const gigabytes = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 4;
+	return Math.min(512, Math.max(256, gigabytes * 64)) * 1024 * 1024;
+}
 
 function key(time: number): number {
 	return Math.round(time * 1000);
@@ -108,6 +126,8 @@ export async function openVideo(file: File, fps: number | null): Promise<FrameSo
 	const scale = Math.min(1, PREVIEW_SIZE / Math.max(width, height));
 	const preview = new CanvasSink(track, { width: Math.round(width * scale), poolSize: 0 });
 	const cache = new Map<number, ImageBitmap>();
+	const pictureBytes = Math.max(1, Math.round(width * scale) * Math.round(height * scale) * 4);
+	const limit = Math.max(30, Math.min(CACHE_LIMIT, Math.floor(cacheBudget() / pictureBytes)));
 	let prefetchRun = 0;
 
 	const remember = async (time: number, canvas: HTMLCanvasElement | OffscreenCanvas) => {
@@ -115,7 +135,7 @@ export async function openVideo(file: File, fps: number | null): Promise<FrameSo
 		cache.get(key(time))?.close();
 		cache.set(key(time), bitmap);
 		// Oldest pictures go first when the cache is full.
-		while (cache.size > CACHE_LIMIT) {
+		while (cache.size > limit) {
 			const [oldest, picture] = cache.entries().next().value ?? [];
 			if (oldest === undefined) break;
 			picture?.close();
@@ -140,7 +160,10 @@ export async function openVideo(file: File, fps: number | null): Promise<FrameSo
 		prefetch(times) {
 			prefetchRun += 1;
 			const run = prefetchRun;
-			const missing = [...new Set(times.map(key))].filter((time) => !cache.has(time)).toSorted((a, b) => a - b);
+			// No more than the cache holds: reading further would push out the first ones before they show.
+			const missing = [...new Set(times.slice(0, limit).map(key))]
+				.filter((time) => !cache.has(time))
+				.toSorted((a, b) => a - b);
 			if (missing.length === 0) return;
 			void (async () => {
 				const wanted = missing.map((time) => Math.max(start, time / 1000));
@@ -163,8 +186,35 @@ export async function openVideo(file: File, fps: number | null): Promise<FrameSo
 				fit: 'fill',
 				poolSize: 2,
 			});
-			for await (const frame of sink.canvasesAtTimestamps(times.map((time) => Math.max(start, time)))) {
-				if (frame) yield frame.canvas;
+			const wanted = times.map((time) => Math.max(start, time));
+			if (wanted.every((time, index) => index === 0 || time >= (wanted[index - 1] ?? 0))) {
+				for await (const frame of sink.canvasesAtTimestamps(wanted)) {
+					if (frame) yield frame.canvas;
+				}
+				return;
+			}
+			// Backwards (reverse, back and forth): each time going back would decode again from the
+			// key frame before it. Blocks of pictures are decoded forward, then given in the order asked.
+			for (let from = 0; from < wanted.length; from += REVERSE_BLOCK) {
+				const block = wanted.slice(from, from + REVERSE_BLOCK);
+				const forward = [...new Set(block)].toSorted((a, b) => a - b);
+				const pictures = new Map<number, ImageBitmap>();
+				try {
+					let index = 0;
+					// oxlint-disable-next-line no-await-in-loop -- one block after the other, in order
+					for await (const frame of sink.canvasesAtTimestamps(forward)) {
+						const time = forward[index] ?? 0;
+						index += 1;
+						// oxlint-disable-next-line no-await-in-loop -- the sink reuses its canvases
+						if (frame) pictures.set(time, await createImageBitmap(frame.canvas));
+					}
+					for (const time of block) {
+						const picture = pictures.get(time);
+						if (picture) yield picture;
+					}
+				} finally {
+					for (const picture of pictures.values()) picture.close();
+				}
 			}
 		},
 		dispose() {

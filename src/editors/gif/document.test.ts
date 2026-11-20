@@ -37,6 +37,14 @@ describe('gif document', () => {
 		expect(outputLength(frames)).toBeCloseTo(0.25);
 	});
 
+	it('keeps a frame left out when the trim moves into it', () => {
+		const doc = { ...createGifDoc(1, null), removed: [frameKey(0)] };
+		const trimmed = setTrim(doc, { start: 0.05, end: 1 });
+		const frames = outputFrames(trimmed, timing);
+		expect(frames[0]?.source).toBeCloseTo(0.1);
+		expect(frames).toHaveLength(9);
+	});
+
 	it('shows frames as long as asked, in the order asked', () => {
 		const doc = { ...createGifDoc(1, null), delays: { [frameKey(0.2)]: 0.5 }, order: [frameKey(0.2), frameKey(0)] };
 		const frames = outputFrames(doc, timing);

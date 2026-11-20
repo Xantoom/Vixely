@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { usePlayback } from '@/media/playback';
 import { m } from '@/paraglide/messages.js';
@@ -33,7 +33,10 @@ export function FindPanel() {
 	lastQuery = query;
 	lastReplacement = by;
 
-	const matches = useMemo(() => findMatches(doc, query), [doc, query]);
+	// Typing stays immediate on a long track: the search follows when the page has time. Matches
+	// and replacements go by what was searched, so they always agree.
+	const searched = useDeferredValue(query);
+	const matches = useMemo(() => findMatches(doc, searched), [doc, searched]);
 	const invalid = query.text !== '' && queryPattern(query) === null;
 	const shown = current !== null && current < matches.length ? current : null;
 
@@ -193,7 +196,7 @@ export function FindPanel() {
 							const match = shown === null ? undefined : matches[shown];
 							if (!match) return;
 							follow.current = shown;
-							apply((before) => replaceMatch(before, query, match, by));
+							apply((before) => replaceMatch(before, searched, match, by));
 						}}
 					>
 						{m.find_replace_one()}
@@ -201,7 +204,7 @@ export function FindPanel() {
 					<Button
 						disabled={matches.length === 0}
 						onClick={() => {
-							applyWhole((before) => replaceAll(before, query, by).doc);
+							applyWhole((before) => replaceAll(before, searched, by).doc);
 							setCurrent(null);
 						}}
 					>

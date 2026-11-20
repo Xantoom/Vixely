@@ -105,18 +105,20 @@ function stopped(): DOMException {
 }
 
 /**
- * Draws every output frame, in order, through the same composer as the preview, and hands its
- * pixels to `add`.
+ * Draws every output frame, in order, through the same composer as the preview, and hands it to
+ * `add`: the canvas it is drawn on, and its pixels, read only when asked. Without `reads`, the
+ * canvas stays on the graphics card, for those that draw or encode it as it is (video, WebP, PNG).
  */
 async function drawFrames(
 	{ source, doc, settings, signal, onProgress }: ExportGifOptions,
 	frames: readonly OutputFrame[],
 	layout: FrameLayout,
-	add: (image: ImageData, frame: OutputFrame) => Promise<void> | void,
+	add: (frame: OutputFrame, canvas: OffscreenCanvas, pixels: () => ImageData) => Promise<void> | void,
+	reads = true,
 ) {
 	const composer = new FrameComposer();
 	const canvas = new OffscreenCanvas(layout.width, layout.height);
-	const context = canvas.getContext('2d', { willReadFrequently: true });
+	const context = canvas.getContext('2d', { willReadFrequently: reads });
 	if (!context) throw new Error('No 2D canvas.');
 	const crop = effectiveCrop(doc.picture, source);
 	const length = outputLength(frames);
@@ -133,12 +135,13 @@ async function drawFrames(
 			if (frame) {
 				composer.draw(context, picture, source, doc, layout, {
 					time: frame.start,
+					source: frame.source,
 					length,
 					sampling: settings.sampling ?? 'smooth',
 				});
 				// Frames are drawn and encoded in order; each waits for the previous one.
 				// oxlint-disable-next-line no-await-in-loop
-				await add(context.getImageData(0, 0, layout.width, layout.height), frame);
+				await add(frame, canvas, () => context.getImageData(0, 0, layout.width, layout.height));
 			}
 			index += 1;
 			onProgress(index / frames.length);
@@ -169,9 +172,9 @@ async function exportPalette(options: ExportGifOptions, frames: readonly OutputF
 	};
 	signal.addEventListener('abort', stop, { once: true });
 	try {
-		await drawFrames(options, frames, layout, (image, frame) => {
-			encoder.addFrame(image.data, size.width, size.height, frame.start, frame.duration);
-		});
+		await drawFrames(options, frames, layout, async (frame, _canvas, pixels) =>
+			encoder.addFrame(pixels().data, size.width, size.height, frame.start, frame.duration),
+		);
 		options.onProgress(null);
 		const bytes = await encoder.finish();
 		if (signal.aborted) throw stopped();
@@ -194,22 +197,25 @@ async function exportWebp(options: ExportGifOptions, frames: readonly OutputFram
 	const layout = exportLayout(doc, source, settings);
 	const size = { width: layout.width, height: layout.height };
 	const lossy = await browserEncodesWebp();
-	const canvas = new OffscreenCanvas(size.width, size.height);
-	const context = canvas.getContext('2d');
 	const fallback = lossy ? null : new WebpStillEncoder();
 	const stills: WebpFrame[] = [];
 	try {
-		await drawFrames(options, frames, layout, async (image, frame) => {
-			let still: Uint8Array;
-			if (fallback) {
-				still = await fallback.encode(image.data, size.width, size.height);
-			} else {
-				context?.putImageData(image, 0, 0);
-				const blob = await canvas.convertToBlob({ type: 'image/webp', quality: settings.quality / 100 });
-				still = new Uint8Array(await blob.arrayBuffer());
-			}
-			stills.push({ still, duration: frame.duration * 1000 });
-		});
+		await drawFrames(
+			options,
+			frames,
+			layout,
+			async (frame, canvas, pixels) => {
+				let still: Uint8Array;
+				if (fallback) {
+					still = await fallback.encode(pixels().data, size.width, size.height);
+				} else {
+					const blob = await canvas.convertToBlob({ type: 'image/webp', quality: settings.quality / 100 });
+					still = new Uint8Array(await blob.arrayBuffer());
+				}
+				stills.push({ still, duration: frame.duration * 1000 });
+			},
+			fallback !== null,
+		);
 	} finally {
 		fallback?.close();
 	}
@@ -244,18 +250,25 @@ async function exportVideo(options: ExportGifOptions, frames: readonly OutputFra
 	output.setMetadataTags({ creationTime: null });
 	await output.start();
 	try {
-		await drawFrames(options, frames, layout, async (image, frame) => {
-			if (!context) return;
-			context.putImageData(image, 0, 0);
-			if (!settings.alpha) {
-				// Without transparency, transparent areas show white, as on most pages.
-				context.globalCompositeOperation = 'destination-over';
-				context.fillStyle = '#fff';
-				context.fillRect(0, 0, size.width, size.height);
-				context.globalCompositeOperation = 'source-over';
-			}
-			await video.add(frame.start, frame.duration);
-		});
+		await drawFrames(
+			options,
+			frames,
+			layout,
+			async (frame, drawn) => {
+				if (!context) return;
+				context.clearRect(0, 0, size.width, size.height);
+				context.drawImage(drawn, 0, 0);
+				if (!settings.alpha) {
+					// Without transparency, transparent areas show white, as on most pages.
+					context.globalCompositeOperation = 'destination-over';
+					context.fillStyle = '#fff';
+					context.fillRect(0, 0, size.width, size.height);
+					context.globalCompositeOperation = 'source-over';
+				}
+				await video.add(frame.start, frame.duration);
+			},
+			false,
+		);
 		options.onProgress(null);
 		await output.finalize();
 	} catch (error) {
@@ -271,20 +284,23 @@ async function exportVideo(options: ExportGifOptions, frames: readonly OutputFra
 async function exportFrames(options: ExportGifOptions, frames: readonly OutputFrame[]) {
 	const { source, doc, settings } = options;
 	const layout = exportLayout(doc, source, settings);
-	const canvas = new OffscreenCanvas(layout.width, layout.height);
-	const context = canvas.getContext('2d');
 	const files: Record<string, Uint8Array> = {};
 	const digits = String(frames.length).length;
 	const delays: string[] = [];
 	let index = 0;
-	await drawFrames(options, frames, layout, async (image, frame) => {
-		context?.putImageData(image, 0, 0);
-		const blob = await canvas.convertToBlob({ type: 'image/png' });
-		index += 1;
-		const name = `frame-${String(index).padStart(digits, '0')}.png`;
-		files[name] = new Uint8Array(await blob.arrayBuffer());
-		delays.push(`${name}\t${Math.round(frame.duration * 1000)} ms`);
-	});
+	await drawFrames(
+		options,
+		frames,
+		layout,
+		async (frame, drawn) => {
+			const blob = await drawn.convertToBlob({ type: 'image/png' });
+			index += 1;
+			const name = `frame-${String(index).padStart(digits, '0')}.png`;
+			files[name] = new Uint8Array(await blob.arrayBuffer());
+			delays.push(`${name}\t${Math.round(frame.duration * 1000)} ms`);
+		},
+		false,
+	);
 	options.onProgress(null);
 	files['delays.txt'] = new TextEncoder().encode(`${delays.join('\n')}\n`);
 	// PNGs are already compressed: stored as they are.

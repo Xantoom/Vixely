@@ -213,12 +213,12 @@ async function audioTrackOf(input: Input, plan: AudioPlan, open: (file: File) =>
 		const other = open(plan.from.file);
 		if (!('id' in plan.from)) return other.getPrimaryAudioTrack();
 		const { id } = plan.from;
-		return (await other.getAudioTracks()).find((track) => track.id === id) ?? null;
+		return (await other.getAudioTracks()).find((track) => track.containerId === id) ?? null;
 	}
 	const tracks = await input.getAudioTracks();
 	if ('number' in plan.from) return tracks[plan.from.number - 1] ?? null;
 	const { id } = plan.from;
-	return tracks.find((track) => track.id === id) ?? null;
+	return tracks.find((track) => track.containerId === id) ?? null;
 }
 
 /** The codec sound is encoded again in: its own when it can be, else the container's usual one. */

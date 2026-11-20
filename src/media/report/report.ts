@@ -128,7 +128,7 @@ async function flags(track: InputTrack, extra: TrackFacts | undefined): Promise<
 	]);
 	const duration = extra?.duration ?? (await track.computeDuration().catch(() => null));
 	return {
-		id: track.id,
+		id: track.containerId,
 		language,
 		name: name?.trim() || null,
 		default: disposition.default,
@@ -195,7 +195,7 @@ async function describeVideo(
 	container: ContainerFacts,
 	indexed: boolean,
 ): Promise<VideoReport> {
-	const extra = container.tracks.get(track.id);
+	const extra = container.tracks.get(track.containerId);
 	const [
 		base,
 		codec,
@@ -271,7 +271,7 @@ async function describeAudio(
 	container: ContainerFacts,
 	indexed: boolean,
 ): Promise<AudioReport> {
-	const extra = container.tracks.get(track.id);
+	const extra = container.tracks.get(track.containerId);
 	const [base, codec, codecString, channels, sampleRate, config, bitrate, average] = await Promise.all([
 		flags(track, extra),
 		track.getCodec(),
@@ -297,7 +297,7 @@ async function describeAudio(
 		average ??
 		bitrate ??
 		(await countedBitrate(track, indexed)) ??
-		((await audioBitrate(file, track.id)) ?? 0) * 1000;
+		((await audioBitrate(file, track.containerId)) ?? 0) * 1000;
 	return {
 		...base,
 		codec,
