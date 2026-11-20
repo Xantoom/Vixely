@@ -1,0 +1,7 @@
+# Addresses of the first Vixely, now editors of their own
+/tools/video /video 301
+/tools/image /image 301
+/tools/gif /gif 301
+
+# Files shared with the installed app: the service worker answers, or the home page
+/share / 303

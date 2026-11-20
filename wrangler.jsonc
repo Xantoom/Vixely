@@ -1,0 +1,37 @@
+// Vixely on Cloudflare Workers: the built site (dist/) served as static assets, no Worker code.
+// The headers, redirects and health check nginx.conf gave on Railway are in public/_headers,
+// public/_redirects and public/healthz; .github/workflows/cloudflare.yml builds and deploys.
+//
+//   wrangler deploy                 → "vixely", production (the main branch)
+//   wrangler deploy --env preprod   → "vixely-preprod" (the v1 branch)
+//
+// vixely.app and www.vixely.app are attached to the production Worker as Custom Domains in the
+// Cloudflare dashboard (Workers & Pages → vixely → Settings → Domains & Routes).
+{
+	"name": "vixely",
+	"account_id": "480ab55dd9b66a585ffd0d71676d26d2",
+	"compatibility_date": "2026-11-13",
+	"assets": {
+		"directory": "./dist",
+		// Every page is prerendered: /tools/compress-video is tools/compress-video.html, and
+		// /tools/compress-video/ is sent to it without the slash.
+		"html_handling": "drop-trailing-slash",
+		// Anything else is dist/404.html (a copy of the app shell made by the workflow) with a 404,
+		// so a service worker never keeps it as a page of the build.
+		"not_found_handling": "404-page",
+	},
+	"workers_dev": true,
+	"preview_urls": false,
+	"env": {
+		"preprod": {
+			"name": "vixely-preprod",
+			"assets": {
+				"directory": "./dist",
+				"html_handling": "drop-trailing-slash",
+				"not_found_handling": "404-page",
+			},
+			"workers_dev": true,
+			"preview_urls": false,
+		},
+	},
+}

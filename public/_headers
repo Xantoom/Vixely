@@ -1,0 +1,27 @@
+# Headers for every file Cloudflare serves (the ones nginx.conf sent on Railway).
+# Rules apply in order; a later rule detaches a header ("! Name") before giving its own value.
+# COOP and COEP are required for SharedArrayBuffer (threads in WebAssembly). Pages, sw.js and the
+# rest are checked again at each visit (no-cache), so a new version is seen as soon as it's deployed.
+
+/*
+  X-Frame-Options: SAMEORIGIN
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self' data: blob:; connect-src 'self' https: blob: data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+  Cache-Control: no-cache
+
+# Files named by their content (Vite's hashed assets) never change.
+/assets/*
+  ! Cache-Control
+  Cache-Control: public, max-age=31536000, immutable
+
+/healthz
+  Content-Type: text/plain; charset=utf-8
+
+# Only the real site is listed by search engines; the workers.dev addresses never are.
+https://:worker.:account.workers.dev/*
+  X-Robots-Tag: noindex, nofollow
