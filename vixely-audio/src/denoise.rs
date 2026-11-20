@@ -123,7 +123,7 @@ impl Channel {
 		let mut frame_in = [0.0f32; FRAME];
 		let mut frame_out = [0.0f32; FRAME];
 		let whole = self.pending.len() / FRAME * FRAME;
-		for chunk in self.pending[..whole].chunks_exact(FRAME) {
+		for chunk in self.pending[..whole].as_chunks::<FRAME>().0 {
 			// The network expects 16-bit levels.
 			for (to, from) in frame_in.iter_mut().zip(chunk) {
 				*to = from * 32_768.0;
@@ -187,7 +187,13 @@ impl Denoiser {
 		let ready = self
 			.channels
 			.iter()
-			.map(|channel| if all { channel.dry.len() } else { channel.wet.len().min(channel.dry.len()) })
+			.map(|channel| {
+				if all {
+					channel.dry.len()
+				} else {
+					channel.wet.len().min(channel.dry.len())
+				}
+			})
 			.min()
 			.unwrap_or(0);
 		let mut out = Vec::with_capacity(ready * self.channels.len());
@@ -265,7 +271,11 @@ mod tests {
 			let output = run(rate, &input, 1_000, 1.0);
 			assert_eq!(output.len(), input.len(), "{rate}");
 			// The network's filters shift the phase by a sample or two at most.
-			assert!(best_lag(&input, &output).abs() <= 3, "{rate}: {}", best_lag(&input, &output));
+			assert!(
+				best_lag(&input, &output).abs() <= 3,
+				"{rate}: {}",
+				best_lag(&input, &output)
+			);
 		}
 	}
 
@@ -280,7 +290,11 @@ mod tests {
 		let mut back = Vec::new();
 		down.push(&high, &mut back);
 		down.push(&[0.0; 64], &mut back);
-		let error: f32 = input[1000..40_000].iter().zip(&back[1000..40_000]).map(|(a, b)| (a - b).powi(2)).sum();
+		let error: f32 = input[1000..40_000]
+			.iter()
+			.zip(&back[1000..40_000])
+			.map(|(a, b)| (a - b).powi(2))
+			.sum();
 		let signal: f32 = input[1000..40_000].iter().map(|a| a * a).sum();
 		assert!(error / signal < 1e-3, "{}", error / signal);
 	}
@@ -298,7 +312,12 @@ mod tests {
 		assert!(gap(&output) < gap(&noisy) * 0.1, "{} {}", gap(&output), gap(&noisy));
 		// The voice stays.
 		let burst = |samples: &[f32]| energy(&samples[(rate as f32 * 2.1) as usize..(rate as f32 * 2.5) as usize]);
-		assert!(burst(&output) > burst(&clean) * 0.3, "{} {}", burst(&output), burst(&clean));
+		assert!(
+			burst(&output) > burst(&clean) * 0.3,
+			"{} {}",
+			burst(&output),
+			burst(&clean)
+		);
 		// Half the amount is half-way between.
 		let half = run(rate, &noisy, 4_096, 0.5);
 		assert!(gap(&half) > gap(&output) && gap(&half) < gap(&noisy));

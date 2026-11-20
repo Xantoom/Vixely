@@ -316,14 +316,13 @@ impl<R: Read + Seek> Muxer<R> {
 				stream_of.push(stream);
 			}
 		}
-		let mut next_number = file.tracks.iter().map(|t| t.number).max().unwrap_or(0) + 1;
-		for added in &plan.added {
+		let first_new = file.tracks.iter().map(|t| t.number).max().unwrap_or(0) + 1;
+		for (number, added) in (first_new..).zip(&plan.added) {
 			outs.push(Out {
-				number: next_number,
+				number,
 				lines: Vec::new(),
 			});
 			stream_of.push(added.stream);
-			next_number += 1;
 		}
 		for (out, &stream) in outs.iter_mut().zip(&stream_of) {
 			let stream = streams.get(stream).ok_or_else(|| invalid("no such stream"))?;
@@ -379,15 +378,15 @@ impl<R: Read + Seek> Muxer<R> {
 					}
 					if element.id == CLUSTER_TIMESTAMP {
 						cluster.time = read_uint(&mut r, element.size)? as i64;
-					} else if let Some((number, time, key)) = block_info(&mut r, &element)? {
-						if copied(number) {
-							cluster.items.push(Item {
-								from: child,
-								to: element.end(),
-								time: cluster.time + time as i64,
-								key: key && Some(number) == video,
-							});
-						}
+					} else if let Some((number, time, key)) = block_info(&mut r, &element)?
+						&& copied(number)
+					{
+						cluster.items.push(Item {
+							from: child,
+							to: element.end(),
+							time: cluster.time + time as i64,
+							key: key && Some(number) == video,
+						});
 					}
 					if element.size == UNKNOWN {
 						break;
@@ -1083,10 +1082,7 @@ mod tests {
 		);
 		assert_eq!(file.tracks.iter().find(|t| t.number == 2).unwrap().language, "fre");
 		// The video is still all there.
-		assert_eq!(
-			out.windows(300).filter(|w| w.iter().all(|&b| b == 0xAA)).count() > 0,
-			true
-		);
+		assert!(out.windows(300).filter(|w| w.iter().all(|&b| b == 0xAA)).count() > 0);
 
 		let dropped = Plan {
 			attachments: None,

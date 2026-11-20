@@ -18,5 +18,5 @@
 		"types": ["vite/client"],
 		"paths": { "@/*": ["./src/*"] }
 	},
-	"include": ["src"]
+	"include": ["src", "worker"]
 }

@@ -8,7 +8,7 @@ import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
 // Cross-origin isolation enables SharedArrayBuffer, which the multithreaded WASM encoders need.
-// Production serves the same headers from nginx.conf.
+// Production serves the same headers from public/_headers.
 const isolationHeaders = {
 	'Cross-Origin-Opener-Policy': 'same-origin',
 	'Cross-Origin-Embedder-Policy': 'require-corp',
@@ -17,7 +17,7 @@ const isolationHeaders = {
 const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
 
 // The preview also runs under the site's policy, so the browser checks see what it blocks.
-const policy = /Content-Security-Policy "([^"]+)"/.exec(readFileSync(new URL('./nginx.conf', import.meta.url), 'utf8'))?.[1] ?? '';
+const policy = /Content-Security-Policy: (.+)/.exec(readFileSync(new URL('./public/_headers', import.meta.url), 'utf8'))?.[1] ?? '';
 
 export default defineConfig({
 	// The app's version, written into the files it makes (ASS scripts name it as their editor).
@@ -40,8 +40,10 @@ export default defineConfig({
 			emitTsDeclarations: true,
 			// On disk: scripts/prerender.tsx reads the messages without Vite.
 			outputStructure: 'message-modules',
-			// Client-only app: remember the choice locally, otherwise follow the browser language.
-			strategy: ['localStorage', 'preferredLanguage', 'baseLocale'],
+			// Client-only app: remember the choice locally, otherwise follow the browser language
+			// (src/app/locale.ts puts French addresses first). The language found is then kept in a
+			// variable: every message asks for it, and storage is read only once.
+			strategy: ['globalVariable', 'localStorage', 'preferredLanguage', 'baseLocale'],
 		}),
 	],
 	resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },

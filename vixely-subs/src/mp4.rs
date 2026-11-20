@@ -109,7 +109,7 @@ pub(crate) fn u64_at(data: &[u8], at: usize) -> Option<u64> {
 /// ISO 639-2 code packed in three 5-bit letters.
 pub(crate) fn packed_language(code: u16) -> String {
 	let letters = [(code >> 10) & 0x1F, (code >> 5) & 0x1F, code & 0x1F];
-	if letters.iter().any(|&l| l == 0) {
+	if letters.contains(&0) {
 		return "und".into();
 	}
 	letters.iter().map(|&l| char::from(b'`' + l as u8)).collect()

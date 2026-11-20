@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { usePageHead } from '../head';
+import { localePath } from '../locale';
 import { SiteFooter } from '../SiteFooter';
 import { SiteHeader } from '../SiteHeader';
 
@@ -47,7 +48,10 @@ export function SitePage({ content }: { content: PageContent }) {
 
 export function TextLink({ href, children }: { href: string; children: ReactNode }) {
 	return (
-		<a href={href} className="underline underline-offset-[3px] hover:no-underline">
+		<a
+			href={href.startsWith('/') ? localePath(href) : href}
+			className="underline underline-offset-[3px] hover:no-underline"
+		>
 			{children}
 		</a>
 	);

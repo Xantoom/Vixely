@@ -112,6 +112,11 @@ export function AudioBox({ transport = true }: { transport?: boolean }) {
 		setViewState(clampView(next, Math.max(length, MIN_SPAN)));
 	};
 
+	// The view never reaches past the end: a 10 s video fills the lane rather than 10 s of 12.
+	useEffect(() => {
+		if (length > 0) setViewState((current) => clampView(current, Math.max(length, MIN_SPAN)));
+	}, [length]);
+
 	// The line picked elsewhere comes into view, with some room around it.
 	useEffect(() => {
 		if (!cue) return;

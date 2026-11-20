@@ -1,6 +1,7 @@
-// Vixely on Cloudflare Workers: the built site (dist/) served as static assets, no Worker code.
-// The headers, redirects and health check nginx.conf gave on Railway are in public/_headers,
-// public/_redirects and public/healthz; .github/workflows/cloudflare.yml builds and deploys.
+// Vixely on Cloudflare Workers: the built site (dist/) served as static assets, and worker/index.ts
+// for the one address that isn't a file, /count (visits, see the privacy page). Headers, redirects
+// and the health check are in public/_headers, public/_redirects and public/healthz;
+// .github/workflows/ci.yml builds, checks and deploys.
 //
 //   wrangler deploy                 → "vixely", production (the main branch)
 //   wrangler deploy --env preprod   → "vixely-preprod" (the v1 branch)
@@ -11,15 +12,20 @@
 	"name": "vixely",
 	"account_id": "480ab55dd9b66a585ffd0d71676d26d2",
 	"compatibility_date": "2026-11-13",
+	"main": "worker/index.ts",
 	"assets": {
 		"directory": "./dist",
+		"binding": "ASSETS",
 		// Every page is prerendered: /tools/compress-video is tools/compress-video.html, and
 		// /tools/compress-video/ is sent to it without the slash.
 		"html_handling": "drop-trailing-slash",
-		// Anything else is dist/404.html (a copy of the app shell made by the workflow) with a 404,
-		// so a service worker never keeps it as a page of the build.
+		// Anything else is dist/404.html (the app shell, written by scripts/prerender.tsx) with a
+		// 404, so a service worker never keeps it as a page of the build.
 		"not_found_handling": "404-page",
+		// The Worker runs only for /count: every file is served without it, at no cost.
+		"run_worker_first": ["/count"],
 	},
+	"analytics_engine_datasets": [{ "binding": "VISITS", "dataset": "vixely_visits" }],
 	"workers_dev": true,
 	"preview_urls": false,
 	"env": {
@@ -27,9 +33,12 @@
 			"name": "vixely-preprod",
 			"assets": {
 				"directory": "./dist",
+				"binding": "ASSETS",
 				"html_handling": "drop-trailing-slash",
 				"not_found_handling": "404-page",
+				"run_worker_first": ["/count"],
 			},
+			"analytics_engine_datasets": [{ "binding": "VISITS", "dataset": "vixely_preprod_visits" }],
 			"workers_dev": true,
 			"preview_urls": false,
 		},

@@ -98,7 +98,7 @@ fn embed_png_exif(png: Vec<u8>, exif: &[u8]) -> Vec<u8> {
 }
 
 fn is_opaque(rgba: &[u8]) -> bool {
-	rgba.chunks_exact(4).all(|pixel| pixel[3] == 255)
+	rgba.as_chunks::<4>().0.iter().all(|pixel| pixel[3] == 255)
 }
 
 /// PNG. With `lossy_quality` set (1 to 100), colours are reduced to a palette of at most 256 by
@@ -127,7 +127,12 @@ pub fn png(
 			encoder.set_filter(png::Filter::Adaptive);
 			let mut writer = encoder.write_header().map_err(fail)?;
 			if opaque {
-				let rgb: Vec<u8> = rgba.chunks_exact(4).flat_map(|p| [p[0], p[1], p[2]]).collect();
+				let rgb: Vec<u8> = rgba
+					.as_chunks::<4>()
+					.0
+					.iter()
+					.flat_map(|p| [p[0], p[1], p[2]])
+					.collect();
 				writer.write_image_data(&rgb).map_err(fail)?;
 			} else {
 				writer.write_image_data(rgba).map_err(fail)?;
@@ -199,7 +204,12 @@ pub fn webp(rgba: &[u8], width: u32, height: u32, quality: f32, exif: &[u8]) -> 
 	let quality = quality.clamp(1.0, 100.0);
 	let rgb: Vec<u8>;
 	let (pixels, layout) = if is_opaque(rgba) {
-		rgb = rgba.chunks_exact(4).flat_map(|p| [p[0], p[1], p[2]]).collect();
+		rgb = rgba
+			.as_chunks::<4>()
+			.0
+			.iter()
+			.flat_map(|p| [p[0], p[1], p[2]])
+			.collect();
 		(&rgb[..], PixelLayout::Rgb8)
 	} else {
 		(rgba, PixelLayout::Rgba8)
@@ -258,7 +268,12 @@ pub fn jxl(
 	let opaque = is_opaque(rgba);
 	let rgb: Vec<u8>;
 	let (pixels, layout) = if opaque {
-		rgb = rgba.chunks_exact(4).flat_map(|p| [p[0], p[1], p[2]]).collect();
+		rgb = rgba
+			.as_chunks::<4>()
+			.0
+			.iter()
+			.flat_map(|p| [p[0], p[1], p[2]])
+			.collect();
 		(&rgb[..], PixelLayout::Rgb8)
 	} else {
 		(rgba, PixelLayout::Rgba8)
@@ -330,7 +345,7 @@ mod tests {
 	#[test]
 	fn opaque_png_drops_the_alpha_channel() {
 		let (mut rgba, w, h) = sample();
-		for pixel in rgba.chunks_exact_mut(4) {
+		for pixel in rgba.as_chunks_mut::<4>().0 {
 			pixel[3] = 255;
 		}
 		let out = png(&rgba, w, h, None, &[]).unwrap();
@@ -357,7 +372,14 @@ mod tests {
 			if quality >= 100.0 {
 				// Fully transparent pixels may lose their unseen colour.
 				let visible = |pixels: &[u8]| -> Vec<u8> {
-					pixels.chunks_exact(4).filter(|p| p[3] > 0).flatten().copied().collect()
+					pixels
+						.as_chunks::<4>()
+						.0
+						.iter()
+						.filter(|p| p[3] > 0)
+						.flatten()
+						.copied()
+						.collect()
 				};
 				assert_eq!(visible(&decoded), visible(&rgba), "quality 100 must be lossless");
 			}
@@ -367,7 +389,7 @@ mod tests {
 	#[test]
 	fn opaque_webp_is_plain_vp8() {
 		let (mut rgba, w, h) = sample();
-		for pixel in rgba.chunks_exact_mut(4) {
+		for pixel in rgba.as_chunks_mut::<4>().0 {
 			pixel[3] = 255;
 		}
 		let out = webp(&rgba, w, h, 80.0, &[]).unwrap();

@@ -1,4 +1,4 @@
-# Headers for every file Cloudflare serves (the ones nginx.conf sent on Railway).
+# Headers for every file Cloudflare serves.
 # Rules apply in order; a later rule detaches a header ("! Name") before giving its own value.
 # COOP and COEP are required for SharedArrayBuffer (threads in WebAssembly). Pages, sw.js and the
 # rest are checked again at each visit (no-cache), so a new version is seen as soon as it's deployed.

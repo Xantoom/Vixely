@@ -5,6 +5,7 @@ import { AROUND, AudioBox, SubtitlePlayer } from './AudioBox';
 import { gridLines, MIN_CUE, removeCues, setCueTimes } from './document';
 import { EditBox } from './EditBox';
 import { gridHeight, LineGrid } from './LineGrid';
+import { TrackPicker } from './panels';
 import { QualityBar } from './QualityBar';
 import { useSubtitleDoc, useSubtitleEditor } from './store';
 import { SubtitleViewer, subtitleFrame, useChoosingVideo } from './SubtitleViewer';
@@ -83,7 +84,15 @@ function useColumnPicture(): boolean {
  * the whole height on the left with the playback bar under it, as on a phone; beside it, from
  * the top, the sound, the line being edited and every line. On phones, one under the other.
  */
-export function Workspace({ title, ambient = null }: { title: string; ambient?: ImageBitmap | null }) {
+export function Workspace({
+	title,
+	fileName,
+	ambient = null,
+}: {
+	title: string;
+	fileName: string;
+	ambient?: ImageBitmap | null;
+}) {
 	const choosing = useChoosingVideo();
 	// Without a video there is no picture to stand in a column.
 	const column = useColumnPicture() && !choosing;
@@ -97,6 +106,7 @@ export function Workspace({ title, ambient = null }: { title: string; ambient?: 
 	}, []);
 	const list = (
 		<div className="relative flex min-w-0 flex-col gap-1 max-lg:order-4 max-lg:px-3 lg:min-h-0">
+			<TrackPicker fileName={fileName} />
 			<QualityBar />
 			<div className="min-h-0 flex-1 max-lg:h-(--list-h) max-lg:flex-none" style={{ '--list-h': listHeight }}>
 				<LineGrid />
@@ -142,7 +152,8 @@ export function Workspace({ title, ambient = null }: { title: string; ambient?: 
 					: 'minmax(0, 1.3fr) minmax(22rem, 1fr)',
 			}}
 		>
-			<div className="min-w-0 max-lg:order-1 lg:col-start-1 lg:row-start-1 lg:min-h-0">
+			{/* On an upright phone or tablet the picture stays at the top while the lines scroll under it. */}
+			<div className="bg-bg min-w-0 max-lg:order-1 max-lg:portrait:sticky max-lg:portrait:top-0 max-lg:portrait:z-20 lg:col-start-1 lg:row-start-1 lg:min-h-0">
 				<SubtitleViewer title={title} ambient={ambient} onFit={onFit} />
 			</div>
 			<div className="min-w-0 max-lg:order-3 lg:col-start-1 lg:row-start-2">

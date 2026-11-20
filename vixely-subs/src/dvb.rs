@@ -308,7 +308,9 @@ impl Stream {
 		}
 		self.timeout = f64::from(timeout);
 		self.shown = data[2..]
-			.chunks_exact(6)
+			.as_chunks::<6>()
+			.0
+			.iter()
 			.map(|entry| Shown {
 				region: entry[0],
 				x: usize::from(u16::from_be_bytes([entry[2], entry[3]])),
@@ -486,7 +488,7 @@ impl Stream {
 		if !drawn {
 			return;
 		}
-		let end = (self.timeout > 0.0).then(|| time + self.timeout * 1000.0);
+		let end = (self.timeout > 0.0).then_some(time + self.timeout * 1000.0);
 		if let Some(picture) = picture_from_rgba(time, end, self.display, 0, 0, width, &canvas, false) {
 			self.pictures.push(picture);
 		}

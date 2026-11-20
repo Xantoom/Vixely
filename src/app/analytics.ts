@@ -1,33 +1,27 @@
 /**
- * Visits counted with GoatCounter (goatcounter.com): no cookie, nothing stored on the device, no
- * script from elsewhere. Each page shown sends its path, the site the visitor came from and the
- * screen width; GoatCounter keeps no IP address. Off unless the build is given a GoatCounter code
- * (VITE_GOATCOUNTER), and only on the site's own address, never on a preview.
+ * Visits counted by the site itself (worker/index.ts): no cookie, nothing stored on the device, no
+ * other site involved. Each page shown sends its address, its language, the kind of screen and the
+ * site the visitor came from; the IP address is never kept. Only the deployed site counts.
  */
+import { getLocale } from '@/paraglide/runtime.js';
 
-const CODE: string | undefined = import.meta.env.VITE_GOATCOUNTER;
-const HOST = 'vixely.app';
-
-export const analyticsEnabled = Boolean(CODE);
+const COUNTING = import.meta.env.PROD && location.protocol === 'https:';
 
 let last: string | null = null;
 
+function screenKind(): string {
+	if (!matchMedia('(pointer: coarse)').matches) return 'computer';
+	return Math.min(window.screen.width, window.screen.height) < 600 ? 'phone' : 'tablet';
+}
+
 /** Counts a page shown. The same page twice in a row counts once. */
 export function countPage(path: string) {
-	if (!CODE || location.hostname !== HOST || path === last) return;
+	if (!COUNTING || path === last) return;
 	last = path;
-	const referrer = document.referrer && !document.referrer.startsWith(location.origin) ? document.referrer : '';
-	const query = new URLSearchParams({
-		p: path,
-		t: document.title,
-		r: referrer,
-		s: String(window.screen.width),
-		// Tells GoatCounter the request is not a bot's.
-		b: '0',
-		rnd: Math.random().toString(36).slice(2),
-	});
+	const from = document.referrer && !document.referrer.startsWith(location.origin) ? document.referrer : '';
+	const body = JSON.stringify({ page: path, language: getLocale(), screen: screenKind(), from });
 	try {
-		navigator.sendBeacon(`https://${CODE}.goatcounter.com/count?${query.toString()}`);
+		navigator.sendBeacon('/count', new Blob([body], { type: 'application/json' }));
 	} catch {
 		// Counting never gets in the way.
 	}

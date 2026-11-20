@@ -2,7 +2,7 @@
  * The built site without a network: installable, its service worker caches the app, then with the
  * network cut the pages reload, a video is copied and a photo encoded by the WebAssembly encoders.
  * Runs against the build: `bun run build && bunx vite preview` in the repository root (BASE=…
- * for another server, such as nginx).
+ * for another server, such as `wrangler dev`).
  */
 import { browserName, engine, sample } from './engine';
 import { readFileSync } from 'node:fs';

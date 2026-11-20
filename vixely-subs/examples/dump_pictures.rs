@@ -49,7 +49,7 @@ fn main() {
 		);
 		// On grey, so transparency shows.
 		let mut ppm = format!("P6 {} {} 255\n", rect.width, rect.height).into_bytes();
-		for p in rgba.chunks_exact(4) {
+		for p in rgba.as_chunks::<4>().0 {
 			let a = u16::from(p[3]);
 			for c in &p[..3] {
 				ppm.push(((u16::from(*c) * a + 96 * (255 - a)) / 255) as u8);

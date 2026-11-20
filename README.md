@@ -37,7 +37,7 @@ bun run dev
 bun run typecheck && bun run lint && bun run test && bun run test:rust
 ```
 
-Browser scenarios are in [e2e](e2e/README.md). The `Dockerfile` builds the site and serves it with nginx.
+Browser scenarios are in [e2e](e2e/README.md). The site is served by Cloudflare Workers as static assets: see `wrangler.jsonc`.
 
 ## Built with
 

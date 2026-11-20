@@ -68,7 +68,9 @@ impl AnimationReader {
 
 	/// The next frame, or `undefined` after the last one.
 	pub fn next_frame(&mut self) -> Result<Option<AnimationFrame>, JsError> {
-		let Some(frame) = self.frames.next() else { return Ok(None) };
+		let Some(frame) = self.frames.next() else {
+			return Ok(None);
+		};
 		let frame = frame.map_err(js_error)?;
 		let (numerator, denominator) = frame.delay().numer_denom_ms();
 		let buffer = frame.into_buffer();
@@ -102,18 +104,31 @@ impl GifWriter {
 			n if n < 0 => Repeat::Finite(0),
 			n => Repeat::Finite(u16::try_from(n).unwrap_or(u16::MAX)),
 		};
-		let settings = Settings { width: None, height: None, quality: quality.clamp(1, 100), fast, repeat };
+		let settings = Settings {
+			width: None,
+			height: None,
+			quality: quality.clamp(1, 100),
+			fast,
+			repeat,
+		};
 		let (collector, mut writer) = gifski::new(settings).map_err(js_error)?;
 		// gifski plans to move this into `Settings`; until then, this is the way to set it.
 		#[allow(deprecated)]
 		writer.set_lossy_quality(lossy.clamp(1, 100));
 		writer.set_dithering(dither);
-		Ok(GifWriter { collector: Some(collector), writer: Some(writer), count: 0 })
+		Ok(GifWriter {
+			collector: Some(collector),
+			writer: Some(writer),
+			count: 0,
+		})
 	}
 
 	/// Adds a frame shown from `pts` seconds.
 	pub fn add_frame(&mut self, rgba: &[u8], width: u32, height: u32, pts: f64) -> Result<(), JsError> {
-		let collector = self.collector.as_ref().ok_or_else(|| JsError::new("The GIF is already finished."))?;
+		let collector = self
+			.collector
+			.as_ref()
+			.ok_or_else(|| JsError::new("The GIF is already finished."))?;
 		let (width, height) = (width as usize, height as usize);
 		if rgba.len() != width * height * 4 {
 			return Err(JsError::new("The frame size doesn't match its pixels."));
@@ -128,7 +143,10 @@ impl GifWriter {
 	pub fn finish(&mut self) -> Result<Vec<u8>, JsError> {
 		// Dropping the collector tells the writer there are no more frames.
 		drop(self.collector.take());
-		let writer = self.writer.take().ok_or_else(|| JsError::new("The GIF is already finished."))?;
+		let writer = self
+			.writer
+			.take()
+			.ok_or_else(|| JsError::new("The GIF is already finished."))?;
 		let mut output = Vec::new();
 		writer.write(&mut output, &mut NoProgress {}).map_err(js_error)?;
 		Ok(output)
@@ -171,14 +189,35 @@ fn changed_area(previous: &[u8], next: &[u8], width: u32, height: u32) -> Option
 		if a == b {
 			continue;
 		}
-		let first = a.chunks_exact(4).zip(b.chunks_exact(4)).position(|(p, q)| p != q).unwrap_or(0);
-		let last = width - 1 - a.chunks_exact(4).rev().zip(b.chunks_exact(4).rev()).position(|(p, q)| p != q).unwrap_or(0);
+		let first = a
+			.as_chunks::<4>()
+			.0
+			.iter()
+			.zip(b.as_chunks::<4>().0)
+			.position(|(p, q)| p != q)
+			.unwrap_or(0);
+		let last = width
+			- 1 - a
+			.as_chunks::<4>()
+			.0
+			.iter()
+			.rev()
+			.zip(b.as_chunks::<4>().0.iter().rev())
+			.position(|(p, q)| p != q)
+			.unwrap_or(0);
 		left = left.min(first);
 		right = right.max(last);
 		top = top.min(y);
 		bottom = y;
 	}
-	(left <= right).then(|| (left as u32, top as u32, (right - left + 1) as u32, (bottom - top + 1) as u32))
+	(left <= right).then(|| {
+		(
+			left as u32,
+			top as u32,
+			(right - left + 1) as u32,
+			(bottom - top + 1) as u32,
+		)
+	})
 }
 
 #[wasm_bindgen]
@@ -201,7 +240,13 @@ impl ApngWriter {
 		encoder.set_blend_op(png::BlendOp::Source).map_err(js_error)?;
 		encoder.set_dispose_op(png::DisposeOp::None).map_err(js_error)?;
 		let writer = encoder.write_header().map_err(js_error)?;
-		Ok(ApngWriter { writer, output, width, height, previous: None })
+		Ok(ApngWriter {
+			writer,
+			output,
+			width,
+			height,
+			previous: None,
+		})
 	}
 
 	/// Adds a frame shown for `delay` milliseconds.
@@ -261,7 +306,11 @@ fn indexed_frame(pixels: imgref::ImgRef<'_, rgb::RGBA8>) -> Result<gif::Frame<'s
 	let mut exact = true;
 	for px in pixels.pixels() {
 		// Anything mostly transparent becomes the single transparent entry.
-		let key = if px.a < 128 { [0, 0, 0, 0] } else { [px.r, px.g, px.b, 255] };
+		let key = if px.a < 128 {
+			[0, 0, 0, 0]
+		} else {
+			[px.r, px.g, px.b, 255]
+		};
 		let next = colours.len();
 		let index = *colours.entry(key).or_insert(next as u8);
 		if colours.len() > 256 {
@@ -284,16 +333,31 @@ fn indexed_frame(pixels: imgref::ImgRef<'_, rgb::RGBA8>) -> Result<gif::Frame<'s
 		let mut liq = imagequant::new();
 		liq.set_quality(0, 100).map_err(|error| error.to_string())?;
 		let buffer: Vec<rgb::RGBA8> = pixels.pixels().collect();
-		let mut image = liq.new_image(buffer, width, height, 0.0).map_err(|error| error.to_string())?;
+		let mut image = liq
+			.new_image(buffer, width, height, 0.0)
+			.map_err(|error| error.to_string())?;
 		let mut result = liq.quantize(&mut image).map_err(|error| error.to_string())?;
 		result.set_dithering_level(1.0).map_err(|error| error.to_string())?;
 		let (colours, indexes) = result.remapped(&mut image).map_err(|error| error.to_string())?;
-		let transparent = colours.iter().position(|c| c.a < 128).and_then(|i| u8::try_from(i).ok());
-		(colours.iter().flat_map(|c| [c.r, c.g, c.b]).collect(), indexes, transparent)
+		let transparent = colours
+			.iter()
+			.position(|c| c.a < 128)
+			.and_then(|i| u8::try_from(i).ok());
+		(
+			colours.iter().flat_map(|c| [c.r, c.g, c.b]).collect(),
+			indexes,
+			transparent,
+		)
 	};
 	let width = u16::try_from(width).map_err(|error| error.to_string())?;
 	let height = u16::try_from(height).map_err(|error| error.to_string())?;
-	Ok(gif::Frame::from_palette_pixels(width, height, indexes, palette, transparent))
+	Ok(gif::Frame::from_palette_pixels(
+		width,
+		height,
+		indexes,
+		palette,
+		transparent,
+	))
 }
 
 /// Cuts a GIF between two times (in seconds) without re-encoding it: frames are copied with their
@@ -303,7 +367,9 @@ fn trim(bytes: &[u8], start: f64, end: f64, repeat: i32) -> Result<Vec<u8>, Stri
 	let (start, end) = (start * 1000.0, end * 1000.0);
 	let mut options = gif::DecodeOptions::new();
 	options.set_color_output(gif::ColorOutput::Indexed);
-	let mut decoder = options.read_info(Cursor::new(bytes)).map_err(|error| error.to_string())?;
+	let mut decoder = options
+		.read_info(Cursor::new(bytes))
+		.map_err(|error| error.to_string())?;
 	let mut screen = gif_dispose::Screen::new_decoder(&decoder);
 	let (width, height) = (decoder.width(), decoder.height());
 	let palette = decoder.global_palette().map(<[u8]>::to_vec).unwrap_or_default();
@@ -330,7 +396,11 @@ fn trim(bytes: &[u8], start: f64, end: f64, repeat: i32) -> Result<Vec<u8>, Stri
 			break;
 		}
 		let shown = to.min(end) - from.max(start);
-		let delay = if shown < to - from { (shown / 10.0).round().clamp(2.0, 65_535.0) as u16 } else { frame.delay };
+		let delay = if shown < to - from {
+			(shown / 10.0).round().clamp(2.0, 65_535.0) as u16
+		} else {
+			frame.delay
+		};
 		if written == 0 && (index > 1 || start > from) {
 			let mut rebuilt = indexed_frame(screen.pixels_rgba())?;
 			rebuilt.delay = delay;
@@ -362,10 +432,14 @@ mod tests {
 
 	fn frame(width: u32, height: u32, square: (u32, u32)) -> Vec<u8> {
 		let mut rgba = vec![0u8; (width * height * 4) as usize];
-		for (i, px) in rgba.chunks_exact_mut(4).enumerate() {
+		for (i, px) in rgba.as_chunks_mut::<4>().0.iter_mut().enumerate() {
 			let (x, y) = (i as u32 % width, i as u32 / width);
 			let inside = x >= square.0 && x < square.0 + 8 && y >= square.1 && y < square.1 + 8;
-			px.copy_from_slice(if inside { &[255, 255, 255, 255] } else { &[20, 60, 200, 255] });
+			px.copy_from_slice(if inside {
+				&[255, 255, 255, 255]
+			} else {
+				&[20, 60, 200, 255]
+			});
 		}
 		rgba
 	}
@@ -400,7 +474,10 @@ mod tests {
 		assert_eq!(frames.iter().map(|f| f.0).collect::<Vec<_>>(), [60, 120, 180]);
 		assert_eq!(frames.iter().map(|f| f.1).collect::<Vec<_>>(), [50, 100, 80]);
 		// Untouched: every frame comes back identical.
-		assert_eq!(decode(trim(&five_colours(), 0.0, 0.5, 0).unwrap()), decode(five_colours()));
+		assert_eq!(
+			decode(trim(&five_colours(), 0.0, 0.5, 0).unwrap()),
+			decode(five_colours())
+		);
 	}
 
 	#[test]
@@ -423,7 +500,11 @@ mod tests {
 		let decoded: Vec<_> = decoder.apng().unwrap().into_frames().collect::<Result<_, _>>().unwrap();
 		assert_eq!(decoded.len(), 3);
 		for (frame, original) in decoded.iter().zip(&frames) {
-			assert_eq!(frame.buffer().as_raw(), original, "frames must be lossless once composited");
+			assert_eq!(
+				frame.buffer().as_raw(),
+				original,
+				"frames must be lossless once composited"
+			);
 			assert_eq!(frame.delay().numer_denom_ms(), (100, 1));
 		}
 	}

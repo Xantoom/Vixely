@@ -360,14 +360,17 @@ pub fn attachment<R: Read + Seek>(r: &mut R, attachment: &Attachment) -> io::Res
 	read_bytes(r, attachment.size)
 }
 
+/// A cluster's offset in the segment, and the block's offset in the cluster when the cue gives it.
+type CuePosition = (u64, Option<u64>);
+
 /// Where the cues say the blocks of each wanted track are: cluster offsets in the segment, and the
 /// block offset in the cluster when written. Tracks the cues don't mention get no entry.
 fn cue_positions<R: Read + Seek>(
 	r: &mut R,
 	file: &Matroska,
 	tracks: &[u64],
-) -> io::Result<HashMap<u64, Vec<(u64, Option<u64>)>>> {
-	let mut positions: HashMap<u64, Vec<(u64, Option<u64>)>> = HashMap::new();
+) -> io::Result<HashMap<u64, Vec<CuePosition>>> {
+	let mut positions: HashMap<u64, Vec<CuePosition>> = HashMap::new();
 	let Some((start, end)) = file.cues else {
 		return Ok(positions);
 	};
@@ -516,10 +519,10 @@ impl Reader<'_> {
 	}
 
 	/// Reads the blocks the cues point to. Returns false when they can't be used.
-	fn from_cues<R: Read + Seek>(
+	fn read_cued_blocks<R: Read + Seek>(
 		&mut self,
 		r: &mut R,
-		positions: &[(u64, Option<u64>)],
+		positions: &[CuePosition],
 		progress: &mut dyn FnMut(f64),
 	) -> io::Result<bool> {
 		let mut scanned = HashSet::new();
@@ -754,7 +757,7 @@ pub fn extract_many<R: Read + Seek>(
 	positions.sort_unstable();
 	positions.dedup();
 	let found = indexed
-		&& reader.from_cues(r, &positions, progress)?
+		&& reader.read_cued_blocks(r, &positions, progress)?
 		&& reader.packets.iter().all(|packets| !packets.is_empty());
 	if !found {
 		reader.packets.iter_mut().for_each(Vec::clear);

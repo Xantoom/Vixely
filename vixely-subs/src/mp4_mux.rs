@@ -134,28 +134,27 @@ fn set_language(trak: &mut Node, language: &str) {
 	if let Some(mdia) = trak
 		.children_mut()
 		.and_then(|c| c.iter_mut().find(|n| n.kind() == b"mdia"))
+		&& let Some(children) = mdia.children_mut()
 	{
-		if let Some(children) = mdia.children_mut() {
-			children.retain(|node| node.kind() != b"elng");
-		}
+		children.retain(|node| node.kind() != b"elng");
 	}
 }
 
 fn set_name(trak: &mut Node, name: &str) {
-	if let Some(hdlr) = trak.leaf_mut(&[b"mdia", b"hdlr"]) {
-		if hdlr.len() >= 24 {
-			hdlr.truncate(24);
-			hdlr.extend_from_slice(name.as_bytes());
-			hdlr.push(0);
-		}
+	if let Some(hdlr) = trak.leaf_mut(&[b"mdia", b"hdlr"])
+		&& hdlr.len() >= 24
+	{
+		hdlr.truncate(24);
+		hdlr.extend_from_slice(name.as_bytes());
+		hdlr.push(0);
 	}
 }
 
 fn set_enabled(trak: &mut Node, enabled: bool) {
-	if let Some(tkhd) = trak.leaf_mut(&[b"tkhd"]) {
-		if tkhd.len() >= 4 {
-			tkhd[3] = if enabled { tkhd[3] | 1 } else { tkhd[3] & !1 };
-		}
+	if let Some(tkhd) = trak.leaf_mut(&[b"tkhd"])
+		&& tkhd.len() >= 4
+	{
+		tkhd[3] = if enabled { tkhd[3] | 1 } else { tkhd[3] & !1 };
 	}
 }
 

@@ -157,6 +157,7 @@ function SingleSubtitleScreen({ initialTool }: { initialTool?: ToolId }) {
 				ready ? (
 					<Workspace
 						title={opened.file.name.replace(/\.[^.]+$/, '')}
+						fileName={opened.file.name}
 						ambient={source === 'video' ? opened.poster : null}
 					/>
 				) : undefined

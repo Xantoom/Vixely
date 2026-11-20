@@ -3,12 +3,11 @@
  * whole than cut into messages.
  */
 import { getLocale } from '@/paraglide/runtime.js';
-import { analyticsEnabled } from '../analytics';
 import { type PageContent, TextLink } from './SitePage';
 
 const ISSUES = 'https://github.com/Xantoom/Vixely/issues';
 const SOURCE = 'https://github.com/Xantoom/Vixely';
-const UPDATED = { en: 'Last updated November 4, 2026', fr: 'Mis à jour le 4 novembre 2026' };
+const UPDATED = { en: 'Last updated November 20, 2026', fr: 'Mis à jour le 20 novembre 2026' };
 
 type Locale = 'en' | 'fr';
 
@@ -138,11 +137,12 @@ function privacy(lang: Locale): PageContent {
 			title: 'Visit counting',
 			body: (
 				<p>
-					To know which pages are used, each page shown is counted with{' '}
-					<TextLink href="https://www.goatcounter.com">GoatCounter</TextLink>: its address, the site you came
-					from, your screen width, and the browser and system your browser reports. No cookie is set and
-					nothing is stored on your device; GoatCounter stores no IP address and cannot follow a visitor from
-					one site or one day to another.
+					To know which pages are used, the site counts each page shown, by itself: its address, its language,
+					the kind of screen (phone, tablet or computer), the site you came from and the country your
+					connection comes from. No cookie is set, nothing is stored on your device, your IP address is not
+					kept and nothing links one visit to another. These statistics are kept three months on Cloudflare
+					and serve only to improve Vixely. This audience measurement needs no consent (CNIL guidelines); to
+					avoid it, block the address vixely.app/count.
 				</p>
 			),
 		},
@@ -150,11 +150,13 @@ function privacy(lang: Locale): PageContent {
 			title: 'Comptage des visites',
 			body: (
 				<p>
-					Pour savoir quelles pages servent, chaque page affichée est comptée avec{' '}
-					<TextLink href="https://www.goatcounter.com">GoatCounter</TextLink> : son adresse, le site d’où vous
-					venez, la largeur de votre écran, et le navigateur et le système que votre navigateur annonce. Aucun
-					cookie n’est déposé et rien n’est enregistré sur votre appareil ; GoatCounter n’enregistre aucune
-					adresse IP et ne peut pas suivre un visiteur d’un site ou d’un jour à l’autre.
+					Pour savoir quelles pages servent, le site compte lui-même chaque page affichée : son adresse, sa
+					langue, le type d’écran (téléphone, tablette ou ordinateur), le site d’où vous venez et le pays d’où
+					vient votre connexion. Aucun cookie n’est déposé, rien n’est enregistré sur votre appareil, votre
+					adresse IP n’est pas gardée et rien ne relie une visite à une autre. Ces statistiques sont gardées
+					trois mois chez Cloudflare et servent seulement à améliorer Vixely. Cette mesure d’audience est
+					exemptée de consentement (lignes directrices de la CNIL) ; pour l’éviter, bloquez l’adresse
+					vixely.app/count.
 				</p>
 			),
 		},
@@ -197,16 +199,16 @@ function privacy(lang: Locale): PageContent {
 						</p>
 					),
 				},
-				...(analyticsEnabled ? [counting.en] : []),
+				counting.en,
 				{
 					title: 'Hosting',
 					body: (
 						<p>
-							The site is served by Railway through Cloudflare's network. Like any web server, they see
-							the IP address of each request and may keep it in their logs for a short time, for the
-							site's security and operation, which is the legitimate interest it rests on (article 6(1)(f)
-							of the GDPR). Both are American companies, so this data may be processed in the United
-							States.
+							The site is served by Cloudflare. Like any web server, it sees the IP address of each
+							request and may keep it in its logs for a short time, for the site's security and operation,
+							which is the legitimate interest it rests on (article 6(1)(f) of the GDPR). Cloudflare is an
+							American company certified under the EU-US Data Privacy Framework, so this data may be
+							processed in the United States.
 						</p>
 					),
 				},
@@ -261,16 +263,17 @@ function privacy(lang: Locale): PageContent {
 						</p>
 					),
 				},
-				...(analyticsEnabled ? [counting.fr] : []),
+				counting.fr,
 				{
 					title: 'Hébergement',
 					body: (
 						<p>
-							Le site est servi par Railway à travers le réseau de Cloudflare. Comme tout serveur web, ils
-							voient l’adresse IP de chaque requête et peuvent la garder peu de temps dans leurs journaux,
-							pour la sécurité et le fonctionnement du site : c’est l’intérêt légitime sur lequel ce
-							traitement repose (article 6.1.f du RGPD). Ces deux sociétés sont américaines, ces données
-							peuvent donc être traitées aux États-Unis.
+							Le site est servi par Cloudflare. Comme tout serveur web, il voit l’adresse IP de chaque
+							requête et peut la garder peu de temps dans ses journaux, pour la sécurité et le
+							fonctionnement du site : c’est l’intérêt légitime sur lequel ce traitement repose (article
+							6.1.f du RGPD). Cloudflare est une société américaine certifiée au Data Privacy Framework
+							entre l’Union européenne et les États-Unis : ces données peuvent être traitées aux
+							États-Unis.
 						</p>
 					),
 				},
@@ -393,10 +396,10 @@ const TERMS: Record<Locale, PageContent> = {
 function host(lang: Locale) {
 	return (
 		<ul className="grid gap-1">
-			<li>Railway Corporation</li>
-			<li>548 Market St, PMB 68915, San Francisco, CA 94104, {lang === 'fr' ? 'États-Unis' : 'USA'}</li>
+			<li>Cloudflare, Inc.</li>
+			<li>101 Townsend St, San Francisco, CA 94107, {lang === 'fr' ? 'États-Unis' : 'USA'}</li>
 			<li>
-				<TextLink href="https://railway.com">railway.com</TextLink>
+				<TextLink href="https://www.cloudflare.com">cloudflare.com</TextLink>
 			</li>
 		</ul>
 	);

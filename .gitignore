@@ -31,3 +31,6 @@ target/
 # Local tooling
 .claude/
 .impeccable/
+
+# Wrangler's local state
+.wrangler/

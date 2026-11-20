@@ -17,7 +17,7 @@ function walk(directory: string): string[] {
 
 const files = walk(DIST)
 	.map((path) => `/${relative(DIST, path).replaceAll('\\', '/')}`)
-	.filter((path) => !['/sw.js', '/robots.txt', '/sitemap.xml', '/og-image.png'].includes(path) && !path.startsWith('/.vite/'))
+	.filter((path) => !['/sw.js', '/robots.txt', '/sitemap.xml', '/og-image.png', '/404.html'].includes(path) && !path.startsWith('/.'))
 	.toSorted();
 
 // Cached once used, not ahead: the fonts of subtitles and the WOFF copies attached to exports, the

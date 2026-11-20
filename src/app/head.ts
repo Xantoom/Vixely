@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { m } from '@/paraglide/messages.js';
-import { useLocale } from './locale';
+import { localePath, useLocale } from './locale';
 
 function setMeta(selector: string, attribute: 'name' | 'property', key: string, content: string) {
 	let element = document.head.querySelector<HTMLMetaElement>(selector);
@@ -25,5 +25,8 @@ export function usePageHead(title: string | null, description?: string) {
 		setMeta('meta[name="description"]', 'name', 'description', text);
 		setMeta('meta[property="og:title"]', 'property', 'og:title', full);
 		setMeta('meta[property="og:description"]', 'property', 'og:description', text);
+		// The page's address in this language, should it change while open.
+		const canonical = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+		if (canonical) canonical.href = `https://vixely.app${localePath(location.pathname, locale)}`;
 	}, [title, description, locale]);
 }

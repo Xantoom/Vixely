@@ -1,5 +1,14 @@
 import { useNavigate } from '@tanstack/react-router';
-import { ArrowDownToLine, ArrowDownWideNarrow, ArrowLeft, Ban, Check, Plus, TriangleAlert } from 'lucide-react';
+import {
+	ArrowDownToLine,
+	ArrowDownWideNarrow,
+	ArrowLeft,
+	Ban,
+	Check,
+	ChevronDown,
+	Plus,
+	TriangleAlert,
+} from 'lucide-react';
 import { useEffect, useId, useState } from 'react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { ExportAnnounce } from '@/editor/ExportAnnounce';
@@ -14,6 +23,7 @@ import { type OpenedFile, useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { Button, IconButton } from '@/ui/Button';
 import { FieldRow, OptionList, Select, TimeField } from '@/ui/fields';
+import { Menu } from '@/ui/Menu';
 import { muxContainer } from '../video/mux';
 import { MuxFooter } from '../video/MuxPanel';
 import { SoundTracks, SubtitleTracks, TrackPages } from '../video/Tracks';
@@ -119,6 +129,44 @@ function TracksSection({ fileName }: { fileName: string }) {
 			</div>
 			{listFailed && <p className="text-small text-danger">{m.subs_tracks_failed()}</p>}
 		</Section>
+	);
+}
+
+/**
+ * The track being edited, above its lines, when the file has more than one: the same choice as
+ * in Infos, where each track is described.
+ */
+export function TrackPicker({ fileName }: { fileName: string }) {
+	const tracks = useProjectTracks();
+	const current = useSubtitleProject((state) => state.current);
+	const choose = useSubtitleProject((state) => state.choose);
+	if (tracks.length < 2) return null;
+	const chosen = tracks.find((track) => track.key === current);
+	return (
+		<Menu
+			label={m.subs_tracks()}
+			title={m.subs_tracks()}
+			value={current === null ? null : String(current)}
+			align="start"
+			rows={8}
+			items={tracks.map((track, index) => ({
+				value: String(track.key),
+				label: projectTrackName(track, fileName),
+				detail: track.info ? codecLabel(track.info) : undefined,
+				disabled: track.original === null && track.reading !== true && track.key !== 'new',
+				// New subtitles are set apart from the tracks there are.
+				divider: tracks[index + 1]?.key === 'new',
+				leading: track.key === 'new' ? <Plus size={15} aria-hidden="true" /> : undefined,
+			}))}
+			onChange={(value) => {
+				const track = tracks.find((each) => String(each.key) === value);
+				if (track) choose(track.key);
+			}}
+			buttonClassName="flex! h-8 max-w-full justify-start gap-1.5 px-2 text-ui"
+		>
+			<span className="truncate">{chosen ? projectTrackName(chosen, fileName) : m.subs_tracks()}</span>
+			<ChevronDown size={14} className="flex-none" aria-hidden="true" />
+		</Menu>
 	);
 }
 

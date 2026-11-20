@@ -212,7 +212,7 @@ impl Normalizer {
 	fn palette(&mut self, data: &[u8]) {
 		let Some(&id) = data.first() else { return };
 		let palette = self.palettes.entry(id).or_insert([None; 256]);
-		for entry in data.get(2..).unwrap_or_default().chunks_exact(5) {
+		for entry in data.get(2..).unwrap_or_default().as_chunks::<5>().0 {
 			palette[entry[0] as usize] = Some([entry[1], entry[2], entry[3], entry[4]]);
 		}
 	}
@@ -415,9 +415,12 @@ pub fn decode(set: &[u8]) -> Option<(Rect, Vec<u8>)> {
 	Some((rect, pixels))
 }
 
+/// A display set's time in milliseconds and its segments, each as (kind, data).
+type DisplaySet = (f64, Vec<(u8, Vec<u8>)>);
+
 /// Display sets to show pictures: each one's segments at its time, then a clearing set at its
 /// end unless the next picture replaces it. Times in milliseconds; segments as (kind, data).
-fn display_sets(pictures: &[(f64, f64, &[u8])]) -> Vec<(f64, Vec<(u8, Vec<u8>)>)> {
+fn display_sets(pictures: &[(f64, f64, &[u8])]) -> Vec<DisplaySet> {
 	let mut sets = Vec::new();
 	let mut number = 0u16;
 	for (index, &(start, end, set)) in pictures.iter().enumerate() {
@@ -561,7 +564,7 @@ fn palette_of(rgba: &[u8]) -> (Vec<[u8; 4]>, Vec<u8>) {
 		let mut index: HashMap<[u8; 4], u8> = HashMap::from([([0; 4], 0)]);
 		let mut indices = Vec::with_capacity(rgba.len() / 4);
 		let mut fits = true;
-		for pixel in rgba.chunks_exact(4) {
+		for pixel in rgba.as_chunks::<4>().0 {
 			let color = key(pixel);
 			let at = match index.get(&color) {
 				Some(&at) => at,
@@ -835,7 +838,7 @@ mod tests {
 		assert!(near(&pixels[0..4], [255, 0, 0, 255]), "{:?}", &pixels[0..4]);
 		assert!(near(&pixels[4..8], [255, 255, 255, 255]), "{:?}", &pixels[4..8]);
 		assert_eq!(pixels[15], 128);
-		assert!(picture_from_rgba(0.0, None, (720, 576), 0, 0, 6, &vec![0; 6 * 4 * 4], false).is_none());
+		assert!(picture_from_rgba(0.0, None, (720, 576), 0, 0, 6, &[0; 6 * 4 * 4], false).is_none());
 	}
 
 	#[test]

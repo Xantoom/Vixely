@@ -6,7 +6,9 @@ site, no backend. Read this before changing anything.
 ## Stack
 
 React 19, TypeScript, Tailwind CSS 4, Vite, Bun, TanStack Router, Zustand, Paraglide (English and French), Mediabunny,
-WebCodecs, WebGL2, and Rust crates compiled to WebAssembly (`vixely-*`). Served by nginx on Railway from the `Dockerfile`.
+WebCodecs, WebGL2, and Rust crates compiled to WebAssembly (`vixely-*`). Served by Cloudflare Workers as static assets
+(`wrangler.jsonc`, `public/_headers`), with one small Worker for visit counting (`worker/`). `.github/workflows/ci.yml`
+checks every push, then deploys `main` to vixely.app and `v1` to vixely-preprod.xantoom.workers.dev.
 
 ## Commands
 
@@ -17,7 +19,7 @@ bun run test:rust
 ```
 
 - Browser scenarios are in `e2e/` (see its README). Run them with `JOBS=1` when a result looks odd: under load the dev
-  server makes some of them time out.
+  server makes some of them time out. `BASE=http://localhost:5400` points them at a dev server on another port.
 - After changing a patched package, delete `node_modules/.vite` and restart the dev server.
 
 ## Layout
