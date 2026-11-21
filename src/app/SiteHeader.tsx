@@ -1,17 +1,17 @@
 import { Link } from '@tanstack/react-router';
-import { MonitorDown, RefreshCw } from 'lucide-react';
+import { MonitorDown } from 'lucide-react';
 import { m } from '@/paraglide/messages.js';
 import { IconButton } from '@/ui/Button';
 import { LogoMark } from '@/ui/Logo';
 import { homeCopy } from './home/copy';
 import { OpenFileButton } from './OpenFileButton';
-import { applyUpdate, install, usePwa } from './pwa';
+import { install, usePwa } from './pwa';
 import { LanguageMenu, ThemeMenu } from './SettingsMenus';
+import { UpdateButton } from './UpdateButton';
 
 /** The bar of the pages around the editors: the home page's sections, and a way in. */
 export function SiteHeader() {
 	const copy = homeCopy();
-	const updateReady = usePwa((state) => state.updateReady);
 	const installable = usePwa((state) => state.installable);
 	const sections = [
 		['editors', copy.nav.editors],
@@ -44,11 +44,7 @@ export function SiteHeader() {
 				</nav>
 				<div className="flex-1" />
 				<div className="flex items-center gap-1.5">
-					{updateReady && (
-						<IconButton label={m.app_update()} onClick={applyUpdate}>
-							<RefreshCw className="size-5" />
-						</IconButton>
-					)}
+					<UpdateButton />
 					{installable && (
 						<IconButton
 							label={m.app_install()}

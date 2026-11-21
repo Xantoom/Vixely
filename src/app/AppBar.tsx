@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { MonitorDown, Redo2, RefreshCw, Search, Undo2 } from 'lucide-react';
+import { MonitorDown, Redo2, Search, Undo2 } from 'lucide-react';
 import { useLayoutEffect, useRef } from 'react';
 import { EDITOR_ORDER, EDITORS, type MediaKind } from '@/editors/registry';
 import { m } from '@/paraglide/messages.js';
@@ -8,8 +8,9 @@ import { MEDIA_ICONS } from '@/ui/icons';
 import { LogoMark } from '@/ui/Logo';
 import { EditorSwitcher } from './EditorSwitcher';
 import { FileMenu } from './FileMenu';
-import { applyUpdate, install, usePwa } from './pwa';
+import { install, usePwa } from './pwa';
 import { LanguageMenu, ThemeMenu } from './SettingsMenus';
+import { UpdateButton } from './UpdateButton';
 
 export interface EditorActions {
 	canUndo: boolean;
@@ -94,7 +95,6 @@ function EditorTabs({ current, from }: { current: MediaKind; from: MediaKind | n
 }
 
 export function AppBar({ editor, fileName, actions, onSearch, heading, from = null }: AppBarProps) {
-	const updateReady = usePwa((state) => state.updateReady);
 	const installable = usePwa((state) => state.installable);
 
 	return (
@@ -147,12 +147,8 @@ export function AppBar({ editor, fileName, actions, onSearch, heading, from = nu
 						<Search className="size-[1.15rem]" />
 					</IconButton>
 				)}
+				<UpdateButton />
 				<div className={`flex gap-0.5 ${editor ? 'max-sm:hidden' : ''}`}>
-					{updateReady && (
-						<IconButton label={m.app_update()} onClick={applyUpdate}>
-							<RefreshCw className="size-[1.15rem]" />
-						</IconButton>
-					)}
 					{installable && !editor && (
 						<IconButton
 							label={m.app_install()}

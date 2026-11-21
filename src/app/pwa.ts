@@ -100,16 +100,21 @@ export function startPwa() {
 	);
 }
 
-/** Moves to the new version: the page reloads once the new worker has taken over. */
-export function applyUpdate() {
+/**
+ * Moves to the new version: the page loads again, at `href` (the page itself by default), once the
+ * new worker has taken over. Files open are closed by it: the button asks first (UpdateButton).
+ */
+export function applyUpdate(href = location.href) {
+	const go = () => {
+		if (href === location.href) location.reload();
+		else location.assign(href);
+	};
 	const waiting = registration?.waiting;
 	if (!waiting) {
-		location.reload();
+		go();
 		return;
 	}
-	navigator.serviceWorker.addEventListener('controllerchange', () => {
-		location.reload();
-	});
+	navigator.serviceWorker.addEventListener('controllerchange', go, { once: true });
 	waiting.postMessage({ type: 'update' });
 }
 

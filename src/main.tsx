@@ -4,9 +4,10 @@ import { createRoot } from 'react-dom/client';
 import { countPage } from './app/analytics';
 import { ErrorScreen } from './app/ErrorScreen';
 import { barePath, localePath, setAddressReplacer, startLocale } from './app/locale';
-import { startPwa, warmApp } from './app/pwa';
+import { applyUpdate, startPwa, usePwa, warmApp } from './app/pwa';
 import { isMediaKind } from './editors/registry';
 import { clearLeftovers } from './media/save-target';
+import { useSession } from './media/session';
 import { routeTree } from './routeTree.gen';
 import './styles/app.css';
 
@@ -55,6 +56,22 @@ try {
 } catch {
 	// Storage refused (a private window): there is nothing kept either.
 }
+
+/**
+ * A new version takes over by itself when nothing would be lost: no file is open, and the visitor
+ * goes to another page or leaves the tab. With a file open, the button in the bar asks.
+ */
+const nothingOpen = () => {
+	const { opened, batch } = useSession.getState();
+	return Object.keys(opened).length === 0 && !batch;
+};
+const updateFree = () => usePwa.getState().updateReady && nothingOpen();
+router.subscribe('onBeforeNavigate', ({ toLocation, pathChanged }) => {
+	if (pathChanged && updateFree()) applyUpdate(new URL(toLocation.publicHref, location.origin).href);
+});
+document.addEventListener('visibilitychange', () => {
+	if (document.visibilityState === 'hidden' && updateFree()) applyUpdate();
+});
 
 // Counted once the page has its title, which its own effects set.
 router.subscribe('onResolved', ({ toLocation }) => {
