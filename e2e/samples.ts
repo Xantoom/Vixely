@@ -1,0 +1,680 @@
+import { spawnSync } from 'node:child_process';
+/**
+ * Creates the sample files the scenarios open, in e2e/samples/. Needs the dev server running.
+ *
+ * - anim.gif: 60 frames of a moving circle on a gradient, 480 × 270, 3 s, made by gifski itself.
+ * - long.wav: three hours of mono 8 kHz audio whose loudness follows a slow wave (173 MB).
+ * - photo.heic: the example photo of the libheif project.
+ * - sample.mkv, sup2.sup: PGS and ASS tracks muxed by mkvmerge, from the PGS-Subtitle-Parser project.
+ * - film.mkv, live.mkv, film.mp4: a minute of test pattern with French SRT and English ASS tracks
+ *   and an embedded font; live.mkv has no cues; film.mp4 carries the SRT as timed text. Made with
+ *   FFmpeg when the FFMPEG variable points to it (a static build is enough).
+ * - clip.mkv, clip.mp4: the first 24 s of film.mkv and film.mp4, copied, for the scenarios that
+ *   cut and copy them (key frames at 0, 10 and 20 s); short.mkv, short.mp4: the first 12 s, for
+ *   those that encode them again, which takes as long as the video.
+ * - h264.mp4: 12 s of 1080p H.264 with B-frames and two audio tracks (English, French commentary).
+ * - rotated.mp4: the same, stored turned as phones do (a display matrix of 90°); silent.mp4: the
+ *   same without sound.
+ * - prores.mov: 4 s of 10-bit ProRes with PCM sound, which browsers don't decode.
+ * - ac3.mkv, dts.mkv: 8 s of test pattern with Dolby Digital 5.1 and DTS sound, which browsers
+ *   don't decode; truehd.mkv, truehd.m2ts, truehd.mp4: the same with Dolby TrueHD 5.1, as on Blu-ray; vfr.mp4: 6 s whose pictures come at irregular times, as phones record them;
+ *   extra.fr.srt: a subtitle file to add to a video; noisy.wav: a voice-like buzz in white noise.
+ * - many-tracks.mkv: speech.mp4's pictures with seven sound tracks (AAC, AC-3, Opus, E-AC-3,
+ *   FLAC) and nine subtitle tracks (SRT, ASS) in several languages, one of each kind default and
+ *   one forced, as on a disc rip.
+ * - hdr10.mkv, hdr10.mp4, hdr10plus.mkv, hlg.mp4: 4 s of 10-bit HEVC (a key frame a second) with
+ *   HDR10 static metadata in its SEI, HDR10+ dynamic metadata, or the HLG curve; dv81.mp4,
+ *   dv81.mkv: hdr10.mp4 with a Dolby Vision 8.1 configuration, mastering display and light level
+ *   boxes added, as streaming services deliver it (FFmpeg can't make Dolby Vision itself).
+ * - samples/open/: every video above with its H.264 pictures as VP9 and its AAC sound as Opus, the
+ *   rest copied as it is, for browsers built without patented codecs (Playwright's Firefox).
+ */
+import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { chromium } from 'playwright-core';
+
+mkdirSync('samples', { recursive: true });
+mkdirSync('shots', { recursive: true });
+
+if (!existsSync('samples/anim.gif')) {
+	const browser = await chromium.launch();
+	const page = await browser.newPage();
+	await page.goto('http://localhost:5173/');
+	const bytes: number[] = await page.evaluate(async () => {
+		const gif: any = await import('/src/wasm/vixely-gif/vixely_gif.js');
+		await gif.default();
+		const [w, h, n] = [480, 270, 60];
+		const canvas = new OffscreenCanvas(w, h);
+		const g = canvas.getContext('2d', { willReadFrequently: true })!;
+		const writer = new gif.GifWriter(90, 100, 0, false);
+		for (let i = 0; i < n; i++) {
+			const grad = g.createLinearGradient(0, 0, w, h);
+			grad.addColorStop(0, `hsl(${i * 6} 80% 50%)`);
+			grad.addColorStop(1, `hsl(${i * 6 + 120} 80% 60%)`);
+			g.fillStyle = grad;
+			g.fillRect(0, 0, w, h);
+			g.fillStyle = '#fff';
+			g.beginPath();
+			g.arc(40 + i * 7, h / 2 + Math.sin(i / 5) * 60, 30, 0, Math.PI * 2);
+			g.fill();
+			writer.add_frame(new Uint8Array(g.getImageData(0, 0, w, h).data.buffer), w, h, i / 20);
+		}
+		return Array.from(writer.finish() as Uint8Array);
+	});
+	writeFileSync('samples/anim.gif', Buffer.from(bytes));
+	await browser.close();
+	console.log('samples/anim.gif');
+}
+
+if (!existsSync('samples/long.wav')) {
+	const rate = 8000;
+	const seconds = 3 * 3600;
+	const frames = rate * seconds;
+	const header = Buffer.alloc(44);
+	header.write('RIFF', 0);
+	header.writeUInt32LE(36 + frames * 2, 4);
+	header.write('WAVE', 8);
+	header.write('fmt ', 12);
+	header.writeUInt32LE(16, 16);
+	header.writeUInt16LE(1, 20);
+	header.writeUInt16LE(1, 22);
+	header.writeUInt32LE(rate, 24);
+	header.writeUInt32LE(rate * 2, 28);
+	header.writeUInt16LE(2, 32);
+	header.writeUInt16LE(16, 34);
+	header.write('data', 36);
+	header.writeUInt32LE(frames * 2, 40);
+	const file = Bun.file('samples/long.wav').writer();
+	file.write(header);
+	const block = new Int16Array(rate);
+	for (let s = 0; s < seconds; s++) {
+		const level = 0.1 + 0.8 * Math.abs(Math.sin((s / 600) * Math.PI));
+		for (let i = 0; i < rate; i++) block[i] = Math.round(Math.sin(((i % 40) / 40) * 2 * Math.PI) * level * 32000);
+		file.write(new Uint8Array(block.buffer.slice(0)));
+	}
+	await file.end();
+	console.log('samples/long.wav');
+}
+
+if (!existsSync('samples/photo.heic')) {
+	const response = await fetch('https://raw.githubusercontent.com/strukturag/libheif/master/examples/example.heic');
+	if (response.ok) {
+		writeFileSync('samples/photo.heic', Buffer.from(await response.arrayBuffer()));
+		console.log('samples/photo.heic');
+	} else {
+		console.log('photo.heic: download failed', response.status);
+	}
+}
+
+const PGS_SAMPLES = 'https://raw.githubusercontent.com/C0bra5/PGS-Subtitle-Parser/master/sample';
+for (const name of ['sample.mkv', 'sup2.sup']) {
+	if (existsSync(`samples/${name}`)) continue;
+	const response = await fetch(`${PGS_SAMPLES}/${name}`);
+	if (response.ok) {
+		writeFileSync(`samples/${name}`, Buffer.from(await response.arrayBuffer()));
+		console.log(`samples/${name}`);
+	} else {
+		console.log(`${name}: download failed`, response.status);
+	}
+}
+
+const ffmpeg = process.env.FFMPEG;
+if (!existsSync('samples/film.mkv') && ffmpeg) {
+	const time = (s: number, comma: boolean) => {
+		const ms = Math.round(s * 1000);
+		const hms = [Math.floor(ms / 3_600_000), Math.floor(ms / 60_000) % 60, Math.floor(ms / 1000) % 60];
+		return comma
+			? `${hms.map((v) => String(v).padStart(2, '0')).join(':')},${String(ms % 1000).padStart(3, '0')}`
+			: `${hms[0]}:${String(hms[1]).padStart(2, '0')}:${String(hms[2]).padStart(2, '0')}.${String(Math.round((ms % 1000) / 10)).padStart(2, '0')}`;
+	};
+	const starts = Array.from({ length: 20 }, (_, i) => 2 + i * 2.5);
+	writeFileSync(
+		'samples/fr.srt',
+		starts
+			.map(
+				(s, i) =>
+					`${i + 1}\n${time(s, true)} --> ${time(s + 1.8, true)}\n${i % 2 ? 'Ligne' : 'Réplique numéro'} ${i + 1}\n`,
+			)
+			.join('\n'),
+	);
+	// The embedded font is Ubuntu Condensed, whose family name is "Ubuntu".
+	const style = (name: string, size: number, colour: string, bold: number, align: number) =>
+		`Style: ${name},Ubuntu,${size},${colour},&H000000FF,&H00000000,&H80000000,${bold},0,0,0,100,100,0,0,1,2,1,${align},20,20,30,1`;
+	writeFileSync(
+		'samples/en.ass',
+		[
+			'[Script Info]',
+			'ScriptType: v4.00+',
+			'PlayResX: 1280',
+			'PlayResY: 720',
+			'',
+			'[V4+ Styles]',
+			'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
+			style('Default', 44, '&H00FFFFFF', 0, 2),
+			style('Sign', 36, '&H0000FFFF', -1, 8),
+			'',
+			'[Events]',
+			'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+			...starts.map(
+				(s, i) =>
+					`Dialogue: 0,${time(s, false)},${time(s + 1.8, false)},Default,,0,0,0,,{\\i1}English{\\i0} line ${i + 1}, with comma`,
+			),
+			'Dialogue: 1,0:00:01.00,0:00:10.00,Sign,,0,0,0,,{\\pos(640,60)}A SIGN',
+		].join('\n'),
+	);
+	const run = (...args: string[]) =>
+		spawnSync(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-y', ...args], { stdio: 'inherit' });
+	const font = '/usr/share/fonts/truetype/ubuntu/Ubuntu-C.ttf';
+	run(
+		'-f',
+		'lavfi',
+		'-i',
+		'testsrc2=size=1280x720:rate=25:duration=60',
+		'-f',
+		'lavfi',
+		'-i',
+		'sine=frequency=330:duration=60',
+		'-i',
+		'samples/fr.srt',
+		'-i',
+		'samples/en.ass',
+		'-map',
+		'0',
+		'-map',
+		'1',
+		'-map',
+		'2',
+		'-map',
+		'3',
+		'-c:v',
+		'libx264',
+		'-preset',
+		'veryfast',
+		'-pix_fmt',
+		'yuv420p',
+		'-c:a',
+		'libopus',
+		'-b:a',
+		'64k',
+		'-c:s:0',
+		'srt',
+		'-c:s:1',
+		'ass',
+		'-metadata:s:s:0',
+		'language=fre',
+		'-metadata:s:s:1',
+		'language=eng',
+		'-metadata:s:s:1',
+		'title=English (styled)',
+		'-disposition:s:0',
+		'default',
+		'-disposition:s:1',
+		'0',
+		...(existsSync(font) ? ['-attach', font, '-metadata:s:t', 'mimetype=font/ttf'] : []),
+		'samples/film.mkv',
+	);
+	run('-i', 'samples/film.mkv', '-map', '0', '-c', 'copy', '-live', '1', '-f', 'matroska', 'samples/live.mkv');
+	run(
+		'-i',
+		'samples/film.mkv',
+		'-map',
+		'0:v',
+		'-map',
+		'0:a',
+		'-map',
+		'0:s:0',
+		'-c:v',
+		'copy',
+		'-c:a',
+		'aac',
+		'-c:s',
+		'mov_text',
+		'-metadata:s:s:0',
+		'language=fre',
+		'samples/film.mp4',
+	);
+	console.log('samples/film.mkv, live.mkv, film.mp4');
+} else if (!existsSync('samples/film.mkv')) {
+	console.log('film.mkv: set FFMPEG to an ffmpeg binary to make the subtitle samples');
+}
+for (const [name, length, ext] of [
+	['clip', 24, 'mkv'],
+	['clip', 24, 'mp4'],
+	['short', 12, 'mkv'],
+	['short', 12, 'mp4'],
+] as const) {
+	if (!ffmpeg || existsSync(`samples/${name}.${ext}`) || !existsSync(`samples/film.${ext}`)) continue;
+	spawnSync(
+		ffmpeg,
+		[
+			'-v',
+			'error',
+			'-y',
+			'-i',
+			`samples/film.${ext}`,
+			'-map',
+			'0',
+			'-t',
+			String(length),
+			'-c',
+			'copy',
+			`samples/${name}.${ext}`,
+		],
+		{ stdio: 'inherit' },
+	);
+	console.log(`samples/${name}.${ext}`);
+}
+
+if (!existsSync('samples/h264.mp4') && ffmpeg) {
+	// Plain 1080p H.264 with B-frames (its first picture comes after zero) and two audio tracks.
+	spawnSync(
+		ffmpeg,
+		[
+			'-hide_banner',
+			'-loglevel',
+			'error',
+			'-y',
+			...['-f', 'lavfi', '-i', 'testsrc2=size=1920x1080:rate=30000/1001'],
+			...['-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000'],
+			...['-f', 'lavfi', '-i', 'sine=frequency=880:sample_rate=48000'],
+			...['-t', '12', '-map', '0:v', '-map', '1:a', '-map', '2:a'],
+			...['-c:v', 'libx264', '-profile:v', 'high', '-bf', '3', '-pix_fmt', 'yuv420p', '-c:a', 'aac'],
+			...[
+				'-metadata:s:a:0',
+				'language=eng',
+				'-metadata:s:a:1',
+				'language=fre',
+				'-metadata:s:a:1',
+				'title=Commentaire',
+			],
+			...['-movflags', '+faststart', 'samples/h264.mp4'],
+		],
+		{ stdio: 'inherit' },
+	);
+	console.log('samples/h264.mp4');
+}
+
+if (existsSync('samples/h264.mp4') && ffmpeg) {
+	// Phones store portrait video turned, with a rotation for players to apply.
+	if (!existsSync('samples/rotated.mp4')) {
+		spawnSync(
+			ffmpeg,
+			[
+				'-v',
+				'error',
+				'-y',
+				'-display_rotation:v:0',
+				'90',
+				'-i',
+				'samples/h264.mp4',
+				'-map',
+				'0',
+				'-c',
+				'copy',
+				'samples/rotated.mp4',
+			],
+			{ stdio: 'inherit' },
+		);
+		console.log('samples/rotated.mp4');
+	}
+	if (!existsSync('samples/silent.mp4')) {
+		spawnSync(ffmpeg, ['-v', 'error', '-y', '-i', 'samples/h264.mp4', '-an', '-c', 'copy', 'samples/silent.mp4'], {
+			stdio: 'inherit',
+		});
+		console.log('samples/silent.mp4');
+	}
+}
+
+if (ffmpeg) {
+	const make = (name: string, args: string[]) => {
+		if (existsSync(`samples/${name}`)) return;
+		spawnSync(ffmpeg, ['-v', 'error', '-y', ...args, `samples/${name}`], { stdio: 'inherit' });
+		console.log(`samples/${name}`);
+	};
+	const pattern = ['-f', 'lavfi', '-i', 'testsrc2=s=640x360:r=25:d=8'];
+	const h264 = ['-c:v', 'libx264', '-pix_fmt', 'yuv420p'];
+	// A voice-like buzz, on for 0.6 s every second, in white noise.
+	make('noisy.wav', [
+		'-f',
+		'lavfi',
+		'-i',
+		"aevalsrc='0.25*lt(mod(t\\,1)\\,0.6)*(sin(2*PI*150*t)+0.5*sin(2*PI*300*t)+0.3*sin(2*PI*450*t)+0.2*sin(2*PI*900*t))':s=44100:d=10",
+		'-f',
+		'lavfi',
+		'-i',
+		'anoisesrc=c=white:a=0.05:r=44100:d=10',
+		'-filter_complex',
+		'[0][1]amix=inputs=2:normalize=0,aformat=channel_layouts=stereo',
+		'-c:a',
+		'pcm_s16le',
+	]);
+	make('ac3.mkv', [
+		...pattern,
+		'-f',
+		'lavfi',
+		'-i',
+		'sine=f=440:d=8',
+		...h264,
+		'-c:a',
+		'ac3',
+		'-ac',
+		'6',
+		'-b:a',
+		'384k',
+	]);
+	make('dts.mkv', [
+		...pattern,
+		'-f',
+		'lavfi',
+		'-i',
+		'sine=f=330:d=8',
+		...h264,
+		'-c:a',
+		'dca',
+		'-strict',
+		'-2',
+		'-ac',
+		'2',
+	]);
+	make('prores.mov', [
+		'-f',
+		'lavfi',
+		'-i',
+		'testsrc2=size=1280x720:rate=25:duration=4',
+		'-f',
+		'lavfi',
+		'-i',
+		'sine=f=440:d=4',
+		'-c:v',
+		'prores_ks',
+		'-profile:v',
+		'2',
+		'-pix_fmt',
+		'yuv422p10le',
+		'-c:a',
+		'pcm_s16le',
+	]);
+	const truehd = ['-c:a', 'truehd', '-strict', '-2', '-ac', '6'];
+	make('truehd.mkv', [...pattern, '-f', 'lavfi', '-i', 'sine=f=550:d=8', ...h264, ...truehd]);
+	make('truehd.m2ts', [
+		...pattern,
+		'-f',
+		'lavfi',
+		'-i',
+		'sine=f=550:d=8',
+		...h264,
+		...truehd,
+		'-mpegts_m2ts_mode',
+		'1',
+	]);
+	// FFmpeg only writes TrueHD into MP4 when copying it.
+	make('truehd.mp4', ['-i', 'samples/truehd.mkv', '-c', 'copy', '-strict', '-2']);
+	// Seven sound and nine subtitle tracks in several languages, as a disc rip has them.
+	if (!existsSync('samples/many-tracks.mkv') && existsSync('samples/speech.mp4')) {
+		writeFileSync('samples/many-tracks.srt', '1\n00:00:01,000 --> 00:00:03,000\nLine\n');
+		const audio = [
+			['copy', 'fre', 'VFF'],
+			['ac3', 'fre', 'VFQ'],
+			['libopus', 'eng', ''],
+			['copy', 'eng', 'Commentary'],
+			['eac3', 'jpn', ''],
+			['flac', 'ger', ''],
+			['copy', 'spa', 'Audio description'],
+		];
+		const subtitles = [
+			['srt', 'fre', 'Forced'],
+			['srt', 'fre', 'Full'],
+			['srt', 'fre', 'SDH'],
+			['ass', 'eng', ''],
+			['srt', 'eng', 'SDH'],
+			['srt', 'jpn', ''],
+			['srt', 'ger', ''],
+			['ass', 'spa', ''],
+			['srt', 'ita', ''],
+		];
+		make('many-tracks.mkv', [
+			'-i',
+			'samples/speech.mp4',
+			'-i',
+			'samples/many-tracks.srt',
+			'-map',
+			'0:v',
+			...audio.flatMap(() => ['-map', '0:a']),
+			...subtitles.flatMap(() => ['-map', '1']),
+			'-c:v',
+			'copy',
+			...audio.flatMap(([codec, language, title], n) => [
+				`-c:a:${n}`,
+				codec,
+				`-metadata:s:a:${n}`,
+				`language=${language}`,
+				...(title ? [`-metadata:s:a:${n}`, `title=${title}`] : []),
+				`-disposition:a:${n}`,
+				n === 0 ? 'default' : '0',
+			]),
+			...subtitles.flatMap(([codec, language, title], n) => [
+				`-c:s:${n}`,
+				codec,
+				`-metadata:s:s:${n}`,
+				`language=${language}`,
+				...(title ? [`-metadata:s:s:${n}`, `title=${title}`] : []),
+				`-disposition:s:${n}`,
+				n === 0 ? 'forced' : n === 1 ? 'default' : '0',
+			]),
+		]);
+	}
+	// Pictures 17 to 50 ms apart, off any regular lattice.
+	make('vfr.mp4', [
+		'-f',
+		'lavfi',
+		'-i',
+		'testsrc2=s=640x360:r=30:d=6',
+		'-vf',
+		"settb=1/90000,setpts='(N/30+if(gte(N\\,60)\\,(N-60)*0.012\\,0)+0.011*sin(N*1.7))/TB'",
+		'-fps_mode',
+		'vfr',
+		'-enc_time_base',
+		'1/90000',
+		'-video_track_timescale',
+		'90000',
+		...h264,
+	]);
+}
+if (!existsSync('samples/extra.fr.srt')) {
+	writeFileSync(
+		'samples/extra.fr.srt',
+		'1\n00:00:01,000 --> 00:00:03,000\nAdded line one\n\n2\n00:00:04,000 --> 00:00:06,000\nAdded line two\n',
+	);
+	console.log('samples/extra.fr.srt');
+}
+
+// HDR: HEVC Main 10 with its metadata, which copies must keep.
+if (ffmpeg) {
+	const source = [
+		...['-f', 'lavfi', '-i', 'testsrc2=size=1280x720:rate=25:duration=4'],
+		...['-f', 'lavfi', '-i', 'sine=frequency=440:duration=4'],
+	];
+	const colour = ['-color_primaries', 'bt2020', '-colorspace', 'bt2020nc'];
+	const x265 = (transfer: string, extra = '') =>
+		`colorprim=bt2020:transfer=${transfer}:colormatrix=bt2020nc:keyint=25:min-keyint=25:log-level=error${extra}`;
+	const hdr10 =
+		':master-display=G(13250,34500)B(7500,3000)R(34000,16000)WP(15635,16450)L(10000000,50):max-cll=1000,400:hdr10=1:repeat-headers=1';
+	writeFileSync(
+		'samples/hdr10plus.json',
+		JSON.stringify({
+			JSONInfo: { HDR10plusProfile: 'A', Version: '1.0' },
+			SceneInfo: Array.from({ length: 100 }, (_, frame) => ({
+				BezierCurveData: { Anchors: [256, 512, 768, 1023, 1023, 1023, 1023, 1023, 1023], KneePointX: 0, KneePointY: 0 },
+				LuminanceParameters: {
+					AverageRGB: 100,
+					LuminanceDistributions: {
+						DistributionIndex: [1, 5, 10, 25, 50, 75, 90, 95, 99],
+						DistributionValues: [0, 1, 10, 50, 100, 200, 400, 800, 1000],
+					},
+					MaxScl: [1000, 1000, 1000],
+				},
+				NumberOfWindows: 1,
+				TargetedSystemDisplayMaximumLuminance: 400,
+				SceneFrameIndex: frame,
+				SceneId: 0,
+				SequenceFrameIndex: frame,
+			})),
+			SceneInfoSummary: { SceneFirstFrameIndex: [0], SceneFrameNumbers: [100] },
+			ToolInfo: { Tool: 'vixely', Version: '1' },
+		}),
+	);
+	const hevc = (name: string, transfer: string, ffTransfer: string, extra: string, audio: string[], tag: string[]) => {
+		if (existsSync(`samples/${name}`)) return;
+		spawnSync(
+			ffmpeg,
+			[
+				...['-v', 'error', '-y', ...source],
+				...['-c:v', 'libx265', ...tag, '-pix_fmt', 'yuv420p10le', '-x265-params', x265(transfer, extra)],
+				...colour,
+				...['-color_trc', ffTransfer, ...audio, `samples/${name}`],
+			],
+			{ stdio: 'inherit' },
+		);
+		console.log(`samples/${name}`);
+	};
+	hevc('hdr10.mkv', 'smpte2084', 'smpte2084', hdr10, ['-c:a', 'eac3', '-ac', '6'], []);
+	hevc('hdr10.mp4', 'smpte2084', 'smpte2084', hdr10, ['-c:a', 'aac'], ['-tag:v', 'hvc1']);
+	hevc('hdr10plus.mkv', 'smpte2084', 'smpte2084', `${hdr10}:dhdr10-info=samples/hdr10plus.json`, ['-c:a', 'flac'], []);
+	hevc('hlg.mp4', 'arib-std-b67', 'arib-std-b67', '', ['-c:a', 'aac'], ['-tag:v', 'hvc1']);
+	if (!existsSync('samples/dv81.mp4') && existsSync('samples/hdr10.mp4')) {
+		writeFileSync('samples/dv81.mp4', withDolbyVision(readFileSync('samples/hdr10.mp4')));
+		console.log('samples/dv81.mp4');
+	}
+	if (!existsSync('samples/dv81.mkv') && existsSync('samples/dv81.mp4')) {
+		spawnSync(ffmpeg, ['-v', 'error', '-y', '-i', 'samples/dv81.mp4', '-c', 'copy', 'samples/dv81.mkv'], {
+			stdio: 'inherit',
+		});
+		console.log('samples/dv81.mkv');
+	}
+}
+
+/**
+ * An MP4 whose `moov` comes last (FFmpeg's default), with Dolby Vision 8.1 (level 6, base layer
+ * and RPU, HDR10 fallback), mastering display and light level boxes added to its HEVC entry.
+ */
+function withDolbyVision(mp4: Buffer): Buffer {
+	const data = Buffer.from(mp4);
+	type Found = { type: string; start: number; end: number };
+	const children = (from: number, to: number): Found[] => {
+		const found: Found[] = [];
+		for (let at = from; at + 8 <= to; ) {
+			const size = data.readUInt32BE(at);
+			found.push({ type: data.toString('latin1', at + 4, at + 8), start: at, end: at + size });
+			at += size;
+		}
+		return found;
+	};
+	const child = (parent: Found, type: string, skip = 8) => {
+		const found = children(parent.start + skip, parent.end).find((box) => box.type === type);
+		if (!found) throw new Error(`No ${type} box`);
+		return found;
+	};
+	const box = (type: string, content: number[]) => {
+		const out = Buffer.alloc(8 + content.length);
+		out.writeUInt32BE(out.length);
+		out.write(type, 4, 'latin1');
+		Buffer.from(content).copy(out, 8);
+		return out;
+	};
+	const u16 = (value: number) => [value >> 8, value & 0xff];
+	const u32 = (value: number) => [...u16(Math.floor(value / 65536)), ...u16(value % 65536)];
+	const moov = children(0, data.length).find((found) => found.type === 'moov');
+	if (!moov) throw new Error('No moov box');
+	for (const trak of children(moov.start + 8, moov.end).filter((found) => found.type === 'trak')) {
+		const stsd = child(child(child(child(trak, 'mdia'), 'minf'), 'stbl'), 'stsd');
+		const entry = children(stsd.start + 16, stsd.end)[0];
+		if (entry?.type !== 'hvc1') continue;
+		const added = Buffer.concat([
+			box('dvcC', [1, 0, 8 << 1, (6 << 3) | 0b101, 1 << 4, ...Array<number>(19).fill(0)]),
+			box('mdcv', [
+				...[13250, 34500, 7500, 3000, 34000, 16000, 15635, 16450].flatMap(u16),
+				...u32(10_000_000),
+				...u32(50),
+			]),
+			box('clli', [...u16(1000), ...u16(400)]),
+		]);
+		// Every box around the entry grows by what is added; the pictures, before moov, stay put.
+		for (const around of [moov, trak, child(trak, 'mdia'), child(child(trak, 'mdia'), 'minf'), child(child(child(trak, 'mdia'), 'minf'), 'stbl'), stsd, entry]) {
+			data.writeUInt32BE(data.readUInt32BE(around.start) + added.length, around.start);
+		}
+		return Buffer.concat([data.subarray(0, entry.end), added, data.subarray(entry.end)]);
+	}
+	throw new Error('No HEVC track');
+}
+
+// The same videos in codecs every browser decodes: VP9 pictures, Opus sound, the rest copied.
+if (ffmpeg) {
+	mkdirSync('samples/open', { recursive: true });
+	const probe = ffmpeg.replace(/ffmpeg$/, 'ffprobe');
+	for (const name of [
+		'film.mp4',
+		'film.mkv',
+		'clip.mp4',
+		'clip.mkv',
+		'live.mkv',
+		'h264.mp4',
+		'rotated.mp4',
+		'silent.mp4',
+		'vfr.mp4',
+		'ac3.mkv',
+		'dts.mkv',
+		'truehd.mkv',
+		'truehd.m2ts',
+		'truehd.mp4',
+		'sample.mkv',
+	]) {
+		const target = `samples/open/${name}`;
+		if (existsSync(target) || !existsSync(`samples/${name}`)) continue;
+		const audio = spawnSync(
+			probe,
+			[
+				'-v',
+				'error',
+				'-select_streams',
+				'a',
+				'-show_entries',
+				'stream=codec_name',
+				'-of',
+				'csv=p=0',
+				`samples/${name}`,
+			],
+			{ encoding: 'utf8' },
+		).stdout;
+		const aac = audio.includes('aac');
+		spawnSync(
+			ffmpeg,
+			[
+				'-v',
+				'error',
+				'-y',
+				'-noautorotate',
+				'-i',
+				`samples/${name}`,
+				'-map',
+				'0',
+				'-fps_mode',
+				'passthrough',
+				'-c',
+				'copy',
+				'-c:v',
+				'libvpx-vp9',
+				'-deadline',
+				'realtime',
+				'-cpu-used',
+				'8',
+				'-b:v',
+				'2M',
+				...(aac ? ['-c:a', 'libopus', '-b:a', '128k'] : []),
+				// TrueHD in MP4 is still experimental to FFmpeg.
+				...(audio.includes('truehd') ? ['-strict', '-2'] : []),
+				target,
+			],
+			{ stdio: 'inherit' },
+		);
+		console.log(target);
+	}
+}

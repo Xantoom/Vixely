@@ -1,0 +1,173 @@
+name: CI
+
+# Every push and pull request is checked; a push to main (vixely.app) or v1
+# (vixely-preprod.xantoom.workers.dev) is then deployed, with the very build that was checked.
+# Deploying needs the repository secret CLOUDFLARE_API_TOKEN (template "Edit Cloudflare Workers").
+on:
+    push:
+        branches: [main, v1]
+        paths-ignore: ['**.md', 'e2e/**', 'LICENSE']
+    pull_request:
+        branches: [main, v1]
+        paths-ignore: ['**.md', 'e2e/**', 'LICENSE']
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+# A newer push cancels the checks of the last one, never a deployment under way.
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# The Rust is built and tested again only when what it is made from changes: most changes are to
+# the app alone, and the WebAssembly takes minutes to compile and optimize.
+jobs:
+    check:
+        name: Build, lint and test
+        # A branch of this repository is checked when pushed: its pull request would only repeat that.
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v7
+
+            - uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: 1.4.3
+
+            # The crates' WebAssembly, as built last for these very sources.
+            - name: Restore the WebAssembly
+              id: wasm
+              uses: actions/cache@v6
+              with:
+                  path: src/wasm/vixely-*
+                  key: wasm-${{ hashFiles('Cargo.toml', 'Cargo.lock', '.cargo/**', 'vendor/**', 'vixely-*/**', 'scripts/build-wasm.ts') }}
+
+            - name: Install Rust toolchain
+              if: steps.wasm.outputs.cache-hit != 'true'
+              uses: dtolnay/rust-toolchain@stable
+              with:
+                  targets: wasm32-unknown-unknown
+
+            # The multithreaded image codecs rebuild the standard library (see scripts/build-wasm.ts).
+            - name: Install the pinned nightly toolchain
+              if: steps.wasm.outputs.cache-hit != 'true'
+              run: rustup toolchain install nightly-2026-09-20 --profile minimal --component rust-src --target wasm32-unknown-unknown
+
+            - uses: Swatinem/rust-cache@v2
+              if: steps.wasm.outputs.cache-hit != 'true'
+
+            - name: Install clang, llvm and wasm-pack
+              if: steps.wasm.outputs.cache-hit != 'true'
+              run: |
+                  sudo apt-get update && sudo apt-get install -y clang llvm
+                  curl -sSfL https://github.com/wasm-bindgen/wasm-pack/releases/download/v0.13.1/wasm-pack-v0.13.1-x86_64-unknown-linux-musl.tar.gz | sudo tar xz --strip-components=1 -C /usr/local/bin wasm-pack-v0.13.1-x86_64-unknown-linux-musl/wasm-pack
+
+            - name: Install dependencies
+              run: bun install --frozen-lockfile
+
+            - name: Build the WebAssembly
+              if: steps.wasm.outputs.cache-hit != 'true'
+              run: bun scripts/build-wasm.ts --force
+
+            # The site build generates the route tree and the translations the checks below rely on.
+            - name: Build the site
+              env:
+                  # Link previews point to this deployment's own picture (see scripts/prerender.tsx).
+                  PUBLIC_DOMAIN: ${{ github.ref_name == 'main' && 'vixely.app' || 'vixely-preprod.xantoom.workers.dev' }}
+              run: bun run build:site
+
+            - name: Type check
+              run: bun run typecheck
+
+            - name: Lint
+              run: bun run lint
+
+            - name: Format check
+              run: bun run fmt:check
+
+            - name: Test
+              run: bun run test
+
+            # Workers serves no single file over 25 MiB, and at most 20,000 files (Free plan).
+            - name: Check the asset limits
+              run: |
+                  big=$(find dist -type f -size +26214400c)
+                  if [ -n "$big" ]; then echo "::error::Over the 25 MiB Workers asset limit:"; ls -l $big; exit 1; fi
+                  count=$(find dist -type f ! -path 'dist/.vite/*' | wc -l)
+                  echo "$count files"
+                  if [ "$count" -gt 20000 ]; then echo "::error::$count files, over the 20,000 limit"; exit 1; fi
+
+            - name: Keep the build
+              if: github.event_name != 'pull_request' && (github.ref_name == 'main' || github.ref_name == 'v1')
+              uses: actions/upload-artifact@v7
+              with:
+                  name: dist
+                  path: dist
+                  include-hidden-files: true
+                  retention-days: 1
+
+    rust:
+        name: Test Rust
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v7
+
+            # A mark left once these sources passed: found, there is nothing to test again.
+            - name: Look for a passed run
+              id: tested
+              uses: actions/cache/restore@v6
+              with:
+                  path: .rust-tested
+                  key: rust-tested-${{ hashFiles('Cargo.toml', 'Cargo.lock', '.cargo/**', 'vendor/**', 'vixely-*/**') }}
+                  lookup-only: true
+
+            - name: Install Rust toolchain
+              if: steps.tested.outputs.cache-hit != 'true'
+              uses: dtolnay/rust-toolchain@stable
+
+            - uses: Swatinem/rust-cache@v2
+              if: steps.tested.outputs.cache-hit != 'true'
+
+            - name: Test
+              if: steps.tested.outputs.cache-hit != 'true'
+              run: cargo test --workspace --profile ci && touch .rust-tested
+
+            - name: Remember the passed run
+              if: steps.tested.outputs.cache-hit != 'true'
+              uses: actions/cache/save@v6
+              with:
+                  path: .rust-tested
+                  key: ${{ steps.tested.outputs.cache-primary-key }}
+
+    deploy:
+        name: Deploy to Cloudflare
+        needs: [check, rust]
+        if: github.event_name != 'pull_request' && (github.ref_name == 'main' || github.ref_name == 'v1')
+        runs-on: ubuntu-latest
+        # One deployment at a time per branch.
+        concurrency:
+            group: deploy-${{ github.ref }}
+            cancel-in-progress: false
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  sparse-checkout: |
+                      wrangler.jsonc
+                      worker
+
+            - uses: actions/download-artifact@v8
+              with:
+                  name: dist
+                  path: dist
+
+            - uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: 1.4.3
+
+            - name: Deploy
+              env:
+                  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+                  WRANGLER_ENV: ${{ github.ref_name == 'main' && '' || 'preprod' }}
+              run: bunx wrangler@4 deploy ${WRANGLER_ENV:+--env "$WRANGLER_ENV"}

@@ -1,0 +1,892 @@
+import type { AudioCodec } from 'mediabunny';
+import { useEffect, useMemo } from 'react';
+import { create } from 'zustand';
+import { isShortened, keptRanges } from '@/document/kept';
+import { type Range, toOutput } from '@/document/timemap';
+import { interfaceLanguage } from '@/lib/language';
+import { compressorFor } from '@/media/dynamics';
+import { usePlayback } from '@/media/playback';
+import { type AddedTrack, remux, type StreamData, type TrackChoice } from '@/media/remux';
+import { openScratchFile, type SaveTarget, type ScratchFile } from '@/media/save-target';
+import { FLAT_EQ, type HeardSound, type SoundChanges } from '@/media/sound';
+import { TYPICAL_LOUDNESS } from '../audio/document';
+import type { SubtitleDoc } from '../subtitles/document';
+import { fontAttachments, scriptFamilies } from '../subtitles/font-sources';
+import { toAssScript } from '../subtitles/formats';
+import { matroskaStream, timedTextStream, trackCodec } from '../subtitles/mux-streams';
+import { type TrackKey, type TrackState, useProjectTracks, useSubtitleProject } from '../subtitles/project';
+import { codecLabel } from '../subtitles/tracks';
+import { gainOf } from './audio-pieces';
+import type { BurnJob } from './burn';
+import { type AudioPlan, copiesParts, copyTracks } from './copy-tracks';
+import { editTurn, fadeOf, pictureChange, speedOf, timeShaped, type VideoDoc, videoLength } from './document';
+import {
+	audioBitrates,
+	CONTAINERS,
+	convertVideo,
+	SOUND_AS_IS,
+	type TrackEncode,
+	type TrackSound,
+	type VideoContainer,
+	FAST_START_LIMIT,
+	planned,
+	planVideo,
+	type VideoExportSettings,
+	type VideoSource,
+} from './export';
+
+export type MuxKind = 'video' | 'audio' | 'subtitle';
+
+/** A track of the exported video, as MKVToolNix lists them. */
+export interface MuxTrack {
+	key: string;
+	kind: MuxKind;
+	/** Track number in the file (Matroska number, MP4 track ID); null for new subtitles. */
+	number: number | null;
+	/** The subtitle track in the editor, for subtitles. */
+	subtitle: TrackKey | null;
+	codec: string;
+	language: string;
+	name: string;
+	default: boolean;
+	forced: boolean;
+	include: boolean;
+	/** Changed in the subtitle editor: written from its lines. */
+	edited: boolean;
+	/** Why it can't go in as a track, if it can't: not in this container, or burned in. */
+	blocked: 'pgs-mp4' | 'webm' | 'burned' | null;
+	/** Change of level of a sound track, in dB. */
+	decibels: number;
+	/** Equalizer gains of a sound track, in dB per band. */
+	eq: readonly number[];
+	/** How much a sound track's loud and quiet passages are evened out, 0 to 1. */
+	compress: number;
+	/** The file a sound track added here comes from. */
+	added: File | null;
+	/** A sound track encoded again in its own codec and bitrate; null keeps it as it is. */
+	encode: TrackEncode | null;
+}
+
+type Override = Partial<
+	Pick<MuxTrack, 'include' | 'language' | 'name' | 'default' | 'forced' | 'decibels' | 'eq' | 'compress' | 'encode'>
+>;
+
+/** The equalizer and compressor of a sound track, as the processors take them. */
+function trackSound(track: Pick<MuxTrack, 'eq' | 'compress'>): SoundChanges {
+	return {
+		eq: track.eq,
+		denoise: 0,
+		compressor: track.compress > 0 ? compressorFor(track.compress, TYPICAL_LOUDNESS) : null,
+	};
+}
+
+/** Whether a sound track is heard otherwise than in the source: its level, equalizer or compressor. */
+function soundEdited(track: Pick<MuxTrack, 'decibels' | 'eq' | 'compress'>): boolean {
+	return track.decibels !== 0 || track.eq.some((gain) => gain !== 0) || track.compress > 0;
+}
+
+/** A sound track's level, equalizer and compressor. */
+type SoundEdit = Pick<MuxTrack, 'decibels' | 'eq' | 'compress'>;
+
+/**
+ * How the video's own sound tracks are heard, by ID, with the changes made to them; `drafts`
+ * stand in for changes being tried out, by track key.
+ */
+function heardSounds(
+	overrides: Readonly<Record<string, Override>> | null,
+	drafts: ReadonlyMap<string, SoundEdit> = new Map(),
+): Map<number, HeardSound> {
+	const sounds = new Map<number, HeardSound>();
+	const keys = new Set([...Object.keys(overrides ?? {}), ...drafts.keys()]);
+	for (const key of keys) {
+		const id = audioId(key);
+		if (id === null) continue;
+		const change = overrides?.[key] ?? {};
+		const edit = drafts.get(key) ?? {
+			decibels: change.decibels ?? 0,
+			eq: change.eq ?? FLAT_EQ,
+			compress: change.compress ?? 0,
+		};
+		if (soundEdited(edit)) sounds.set(id, { gain: gainOf(edit.decibels), sound: trackSound(edit) });
+	}
+	return sounds;
+}
+
+/**
+ * The player's ID of a sound track, by its key here: the file's own ID, or a negative one for
+ * sound added from another file. Null for other tracks.
+ */
+export function audioId(key: string): number | null {
+	const own = /^audio-(\d+)$/.exec(key);
+	if (own) return Number(own[1]);
+	const added = /^added-(\d+)$/.exec(key);
+	return added ? -Number(added[1]) : null;
+}
+
+/**
+ * Plays the video's sound as it will be written: each track with its level, equalizer and
+ * compressor, and the sound added from other files among the tracks to choose from.
+ */
+export function useHeardSounds(file: File | null) {
+	const overrides = useMuxSettings((state) => (state.file === file ? state.overrides : null));
+	const added = useMuxSettings((state) => (state.file === file ? state.added : null));
+	useEffect(() => {
+		usePlayback.getState().setSounds(heardSounds(overrides));
+	}, [overrides]);
+	useEffect(() => {
+		const hidden = Object.entries(overrides ?? {}).flatMap(([key, change]) => {
+			const id = change.include === false ? audioId(key) : null;
+			return id === null ? [] : [id];
+		});
+		usePlayback.getState().setHiddenAudio(new Set(hidden));
+	}, [overrides]);
+	useEffect(() => {
+		usePlayback.getState().setAddedAudio(
+			(added ?? []).map((audio) => {
+				const change = overrides?.[audio.key] ?? {};
+				return {
+					id: audioId(audio.key) ?? 0,
+					file: audio.file,
+					language: change.language ?? 'und',
+					name: change.name ?? addedName(audio.file),
+				};
+			}),
+		);
+	}, [added, overrides]);
+	useEffect(
+		() => () => {
+			usePlayback.getState().setSounds(new Map());
+			usePlayback.getState().setAddedAudio([]);
+			usePlayback.getState().setHiddenAudio(new Set());
+		},
+		[],
+	);
+}
+
+/** Keys of the tracks the user left out of the video, which players no longer offer. */
+export function useLeftOut(file: File | null): ReadonlySet<string> {
+	const overrides = useMuxSettings((state) => (state.file === file ? state.overrides : null));
+	return useMemo(
+		() =>
+			new Set(
+				Object.entries(overrides ?? {}).flatMap(([key, change]) => (change.include === false ? [key] : [])),
+			),
+		[overrides],
+	);
+}
+
+/** The name a sound track added from a file starts with: the file's. */
+function addedName(file: File): string {
+	return file.name.replace(/\.[^.]+$/, '');
+}
+
+/** How a sound track changes, for the export. */
+function soundOf(track: MuxTrack): TrackSound {
+	if (!soundEdited(track) && !track.encode) return SOUND_AS_IS;
+	return { decibels: track.decibels, sound: soundEdited(track) ? trackSound(track) : null, encode: track.encode };
+}
+
+/** A sound track added from another file. */
+interface AddedAudio {
+	key: string;
+	file: File;
+	codec: AudioCodec;
+}
+
+interface MuxSettingsState {
+	file: File | null;
+	overrides: Record<string, Override>;
+	added: AddedAudio[];
+	set: (file: File, key: string, change: Override) => void;
+	/** Adds sound from another file; returns its track's key. */
+	addAudio: (file: File, audio: Omit<AddedAudio, 'key'>) => string;
+	removeAudio: (file: File, key: string) => void;
+}
+
+let addedCount = 0;
+
+/** What the user changed in the track list, per file: kept while going between editors. */
+export const useMuxSettings = create<MuxSettingsState>((set, get) => {
+	/** The settings of this file: fresh ones for another file. */
+	const of = (file: File) =>
+		get().file === file ? { overrides: get().overrides, added: get().added } : { overrides: {}, added: [] };
+	return {
+		file: null,
+		overrides: {},
+		added: [],
+		set(file, key, change) {
+			const { overrides, added } = of(file);
+			set({ file, added, overrides: { ...overrides, [key]: { ...overrides[key], ...change } } });
+		},
+		addAudio(file, audio) {
+			const { overrides, added } = of(file);
+			addedCount += 1;
+			const key = `added-${addedCount}`;
+			set({ file, overrides, added: [...added, { ...audio, key }] });
+			return key;
+		},
+		removeAudio(file, key) {
+			const { overrides, added } = of(file);
+			set({ file, overrides, added: added.filter((entry) => entry.key !== key) });
+		},
+	};
+});
+
+/** Short name of a Mediabunny audio codec. */
+export function audioCodecName(codec: AudioCodec): string {
+	const names: Partial<Record<AudioCodec, string>> = {
+		aac: 'AAC',
+		opus: 'Opus',
+		mp3: 'MP3',
+		vorbis: 'Vorbis',
+		flac: 'FLAC',
+		ac3: 'AC-3',
+		eac3: 'E-AC-3',
+		dts: 'DTS',
+		truehd: 'TrueHD',
+	};
+	return names[codec] ?? (codec.startsWith('pcm') ? 'PCM' : codec);
+}
+
+/** MKV for Matroska and WebM sources, MP4 for MP4 and QuickTime ones. */
+export function muxContainer(format: string): 'mkv' | 'mp4' {
+	return format === 'mkv' || format === 'webm' ? 'mkv' : 'mp4';
+}
+
+interface ListedTrack {
+	id: number;
+	kind: 'video' | 'audio';
+	codec: string;
+	language: string;
+	name: string;
+	default: boolean;
+}
+
+/** Short name of a codec: Matroska IDs (`V_MPEG4/ISO/AVC`) and MP4 sample entries (`avc1`). */
+function mediaCodec(codec: string): string {
+	const names: Record<string, string> = {
+		'V_MPEG4/ISO/AVC': 'H.264',
+		V_MPEGH_ISO_HEVC: 'HEVC',
+		'V_MPEGH/ISO/HEVC': 'HEVC',
+		V_AV1: 'AV1',
+		V_VP9: 'VP9',
+		V_VP8: 'VP8',
+		A_AAC: 'AAC',
+		A_OPUS: 'Opus',
+		A_VORBIS: 'Vorbis',
+		A_FLAC: 'FLAC',
+		A_AC3: 'AC-3',
+		A_EAC3: 'E-AC-3',
+		A_DTS: 'DTS',
+		A_TRUEHD: 'TrueHD',
+		'A_MPEG/L3': 'MP3',
+		avc1: 'H.264',
+		avc3: 'H.264',
+		hvc1: 'HEVC',
+		hev1: 'HEVC',
+		av01: 'AV1',
+		vp09: 'VP9',
+		mp4a: 'AAC',
+		Opus: 'Opus',
+		'ac-3': 'AC-3',
+		'ec-3': 'E-AC-3',
+		fLaC: 'FLAC',
+		'.mp3': 'MP3',
+		alac: 'ALAC',
+		apch: 'ProRes',
+		apcn: 'ProRes',
+	};
+	return names[codec] ?? codec.replace(/^[VA]_/, '').replace(/^PCM\/INT\/LIT$/, 'PCM');
+}
+
+function subtitleCodec(track: TrackState, container: 'mkv' | 'mp4'): string {
+	if (container === 'mp4' && (track.edited || !track.info)) return 'Timed Text';
+	if (track.edited || !track.info) return track.doc ? codecLabelOf(trackCodec(track.doc)) : '';
+	return codecLabel(track.info);
+}
+
+function codecLabelOf(codec: string): string {
+	return (
+		{
+			'S_TEXT/UTF8': 'SRT',
+			'S_TEXT/ASS': 'ASS',
+			'S_TEXT/SSA': 'SSA',
+			'S_TEXT/WEBVTT': 'WebVTT',
+			'S_HDMV/PGS': 'PGS',
+		}[codec] ?? codec
+	);
+}
+
+/**
+ * Every track of the video to export, with the user's choices applied: video and audio as the
+ * file has them, subtitles as the subtitle editor has them (new ones once they have a line).
+ */
+export function useMuxTracks(
+	file: File | null,
+	format: string,
+	/** The container written, when the video is converted into another one. */
+	target: VideoContainer | null = null,
+	/** The subtitle track burned into the pictures. */
+	burned: string | null = null,
+): { tracks: MuxTrack[]; originals: MuxTrack[] } | null {
+	const container = target === null ? muxContainer(format) : target === 'mkv' || target === 'webm' ? 'mkv' : 'mp4';
+	const projectFile = useSubtitleProject((state) => state.file);
+	const status = useSubtitleProject((state) => state.status);
+	const media = useSubtitleProject((state) => state.media);
+	const subtitles = useProjectTracks();
+	const overrides = useMuxSettings((state) => (state.file === file ? state.overrides : null));
+	const addedAudio = useMuxSettings((state) => (state.file === file ? state.added : null));
+
+	if (!file || projectFile !== file || status !== 'ready') return null;
+	const listed: ListedTrack[] = media.map((track) => ({ ...track, codec: mediaCodec(track.codec) }));
+
+	const tracks: MuxTrack[] = listed.map((track) => ({
+		key: `${track.kind}-${track.id}`,
+		kind: track.kind,
+		number: track.id,
+		subtitle: null,
+		codec: track.codec,
+		language: track.language,
+		name: track.name,
+		default: track.default,
+		forced: false,
+		include: true,
+		edited: false,
+		blocked: null,
+		decibels: 0,
+		eq: FLAT_EQ,
+		compress: 0,
+		added: null,
+		encode: null,
+	}));
+	for (const audio of addedAudio ?? []) {
+		tracks.push({
+			key: audio.key,
+			kind: 'audio',
+			number: null,
+			subtitle: null,
+			codec: audioCodecName(audio.codec),
+			language: 'und',
+			name: addedName(audio.file),
+			default: false,
+			forced: false,
+			include: true,
+			edited: false,
+			blocked: null,
+			decibels: 0,
+			eq: FLAT_EQ,
+			compress: 0,
+			added: audio.file,
+			encode: null,
+		});
+	}
+	for (const track of subtitles) {
+		if (track.key === 'file' || (track.key === 'new' && !track.edited)) continue;
+		const pgs = track.doc?.format === 'pgs';
+		tracks.push({
+			key: `subtitle-${track.key}`,
+			kind: 'subtitle',
+			number: typeof track.key === 'number' ? track.key : null,
+			subtitle: track.key,
+			codec: subtitleCodec(track, container),
+			// New subtitles are in the language of whoever writes them, until told otherwise.
+			language: track.info?.language ?? (track.key === 'new' ? interfaceLanguage() : 'und'),
+			name: track.info?.name ?? '',
+			default: track.info?.default ?? false,
+			forced: track.info?.forced ?? false,
+			include: true,
+			edited: track.edited,
+			blocked:
+				`subtitle-${track.key}` === burned
+					? 'burned'
+					: target === 'webm'
+						? 'webm'
+						: container === 'mp4' && pgs
+							? 'pgs-mp4'
+							: null,
+			decibels: 0,
+			eq: FLAT_EQ,
+			compress: 0,
+			added: null,
+			encode: null,
+		});
+	}
+	const chosen = tracks.map((track) => {
+		const change = overrides?.[track.key] ?? {};
+		const merged = { ...track, ...change };
+		return track.blocked ? { ...merged, include: false } : merged;
+	});
+	return { tracks: chosen, originals: tracks };
+}
+
+/** The subtitle document of a track not on screen: its edits, else as read. */
+function docOf(track: MuxTrack): SubtitleDoc | null {
+	const entry = useSubtitleProject.getState().tracks.find((candidate) => candidate.key === track.subtitle);
+	return entry ? (entry.history?.present ?? entry.original) : null;
+}
+
+export interface MuxJob {
+	file: File;
+	format: string;
+	tracks: MuxTrack[];
+	/** The document shown in the subtitle editor, which may not be saved in its track yet. */
+	shown: () => SubtitleDoc;
+	title: string;
+	/** Subtitles read for this export alone, by track key, rather than those of the subtitle editor. */
+	docs?: ReadonlyMap<string, SubtitleDoc>;
+	/** Fonts of these subtitles, rather than those of the subtitle editor. */
+	fonts?: readonly Uint8Array[];
+}
+
+function currentDoc(job: MuxJob, track: MuxTrack): SubtitleDoc | null {
+	if (job.docs) return job.docs.get(track.key) ?? null;
+	if (track.subtitle !== null && track.subtitle === useSubtitleProject.getState().current) return job.shown();
+	return docOf(track);
+}
+
+/** Changes the user made to a track's details, which Matroska stores in its header. */
+function changed(track: MuxTrack, original: MuxTrack | undefined): Partial<TrackChoice> {
+	if (!original) return {};
+	const change: Partial<TrackChoice> = {};
+	if (track.language !== original.language) change.language = track.language;
+	if (track.name !== original.name) change.name = track.name;
+	if (track.default !== original.default) change.default = track.default;
+	if (track.forced !== original.forced) change.forced = track.forced;
+	return change;
+}
+
+/** Writes the video with its tracks, nothing re-encoded: MKV to MKV, MP4 to MP4. */
+export async function exportVideo(
+	job: MuxJob,
+	originals: MuxTrack[],
+	save: SaveTarget,
+	onProgress: (share: number) => void,
+	signal: AbortSignal,
+): Promise<void> {
+	const mp4 = muxContainer(job.format) === 'mp4';
+	const streamOf = async (doc: SubtitleDoc) => (mp4 ? timedTextStream(doc) : matroskaStream(doc));
+	const streams: StreamData[] = [];
+	const choices: TrackChoice[] = [];
+	const added: AddedTrack[] = [];
+	// Fonts named by the ASS subtitles written, which go with them.
+	const families = new Set<string>();
+	const written = (doc: SubtitleDoc) => {
+		if (!mp4 && doc.format === 'ass')
+			for (const family of scriptFamilies(toAssScript(doc, job.title))) families.add(family);
+	};
+	for (const track of job.tracks) {
+		const original = originals.find((candidate) => candidate.key === track.key);
+		const details = { language: track.language, name: track.name, default: track.default, forced: track.forced };
+		if (track.number === null) {
+			const doc = currentDoc(job, track);
+			if (!track.include || !doc) continue;
+			// oxlint-disable-next-line no-await-in-loop -- one track at a time keeps memory low
+			streams.push(await streamOf(doc));
+			written(doc);
+			added.push({ stream: streams.length - 1, ...details });
+			continue;
+		}
+		if (track.include && track.edited) {
+			const doc = currentDoc(job, track);
+			if (doc) {
+				// oxlint-disable-next-line no-await-in-loop -- one track at a time keeps memory low
+				streams.push(await streamOf(doc));
+				written(doc);
+				// The track is written anew: it takes all its details from here.
+				choices.push({ number: track.number, keep: true, stream: streams.length - 1, ...details });
+				continue;
+			}
+		}
+		const change = changed(track, original);
+		if (!track.include || Object.keys(change).length > 0) {
+			choices.push({ number: track.number, keep: track.include, ...change });
+		}
+	}
+	const fonts = await fontAttachments([...families], job.fonts ?? useSubtitleProject.getState().fonts);
+	await remux({ file: job.file, choices, added, streams, fonts }, save, onProgress, signal);
+}
+
+/**
+ * Subtitle lines placed on the edited video's time: those in removed passages go, the others
+ * move up by what was removed before them.
+ */
+export function cutSubtitles(doc: SubtitleDoc, ranges: readonly Range[] | null, speed = 1): SubtitleDoc {
+	if (!ranges && speed === 1) return doc;
+	const cues = doc.cues.flatMap((cue) => {
+		const start = cue.start / 1000;
+		const end = cue.end / 1000;
+		if (ranges && !ranges.some((range) => range.start < end && range.end > start)) return [];
+		// On the output's time: the passages removed closed up, then the speed applied.
+		const from = Math.round(((ranges ? toOutput(ranges, start) : start) * 1000) / speed);
+		const to = Math.round(((ranges ? toOutput(ranges, end) : end) * 1000) / speed);
+		return to > from ? [{ ...cue, start: from, end: to }] : [];
+	});
+	return { ...doc, cues };
+}
+
+export interface ConvertedJob extends MuxJob {
+	/** The tracks as the file has them, to tell what the user changed. */
+	originals: readonly MuxTrack[];
+	doc: VideoDoc;
+	settings: VideoExportSettings;
+	/** Size of the source's pictures, upright. */
+	upright: { width: number; height: number };
+	/** The source's video bitrate, frame rate and codec: the bitrate written starts from them. */
+	source: Pick<VideoSource, 'bitrate' | 'frameRate' | 'codec'>;
+	/** Bit depth of the pictures when converted: 10 where the encoder takes it. */
+	bitDepth?: 8 | 10;
+}
+
+/** Whether the tracks can't simply be copied into a file like the source: their sound changes. */
+export function soundChanged(tracks: readonly MuxTrack[]): boolean {
+	return tracks.some(
+		(track) => track.include && (soundEdited(track) || track.added !== null || track.encode !== null),
+	);
+}
+
+/** The subtitles burned into the pictures, as edited. */
+function burnJob(job: ConvertedJob): BurnJob | null {
+	const track = job.tracks.find((candidate) => candidate.key === job.settings.burn);
+	const doc = track ? currentDoc(job, track) : null;
+	if (!doc) return null;
+	return { doc, title: job.title, fonts: job.fonts ?? useSubtitleProject.getState().fonts };
+}
+
+/**
+ * The settings with the plan of the pictures written in: their height and bitrate, from the
+ * source, the codec and the size limit, the sound taking its share (copied tracks at their own
+ * bitrate). Also the sound's bitrate and the size expected, in MB.
+ */
+async function plannedSettings(job: ConvertedJob): Promise<{
+	settings: VideoExportSettings;
+	audio: number;
+	/** Each sound track's planned rate, in kb/s. */
+	rates: ReadonlyMap<MuxTrack, number>;
+	estimate: number | null;
+}> {
+	const { settings, doc } = job;
+	if (settings.mode !== 'encode') return { settings, audio: 0, rates: new Map(), estimate: null };
+	const sound = job.tracks.filter((track) => track.kind === 'audio' && track.include);
+	const copied = sound.flatMap((track) =>
+		settings.audio === 'copy' && !soundEdited(track) && !track.encode && track.number !== null
+			? [track.number]
+			: [],
+	);
+	const measured = copied.length > 0 ? await audioBitrates(job.file, copied) : new Map<number, number>();
+	const rates = new Map(
+		sound.map((track) => [
+			track,
+			track.encode?.bitrate ??
+				(track.number !== null && measured.has(track.number)
+					? (measured.get(track.number) ?? 0)
+					: settings.audioBitrate),
+		]),
+	);
+	const audio = [...rates.values()].reduce((total, rate) => total + rate, 0);
+	const plan = planVideo({
+		settings,
+		picture: doc.picture,
+		upright: job.upright,
+		seconds: videoLength(doc),
+		audio,
+		source: job.source,
+	});
+	return { settings: planned(settings, plan), audio, rates, estimate: plan.estimate };
+}
+
+/** Bytes in a size limit of `megabytes`, as the size limits count them. */
+const limitBytes = (megabytes: number) => megabytes * 1_000_000;
+
+/** Share of the limit a try may reach before the file is written again, smaller. */
+const LIMIT_SLACK = 0.99;
+
+/** Tries at a size limit before giving up: each one smaller by what the last went over. */
+const LIMIT_TRIES = 3;
+
+/** Bytes a subtitle track adds to a file: its packets, and a little for each one's header. */
+function streamBytes(stream: StreamData): number {
+	return stream.data.length + stream.private.length + stream.starts.length * 24;
+}
+
+/** Thrown when a video can't be brought under its size limit: nothing over it is saved. */
+export class SizeLimitError extends Error {
+	constructor(readonly limit: number) {
+		super(`The video doesn't fit in ${limit} bytes`);
+		this.name = 'SizeLimitError';
+	}
+}
+
+/** Copies a written file into the save target, a few megabytes at a time. */
+async function copyInto(file: File, save: SaveTarget) {
+	const step = 8 * 1024 * 1024;
+	for (let start = 0; start < file.size; start += step) {
+		// oxlint-disable-next-line no-await-in-loop -- in order, a piece at a time
+		await save.append(new Uint8Array(await file.slice(start, start + step).arrayBuffer()));
+	}
+}
+
+/** Splits the progress bar between passes, by weight. */
+function passes(weights: readonly number[], onProgress: (share: number) => void) {
+	const total = weights.reduce((sum, weight) => sum + weight, 0);
+	return (index: number) => {
+		const before = weights.slice(0, index).reduce((sum, weight) => sum + weight, 0);
+		return (share: number) => {
+			onProgress((before + share * (weights[index] ?? 0)) / total);
+		};
+	};
+}
+
+/**
+ * Writes the video with its edits: the pictures encoded again or copied, the sound copied or
+ * encoded again with its level, sound from other files added, then, when subtitles go with it,
+ * the file completed by the remuxer with the subtitle tracks (placed on the edited time) and the
+ * fonts of the source. Each step but the last writes into the browser's private storage. WebM
+ * holds no subtitles of these kinds: they are left out.
+ */
+export async function exportConverted(
+	job: ConvertedJob,
+	save: SaveTarget,
+	onProgress: (share: number) => void,
+	signal: AbortSignal,
+): Promise<void> {
+	const { doc } = job;
+	const { settings, rates, estimate } = await plannedSettings(job);
+	const { container } = settings;
+	// MP4 and MOV small enough to be held in memory get their index first, for players and
+	// services to start before the end: messaging apps stream them. A copy weighs what the source does.
+	const expected = settings.mode === 'encode' ? (estimate ?? settings.sizeLimit) : job.file.size / 1_000_000;
+	const fastStart = (container === 'mp4' || container === 'mov') && expected !== null && expected <= FAST_START_LIMIT;
+	// Under a size limit, the pictures are written apart first: a file over the limit is written
+	// again, smaller, before it reaches the save target.
+	const checked = settings.mode === 'encode' && settings.sizeLimit !== null;
+	const shortened = isShortened(doc);
+	const kept = shortened ? keptRanges(doc) : null;
+	const sound = job.tracks.filter((track) => track.kind === 'audio' && track.include);
+	const own = sound.flatMap((track) => (track.number === null ? [] : [{ track, id: track.number }]));
+	const added = sound.flatMap((track) => (track.added === null ? [] : [{ track, file: track.added }]));
+	const subtitles =
+		container === 'webm'
+			? []
+			: job.tracks.filter((track) => track.kind === 'subtitle' && track.include && track.blocked === null);
+	// Matroska players show the segment's title, which only the remuxer writes.
+	const title = container === 'mkv' && doc.meta ? doc.meta.title : undefined;
+	const remuxed = subtitles.length > 0 || title !== undefined;
+	const plan = (track: MuxTrack, from: AudioPlan['from'], encode: AudioPlan['encode']): AudioPlan => ({
+		from,
+		decibels: track.decibels,
+		sound: soundEdited(track) ? trackSound(track) : null,
+		encode: track.encode?.codec ?? encode,
+		bitrate: track.encode?.bitrate ?? settings.audioBitrate,
+		language: track.language,
+		name: track.name,
+		default: track.default,
+	});
+	const addedPlan = (
+		{ track, file }: { track: MuxTrack; file: File },
+		encode: AudioPlan['encode'],
+		ranges: readonly Range[] | undefined,
+	): AudioPlan => ({
+		...plan(track, { file }, encode),
+		ranges,
+		// Sound from another file follows the video's speed and fades, as its own sound does.
+		...(settings.mode === 'encode' && timeShaped(doc)
+			? { shape: { speed: speedOf(doc), fade: fadeOf(doc), length: videoLength(doc) } }
+			: {}),
+	});
+
+	// A conversion keeps the sound tracks' details as the file has them.
+	const renamed = own.some(({ track }) => {
+		const original = job.originals.find((candidate) => candidate.key === track.key);
+		return Object.keys(changed(track, original)).length > 0;
+	});
+	// Converting with passages removed, sound kept as it is is copied part by part from the source
+	// in a second pass: the conversion only encodes the tracks whose level changes.
+	const copiedCut =
+		settings.mode === 'encode' && settings.audio === 'copy' && doc.cuts.length > 0 && !timeShaped(doc)
+			? own.filter(({ track }) => !soundEdited(track) && !track.encode)
+			: [];
+	const encodedOwn = own.filter((entry) => !copiedCut.includes(entry));
+	// Sound from other files goes in while copying; a conversion is completed by a copy with it,
+	// which also writes the sound tracks' new details.
+	const merge = settings.mode === 'encode' && (added.length > 0 || renamed || copiedCut.length > 0);
+	const step = passes(
+		[settings.mode === 'encode' ? 8 : 2, ...(merge ? [1] : []), ...(remuxed ? [1] : [])],
+		onProgress,
+	);
+	const scratches: ScratchFile[] = [];
+	const extension = CONTAINERS[container].extension;
+	const last = !merge && !remuxed && !checked;
+	const scratch = async () => {
+		const file = await openScratchFile(`converted.${extension}`);
+		scratches.push(file);
+		return file;
+	};
+
+	/** The subtitle tracks as they go in the file, placed on the output's time. */
+	const subtitleStreams = async (ranges: readonly Range[] | null) => {
+		const mkv = container === 'mkv';
+		const list: StreamData[] = [];
+		const tracks: AddedTrack[] = [];
+		// Fonts named by the ASS subtitles written, which go with them in Matroska.
+		const families = new Set<string>();
+		for (const track of subtitles) {
+			const subtitleDoc = currentDoc(job, track);
+			if (!subtitleDoc) continue;
+			const placed = cutSubtitles(subtitleDoc, ranges, settings.mode === 'encode' ? speedOf(doc) : 1);
+			if (mkv && placed.format === 'ass')
+				for (const family of scriptFamilies(toAssScript(placed, job.title))) families.add(family);
+			// oxlint-disable-next-line no-await-in-loop -- one track at a time keeps memory low
+			list.push(await (mkv ? matroskaStream(placed) : timedTextStream(placed)));
+			tracks.push({
+				stream: list.length - 1,
+				language: track.language,
+				name: track.name,
+				default: track.default,
+				forced: track.forced,
+			});
+		}
+		const fonts =
+			families.size > 0
+				? await fontAttachments([...families], job.fonts ?? useSubtitleProject.getState().fonts)
+				: [];
+		return { list, tracks, fonts };
+	};
+	let streams: Awaited<ReturnType<typeof subtitleStreams>> | null = null;
+
+	try {
+		let written = last ? null : await scratch();
+		const target = written?.target ?? save.target;
+		let ranges: Range[] | null;
+		if (settings.mode === 'encode') {
+			const audioTracks = new Map(encodedOwn.map(({ track, id }) => [id, soundOf(track)]));
+			const convert = {
+				file: job.file,
+				doc,
+				settings,
+				upright: job.upright,
+				audioTracks,
+				burn: burnJob(job),
+				bitDepth: job.bitDepth,
+				fastStart,
+			};
+			await convertVideo(convert, target, step(0), signal);
+			if (checked && settings.sizeLimit !== null && written) {
+				const limit = limitBytes(settings.sizeLimit);
+				const bytesOf = (tracks: readonly { track: MuxTrack }[]) =>
+					(tracks.reduce((sum, { track }) => sum + (rates.get(track) ?? 0), 0) * 1000 * videoLength(doc)) / 8;
+				// What this pass wrote besides the pictures, then what the later ones add: sound from
+				// other files or copied part by part, and subtitles. The file saved is all of it.
+				const passSound = bytesOf(encodedOwn);
+				streams = remuxed ? await subtitleStreams(kept) : null;
+				const later =
+					bytesOf([...copiedCut, ...added]) +
+					(streams?.list.reduce((sum, stream) => sum + streamBytes(stream), 0) ?? 0) +
+					(streams?.fonts.reduce((sum, font) => sum + font.bytes.length, 0) ?? 0);
+				let bitrate = settings.bitrate;
+				let size = (await written.file()).size;
+				for (let tries = 1; size + later > limit * LIMIT_SLACK; tries++) {
+					if (tries === LIMIT_TRIES || bitrate <= 50) throw new SizeLimitError(limit);
+					// Over the limit: the pictures again, their bitrate brought down by what went over,
+					// kept constant this time.
+					const pictures = Math.max(1, size - passSound);
+					const share = Math.max(0.1, Math.min(0.95, (limit * 0.95 - later - passSound) / pictures));
+					bitrate = Math.max(50, Math.floor(bitrate * share));
+					// oxlint-disable-next-line no-await-in-loop -- each try decides the next
+					await written.remove();
+					// oxlint-disable-next-line no-await-in-loop
+					written = await scratch();
+					// oxlint-disable-next-line no-await-in-loop
+					await convertVideo(
+						{ ...convert, settings: { ...settings, bitrate }, strict: true },
+						written.target,
+						step(0),
+						signal,
+					);
+					// oxlint-disable-next-line no-await-in-loop
+					size = (await written.file()).size;
+				}
+				if (!merge && !remuxed) await copyInto(await written.file(), save);
+			}
+			ranges = kept;
+		} else if (shortened && !copiesParts(container, doc.cuts.length > 0) && !soundChanged(job.tracks)) {
+			// MP4 trimmed at both ends: copied exactly, an edit list hiding the pictures before the start.
+			const audioTracks = new Map(own.map(({ id }) => [id, SOUND_AS_IS]));
+			const convert = { file: job.file, doc, settings, upright: job.upright, audioTracks, fastStart };
+			await convertVideo(convert, target, step(0), signal);
+			ranges = kept;
+		} else {
+			const audio = [
+				...own.map(({ track, id }) => plan(track, { id }, soundEdited(track) ? 'auto' : null)),
+				...added.map((track) => addedPlan(track, null, undefined)),
+			];
+			const turn = pictureChange(doc.picture) === 'turn' ? editTurn(doc.picture) : null;
+			ranges = await copyTracks(
+				{ file: job.file, container, ranges: kept, audio, turn, meta: doc.meta, fastStart },
+				target,
+				step(0),
+				signal,
+			);
+		}
+
+		if (merge && written) {
+			const read = written;
+			const converted = await read.file();
+			written = remuxed ? await scratch() : null;
+			const audio = [
+				// Already encoded with their level: copied as they are. Those kept as they are come from
+				// the source, part by part.
+				...own.map((entry) =>
+					copiedCut.includes(entry)
+						? { ...plan(entry.track, { file: job.file, id: entry.id }, null), ranges: kept ?? undefined }
+						: {
+								...plan(entry.track, { number: encodedOwn.indexOf(entry) + 1 }, null),
+								decibels: 0,
+								sound: null,
+								encode: null,
+							},
+				),
+				// Sped up, it stops where the source's pictures do, not where the faster output does.
+				...added.map((entry) =>
+					addedPlan(
+						entry,
+						settings.audio === 'copy' ? null : settings.audio,
+						kept ?? (timeShaped(doc) ? keptRanges(doc) : undefined),
+					),
+				),
+			];
+			await copyTracks(
+				{ file: converted, container, ranges: null, audio, fastStart },
+				written?.target ?? save.target,
+				step(1),
+				signal,
+			);
+			// Read whole: its room on disk is given back before the next pass writes.
+			await read.remove();
+		}
+
+		if (remuxed && written) {
+			const converted = await written.file();
+			const { list, tracks, fonts } = streams ?? (await subtitleStreams(ranges));
+			await remux(
+				{
+					file: converted,
+					choices: [],
+					added: tracks,
+					streams: list,
+					// The source's fonts come with the tags the first pass copied, a cover chosen here
+					// among them; those the subtitles name besides (added, Vixely's) are attached here.
+					fonts,
+					title,
+				},
+				save,
+				step(merge ? 2 : 1),
+				signal,
+			);
+		}
+	} finally {
+		for (const file of scratches) {
+			// oxlint-disable-next-line no-await-in-loop -- a couple of files
+			await file.remove();
+		}
+	}
+}

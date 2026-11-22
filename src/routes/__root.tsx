@@ -1,253 +1,69 @@
-import { createRootRoute, Outlet, Link, useNavigate, useRouterState } from '@tanstack/react-router';
-import { Video, ImageIcon, Film, Home } from 'lucide-react';
-import { lazy, Suspense, useEffect, useRef, useState, useCallback, type MouseEvent as ReactMouseEvent } from 'react';
+import { createRootRoute, Link, Outlet } from '@tanstack/react-router';
+import { useEffect } from 'react';
+import { GlobalDrop } from '@/app/GlobalDrop';
+import { usePageHead } from '@/app/head';
+import { useLocale } from '@/app/locale';
+import { SiteHeader } from '@/app/SiteHeader';
+import { EDITOR_ORDER, EDITORS } from '@/editors/registry';
+import { m } from '@/paraglide/messages.js';
+import { Tile } from '@/ui/Tile';
+import { Tooltips } from '@/ui/Tooltips';
 
-const TanStackRouterDevtools = lazy(async () => {
-	const m = await import('@tanstack/react-router-devtools');
-	return { default: m.TanStackRouterDevtools };
-});
-import { Toaster } from 'sonner';
-import { ConfirmResetModal } from '@/components/ConfirmResetModal.tsx';
-import { CookieBanner } from '@/components/CookieBanner.tsx';
-import { Logo } from '@/components/Logo.tsx';
-import { NotFound } from '@/components/NotFound.tsx';
-import { useEditorSessionStore, type EditorKey } from '@/stores/editorSession.ts';
-import { useGifEditorStore } from '@/stores/gifEditor.ts';
-import { useImageEditorStore } from '@/stores/imageEditor.ts';
-import { useVideoEditorStore } from '@/stores/videoEditor.ts';
-import { loadAdsenseDeferred } from '@/utils/adsenseLoader.ts';
-
-export const Route = createRootRoute({ component: RootLayout, notFoundComponent: NotFound });
-
-function AppToaster() {
+function NotFound() {
+	usePageHead('404');
+	// The server answers every address with the app: search engines learn here that this one is empty.
 	useEffect(() => {
-		const handleClick = (e: MouseEvent) => {
-			if (!(e.target instanceof Element)) return;
-			// Let Sonner's own close button handle its click natively
-			if (e.target.closest('[data-close-button]')) return;
-			const toastEl = e.target.closest('[data-sonner-toast]');
-			if (!toastEl) return;
-			// Delegate to Sonner's close button so it uses its own dismiss logic
-			toastEl.querySelector<HTMLButtonElement>('[data-close-button]')?.click();
-		};
-		document.addEventListener('click', handleClick);
+		const robots = document.createElement('meta');
+		robots.name = 'robots';
+		robots.content = 'noindex';
+		document.head.append(robots);
 		return () => {
-			document.removeEventListener('click', handleClick);
+			robots.remove();
 		};
 	}, []);
-
-	return <Toaster position="top-center" closeButton toastOptions={{ duration: 3500 }} gap={6} />;
-}
-
-const navItems = [
-	{
-		to: '/tools/video' as const,
-		label: 'Video',
-		icon: Video,
-		activeText: 'text-blue-500',
-		activeBg: 'bg-blue-500/10',
-		indicator: 'bg-blue-500',
-	},
-	{
-		to: '/tools/image' as const,
-		label: 'Image',
-		icon: ImageIcon,
-		activeText: 'text-amber-500',
-		activeBg: 'bg-amber-500/10',
-		indicator: 'bg-amber-500',
-	},
-	{
-		to: '/tools/gif' as const,
-		label: 'GIF',
-		icon: Film,
-		activeText: 'text-emerald-500',
-		activeBg: 'bg-emerald-500/10',
-		indicator: 'bg-emerald-500',
-	},
-];
-
-type EditorTabRoute = (typeof navItems)[number]['to'] | '/';
-
-function editorFromPath(pathname: string): EditorKey | null {
-	if (pathname.startsWith('/tools/video')) return 'video';
-	if (pathname.startsWith('/tools/image')) return 'image';
-	if (pathname.startsWith('/tools/gif')) return 'gif';
-	return null;
-}
-
-function resetEditorByKey(editor: EditorKey): void {
-	if (editor === 'video') {
-		useVideoEditorStore.getState().resetAll();
-		return;
-	}
-	if (editor === 'image') {
-		useImageEditorStore.getState().clearAll();
-		return;
-	}
-	useGifEditorStore.getState().resetAll();
-}
-
-function RootLayout() {
-	const navigate = useNavigate();
-	const pathname = useRouterState({ select: (s) => s.location.pathname });
-	const isHome = pathname === '/';
-	const unsavedByEditor = useEditorSessionStore((s) => s.unsavedByEditor);
-	const setEditorUnsaved = useEditorSessionStore((s) => s.setUnsaved);
-	const [pendingEditorRoute, setPendingEditorRoute] = useState<EditorTabRoute | null>(null);
-	const [isEditorSwitchConfirmOpen, setIsEditorSwitchConfirmOpen] = useState(false);
-	const previousEditorRef = useRef<EditorKey | null>(null);
-
-	useEffect(() => {
-		const previousEditor = previousEditorRef.current;
-		const currentEditor = editorFromPath(pathname);
-		if (previousEditor && previousEditor !== currentEditor) {
-			resetEditorByKey(previousEditor);
-			setEditorUnsaved(previousEditor, false);
-		}
-		previousEditorRef.current = currentEditor;
-	}, [pathname, setEditorUnsaved]);
-
-	useEffect(() => {
-		if (import.meta.env.DEV) return;
-		loadAdsenseDeferred();
-	}, []);
-
-	const handleEditorTabClick = useCallback(
-		(event: ReactMouseEvent, destination: EditorTabRoute) => {
-			if (destination === pathname) return;
-			const currentEditor = editorFromPath(pathname);
-			if (!currentEditor) return;
-			if (!unsavedByEditor[currentEditor]) return;
-			event.preventDefault();
-			setPendingEditorRoute(destination);
-			setIsEditorSwitchConfirmOpen(true);
-		},
-		[pathname, unsavedByEditor],
-	);
-
-	const handleConfirmEditorSwitch = useCallback(() => {
-		if (!pendingEditorRoute) {
-			setIsEditorSwitchConfirmOpen(false);
-			return;
-		}
-		const destination = pendingEditorRoute;
-		setPendingEditorRoute(null);
-		setIsEditorSwitchConfirmOpen(false);
-		void navigate({ to: destination });
-	}, [navigate, pendingEditorRoute]);
-
-	const handleCancelEditorSwitch = useCallback(() => {
-		setPendingEditorRoute(null);
-		setIsEditorSwitchConfirmOpen(false);
-	}, []);
-
 	return (
-		<div className="flex flex-col md:flex-row h-full bg-bg text-text">
-			{/* ── Desktop Sidebar ── */}
-			<aside className="hidden md:flex w-20 shrink-0 flex-col items-center border-r border-border-subtle bg-bg py-4 gap-1.5">
-				{/* Logo */}
-				<Link
-					to="/"
-					onClick={(event) => {
-						handleEditorTabClick(event, '/');
-					}}
-					className="mb-6 group flex items-center justify-center"
-				>
-					<Logo className="h-9 w-9 transition-transform group-hover:scale-105" />
-				</Link>
-
-				{/* Nav */}
-				<nav className="flex flex-col gap-1 w-full px-2">
-					{navItems.map((item) => {
-						const isActive = pathname.startsWith(item.to);
-						return (
+		<div className="flex min-h-full flex-col">
+			<SiteHeader />
+			<main className="mx-auto grid w-full max-w-[44rem] flex-1 content-center gap-6 px-[clamp(1rem,4vw,2.5rem)] py-16">
+				<p className="font-display text-muted text-[clamp(4rem,12vw,7rem)] leading-none font-bold tracking-[-0.05em]">
+					404
+				</p>
+				<h1 className="font-display text-[clamp(1.75rem,4vw,2.5rem)] leading-tight font-bold tracking-[-0.02em]">
+					{m.not_found_title()}
+				</h1>
+				<p className="text-lead text-muted">{m.not_found_text()}</p>
+				<ul className="border-line grid border-t">
+					{EDITOR_ORDER.map((kind) => (
+						<li key={kind} className="border-line border-b">
 							<Link
-								key={item.to}
-								to={item.to}
-								onClick={(event) => {
-									handleEditorTabClick(event, item.to);
-								}}
-								className={`group relative flex flex-col items-center gap-0.5 rounded-lg py-2.5 transition-all ${
-									isActive
-										? `${item.activeBg} ${item.activeText}`
-										: 'text-text-tertiary hover:text-text-secondary hover:bg-white/3'
-								}`}
+								to={EDITORS[kind].path}
+								className="text-body hover:bg-surface -mx-2 flex items-center gap-3 rounded-sm px-2 py-2.5 font-medium transition-colors"
 							>
-								<item.icon className="h-5 w-5" />
-								<span className="text-[14px] font-semibold tracking-wide uppercase">{item.label}</span>
-								{isActive && (
-									<div
-										className={`absolute left-0 top-1/2 -translate-y-1/2 w-0.75 h-5 rounded-r-full ${item.indicator}`}
-									/>
-								)}
+								<Tile kind={kind} size="sm" />
+								{EDITORS[kind].label()}
 							</Link>
-						);
-					})}
-				</nav>
-
-				{/* Bottom spacer */}
-				<div className="mt-auto flex flex-col items-center gap-3 pb-2">
-					<div
-						className="h-1.5 w-1.5 rounded-full bg-success animate-pulse-soft"
-						title="All processing local"
-					/>
-				</div>
-			</aside>
-
-			{/* ── Main Content ── */}
-			<main className="flex-1 flex flex-col overflow-hidden min-h-0">
-				<div className="flex-1 min-h-0">
-					<Outlet />
-				</div>
-			</main>
-
-			{/* ── Mobile Bottom Tab Bar ── */}
-			<nav className="md:hidden shrink-0 flex items-center justify-around border-t border-border-subtle bg-bg safe-area-bottom">
-				<Link
-					to="/"
-					onClick={(event) => {
-						handleEditorTabClick(event, '/');
-					}}
-					className={`flex flex-col items-center gap-0.5 py-3 px-4 min-w-12 transition-all ${
-						isHome ? 'text-accent' : 'text-text-tertiary'
-					}`}
-				>
-					<Home className="h-5 w-5" />
-					<span className="text-[14px] font-semibold tracking-wide uppercase">Home</span>
+						</li>
+					))}
+				</ul>
+				<Link to="/" className="text-body justify-self-start underline underline-offset-[3px]">
+					{m.back_home()}
 				</Link>
-				{navItems.map((item) => {
-					const isActive = pathname.startsWith(item.to);
-					return (
-						<Link
-							key={item.to}
-							to={item.to}
-							onClick={(event) => {
-								handleEditorTabClick(event, item.to);
-							}}
-							className={`flex flex-col items-center gap-0.5 py-3 px-4 min-w-12 transition-all ${
-								isActive ? item.activeText : 'text-text-tertiary'
-							}`}
-						>
-							<item.icon className="h-5 w-5" />
-							<span className="text-[14px] font-semibold tracking-wide uppercase">{item.label}</span>
-						</Link>
-					);
-				})}
-			</nav>
-
-			{/* ── Overlays ── */}
-			<CookieBanner />
-			{isEditorSwitchConfirmOpen && (
-				<ConfirmResetModal onConfirm={handleConfirmEditorSwitch} onCancel={handleCancelEditorSwitch} />
-			)}
-
-			<AppToaster />
-
-			{import.meta.env.DEV && (
-				<Suspense>
-					<TanStackRouterDevtools position="bottom-left" />
-				</Suspense>
-			)}
+			</main>
 		</div>
 	);
 }
+
+function Root() {
+	// A new language re-renders every page in place (each route listens too), keeping what is open
+	// and edited.
+	useLocale();
+	return (
+		<>
+			<Outlet />
+			<GlobalDrop />
+			<Tooltips />
+		</>
+	);
+}
+
+export const Route = createRootRoute({ component: Root, notFoundComponent: NotFound });

@@ -1,0 +1,46 @@
+[package]
+name = "vixely-image"
+version = "0.1.0"
+edition = "2024"
+license = "AGPL-3.0-only"
+description = "Image encoders and decoders for Vixely, compiled to WebAssembly and run in a worker."
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+# JPEG: jpegli, ported to pure Rust.
+zenjpeg = { version = "0.8", default-features = false, features = ["trellis"] }
+# Palette quantisation for lossy PNG (libimagequant, pure Rust since v4).
+imagequant = { version = "4.4", default-features = false }
+png = "0.18"
+# Lossless PNG optimisation. Its libdeflate is C: building for wasm32 needs clang and llvm-ar.
+oxipng = { version = "10", default-features = false, features = ["freestanding"] }
+rgb = "0.8"
+crc32fast = "1"
+# AVIF through rav1e; no assembly so it builds for WebAssembly.
+ravif = { version = "0.13", default-features = false }
+# JPEG XL encoder and decoder.
+# Exact: 0.3.4 writes transparent images that decoders can't read back (`large_tests`).
+jxl-encoder = { version = "=0.3.1", default-features = false, features = ["std"] }
+jxl-oxide = { version = "0.12", default-features = false }
+# WebP, lossy and lossless: libwebp ported to pure Rust, so every browser gets the same encoder.
+zenwebp = { version = "0.4", default-features = false, features = ["std"] }
+# Decoding of formats browsers don't read: BMP, TIFF, ICO.
+image = { version = "0.25", default-features = false, features = ["bmp", "ico", "tiff"] }
+
+# Thread pool on Web Workers, for the multithreaded build (see scripts/build-wasm.ts).
+wasm-bindgen-rayon = { version = "1.3", optional = true }
+
+[features]
+# Encoders spread over every core. Needs WebAssembly threads: built separately, with a nightly
+# compiler, and loaded only on cross-origin isolated pages.
+threads = ["dep:wasm-bindgen-rayon", "ravif/threading", "jxl-encoder/parallel", "imagequant/threads"]
+
+[dev-dependencies]
+kamadak-exif = "0.6"
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O3", "--enable-threads", "--enable-bulk-memory", "--enable-nontrapping-float-to-int", "--enable-sign-ext", "--enable-mutable-globals", "--enable-reference-types", "--enable-multivalue", "--enable-simd"]

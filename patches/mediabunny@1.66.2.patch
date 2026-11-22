@@ -1,0 +1,490 @@
+diff --git a/dist/mediabunny.d.ts b/dist/mediabunny.d.ts
+index f16f9c025c1fce05977808a333af669b9cb6a80b..5a321d9369be8bc1abf2ede6154af899fc427b7b 100644
+--- a/dist/mediabunny.d.ts
++++ b/dist/mediabunny.d.ts
+@@ -2702,6 +2702,11 @@ export declare abstract class InputTrack {
+      * {@link Input.getTracks}.
+      */
+     get id(): number;
++    /**
++     * The track's own number in its container: the Matroska track number, the MP4 track ID, the MPEG-TS PID or the
++     * Ogg serial number; 1 for formats with a single track. What `id` was before 1.66.
++     */
++    get containerId(): number;
+     /**
+      * The 1-based index of this track among all tracks of the same type in the input file. For example, the first
+      * video track has number 1, the second video track has number 2, and so on. The index refers to the order in
+diff --git a/dist/modules/src/conversion.d.ts b/dist/modules/src/conversion.d.ts
+index e1b1d386a3949d4b9833cc4ce3a47713447af786..fbed99a950d7521022089a39ec80061e90b977c3 100644
+--- a/dist/modules/src/conversion.d.ts
++++ b/dist/modules/src/conversion.d.ts
+@@ -107,6 +107,11 @@ export type ConversionOptions = {
+  * @public
+  */
+ export type ConversionVideoOptions = {
++    /**
++     * HDR metadata to write with the video when its packets are copied (Vixely patch): the
++     * container's Dolby Vision configuration, mastering display and content light level.
++     */
++    hdr?: import('./output.js').VideoTrackMetadata['hdr'];
+     /** If `true`, all video tracks will be discarded and will not be present in the output. */
+     discard?: boolean;
+     /**
+@@ -190,6 +195,8 @@ export type ConversionVideoOptions = {
+      * encoding. This is best left on `'no-preference'`, the default.
+      */
+     hardwareAcceleration?: 'no-preference' | 'prefer-hardware' | 'prefer-software';
++    /** Bit depth of the encoded pictures (Vixely patch): 10 for HEVC Main 10, VP9 profile 2 or 10-bit AV1. */
++    bitDepth?: 8 | 10;
+     /** When `true`, video will always be re-encoded instead of directly copying over the encoded packets. */
+     forceTranscode?: boolean;
+     /**
+diff --git a/dist/modules/src/conversion.js b/dist/modules/src/conversion.js
+index e9fc7701ca4be2548027543f0f8080ac28741d31..7953186813ff38750f448661e22dccb2c369f305 100644
+--- a/dist/modules/src/conversion.js
++++ b/dist/modules/src/conversion.js
+@@ -1179,6 +1179,8 @@ export class Conversion {
+                 sizeChangeBehavior: trackOptions.fit ?? 'passThrough',
+                 alpha,
+                 hardwareAcceleration: trackOptions.hardwareAcceleration,
++                // Vixely patch: 10-bit encoding, where the encoder takes it.
++                bitDepth: trackOptions.bitDepth,
+                 transform: {},
+             };
+             assert(encodingConfig.transform);
+@@ -1335,6 +1337,8 @@ export class Conversion {
+             flip: outputTrackFlip,
+             transformationMatrix: outputTrackMatrix ?? undefined,
+             canBeTransparent,
++            // HDR metadata of the container only describes pictures copied as they are.
++            hdr: needsTranscode ? undefined : trackOptions.hdr,
+             group: ownGroup ?? trackOptions.group,
+             bitrate: bitrate ?? undefined,
+             averageBitrate: averageBitrate ?? undefined,
+diff --git a/dist/modules/src/encode.d.ts b/dist/modules/src/encode.d.ts
+index 1d8493a352a040e4badbcea78d29d46f01b3ca5d..509def3050fedac368d7901f9b44aa1decc71bf7 100644
+--- a/dist/modules/src/encode.d.ts
++++ b/dist/modules/src/encode.d.ts
+@@ -148,6 +148,11 @@ export type VideoEncodingAdditionalOptions = {
+      * @deprecated Specify the bitrate mode in the {@link Quality} instead.
+      */
+     bitrateMode?: 'constant' | 'variable';
++    /**
++     * Bit depth of the encoded pictures (Vixely patch): 10 asks for HEVC Main 10, VP9 profile 2 or
++     * 10-bit AV1 in the codec string. Defaults to 8.
++     */
++    bitDepth?: 8 | 10;
+     /**
+      * The latency mode used by the encoder; controls the performance-quality tradeoff.
+      *
+diff --git a/dist/modules/src/encode.js b/dist/modules/src/encode.js
+index c64161d95c0a541cfd6dc46cb370298539d640b1..c9abf3f6c3753f3383577a874f853728b6376c8b 100644
+--- a/dist/modules/src/encode.js
++++ b/dist/modules/src/encode.js
+@@ -116,6 +116,9 @@ export const validateVideoEncodingAdditionalOptions = (codec, options) => {
+     if (bitrateMode !== undefined && !['constant', 'variable'].includes(bitrateMode)) {
+         throw new TypeError('bitrateMode, when provided, must be \'constant\' or \'variable\'.');
+     }
++    if (options.bitDepth !== undefined && options.bitDepth !== 8 && options.bitDepth !== 10) {
++        throw new TypeError('bitDepth, when provided, must be 8 or 10.');
++    }
+     if (options.latencyMode !== undefined && !['quality', 'realtime'].includes(options.latencyMode)) {
+         throw new TypeError('latencyMode, when provided, must be \'quality\' or \'realtime\'.');
+     }
+@@ -146,7 +149,7 @@ export const buildVideoEncoderConfigs = (options) => {
+     const fallbackBitrateMode = options.bitrateMode;
+     const rateControl = options.quality._toVideoRateControl(options.codec, options.width, options.height, fallbackBitrateMode);
+     const buildConfig = (bitrate, bitrateMode, bitrateEstimate) => ({
+-        codec: options.fullCodecString ?? buildVideoCodecString(options.codec, options.width, options.height, bitrateEstimate, options.alpha === 'keep'),
++        codec: options.fullCodecString ?? buildVideoCodecString(options.codec, options.width, options.height, bitrateEstimate, options.alpha === 'keep', options.bitDepth),
+         width: options.width,
+         height: options.height,
+         displayWidth: options.squarePixelWidth,
+diff --git a/dist/modules/src/input-track.d.ts b/dist/modules/src/input-track.d.ts
+index 81909cf83db9c3885b5b4a52b6e940f54db31de9..cd6797b6542d4fd6f34fe384eec725765b0d831f 100644
+--- a/dist/modules/src/input-track.d.ts
++++ b/dist/modules/src/input-track.d.ts
+@@ -161,6 +161,11 @@ export declare abstract class InputTrack {
+      * {@link Input.getTracks}.
+      */
+     get id(): number;
++    /**
++     * The track's own number in its container: the Matroska track number, the MP4 track ID, the MPEG-TS PID or the
++     * Ogg serial number; 1 for formats with a single track. What `id` was before 1.66.
++     */
++    get containerId(): number;
+     /**
+      * The 1-based index of this track among all tracks of the same type in the input file. For example, the first
+      * video track has number 1, the second video track has number 2, and so on. The index refers to the order in
+diff --git a/dist/modules/src/input-track.js b/dist/modules/src/input-track.js
+index ec929d868af7e9d3e119952d883a74c9c6bee416..380f3496d69f5838713303efbeada36f8d23055d 100644
+--- a/dist/modules/src/input-track.js
++++ b/dist/modules/src/input-track.js
+@@ -42,6 +42,26 @@ export class InputTrack {
+         assert(index !== -1);
+         return index + 1;
+     }
++    /**
++     * The track's own number in its container: the Matroska track number, the MP4 track ID, the MPEG-TS PID or the
++     * Ogg serial number; 1 for formats with a single track. What `id` was before 1.66.
++     */
++    get containerId() {
++        const backing = this._backing;
++        if (backing.internalTrack && typeof backing.internalTrack.id === 'number') {
++            return backing.internalTrack.id;
++        }
++        if (backing.elementaryStream) {
++            return backing.elementaryStream.pid;
++        }
++        if (backing.bitstream) {
++            return backing.bitstream.serialNumber;
++        }
++        if (backing.decl && typeof backing.decl.id === 'number') {
++            return backing.decl.id;
++        }
++        return 1;
++    }
+     /**
+      * The 1-based index of this track among all tracks of the same type in the input file. For example, the first
+      * video track has number 1, the second video track has number 2, and so on. The index refers to the order in
+diff --git a/dist/modules/src/isobmff/isobmff-boxes.js b/dist/modules/src/isobmff/isobmff-boxes.js
+index a905b67bdd40e595a27b0c2428b81e15a5d382f5..7b8114fda0e4c5188d3fc81a0bea710836fca28b 100644
+--- a/dist/modules/src/isobmff/isobmff-boxes.js
++++ b/dist/modules/src/isobmff/isobmff-boxes.js
+@@ -560,7 +560,7 @@ export const stsd = (trackData) => {
+     ]);
+ };
+ /** Video Sample Description Box: Contains information that defines how to interpret video media data. */
+-export const videoSampleDescription = (compressionType, trackData) => box(compressionType, [
++export const videoSampleDescription = (compressionType, trackData) => box(dolbyVisionEntry(compressionType, trackData.track.metadata.hdr), [
+     Array(6).fill(0), // Reserved
+     u16(1), // Data reference index
+     u16(0), // Pre-defined
+@@ -584,8 +584,42 @@ export const videoSampleDescription = (compressionType, trackData) => box(compre
+     colorSpaceIsEmpty(trackData.info.decoderConfig.colorSpace)
+         ? null
+         : colr(trackData),
++    ...hdrBoxes(trackData.track.metadata.hdr),
+     btrt(trackData),
+ ]);
++/** Dolby Vision profile 5 has no other picture to fall back to: its entry says so. */
++const dolbyVisionEntry = (compressionType, hdr) => {
++    if (hdr?.dolbyVision?.record && (toUint8Array(hdr.dolbyVision.record)[2] >> 1) === 5) {
++        if (compressionType === 'hvc1')
++            return 'dvh1';
++        if (compressionType === 'hev1')
++            return 'dvhe';
++    }
++    return compressionType;
++};
++/** Dolby Vision configuration, mastering display and content light level boxes of HDR video. */
++const hdrBoxes = (hdr) => {
++    if (!hdr)
++        return [];
++    const boxes = [];
++    if (hdr.dolbyVision) {
++        boxes.push(box(hdr.dolbyVision.box, [...toUint8Array(hdr.dolbyVision.record)]));
++    }
++    const mastering = hdr.mastering;
++    if (mastering) {
++        const primaries = mastering.primaries ?? { green: [0, 0], blue: [0, 0], red: [0, 0], white: [0, 0] };
++        boxes.push(box('mdcv', [
++            ...[primaries.green, primaries.blue, primaries.red, primaries.white]
++                .flatMap(([x, y]) => [u16(Math.round(x * 50000)), u16(Math.round(y * 50000))]),
++            u32(Math.round(mastering.maxLuminance * 10000)),
++            u32(Math.round(mastering.minLuminance * 10000)),
++        ]));
++    }
++    if (hdr.contentLight) {
++        boxes.push(box('clli', [u16(hdr.contentLight.maxCll), u16(hdr.contentLight.maxFall)]));
++    }
++    return boxes;
++};
+ /** Bit Rate Box: Signals the average and peak bitrate of the track. */
+ export const btrt = (trackData) => {
+     if (trackData.avgBitrate === 0 && trackData.maxBitrate === 0) {
+diff --git a/dist/modules/src/matroska/matroska-muxer.js b/dist/modules/src/matroska/matroska-muxer.js
+index 22e4a324c2cccf1cdf2cd90a24099e8300725a61..85322ff5452655fc751fde6e2f8da5caa1f4165c 100644
+--- a/dist/modules/src/matroska/matroska-muxer.js
++++ b/dist/modules/src/matroska/matroska-muxer.js
+@@ -249,6 +249,9 @@ export class MatroskaMuxer extends Muxer {
+                         ? { id: EBMLId.Name, data: new EBMLUnicodeString(trackData.track.metadata.name) }
+                         : null,
+                     (trackData.type === 'video' ? this.videoSpecificTrackInfo(trackData) : null),
++                    (trackData.type === 'video' && trackData.track.metadata.hdr?.dolbyVision
++                        ? dolbyVisionMapping(trackData.track.metadata.hdr.dolbyVision)
++                        : null),
+                     (trackData.type === 'audio' ? this.audioSpecificTrackInfo(trackData) : null),
+                     (trackData.type === 'subtitle' ? this.subtitleSpecificTrackInfo(trackData) : null),
+                 ] });
+@@ -302,7 +305,7 @@ export class MatroskaMuxer extends Muxer {
+                 (hasNonSquarePixelAspectRatio ? { id: EBMLId.DisplayHeight, data: trackData.info.aspectRatio.den } : null),
+                 (hasNonSquarePixelAspectRatio ? { id: EBMLId.DisplayUnit, data: 3 } : null), // 3 = display aspect ratio
+                 trackData.info.alphaMode ? { id: EBMLId.AlphaMode, data: 1 } : null,
+-                (colorSpaceIsEmpty(colorSpace)
++                (colorSpaceIsEmpty(colorSpace) && !trackData.track.metadata.hdr
+                     ? null
+                     : {
+                         id: EBMLId.Colour,
+@@ -325,6 +328,7 @@ export class MatroskaMuxer extends Muxer {
+                                 id: EBMLId.Range,
+                                 data: colorSpace?.fullRange != null ? (colorSpace.fullRange ? 2 : 1) : 0,
+                             },
++                            ...hdrColourElements(trackData.track.metadata.hdr),
+                         ],
+                     }),
+                 (roll || yaw || pitch
+@@ -1186,3 +1190,37 @@ export class MatroskaMuxer extends Muxer {
+         }
+     }
+ }
++
++/** MaxCLL, MaxFALL and the mastering display of HDR video, as Colour children. */
++const hdrColourElements = (hdr) => {
++    if (!hdr)
++        return [];
++    const elements = [];
++    if (hdr.contentLight) {
++        elements.push({ id: 0x55BC, data: hdr.contentLight.maxCll });
++        elements.push({ id: 0x55BD, data: hdr.contentLight.maxFall });
++    }
++    const mastering = hdr.mastering;
++    if (mastering) {
++        const primaries = mastering.primaries;
++        elements.push({ id: 0x55D0, data: [
++                ...(primaries
++                    ? [
++                        primaries.red[0], primaries.red[1],
++                        primaries.green[0], primaries.green[1],
++                        primaries.blue[0], primaries.blue[1],
++                        primaries.white[0], primaries.white[1],
++                    ].map((value, index) => ({ id: 0x55D1 + index, data: new EBMLFloat32(value) }))
++                    : []),
++                { id: 0x55D9, data: new EBMLFloat32(mastering.maxLuminance) },
++                { id: 0x55DA, data: new EBMLFloat32(mastering.minLuminance) },
++            ] });
++    }
++    return elements;
++};
++/** The Dolby Vision decoder configuration record, mapped to its box type. */
++const dolbyVisionMapping = (dolbyVision) => ({ id: 0x41E4, data: [
++        { id: 0x41A4, data: 'Dolby Vision configuration' },
++        { id: 0x41E7, data: dolbyVision.box.split('').reduce((value, char) => value * 256 + char.charCodeAt(0), 0) },
++        { id: 0x41ED, data: toUint8Array(dolbyVision.record) },
++    ] });
+diff --git a/dist/modules/src/mpeg-ts/mpeg-ts-demuxer.js b/dist/modules/src/mpeg-ts/mpeg-ts-demuxer.js
+index 9222bcc28556f62f468e24472087522db5668ee9..3e9febf1d084e10938a2ede7aaf4077f0e4a6343 100644
+--- a/dist/modules/src/mpeg-ts/mpeg-ts-demuxer.js
++++ b/dist/modules/src/mpeg-ts/mpeg-ts-demuxer.js
+@@ -280,6 +280,21 @@ export class MpegTsDemuxer extends Demuxer {
+                                 }
+                                 ;
+                                 break;
++                            case 0x83:
++                                {
++                                    // Dolby TrueHD, as on Blu-ray, with its AC-3 frames for older players
++                                    info = {
++                                        type: 'audio',
++                                        codec: 'truehd',
++                                        decoderConfig: null,
++                                        aacCodecInfo: null,
++                                        dtsFormat: null,
++                                        numberOfChannels: -1,
++                                        sampleRate: -1,
++                                    };
++                                }
++                                ;
++                                break;
+                             case 6 /* MpegTsStreamType.PRIVATE_DATA */:
+                                 {
+                                     if (hasEac3Descriptor) {
+@@ -479,6 +494,11 @@ export class MpegTsDemuxer extends Demuxer {
+                         }
+                         else {
+                             await context.markNextPacket();
++                            if (!context.suppliedPacket && elementaryStream.info.codec === 'truehd') {
++                                // Another use of the stream type: left out, as unknown streams are
++                                this.elementaryStreams.splice(this.elementaryStreams.indexOf(elementaryStream), 1);
++                                break outer;
++                            }
+                             if (!context.suppliedPacket) {
+                                 throw new Error(`Couldn't parse first media packet for Elementary Stream with`
+                                     + ` PID ${elementaryStream.pid}`);
+@@ -559,6 +579,14 @@ export class MpegTsDemuxer extends Demuxer {
+                                     elementaryStream.info.dtsFormat = frameInfo.hasExtensions ? 'dtsh' : 'dtsc';
+                                 }
+                             }
++                            else if (elementaryStream.info.codec === 'truehd') {
++                                const majorSync = parseTrueHdMajorSync(context.suppliedPacket.data);
++                                if (!majorSync) {
++                                    throw new Error('Invalid TrueHD audio stream; could not read major sync from first packet.');
++                                }
++                                elementaryStream.info.numberOfChannels = majorSync.numberOfChannels;
++                                elementaryStream.info.sampleRate = majorSync.sampleRate;
++                            }
+                             else {
+                                 throw new Error('Unhandled.');
+                             }
+@@ -1350,7 +1378,8 @@ class MpegTsAudioTrackBacking extends MpegTsTrackBacking {
+         return this.elementaryStream.info.decoderConfig;
+     }
+     allPacketsAreKeyPackets() {
+-        return true;
++        // TrueHD can only be decoded from an access unit with a major sync
++        return this.elementaryStream.info.codec !== 'truehd';
+     }
+     getReorderSize() {
+         return 0; // No reordering, since no B-frames because goated
+@@ -1411,6 +1440,8 @@ class PacketReadingContext {
+         this.pid = elementaryStream.pid;
+         this.demuxer = elementaryStream.demuxer;
+         this.nextTsPacketPos = pesPacketStartPos;
++        /** Where the next TrueHD access unit starts, once one is found. */
++        this.trueHdNextPos = null;
+     }
+     ensureBuffered(length) {
+         const remaining = this.endPos - this.currentPos;
+@@ -1662,6 +1693,65 @@ class PacketReadingContext {
+                 return this.supplyPacket(packetLength, 0);
+             }
+         }
++        else if (elementaryStream.info.codec === 'truehd') {
++            // Access units follow one another, from a major sync or the start of a PES packet. Blu-ray puts the AC-3
++            // frames of older players between them, which are skipped.
++            while (true) {
++                const pos = this.currentPos;
++                let remaining = this.ensureBuffered(TRUEHD_HEADER_SIZE);
++                if (isThenable(remaining))
++                    remaining = await remaining;
++                if (remaining < TRUEHD_HEADER_SIZE) {
++                    return;
++                }
++                const head = this.readBytes(TRUEHD_HEADER_SIZE);
++                this.seekTo(pos);
++                if (head[0] === 0x0b && head[1] === 0x77) {
++                    const fscod = head[4] >> 6;
++                    const frmsizecod = head[4] & 0x3f;
++                    if (fscod !== 3 && frmsizecod <= 37) {
++                        const frameSize = AC3_FRAME_SIZES[3 * frmsizecod + fscod];
++                        // One byte more, to be able to move past the frame
++                        let buffered = this.ensureBuffered(frameSize + 1);
++                        if (isThenable(buffered))
++                            buffered = await buffered;
++                        if (buffered <= frameSize) {
++                            return;
++                        }
++                        const chained = this.trueHdNextPos === pos;
++                        this.seekTo(pos + frameSize);
++                        this.trueHdNextPos = chained ? this.currentPos : null;
++                        continue;
++                    }
++                }
++                const length = (((head[0] & 0x0f) << 8) | head[1]) * 2;
++                const major = isTrueHdMajorSync(head);
++                // The start of a PES packet's data, the unit fitting before the next one where that is known
++                const pesPacketIndex = this.pesPacketDataStartPositions.indexOf(pos);
++                const nextPesPacketPos = this.pesPacketDataStartPositions[pesPacketIndex + 1];
++                const pesPacketStart = pesPacketIndex !== -1
++                    && (nextPesPacketPos === undefined || length <= nextPesPacketPos - pos);
++                if (length >= TRUEHD_HEADER_SIZE && (major || pos === this.trueHdNextPos || pesPacketStart)) {
++                    let buffered = this.ensureBuffered(length);
++                    if (isThenable(buffered))
++                        buffered = await buffered;
++                    if (buffered < length) {
++                        return;
++                    }
++                    this.trueHdNextPos = pos + length;
++                    const sampleRate = elementaryStream.info.sampleRate;
++                    // An access unit lasts 1/1200 s, or 40 samples at 44.1 kHz and its multiples
++                    const duration = sampleRate > 0 && sampleRate % 44_100 === 0
++                        ? 40 * MPEG_TS_TIMESCALE / 44_100
++                        : MPEG_TS_TIMESCALE / 1200;
++                    this.supplyPacket(length, Math.round(duration));
++                    this.suppliedPacket.randomAccessIndicator = major ? 1 : 0;
++                    return;
++                }
++                this.trueHdNextPos = null;
++                this.skip(1);
++            }
++        }
+         else {
+             const codec = elementaryStream.info.codec;
+             const CHUNK_SIZE = 128;
+@@ -2068,3 +2158,53 @@ class PacketBuffer {
+         this.reorderBuffer.length = 0;
+     }
+ }
++
++/** An access unit's header and the start of its major sync. */
++const TRUEHD_HEADER_SIZE = 8;
++/** Channels of each bit of TrueHD's channel assignments. */
++const TRUEHD_CHANNEL_COUNTS = [2, 1, 1, 2, 2, 2, 2, 1, 1, 2, 2, 1, 1];
++const trueHdChannels = (assignment) => {
++    return TRUEHD_CHANNEL_COUNTS.reduce((sum, count, bit) => sum + ((assignment >> bit) & 1) * count, 0);
++};
++/**
++ * The sample rate and channels of a TrueHD stream, from an access unit's major sync: those of its richest
++ * presentation up to 8 channels, as decoders output.
++ */
++export const parseTrueHdMajorSync = (data) => {
++    if (data.length < 22 || data[7] !== 0xba || !isTrueHdMajorSync(data)) {
++        return null;
++    }
++    const view = toDataView(data);
++    if (view.getUint16(12) !== 0xb752) {
++        return null;
++    }
++    const format = parseTrueHdFormatInfo(view.getUint32(8));
++    if (!format) {
++        return null;
++    }
++    const substreams = data[20] >> 4;
++    const numberOfChannels = substreams > 2 && format.eightChannels
++        ? format.eightChannels
++        : substreams > 1 && format.sixChannels
++            ? format.sixChannels
++            : 2;
++    return { sampleRate: format.sampleRate, numberOfChannels };
++};
++/** The rate and the channels of the 6- and 8-channel mixes a TrueHD format_info field (major sync, dmlp box) gives. */
++export const parseTrueHdFormatInfo = (formatInfo) => {
++    const rateCode = formatInfo >>> 28;
++    if ((rateCode & ~8) > 2) {
++        return null;
++    }
++    return {
++        sampleRate: (rateCode & 8 ? 44_100 : 48_000) << (rateCode & 7),
++        sixChannels: trueHdChannels((formatInfo >>> 15) & 0x1f),
++        eightChannels: trueHdChannels(formatInfo & 0x1fff),
++    };
++};
++
++/** Whether a TrueHD access unit begins with a major sync, where decoding can start. */
++const isTrueHdMajorSync = (data) => {
++    return data.length >= 8 && data[4] === 0xf8 && data[5] === 0x72 && data[6] === 0x6f
++        && (data[7] === 0xba || data[7] === 0xbb);
++};
+diff --git a/dist/modules/src/output.d.ts b/dist/modules/src/output.d.ts
+index 1c4bfbad7cadd3f2e5578e9379df5fbaed21ab43..231e966a18dcd12f3166c5b76d4645acc3227c9f 100644
+--- a/dist/modules/src/output.d.ts
++++ b/dist/modules/src/output.d.ts
+@@ -162,6 +162,19 @@ export type BaseTrackMetadata = {
+  * @public
+  */
+ export type VideoTrackMetadata = BaseTrackMetadata & {
++    /**
++     * HDR metadata kept as the source had it (Vixely patch): the Dolby Vision decoder configuration
++     * record and its box type, the mastering display (SMPTE ST 2086) and the content light level.
++     */
++    hdr?: {
++        dolbyVision?: { box: 'dvcC' | 'dvvC' | 'dvwC'; record: Uint8Array };
++        mastering?: {
++            minLuminance: number;
++            maxLuminance: number;
++            primaries: { red: [number, number]; green: [number, number]; blue: [number, number]; white: [number, number] } | null;
++        };
++        contentLight?: { maxCll: number; maxFall: number };
++    };
+     /**
+      * The angle in degrees by which the track's frames should be rotated (clockwise). Rotation is applied before any
+      * flip.

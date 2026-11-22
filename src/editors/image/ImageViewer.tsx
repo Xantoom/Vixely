@@ -1,0 +1,148 @@
+import { useEffect, useRef } from 'react';
+import { CropOverlay } from '@/editor/CropOverlay';
+import type { OverlayEditing } from '@/editor/overlays/editing';
+import { CroppedLayers, OverlayLayer } from '@/editor/overlays/OverlayLayer';
+import { backingSize, copyPicture, OriginalPicture, useShowsOriginal, ZoomStage } from '@/editor/ZoomStage';
+import { effectiveCrop, orientedSize, type Rect, type Size, wholePictureDoc } from './document';
+import { ImageRenderer } from './renderer';
+import { cropRatio, useImageDoc, useImageEditor } from './store';
+
+/** The crop frame, bound to the image editor's document and aspect. */
+function ImageCropOverlay({ crop, scale, bounds }: { crop: Rect; scale: number; bounds: Size }) {
+	const preview = useImageEditor((state) => state.preview);
+	const settle = useImageEditor((state) => state.settle);
+	const ratio = useImageEditor((state) => cropRatio(state.cropAspect, bounds));
+	return (
+		<CropOverlay
+			crop={crop}
+			scale={scale}
+			bounds={bounds}
+			ratio={ratio}
+			onChange={(next) => {
+				preview((doc) => ({ ...doc, crop: next }));
+			}}
+			onEnd={settle}
+		/>
+	);
+}
+
+/** The picture drawn by the WebGL renderer at the scale of the stage, sharp but never beyond the source. */
+function Picture({
+	source,
+	region,
+	scale,
+	cropping,
+	overlays,
+	onEditText,
+}: {
+	source: ImageBitmap;
+	region: Rect;
+	scale: number;
+	cropping: boolean;
+	overlays?: OverlayEditing;
+	onEditText?: () => void;
+}) {
+	const doc = useImageDoc();
+	const sampling = useImageEditor((state) => state.exportSettings.sampling);
+	const comparing = useShowsOriginal() && !cropping;
+	const originalRef = useRef<HTMLCanvasElement>(null);
+	const canvasRef = useRef<HTMLCanvasElement>(null);
+	const rendererRef = useRef<ImageRenderer | null>(null);
+	const bounds = orientedSize(source, doc.rotation);
+	const crop = effectiveCrop(doc, source);
+
+	useEffect(() => {
+		const canvas = canvasRef.current;
+		if (!canvas) return;
+		const renderer = new ImageRenderer(canvas);
+		renderer.setSource(source);
+		rendererRef.current = renderer;
+		return () => {
+			renderer.dispose();
+			rendererRef.current = null;
+		};
+	}, [source]);
+
+	// What the picture was last drawn from: a render for anything else (the export settings but
+	// sampling, a panel) leaves it as it is.
+	const drawn = useRef<readonly unknown[]>([]);
+	useEffect(() => {
+		const canvas = canvasRef.current;
+		const renderer = rendererRef.current;
+		if (!canvas || !renderer) return;
+		const width = backingSize(region.width * scale, region.width);
+		const height = backingSize(region.height * scale, region.height);
+		const inputs = [renderer, doc, cropping, comparing, sampling, region.x, region.y, width, height];
+		if (inputs.length === drawn.current.length && inputs.every((input, index) => input === drawn.current[index]))
+			return;
+		drawn.current = inputs;
+		// Setting a canvas's size clears it, even to the same size.
+		if (canvas.width !== width) canvas.width = width;
+		if (canvas.height !== height) canvas.height = height;
+		const shown = cropping ? wholePictureDoc(doc, crop, bounds) : doc;
+		if (comparing) {
+			renderer.render(shown, { region, original: true, sampling });
+			copyPicture(canvas, originalRef.current);
+		}
+		renderer.render(shown, { region, sampling });
+	});
+
+	return (
+		<>
+			{/* The checkerboard shows through transparent areas. */}
+			<canvas
+				ref={canvasRef}
+				className={`block size-full stage-picture bg-[conic-gradient(var(--surface-2)_25%,var(--bg)_0_50%,var(--surface-2)_0_75%,var(--bg)_0)] bg-size-[16px_16px] ${scale > 1.5 ? '[image-rendering:pixelated]' : ''}`}
+			/>
+			{/* Text and stickers belong to the cropped output: in the crop frame while cropping. */}
+			{!cropping && doc.overlays.length + (overlays ? 1 : 0) > 0 && (
+				<OverlayLayer
+					overlays={doc.overlays}
+					width={region.width * scale}
+					height={region.height * scale}
+					editing={overlays}
+					onEditText={onEditText}
+				/>
+			)}
+			{comparing && <OriginalPicture ref={originalRef} />}
+			{cropping && <CroppedLayers overlays={doc.overlays} crop={crop} scale={scale} />}
+			{cropping && <ImageCropOverlay crop={crop} scale={scale} bounds={bounds} />}
+		</>
+	);
+}
+
+/**
+ * The image preview. Drawn with the same WebGL renderer as the export, at the display resolution.
+ * With the crop tool, the whole image shows with the crop frame on top.
+ */
+export function ImageViewer({
+	source,
+	cropping,
+	overlays,
+	onEditText,
+}: {
+	source: ImageBitmap;
+	cropping: boolean;
+	/** Given while the text or sticker tool is open: they can be moved on the picture. */
+	overlays?: OverlayEditing;
+	onEditText?: () => void;
+}) {
+	const doc = useImageDoc();
+	const bounds = orientedSize(source, doc.rotation);
+	const crop = effectiveCrop(doc, source);
+	const region: Rect = cropping ? { x: 0, y: 0, ...bounds } : crop;
+	return (
+		<ZoomStage width={region.width} height={region.height} compare={!cropping}>
+			{(scale) => (
+				<Picture
+					source={source}
+					region={region}
+					scale={scale}
+					cropping={cropping}
+					overlays={overlays}
+					onEditText={onEditText}
+				/>
+			)}
+		</ZoomStage>
+	);
+}

@@ -1,0 +1,288 @@
+/**
+ * The complete video editor: a turned video copied without encoding, metadata and a cover, timed
+ * text encoded at constant quality, the TikTok format, Dolby Digital, DTS and TrueHD sound
+ * decoded, a subtitle file added as a track, and a variable frame rate read. With FFPROBE set,
+ * each file is checked by FFmpeg's probe.
+ */
+import { engine, sample, BASE } from './engine';
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+
+const ffprobe = process.env.FFPROBE;
+const ffmpeg = ffprobe?.replace(/ffprobe$/, 'ffmpeg');
+const browser = await engine.launch();
+const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 }, locale: 'en-US', acceptDownloads: true });
+await ctx.addInitScript(() => Object.defineProperty(window, 'showSaveFilePicker', { value: undefined }));
+const page = await ctx.newPage();
+const errors: string[] = [];
+page.on('pageerror', (e) => errors.push(e.message));
+page.on('console', (m) => {
+	if (m.type() === 'error') errors.push(m.text());
+});
+mkdirSync('shots', { recursive: true });
+const tools = page.locator('nav[aria-label="Editing tools"]');
+const aside = page.locator('aside');
+const tool = async (name: string) => {
+	const button = tools.getByRole('button', { name, exact: true });
+	if ((await button.getAttribute('aria-pressed')) !== 'true') await button.click();
+};
+
+const open = async (path: string) => {
+	await page.goto(`${BASE}/video`);
+	await page.setInputFiles('input[type=file]', path);
+	await page.waitForSelector('[role=group][aria-label="Tracks"]', { timeout: 30000 });
+	await page.waitForTimeout(1500);
+};
+const exportAs = async (name: string, mode: RegExp, choose: () => Promise<void> = async () => {}) => {
+	// The rail's Export opens the panel, or closes it when it is open already.
+	const exportTool = page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true });
+	if ((await exportTool.getAttribute('aria-pressed')) !== 'true') await exportTool.click();
+	const radio = aside.getByRole('radio', { name: mode });
+	if (await radio.isEnabled()) await radio.click();
+	console.log(`${name}: ${mode} ${(await radio.getAttribute('aria-checked')) === 'true' ? 'chosen' : 'NOT chosen'}`);
+	await choose();
+	await page.waitForTimeout(300);
+	await aside.screenshot({ path: `shots/${name}-panel.png` });
+	const t0 = Date.now();
+	const [download] = await Promise.all([
+		page.waitForEvent('download', { timeout: 300000 }),
+		page.locator('aside + div').getByRole('button').first().click(),
+	]);
+	const data = readFileSync(await download.path());
+	writeFileSync(`shots/${name}`, data);
+	console.log(`  ${download.suggestedFilename()}: ${data.length} bytes in ${Date.now() - t0} ms`);
+	return `shots/${name}`;
+};
+const run = (args: string[], path: string) =>
+	ffprobe ? spawnSync(ffprobe, ['-v', 'error', ...args, path], { encoding: 'utf8' }).stdout.trim() : '';
+const streams = (path: string) =>
+	console.log(
+		' ',
+		run(
+			['-show_entries', 'stream=index,codec_type,codec_name,width,height,channels:stream_side_data=rotation:stream_disposition=attached_pic', '-of', 'compact'],
+			path,
+		).replace(/\n/g, '\n  '),
+	);
+const frame = (path: string, time: number, name: string) => {
+	if (!ffmpeg) return;
+	spawnSync(ffmpeg, ['-v', 'error', '-y', '-ss', String(time), '-i', path, '-frames:v', '1', '-vf', 'scale=480:-2', `shots/${name}.png`]);
+};
+
+// 1. Turned a quarter and mirrored: copied as it is, the file says how to show it.
+await open(sample('clip.mp4'));
+await tool('Crop');
+await aside.getByRole('button', { name: 'Rotate right' }).click();
+const turned = await exportAs('turned.mp4', /Original/);
+streams(turned);
+console.log('  first packets (source, copy):', run(['-select_streams', 'v', '-show_entries', 'packet=size', '-read_intervals', '%+#3', '-of', 'csv=p=0'], sample('clip.mp4')).replace(/\n/g, ' '), '|', run(['-select_streams', 'v', '-show_entries', 'packet=size', '-read_intervals', '%+#3', '-of', 'csv=p=0'], turned).replace(/\n/g, ' '));
+
+// 2. Metadata and a cover made from the picture shown, still copied.
+await open(sample('clip.mkv'));
+await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
+await aside.getByRole('button', { name: 'Metadata', expanded: false }).first().click();
+await aside.getByLabel('Title', { exact: true }).fill('Vixely test');
+await aside.getByLabel('Artist').fill('Xantoom');
+await aside.getByLabel('Artist').press('Tab');
+await aside.getByRole('button', { name: 'Current frame' }).click();
+await aside.getByRole('img', { name: 'Cover' }).waitFor();
+const tagged = await exportAs('tagged.mkv', /Original/);
+streams(tagged);
+console.log('  tags:', run(['-show_entries', 'format_tags', '-of', 'compact'], tagged));
+console.log('  attachments:', run(['-show_entries', 'stream_tags=filename,mimetype', '-select_streams', 't', '-of', 'compact'], tagged).replace(/\n/g, ' '));
+
+// 2b. The same in an MP4, whose timed text goes through the remuxer too.
+await open(sample('clip.mp4'));
+await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
+await aside.getByRole('button', { name: 'Metadata', expanded: false }).first().click();
+await aside.getByLabel('Title', { exact: true }).fill('Vixely MP4');
+await aside.getByLabel('Title', { exact: true }).press('Tab');
+await aside.getByRole('button', { name: 'Current frame' }).click();
+await aside.getByRole('img', { name: 'Cover' }).waitFor();
+const taggedMp4 = await exportAs('tagged.mp4', /Original/);
+streams(taggedMp4);
+console.log('  tags:', run(['-show_entries', 'format_tags', '-of', 'compact'], taggedMp4));
+
+// 3. A title for the first two seconds only, encoded at constant quality.
+await open(sample('short.mp4'));
+await tool('Layers');
+await aside.getByRole('button', { name: /^Title/ }).click();
+await aside.getByRole('switch', { name: 'During the whole video' }).click();
+await aside.getByLabel('To', { exact: true }).fill('2');
+await aside.getByLabel('To', { exact: true }).press('Enter');
+await page.waitForTimeout(300);
+await aside.screenshot({ path: 'shots/text-timing.png' });
+await page.locator('section[aria-label="Preview"]').screenshot({ path: 'shots/text-preview.png' });
+const titled = await exportAs('titled.mp4', /Convert/, async () => {
+	await aside.getByLabel('Quality', { exact: true }).click();
+	await page.getByRole('option', { name: /^Constant/ }).click();
+});
+streams(titled);
+frame(titled, 1, 'titled-1s');
+frame(titled, 4, 'titled-4s');
+
+// 3a. Edits and a cut, exported without choosing how: converting is forced, the pictures carry
+// the title. Copying would keep the source's packets as they are.
+await open(sample('short.mp4'));
+await tool('Layers');
+await aside.getByRole('button', { name: /^Title/ }).click();
+await tool('Edit');
+await aside.getByLabel('Start', { exact: true }).fill('0:01.000');
+await aside.getByLabel('Start', { exact: true }).press('Enter');
+await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
+await page.waitForTimeout(500);
+{
+	const [download] = await Promise.all([
+		page.waitForEvent('download', { timeout: 300000 }),
+		page.locator('aside + div').getByRole('button').first().click(),
+	]);
+	writeFileSync('shots/unchosen.mp4', readFileSync(await download.path()));
+	const sizes = (path: string) =>
+		run(['-select_streams', 'v', '-show_entries', 'packet=size', '-read_intervals', '%+#3', '-of', 'csv=p=0'], path);
+	console.log('edits exported without choosing:', sizes('shots/unchosen.mp4').replace(/\n/g, ' '));
+	if (ffprobe && sizes('shots/unchosen.mp4') === sizes(sample('short.mp4')))
+		errors.push('edits exported without choosing a mode: the video was copied, its edits lost');
+}
+
+// 3b. The layers stay on the timeline in every tool; a bar dragged up a row comes forward.
+await tool('Layers');
+{ const back = aside.getByRole('button', { name: /^All layers/ }); if (await back.isVisible()) await back.click(); }
+await aside.getByRole('group', { name: 'Add' }).getByRole('button', { name: 'Text', exact: true }).click();
+await aside.getByRole('button', { name: /^Caption/ }).click();
+await tool('Info');
+const layerRows = page.locator('section[aria-label="Timeline"]').getByRole('group', { name: 'Layers' });
+const bars = layerRows.getByRole('button');
+const order = async () => (await bars.evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')))).join(' / ');
+console.log('layers on the timeline, Info tool:', await order());
+const bottom = (await bars.nth(1).boundingBox())!;
+await page.mouse.move(bottom.x + 20, bottom.y + bottom.height / 2);
+await page.mouse.down();
+await page.mouse.move(bottom.x + 20, bottom.y - bottom.height, { steps: 6 });
+await page.mouse.up();
+await page.waitForTimeout(200);
+console.log('after dragging the lower one up:', await order());
+await tool('Crop');
+await page.waitForTimeout(300);
+await page.locator('section[aria-label="Preview"]').screenshot({ path: 'shots/crop-with-layers.png' });
+
+// 4. TikTok: cropped to 9:16 from the middle.
+await open(sample('short.mp4'));
+await tool('Crop');
+await aside.getByRole('radio', { name: 'Social networks' }).click();
+await aside.getByRole('radio', { name: /^TikTok/ }).click();
+await page.waitForTimeout(500);
+await page.screenshot({ path: 'shots/tiktok-editor.png' });
+const tiktok = await exportAs('tiktok.mp4', /Convert/);
+streams(tiktok);
+
+// 5. Dolby Digital 5.1, DTS, TrueHD (in Matroska, as on Blu-ray, and in MP4) and ProRes: decoded, converted to AAC.
+for (const file of ['ac3.mkv', 'dts.mkv', 'truehd.mkv', 'truehd.m2ts', 'truehd.mp4', 'prores.mov']) {
+	const name = file.replace('.mkv', '').replace('.', '-');
+	await open(sample(file));
+	const decoding = await aside.locator('dl').last().textContent();
+	console.log(`${file} audio:`, decoding?.replace(/\s+/g, ' '));
+	await page.locator('[role=group][aria-label="Tracks"]').screenshot({ path: `shots/${name}-timeline.png` });
+	const converted = await exportAs(`${name}.mp4`, /Convert/, async () => {
+		await aside.getByLabel('Format', { exact: true }).click();
+		await page.getByRole('option', { name: 'MP4' }).click();
+		await aside.getByLabel('Codec').nth(1).click();
+		await page.getByRole('option', { name: 'AAC', exact: true }).click();
+	});
+	streams(converted);
+	const audio = run(['-select_streams', 'a', '-show_entries', 'stream=codec_name', '-of', 'csv=p=0'], converted).trim();
+	if (ffprobe && audio !== 'aac') throw new Error(`${name}.mp4: sound ${JSON.stringify(audio)}, not AAC`);
+}
+
+// 5b. Converted with a passage removed, the sound copied as it is part by part: its packets are
+// the source's, byte for byte.
+{
+	await open(sample('clip.mp4'));
+	await tool('Edit');
+	const lanes = (await page.getByRole('group', { name: 'Tracks' }).boundingBox())!;
+	await page.mouse.move(lanes.x + lanes.width * 0.3, lanes.y + 20);
+	await page.mouse.down();
+	await page.mouse.move(lanes.x + lanes.width * 0.5, lanes.y + 20, { steps: 6 });
+	await page.mouse.up();
+	await page.getByRole('toolbar', { name: 'Selection' }).getByRole('button', { name: /Delete/ }).click();
+	const path = await exportAs('cut-copied.mp4', /Convert/, async () => {
+		await aside.getByLabel('Codec').nth(1).click();
+		await page.getByRole('option', { name: /^Original/ }).click();
+	});
+	const { Input, BufferSource, ALL_FORMATS, EncodedPacketSink } = await import('mediabunny');
+	const read = (file: string) => new Input({ source: new BufferSource(readFileSync(file)), formats: ALL_FORMATS });
+	const out = read(path);
+	const src = read(sample('clip.mp4'));
+	const outAudio = await out.getPrimaryAudioTrack();
+	const srcAudio = await src.getPrimaryAudioTrack();
+	const video = await out.getPrimaryVideoTrack();
+	console.log(`  video ${await video?.getCodec()} ${(await video?.computeDuration())?.toFixed(2)} s, audio ${await outAudio?.getCodec()} ${(await outAudio?.computeDuration())?.toFixed(2)} s`);
+	if (outAudio && srcAudio) {
+		const sources = new Set<string>();
+		for await (const packet of new EncodedPacketSink(srcAudio).packets()) sources.add(Buffer.from(packet.data).toString('base64'));
+		let same = 0;
+		let total = 0;
+		for await (const packet of new EncodedPacketSink(outAudio).packets()) {
+			total += 1;
+			if (sources.has(Buffer.from(packet.data).toString('base64'))) same += 1;
+		}
+		console.log(`  audio packets copied: ${same} of ${total}${same === total ? '' : ' RE-ENCODED'}`);
+	}
+}
+
+// 5c. Twice as fast with a second of fade at each end: half as long, black and silent at the
+// start, the tone at the same pitch.
+{
+	await open(sample('short.mp4'));
+	await tool('Edit');
+	await aside.getByRole('radio', { name: /^2/ }).click();
+	// The time shown is the output's: it moves at the pace of the clock while two seconds of the
+	// source play every second.
+	// The time shown under the picture, m:ss.mmm, in seconds.
+	const playhead = async () => {
+		const [minutes = '0', seconds = '0'] = ((await page.getByRole('timer', { name: 'Playhead' }).first().innerText()).split('/')[0] ?? '').trim().split(':');
+		return Number(minutes) * 60 + Number(seconds);
+	};
+	await page.getByRole('button', { name: 'Play', exact: true }).first().click();
+	await page.waitForTimeout(200);
+	const from = await playhead();
+	await page.waitForTimeout(2000);
+	const to = await playhead();
+	await page.getByRole('button', { name: 'Pause', exact: true }).first().click();
+	console.log(`  preview pace: ${((to - from) / 2).toFixed(2)}× of output time (expected 1×)`);
+	await aside.getByRole('slider', { name: 'In', exact: true }).fill('10');
+	await aside.getByRole('slider', { name: 'Out', exact: true }).fill('10');
+	console.log('final length:', (await page.getByRole('timer', { name: 'Playhead' }).first().innerText()).split('/')[1]?.trim());
+	const path = await exportAs('fast.mp4', /Convert/);
+	console.log('  duration:', run(['-show_entries', 'format=duration', '-of', 'csv=p=0'], path), 's');
+	if (ffmpeg) {
+		const luma = (time: number) =>
+			/YAVG=([\d.]+)/.exec(
+				spawnSync(ffmpeg, ['-v', 'info', '-ss', String(time), '-i', path, '-frames:v', '1', '-vf', 'signalstats,metadata=print:key=lavfi.signalstats.YAVG', '-f', 'null', '-'], { encoding: 'utf8' }).stderr,
+			)?.[1];
+		console.log('  brightness at 0 s, 0.5 s, 3 s:', luma(0), luma(0.5), luma(3));
+		const pcm = spawnSync(ffmpeg, ['-v', 'error', '-ss', '1.5', '-t', '3', '-i', path, '-ac', '1', '-ar', '48000', '-f', 'f32le', '-'], { maxBuffer: 1 << 26 }).stdout;
+		const wave = new Float32Array(pcm.buffer, pcm.byteOffset, Math.floor(pcm.length / 4));
+		let crossings = 0;
+		for (let n = 1; n < wave.length; n++) if ((wave[n - 1] ?? 0) < 0 && (wave[n] ?? 0) >= 0) crossings += 1;
+		console.log('  pitch:', Math.round((crossings * 48000) / wave.length), 'Hz (source 330)');
+	}
+}
+
+// 6. A subtitle file added to the video as a track, copied into it.
+await open(sample('clip.mkv'));
+await tool('Export');
+await aside.locator('input[type=file][accept^=".srt"]').setInputFiles('samples/extra.fr.srt');
+await page.waitForTimeout(500);
+await aside.screenshot({ path: 'shots/subtitles-added.png' });
+const added = await exportAs('added.mkv', /Original/);
+streams(added);
+if (ffmpeg) {
+	const srt = spawnSync(ffmpeg, ['-v', 'error', '-i', added, '-map', '0:s:2', '-f', 'srt', '-'], { encoding: 'utf8' }).stdout;
+	console.log('  added track:', srt.replace(/\n+/g, ' ').trim());
+}
+
+// 7. A variable frame rate.
+await open(sample('vfr.mp4'));
+console.log('vfr.mp4:', (await aside.locator('dl').nth(1).textContent())?.replace(/\s+/g, ' '));
+
+console.log(errors.length ? `errors: ${errors.join(' | ')}` : 'no errors');
+await browser.close();

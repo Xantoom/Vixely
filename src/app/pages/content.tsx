@@ -1,0 +1,470 @@
+/**
+ * The text of the pages about the site, in each language. Long prose reads better written out
+ * whole than cut into messages.
+ */
+import { getLocale } from '@/paraglide/runtime.js';
+import { type PageContent, TextLink } from './SitePage';
+
+const ISSUES = 'https://github.com/Xantoom/Vixely/issues';
+const SOURCE = 'https://github.com/Xantoom/Vixely';
+const UPDATED = { en: 'Last updated November 20, 2026', fr: 'Mis à jour le 20 novembre 2026' };
+
+type Locale = 'en' | 'fr';
+
+function locale(): Locale {
+	return getLocale() === 'fr' ? 'fr' : 'en';
+}
+
+const CREDITS = [
+	['Mediabunny', 'https://mediabunny.dev'],
+	['FFmpeg (AC-3, E-AC-3, DTS and AAC coders)', 'https://ffmpeg.org'],
+	['TurboRes (ProRes decoder)', 'https://github.com/Vanilagy/turbores'],
+	['RNNoise / nnnoiseless', 'https://github.com/jneem/nnnoiseless'],
+	['LAME', 'https://lame.sourceforge.io'],
+	['libFLAC', 'https://xiph.org/flac/'],
+	['gifski', 'https://gif.ski'],
+	['libimagequant', 'https://pngquant.org/lib/'],
+	['zenjpeg (jpegli)', 'https://github.com/imazen/zenjpeg'],
+	['oxipng', 'https://github.com/shssoichiro/oxipng'],
+	['ravif / rav1e', 'https://github.com/kornelski/cavif-rs'],
+	['jxl-oxide', 'https://github.com/tirr-c/jxl-oxide'],
+	['libheif', 'https://github.com/strukturag/libheif'],
+	['JASSUB / libass', 'https://github.com/ThaUnknown/jassub'],
+	['ebur128', 'https://github.com/sdroege/ebur128'],
+	['image-rs', 'https://github.com/image-rs/image'],
+	['jxl-encoder', 'https://github.com/imazen/jxl-encoder'],
+	['wasm-bindgen-rayon', 'https://github.com/RReverser/wasm-bindgen-rayon'],
+	['Twemoji (CC BY 4.0)', 'https://github.com/jdecked/twemoji'],
+	['Geist', 'https://vercel.com/font'],
+	['Anton, Bebas Neue, Oswald, Playfair Display, Pacifico, Permanent Marker, Caveat', 'https://fonts.google.com'],
+] as const;
+
+function credits() {
+	return (
+		<ul className="grid list-disc gap-1 pl-5">
+			{CREDITS.map(([name, url]) => (
+				<li key={name}>
+					<TextLink href={url}>{name}</TextLink>
+				</li>
+			))}
+		</ul>
+	);
+}
+
+const ABOUT: Record<Locale, PageContent> = {
+	en: {
+		title: 'About Vixely',
+		description:
+			'Vixely edits video, images, GIFs, audio and subtitles in your browser. Free, open source, nothing uploaded.',
+		sections: [
+			{
+				title: 'Everything stays on your device',
+				body: (
+					<p>
+						Vixely edits video, images, GIFs, audio and subtitles right in your browser. Your files are
+						read, edited and saved on your device: none is ever sent to a server, and there is no account
+						and no size limit.
+					</p>
+				),
+			},
+			{
+				title: 'Encoders',
+				body: (
+					<p>
+						Each format has its own encoder, built to run in the browser: jpegli for JPEG, gifski for GIF,
+						libimagequant and oxipng for PNG, rav1e for AVIF, the browser's own hardware encoders for video,
+						and libass to draw subtitles exactly as players do.
+					</p>
+				),
+			},
+			{
+				title: 'Free and open source',
+				body: (
+					<p>
+						Vixely is free, without ads, and its source code is public under the AGPL-3.0 license:{' '}
+						<TextLink href={SOURCE}>github.com/Xantoom/Vixely</TextLink>. Found a bug, or missing something?{' '}
+						<TextLink href={ISSUES}>Open an issue</TextLink>.
+					</p>
+				),
+			},
+			{ title: 'Built with', body: credits() },
+		],
+	},
+	fr: {
+		title: 'À propos de Vixely',
+		description:
+			'Vixely modifie vidéos, images, GIF, sons et sous-titres dans votre navigateur. Gratuit, code ouvert, rien n’est envoyé.',
+		sections: [
+			{
+				title: 'Tout reste sur votre appareil',
+				body: (
+					<p>
+						Vixely modifie vidéos, images, GIF, sons et sous-titres directement dans votre navigateur. Vos
+						fichiers sont lus, modifiés et enregistrés sur votre appareil : aucun n’est jamais envoyé à un
+						serveur, sans compte et sans limite de taille.
+					</p>
+				),
+			},
+			{
+				title: 'Encodeurs',
+				body: (
+					<p>
+						Chaque format a son encodeur, compilé pour tourner dans le navigateur : jpegli pour le JPEG,
+						gifski pour le GIF, libimagequant et oxipng pour le PNG, rav1e pour l’AVIF, les encodeurs
+						matériels du navigateur pour la vidéo, et libass pour dessiner les sous-titres comme les
+						lecteurs.
+					</p>
+				),
+			},
+			{
+				title: 'Gratuit et code ouvert',
+				body: (
+					<p>
+						Vixely est gratuit, sans publicité, et son code source est public sous licence AGPL-3.0 :{' '}
+						<TextLink href={SOURCE}>github.com/Xantoom/Vixely</TextLink>. Un bug, un manque ?{' '}
+						<TextLink href={ISSUES}>Ouvrez une issue</TextLink>.
+					</p>
+				),
+			},
+			{ title: 'Construit avec', body: credits() },
+		],
+	},
+};
+
+function privacy(lang: Locale): PageContent {
+	const counting: Record<Locale, PageContent['sections'][number]> = {
+		en: {
+			title: 'Visit counting',
+			body: (
+				<p>
+					To know which pages are used, the site counts each page shown, by itself: its address, its language,
+					the kind of screen (phone, tablet or computer), the site you came from and the country your
+					connection comes from. No cookie is set, nothing is stored on your device, your IP address is not
+					kept and nothing links one visit to another. These statistics are kept three months on Cloudflare
+					and serve only to improve Vixely. This audience measurement needs no consent (CNIL guidelines); to
+					avoid it, block the address vixely.app/count.
+				</p>
+			),
+		},
+		fr: {
+			title: 'Comptage des visites',
+			body: (
+				<p>
+					Pour savoir quelles pages servent, le site compte lui-même chaque page affichée : son adresse, sa
+					langue, le type d’écran (téléphone, tablette ou ordinateur), le site d’où vous venez et le pays d’où
+					vient votre connexion. Aucun cookie n’est déposé, rien n’est enregistré sur votre appareil, votre
+					adresse IP n’est pas gardée et rien ne relie une visite à une autre. Ces statistiques sont gardées
+					trois mois chez Cloudflare et servent seulement à améliorer Vixely. Cette mesure d’audience est
+					exemptée de consentement (lignes directrices de la CNIL) ; pour l’éviter, bloquez l’adresse
+					vixely.app/count.
+				</p>
+			),
+		},
+	};
+	const pages: Record<Locale, PageContent> = {
+		en: {
+			title: 'Privacy',
+			description: 'Your files never leave your device: how Vixely handles your data.',
+			lede: UPDATED.en,
+			sections: [
+				{
+					title: 'Your files',
+					body: (
+						<p>
+							Vixely works entirely in your browser. The files you open are read, edited and saved on your
+							device and are never sent anywhere. Large exports pass through your browser's private
+							storage before they are saved; they are deleted a few minutes later, or at your next visit
+							at the latest.
+						</p>
+					),
+				},
+				{
+					title: 'Files opened from an address',
+					body: (
+						<p>
+							A file you open from its address is downloaded by your browser straight from that site,
+							which sees your IP address as it does for any visit. Vixely is not involved.
+						</p>
+					),
+				},
+				{
+					title: 'On your device',
+					body: (
+						<p>
+							Your browser's local storage keeps your theme, language, volume, preferred video encoder and
+							subtitle advice setting, and the site's own code is kept so it works without a network. If
+							you allow it, your browser lists your computer's fonts for subtitles; that list stays on
+							your device. Vixely sets no cookie. You can clear all of this at any time from your
+							browser's settings.
+						</p>
+					),
+				},
+				counting.en,
+				{
+					title: 'Hosting',
+					body: (
+						<p>
+							The site is served by Cloudflare. Like any web server, it sees the IP address of each
+							request and may keep it in its logs for a short time, for the site's security and operation,
+							which is the legitimate interest it rests on (article 6(1)(f) of the GDPR). Cloudflare is an
+							American company certified under the EU-US Data Privacy Framework, so this data may be
+							processed in the United States.
+						</p>
+					),
+				},
+				{
+					title: 'Your rights',
+					body: (
+						<p>
+							The controller is the publisher named in the <TextLink href="/legal">legal notice</TextLink>
+							. Under the GDPR you may ask to access or delete data concerning you, or object to its use.
+							As Vixely holds none beyond what is described above, questions can be asked on{' '}
+							<TextLink href={ISSUES}>GitHub</TextLink>. You may also contact the French data protection
+							authority, the <TextLink href="https://www.cnil.fr">CNIL</TextLink>.
+						</p>
+					),
+				},
+			],
+		},
+		fr: {
+			title: 'Confidentialité',
+			description: 'Vos fichiers ne quittent jamais votre appareil : comment Vixely traite vos données.',
+			lede: UPDATED.fr,
+			sections: [
+				{
+					title: 'Vos fichiers',
+					body: (
+						<p>
+							Vixely fonctionne entièrement dans votre navigateur. Les fichiers que vous ouvrez sont lus,
+							modifiés et enregistrés sur votre appareil, et ne sont jamais envoyés nulle part. Les gros
+							exports passent par le stockage privé de votre navigateur avant d’être enregistrés ; ils y
+							sont effacés quelques minutes plus tard, ou au plus tard à votre prochaine visite.
+						</p>
+					),
+				},
+				{
+					title: 'Fichiers ouverts depuis une adresse',
+					body: (
+						<p>
+							Un fichier ouvert depuis son adresse est téléchargé par votre navigateur directement sur ce
+							site, qui voit votre adresse IP comme pour toute visite. Vixely n’intervient pas.
+						</p>
+					),
+				},
+				{
+					title: 'Sur votre appareil',
+					body: (
+						<p>
+							Le stockage local de votre navigateur garde votre thème, votre langue, votre volume, votre
+							encodeur vidéo préféré et le réglage des conseils de sous-titres, et le code du site y est
+							gardé pour qu’il marche sans réseau. Si vous l’autorisez, votre navigateur liste les polices
+							de votre ordinateur pour les sous-titres ; cette liste reste sur votre appareil. Vixely ne
+							dépose aucun cookie. Vous pouvez tout effacer à tout moment depuis votre navigateur.
+						</p>
+					),
+				},
+				counting.fr,
+				{
+					title: 'Hébergement',
+					body: (
+						<p>
+							Le site est servi par Cloudflare. Comme tout serveur web, il voit l’adresse IP de chaque
+							requête et peut la garder peu de temps dans ses journaux, pour la sécurité et le
+							fonctionnement du site : c’est l’intérêt légitime sur lequel ce traitement repose (article
+							6.1.f du RGPD). Cloudflare est une société américaine certifiée au Data Privacy Framework
+							entre l’Union européenne et les États-Unis : ces données peuvent être traitées aux
+							États-Unis.
+						</p>
+					),
+				},
+				{
+					title: 'Vos droits',
+					body: (
+						<p>
+							Le responsable du traitement est l’éditeur indiqué dans les{' '}
+							<TextLink href="/legal">mentions légales</TextLink>. Le RGPD vous permet de demander l’accès
+							à vos données, leur suppression, ou de vous opposer à leur utilisation. Vixely n’en détenant
+							pas d’autres que celles décrites ici, vos questions peuvent être posées sur{' '}
+							<TextLink href={ISSUES}>GitHub</TextLink>. Vous pouvez aussi saisir la{' '}
+							<TextLink href="https://www.cnil.fr">CNIL</TextLink>.
+						</p>
+					),
+				},
+			],
+		},
+	};
+	return pages[lang];
+}
+
+const TERMS: Record<Locale, PageContent> = {
+	en: {
+		title: 'Terms of use',
+		description: 'The terms of use of Vixely, a free media editor that runs in your browser.',
+		lede: UPDATED.en,
+		sections: [
+			{
+				title: 'Use',
+				body: (
+					<p>
+						Vixely is free to use, for personal or professional purposes, without an account. Using it means
+						accepting these terms.
+					</p>
+				),
+			},
+			{
+				title: 'Your content',
+				body: (
+					<p>
+						Your files remain yours: Vixely never receives them and claims no right over them. You are
+						responsible for having the right to edit and share what you process with it.
+					</p>
+				),
+			},
+			{
+				title: 'No warranty',
+				body: (
+					<p>
+						Vixely is provided as it is, without warranty of any kind. What it can do depends on your
+						browser and your device. Keep your original files: the publisher cannot be held liable for a
+						failed or incomplete export, or for any loss of data.
+					</p>
+				),
+			},
+			{
+				title: 'Source code',
+				body: (
+					<p>
+						The source code of Vixely is published under the{' '}
+						<TextLink href="https://www.gnu.org/licenses/agpl-3.0.html">GNU AGPL-3.0</TextLink> license at{' '}
+						<TextLink href={SOURCE}>github.com/Xantoom/Vixely</TextLink>.
+					</p>
+				),
+			},
+			{ title: 'Applicable law', body: <p>These terms are governed by French law.</p> },
+		],
+	},
+	fr: {
+		title: 'Conditions d’utilisation',
+		description:
+			'Les conditions d’utilisation de Vixely, un éditeur de médias gratuit qui fonctionne dans votre navigateur.',
+		lede: UPDATED.fr,
+		sections: [
+			{
+				title: 'Utilisation',
+				body: (
+					<p>
+						Vixely s’utilise gratuitement, à titre personnel ou professionnel, sans compte. L’utiliser vaut
+						acceptation de ces conditions.
+					</p>
+				),
+			},
+			{
+				title: 'Vos contenus',
+				body: (
+					<p>
+						Vos fichiers restent les vôtres : Vixely ne les reçoit jamais et ne revendique aucun droit
+						dessus. Vous êtes responsable d’avoir le droit de modifier et de diffuser ce que vous traitez
+						avec lui.
+					</p>
+				),
+			},
+			{
+				title: 'Absence de garantie',
+				body: (
+					<p>
+						Vixely est fourni en l’état, sans garantie d’aucune sorte. Ce qu’il sait faire dépend de votre
+						navigateur et de votre appareil. Gardez vos fichiers d’origine : l’éditeur ne peut être tenu
+						responsable d’un export raté ou incomplet, ni d’une perte de données.
+					</p>
+				),
+			},
+			{
+				title: 'Code source',
+				body: (
+					<p>
+						Le code source de Vixely est publié sous licence{' '}
+						<TextLink href="https://www.gnu.org/licenses/agpl-3.0.html">GNU AGPL-3.0</TextLink> sur{' '}
+						<TextLink href={SOURCE}>github.com/Xantoom/Vixely</TextLink>.
+					</p>
+				),
+			},
+			{ title: 'Droit applicable', body: <p>Ces conditions sont régies par le droit français.</p> },
+		],
+	},
+};
+
+function host(lang: Locale) {
+	return (
+		<ul className="grid gap-1">
+			<li>Cloudflare, Inc.</li>
+			<li>101 Townsend St, San Francisco, CA 94107, {lang === 'fr' ? 'États-Unis' : 'USA'}</li>
+			<li>
+				<TextLink href="https://www.cloudflare.com">cloudflare.com</TextLink>
+			</li>
+		</ul>
+	);
+}
+
+const LEGAL: Record<Locale, PageContent> = {
+	en: {
+		title: 'Legal notice',
+		description: 'Legal notice of Vixely.',
+		lede: 'As required by article 6 of French law no. 2004-575 (LCEN).',
+		sections: [
+			{
+				title: 'Publisher',
+				body: (
+					<p>
+						Vixely is published by an individual, on a non-professional basis, who has chosen to remain
+						anonymous as article 6-III-2 of the LCEN allows; their identity has been given to the host.
+						Contact: <TextLink href={ISSUES}>github.com/Xantoom/Vixely/issues</TextLink>.
+					</p>
+				),
+			},
+			{ title: 'Host', body: host('en') },
+			{
+				title: 'Intellectual property',
+				body: (
+					<p>
+						The source code of Vixely is published under the AGPL-3.0 license. The files you process remain
+						the property of their owners.
+					</p>
+				),
+			},
+		],
+	},
+	fr: {
+		title: 'Mentions légales',
+		description: 'Mentions légales de Vixely.',
+		lede: 'Conformément à l’article 6 de la loi n° 2004-575 pour la confiance dans l’économie numérique (LCEN).',
+		sections: [
+			{
+				title: 'Éditeur',
+				body: (
+					<p>
+						Vixely est édité par un particulier, à titre non professionnel, qui a choisi de rester anonyme
+						comme le permet l’article 6-III-2 de la LCEN ; son identité a été communiquée à l’hébergeur.
+						Contact : <TextLink href={ISSUES}>github.com/Xantoom/Vixely/issues</TextLink>.
+					</p>
+				),
+			},
+			{ title: 'Hébergeur', body: host('fr') },
+			{
+				title: 'Propriété intellectuelle',
+				body: (
+					<p>
+						Le code source de Vixely est publié sous licence AGPL-3.0. Les fichiers que vous traitez restent
+						la propriété de leurs auteurs.
+					</p>
+				),
+			},
+		],
+	},
+};
+
+export const PAGES = {
+	about: () => ABOUT[locale()],
+	privacy: () => privacy(locale()),
+	terms: () => TERMS[locale()],
+	legal: () => LEGAL[locale()],
+};

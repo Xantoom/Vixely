@@ -1,0 +1,151 @@
+/**
+ * The video editor: pictures drawn as edited (crop, colours, a phone video stored turned), the
+ * timeline's pictures, a passage removed and skipped by playback (with and without sound), undo,
+ * and a picture opened in the image editor with the video's crop.
+ */
+import { engine, sample, BASE } from './engine';
+import { mkdirSync } from 'node:fs';
+
+const browser = await engine.launch();
+const page = await (await browser.newContext({ viewport: { width: 1440, height: 950 }, locale: 'en-US' })).newPage();
+const errors: string[] = [];
+page.on('pageerror', (e) => errors.push(e.message));
+page.on('console', (m) => {
+	if (m.type() === 'error') errors.push(m.text());
+});
+mkdirSync('shots', { recursive: true });
+const tools = page.locator('nav[aria-label="Editing tools"]');
+const aside = page.locator('aside');
+// The time shown is the output's: past a removed passage, it runs on from where the cut starts.
+const time = async () => (await page.getByRole('timer', { name: 'Playhead' }).first().innerText()).split(' / ')[0];
+const open = async (path: string) => {
+	await page.goto(`${BASE}/video`);
+	await page.setInputFiles('input[type=file]', path);
+	await page.waitForSelector('[role=group][aria-label="Tracks"]', { timeout: 30000 });
+	await page.waitForTimeout(1500);
+};
+/** Mean brightness and the red share of the picture on screen. */
+const picture = () =>
+	page.evaluate(() => {
+		const source = document.querySelector('section[aria-label="Preview"] canvas') as HTMLCanvasElement;
+		const probe = document.createElement('canvas');
+		probe.width = 32;
+		probe.height = 18;
+		const context = probe.getContext('2d')!;
+		context.drawImage(source, 0, 0, 32, 18);
+		const data = context.getImageData(0, 0, 32, 18).data;
+		let light = 0;
+		let spread = 0;
+		for (let i = 0; i < data.length; i += 4) {
+			light += (data[i]! + data[i + 1]! + data[i + 2]!) / 3;
+			spread += Math.max(data[i]!, data[i + 1]!, data[i + 2]!) - Math.min(data[i]!, data[i + 1]!, data[i + 2]!);
+		}
+		const n = data.length / 4;
+		return { width: source.clientWidth, height: source.clientHeight, light: Math.round(light / n), colour: Math.round(spread / n) };
+	});
+const strip = () =>
+	page.evaluate(() => {
+		const canvas = document.querySelector('[aria-label="Tracks"] canvas') as HTMLCanvasElement;
+		const data = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
+		let filled = 0;
+		for (let i = 3; i < data.length; i += 4) if (data[i]) filled++;
+		return Math.round((filled / (data.length / 4)) * 100);
+	});
+
+// 1. Pictures, crop and colours.
+await open(sample('h264.mp4'));
+console.log('picture:', await picture(), '| strip filled:', await strip(), '%');
+await tools.getByRole('button', { name: 'Crop' }).click();
+await aside.getByRole('radio', { name: /1:1/ }).click();
+await tools.getByRole('button', { name: 'Adjust' }).click();
+const saturation = aside.getByRole('slider', { name: 'Saturation' });
+await saturation.focus();
+for (let i = 0; i < 100; i++) await page.keyboard.press('ArrowLeft');
+await page.waitForTimeout(400);
+console.log('1:1 and grey:', await picture());
+await page.screenshot({ path: 'shots/video-edited.png' });
+await page.keyboard.press('Control+z');
+await page.keyboard.press('Control+z');
+await page.waitForTimeout(400);
+console.log('after two undos:', await picture());
+
+// 2. A passage removed on the timeline, skipped while playing.
+await tools.getByRole('button', { name: 'Edit', exact: true }).click();
+const lanes = (await page.getByRole('group', { name: 'Tracks' }).boundingBox())!;
+const x = (t: number, duration: number) => lanes.x + (t / duration) * lanes.width;
+await page.mouse.move(x(3, 12.012), lanes.y + 20);
+await page.mouse.down();
+await page.mouse.move(x(8, 12.012), lanes.y + 20, { steps: 6 });
+await page.mouse.up();
+await page.keyboard.press('Delete');
+console.log('trim panel:', (await aside.innerText()).replace(/\n/g, ' | ').slice(0, 180));
+await page.mouse.click(x(1, 12.012), lanes.y + 20);
+await page.keyboard.press('Space');
+await page.waitForTimeout(3000);
+await page.keyboard.press('Space');
+console.log('3 s from 0:01 past a 0:03 → 0:08 cut, with sound:', await time());
+
+// 3. A picture opened in the image editor, with the video's crop.
+await tools.getByRole('button', { name: 'Crop' }).click();
+await aside.getByRole('radio', { name: /16:9/ }).click();
+// The size is in a section folded by default.
+await aside.getByRole('button', { name: 'Position and size', expanded: false }).click();
+await aside.getByLabel('Width').fill('960');
+await aside.getByLabel('Width').press('Enter');
+// The picture on screen, downloaded as the video has it.
+await page.getByRole('button', { name: 'This picture', exact: true }).click();
+await page.getByRole('radio', { name: 'Original', exact: true }).click();
+const [shot] = await Promise.all([
+	page.waitForEvent('download'),
+	page.getByRole('dialog', { name: 'This picture' }).getByRole('button', { name: 'Download' }).click(),
+]);
+console.log('downloaded picture:', shot.suggestedFilename());
+// The picture as the preview shows it: cropped, at the crop's size.
+await page.getByRole('button', { name: 'This picture', exact: true }).click();
+// The choice stays: back to the picture as shown.
+await page.getByRole('radio', { name: 'As shown', exact: true }).click();
+await page.waitForTimeout(200);
+await page.screenshot({ path: 'shots/capture-panel.png' });
+const [seen] = await Promise.all([
+	page.waitForEvent('download'),
+	page.getByRole('dialog', { name: 'This picture' }).getByRole('button', { name: 'Download' }).click(),
+]);
+const seenSize = await page.evaluate(async (url) => {
+	const bitmap = await createImageBitmap(await (await fetch(url)).blob());
+	return `${bitmap.width}×${bitmap.height}`;
+}, `data:image/png;base64,${(await Bun.file((await seen.path())!).bytes()).toBase64()}`);
+console.log('picture as shown:', seen.suggestedFilename(), seenSize);
+await page.getByRole('button', { name: 'This picture', exact: true }).click();
+await page.getByRole('dialog', { name: 'This picture' }).getByRole('button', { name: 'Open in the image editor' }).click();
+await page.waitForURL('**/image**', { timeout: 20000 });
+await page.waitForTimeout(1500);
+await tools.getByRole('button', { name: 'Crop' }).click();
+console.log('image editor:', (await page.locator('header').innerText()).replace(/\n/g, ' '), '| width', await aside.getByLabel('Width').inputValue(), 'height', await aside.getByLabel('Height').inputValue());
+
+// 4. A phone video stored turned shows upright.
+await open(sample('rotated.mp4'));
+console.log('turned video:', await picture());
+
+// 5. Without sound, the page clock skips removed passages too.
+await open(sample('silent.mp4'));
+const lanes2 = (await page.getByRole('group', { name: 'Tracks' }).boundingBox())!;
+const x2 = (t: number) => lanes2.x + (t / 12.012) * lanes2.width;
+await page.mouse.move(x2(3), lanes2.y + 20);
+await page.mouse.down();
+await page.mouse.move(x2(8), lanes2.y + 20, { steps: 6 });
+await page.mouse.up();
+await page.keyboard.press('Delete');
+await page.mouse.click(x2(1), lanes2.y + 20);
+await page.keyboard.press('Space');
+await page.waitForTimeout(3000);
+console.log('3 s from 0:01 past a 0:03 → 0:08 cut, silent:', await time());
+await page.waitForTimeout(3500);
+console.log('at the end:', await time(), '| still playing:', (await page.getByRole('button', { name: 'Pause', exact: true }).count()) > 0);
+
+// 6. Phone width.
+await page.setViewportSize({ width: 390, height: 844 });
+await page.waitForTimeout(600);
+await page.screenshot({ path: 'shots/video-mobile.png' });
+
+console.log(errors.length ? `errors: ${errors.join(' | ')}` : 'no errors');
+await browser.close();

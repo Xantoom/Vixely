@@ -1,0 +1,401 @@
+import { useEffect, useRef, useState } from 'react';
+import { useLeaveGuard } from '@/app/leave-guard';
+import { cut, isShortened, keptRanges, setTrim } from '@/document/kept';
+import { type ItemStatus, BatchList } from '@/editor/BatchList';
+import { EditorLayout } from '@/editor/EditorLayout';
+import { FilePanel, ToolLater } from '@/editor/Inspector';
+import { KeptPanel } from '@/editor/KeptPanel';
+import { LayersPanel } from '@/editor/overlays/panels';
+import { isTyping, useEditorShortcuts } from '@/editor/shortcuts';
+import { Timeline } from '@/editor/Timeline';
+import { zoomView } from '@/editor/timeline-view';
+import { Viewer } from '@/editor/Viewer';
+import { EDITORS, type ToolId } from '@/editors/registry';
+import { NO_SHAPING, usePlayback } from '@/media/playback';
+import { useOpened, useSession } from '@/media/session';
+import { m } from '@/paraglide/messages.js';
+import { effectiveCrop, orientedSize } from '../image/document';
+import { AdjustPanel, CropPanel } from '../image/panels';
+import { useSubtitleProject } from '../subtitles/project';
+import { VideoBatchFooter } from './BatchFooter';
+import { fadeOf, speedOf } from './document';
+import { bitDepthOf, resolveAudio } from './export';
+import {
+	useCopiedRanges,
+	useCopyBlocker,
+	useExportMode,
+	useExportSource,
+	VideoBatchPanel,
+	VideoExportPanel,
+} from './ExportPanel';
+import { muxContainer, useHeardSounds } from './mux';
+import { MuxFooter } from './MuxPanel';
+import { useVideoDoc, useVideoEditor, useVideoPictureEditing, useVideoUndoState, videoOverlayEditing } from './store';
+import { VideoFades, VideoSpeed } from './TimePanels';
+import { VideoPlayerBar, VideoPreview } from './VideoPreview';
+import { VideoTimeline } from './VideoTimeline';
+
+/** Arrow keys move playback by this much, in seconds; with Shift, ten times more. */
+const ARROW_STEP = 1;
+
+/** Sliders use the arrows, Home and End themselves. */
+function isSlider(target: EventTarget | null): boolean {
+	return (
+		(target instanceof HTMLInputElement && target.type === 'range') ||
+		(target instanceof HTMLElement && target.getAttribute('role') === 'slider')
+	);
+}
+
+const SLIDER_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'Home', 'End']);
+
+/**
+ * Space plays and pauses, Delete removes the passage selected, + and - zoom the timeline and 0 shows it whole, I and O set where the video starts and
+ * ends, the arrows move playback, Home and End jump to the edges of the kept video.
+ */
+function useVideoShortcuts() {
+	useEffect(() => {
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.ctrlKey || event.metaKey || event.altKey || isTyping(event.target)) return;
+			if (isSlider(event.target) && SLIDER_KEYS.has(event.key)) return;
+			const state = useVideoEditor.getState();
+			const playback = usePlayback.getState();
+			const doc = state.history.present;
+			const handled = () => {
+				event.preventDefault();
+			};
+			switch (event.key) {
+				case ' ':
+					// Like in every editor, Space plays even when a button has focus; Enter still presses it.
+					handled();
+					playback.toggle();
+					break;
+				case 'Delete':
+				case 'Backspace': {
+					const { selection } = state;
+					if (selection) {
+						handled();
+						state.apply((current) => cut(current, selection));
+						state.setSelection(null);
+					}
+					break;
+				}
+				case '+':
+				case '=':
+				case '-': {
+					// The timeline zooms around the playhead, as with the wheel.
+					handled();
+					state.setView(zoomView(state.view, event.key === '-' ? 1.5 : 1 / 1.5, playback.time));
+					break;
+				}
+				case '0':
+					handled();
+					state.setView({ start: 0, end: doc.duration });
+					break;
+				case 'i':
+				case 'I':
+					handled();
+					state.apply((current) => setTrim(current, { ...current.trim, start: playback.time }));
+					break;
+				case 'o':
+				case 'O':
+					handled();
+					state.apply((current) => setTrim(current, { ...current.trim, end: playback.time }));
+					break;
+				case 'ArrowLeft':
+				case 'ArrowRight': {
+					handled();
+					const step = (event.shiftKey ? 10 : 1) * ARROW_STEP * (event.key === 'ArrowLeft' ? -1 : 1);
+					playback.seek(Math.min(doc.duration, Math.max(0, playback.time + step)));
+					break;
+				}
+				case 'Home':
+					handled();
+					playback.seek(doc.trim.start);
+					break;
+				case 'End':
+					handled();
+					playback.seek(doc.trim.end);
+					break;
+				case 'Escape':
+					if (state.selection) state.setSelection(null);
+					break;
+				default:
+			}
+		};
+		// A focused button would also be pressed when Space is released.
+		const onKeyUp = (event: KeyboardEvent) => {
+			if (event.key === ' ' && event.target instanceof HTMLButtonElement) event.preventDefault();
+		};
+		window.addEventListener('keydown', onKeyDown);
+		window.addEventListener('keyup', onKeyUp);
+		return () => {
+			window.removeEventListener('keydown', onKeyDown);
+			window.removeEventListener('keyup', onKeyUp);
+		};
+	}, []);
+}
+
+/** The trim panel, bound to the video document and to playback. */
+function VideoTrimPanel() {
+	const doc = useVideoDoc();
+	const apply = useVideoEditor((state) => state.apply);
+	return (
+		<KeptPanel
+			editing={{
+				doc,
+				apply,
+				playhead: () => usePlayback.getState().time,
+				extra: (
+					<>
+						<VideoSpeed />
+						<VideoFades />
+					</>
+				),
+			}}
+		/>
+	);
+}
+
+/**
+ * The video editor: the video plays as edited, its timeline cuts it, and the crop and adjustment
+ * tools are the image editor's, applied to every frame.
+ */
+export function VideoEditorScreen({ initialTool }: { initialTool?: ToolId }) {
+	const editor = EDITORS.video;
+	const opened = useOpened('video');
+	const [chosenTool, setTool] = useState<ToolId>(
+		initialTool && (editor.tools.includes(initialTool) || initialTool === 'export') ? initialTool : 'info',
+	);
+	// A batch of videos shares its export settings; edits belong to one file.
+	const batch = useSession((state) => (state.batchKind === 'video' ? state.batch : null));
+	const batchKey = useSession((state) => (state.batchKind === 'video' ? state.batchKey : null));
+	const [statuses, setStatuses] = useState<ReadonlyMap<number, ItemStatus>>(new Map());
+	const [running, setRunning] = useState(false);
+	const tool = batch && chosenTool !== 'export' ? 'info' : chosenTool;
+	const openProject = useSubtitleProject((state) => state.open);
+	const details = usePlayback((state) => (opened && state.file === opened.file ? state.details : null));
+	const load = useVideoEditor((state) => state.load);
+	const owner = useVideoEditor((state) => state.owner);
+	const doc = useVideoDoc();
+	const undo = useVideoEditor((state) => state.undo);
+	const redo = useVideoEditor((state) => state.redo);
+	const { canUndo, canRedo } = useVideoUndoState();
+	// Edits not exported yet: closing the tab asks first.
+	useLeaveGuard(canUndo);
+	const blocker = useCopyBlocker();
+	const mode = useExportMode();
+	const exportSettings = useVideoEditor((state) => state.exportSettings);
+	const exportSource = useVideoEditor((state) => state.exportSource);
+	// A video this browser can't decode has no player picture: its size comes from the file.
+	const probed = opened?.info?.video;
+	const size = details?.video ?? (probed ? { width: probed.width, height: probed.height } : null);
+	const upright = size ?? { width: 16, height: 9 };
+	const editing = useVideoPictureEditing(upright, opened?.poster ?? null);
+	const overlays = videoOverlayEditing(editing, doc.duration);
+	const textRef = useRef<HTMLTextAreaElement>(null);
+	// Subtitles turned on or off in the player's bar, shown over the picture.
+	const [subtitles, setSubtitles] = useState<boolean | null>(null);
+	const playable = Boolean(opened?.info?.video?.decodable);
+	const ready = opened !== null && owner === opened.file && details !== null;
+
+	// The subtitle tracks are read with the video, like a player lists them; the subtitle editor
+	// then finds them, and its edits come back here. Opening them also loads the player.
+	useEffect(() => {
+		if (opened) openProject({ ...opened, kind: 'subtitles' });
+	}, [opened, openProject]);
+
+	useEffect(() => {
+		if (opened && details) load(opened.file, details.duration, batchKey);
+	}, [opened, details, load, batchKey]);
+
+	// Playback skips what the timeline removed; other editors play the whole file.
+	const { trim, cuts } = doc;
+	useEffect(() => {
+		if (!ready) return;
+		usePlayback.getState().setRanges(isShortened(doc) ? keptRanges(doc) : null);
+		// Only the kept ranges matter here, not the picture.
+		// oxlint-disable-next-line react-hooks/exhaustive-deps
+	}, [ready, trim, cuts]);
+	// Playback goes at the video's speed, with its fades.
+	const speed = speedOf(doc);
+	const { in: fadeIn, out: fadeOut } = fadeOf(doc);
+	useEffect(() => {
+		usePlayback.getState().setShaping({ speed, fade: { in: fadeIn, out: fadeOut } });
+	}, [speed, fadeIn, fadeOut]);
+	useEffect(
+		() => () => {
+			usePlayback.getState().setRanges(null);
+			usePlayback.getState().setShaping(NO_SHAPING);
+		},
+		[],
+	);
+
+	useExportSource(ready ? opened : null, size);
+	useHeardSounds(ready ? opened.file : null);
+	useCopiedRanges(ready ? opened.file : null, tool === 'export' && !batch);
+	useVideoShortcuts();
+	useEditorShortcuts({ undo, redo });
+
+	const inspector = () => {
+		// Without a file there is nothing to show: the panel stays shut and the tools wait.
+		if (!opened && !batch) return null;
+		if (opened && tool === 'export') {
+			if (batch && ready) return <VideoBatchPanel upright={upright} />;
+			return ready ? (
+				<VideoExportPanel
+					opened={opened}
+					upright={upright}
+					onSubtitlesAdded={() => {
+						setSubtitles(true);
+					}}
+				/>
+			) : (
+				<ToolLater kind="video" tool={tool} />
+			);
+		}
+		if (tool === 'info' || !opened) {
+			return <FilePanel opened={opened} />;
+		}
+		if (!ready) return <ToolLater kind="video" tool={tool} />;
+		if (tool === 'trim') return <VideoTrimPanel />;
+		if (tool === 'crop') return <CropPanel editing={editing} />;
+		if (tool === 'adjust') return <AdjustPanel editing={editing} />;
+		if (tool === 'layers') return <LayersPanel editing={overlays} textRef={textRef} />;
+		return <ToolLater kind="video" tool={tool} />;
+	};
+
+	// The picture as the preview shows it: whole while cropping, cropped otherwise.
+	const shown = tool === 'crop' ? orientedSize(upright, editing.doc.rotation) : effectiveCrop(editing.doc, upright);
+
+	return (
+		<EditorLayout
+			kind="video"
+			ambient={opened?.poster ?? null}
+			fileName={batch ? undefined : opened?.file.name}
+			tool={tool}
+			onTool={setTool}
+			tools={batch ? ['info'] : undefined}
+			actions={
+				opened
+					? {
+							canUndo,
+							canRedo,
+							onUndo: undo,
+							onRedo: redo,
+							onExport: () => {
+								setTool('export');
+							},
+							exportActive: tool === 'export',
+						}
+					: undefined
+			}
+			// Zoom lives in the player's bar, under the picture: no bar of its own.
+			status={opened && playable && !batch ? null : undefined}
+			aspect={opened && playable && !batch ? aspectOf(shown) : undefined}
+			viewer={
+				opened && playable ? (
+					<VideoPreview
+						opened={opened}
+						editing={editing}
+						cropping={tool === 'crop'}
+						overlays={tool === 'layers' ? overlays : undefined}
+						subtitles={subtitles}
+						onEditText={() => {
+							setTool('layers');
+							textRef.current?.focus();
+						}}
+					/>
+				) : (
+					<Viewer kind="video" opened={opened} />
+				)
+			}
+			timeline={
+				batch ? (
+					<BatchList
+						statuses={statuses}
+						locked={running}
+						count={(count) => m.batch_count_video({ count })}
+						addLabel={m.batch_add_audio()}
+						accept="video/*,.mkv,.mov,.webm"
+					/>
+				) : opened && ready ? (
+					<VideoTimeline
+						file={opened.file}
+						aspect={upright.width / upright.height}
+						layers={overlays}
+						onLayer={() => {
+							setTool('layers');
+						}}
+						cutting={tool === 'trim'}
+						controls={
+							playable ? (
+								<VideoPlayerBar
+									opened={opened}
+									picture={editing.doc}
+									cropping={tool === 'crop'}
+									subtitles={subtitles}
+									onSubtitles={setSubtitles}
+								/>
+							) : undefined
+						}
+					/>
+				) : opened ? (
+					<Timeline file={opened.file} info={opened.info} poster={opened.poster} />
+				) : undefined
+			}
+			inspector={inspector()}
+			inspectorFooter={
+				batch && tool === 'export' ? (
+					<VideoBatchFooter
+						batch={batch}
+						onRunning={setRunning}
+						onStatus={(id, status) => {
+							setStatuses((previous) => {
+								const next = new Map(previous);
+								if (status) next.set(id, status);
+								else next.delete(id);
+								return next;
+							});
+						}}
+					/>
+				) : opened && tool === 'export' ? (
+					<MuxFooter
+						opened={opened}
+						blocked={mode === 'copy' ? blocker !== null : !exportSettings || !exportSource}
+						convert={
+							exportSettings && exportSource
+								? {
+										settings:
+											mode === 'encode'
+												? {
+														...exportSettings,
+														// Converting may be forced by the edits while the setting still says copy.
+														mode: 'encode',
+														audio: resolveAudio(exportSettings, exportSource.source),
+													}
+												: {
+														...exportSettings,
+														mode: 'copy',
+														container: muxContainer(opened.format),
+													},
+										doc,
+										upright,
+										source: exportSource.source,
+										bitDepth: bitDepthOf(
+											exportSource.encoders,
+											exportSettings.codec,
+											exportSettings.encoder,
+										),
+									}
+								: null
+						}
+					/>
+				) : undefined
+			}
+		/>
+	);
+}
+
+function aspectOf(size: { width: number; height: number }): number {
+	return size.width / Math.max(1, size.height);
+}

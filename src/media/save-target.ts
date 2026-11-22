@@ -1,0 +1,271 @@
+import { BufferTarget, StreamTarget, type StreamTargetChunk, type Target } from 'mediabunny';
+import { download, isPickerCancel } from './save';
+
+/** Where an export is written while it is encoded, and how it becomes a file for the user. */
+export interface SaveTarget {
+	/** For Mediabunny outputs. */
+	target: Target;
+	/** For files written in order by other means, such as a remux: appends bytes. */
+	append: (data: Uint8Array) => Promise<void>;
+	/** Completes the file once the output is finalized. */
+	commit: () => Promise<void>;
+	/** Throws away what was written, after a failure or when the user stops the export. */
+	discard: () => Promise<void>;
+}
+
+export interface SaveType {
+	mime: string;
+	extension: string;
+	description: string;
+}
+
+/** Writes reach the disk in blocks of this size, not one small write per packet. */
+const CHUNK_SIZE = 4 * 1024 * 1024;
+const TEMPORARY_PREFIX = 'vixely-export-';
+
+/**
+ * Forwards writes to a file stream but never closes it: Mediabunny closes its stream when an
+ * export is cancelled too, which would keep a partial file. Commit and discard decide instead.
+ */
+function forwardWrites(writable: FileSystemWritableFileStream): WritableStream<StreamTargetChunk> {
+	return new WritableStream<StreamTargetChunk>({ write: async (chunk) => writing(writable.write(chunk)) });
+}
+
+/** How long a finished export stays in private storage, for its download to complete. */
+const DOWNLOAD_TIME = 5 * 60_000;
+
+let storageFull = false;
+
+/** Whether the last write ran out of space on the device. */
+export function ranOutOfStorage(): boolean {
+	return storageFull;
+}
+
+async function writing<T>(work: Promise<T>): Promise<T> {
+	try {
+		return await work;
+	} catch (error) {
+		if (error instanceof DOMException && error.name === 'QuotaExceededError') storageFull = true;
+		throw error;
+	}
+}
+
+/** Removes files left in private storage by earlier exports. One still being written refuses. */
+async function removeLeftovers(root: FileSystemDirectoryHandle) {
+	for await (const name of root.keys()) {
+		if (name.startsWith(TEMPORARY_PREFIX)) await root.removeEntry(name).catch(() => undefined);
+	}
+}
+
+/** What a closed tab left in private storage goes at the next visit. */
+export async function clearLeftovers() {
+	try {
+		await removeLeftovers(await navigator.storage.getDirectory());
+	} catch {
+		// No private storage: nothing was left in it.
+	}
+}
+
+/** Writes to a file the user chose, in place. `remove` deletes it if the export is thrown away. */
+async function fileTarget(handle: FileSystemFileHandle, remove?: () => Promise<void>): Promise<SaveTarget> {
+	const writable = await handle.createWritable();
+	return {
+		target: new StreamTarget(forwardWrites(writable), { chunked: true, chunkSize: CHUNK_SIZE }),
+		append: async (data) => writing(writable.write(data.slice())),
+		commit: async () => writable.close(),
+		discard: async () => {
+			await writable.abort();
+			await remove?.();
+		},
+	};
+}
+
+/**
+ * A file that ends up in the downloads: written to the browser's private storage on disk first,
+ * or built in memory when there is none (private browsing in some browsers).
+ */
+export async function downloadTarget(name: string, type: SaveType): Promise<SaveTarget> {
+	storageFull = false;
+	try {
+		const root = await navigator.storage.getDirectory();
+		await removeLeftovers(root);
+		const entry = `${TEMPORARY_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2)}`;
+		const handle = await root.getFileHandle(entry, { create: true });
+		const writable = await handle.createWritable();
+		return {
+			target: new StreamTarget(forwardWrites(writable), { chunked: true, chunkSize: CHUNK_SIZE }),
+			append: async (data) => writing(writable.write(data.slice())),
+			commit: async () => {
+				await writable.close();
+				download(await handle.getFile(), name);
+				setTimeout(() => {
+					void root.removeEntry(entry).catch(() => undefined);
+				}, DOWNLOAD_TIME);
+			},
+			discard: async () => {
+				await writable.abort();
+				await root.removeEntry(entry);
+			},
+		};
+	} catch {
+		// No private storage: build the file in memory.
+	}
+	const target = new BufferTarget();
+	const parts: Uint8Array<ArrayBuffer>[] = [];
+	return {
+		target,
+		append: async (data) => {
+			parts.push(data.slice());
+			return Promise.resolve();
+		},
+		commit: async () => {
+			const content: BlobPart[] = target.buffer ? [target.buffer] : parts;
+			if (content.length > 0) download(new Blob(content, { type: type.mime }), name);
+			return Promise.resolve();
+		},
+		discard: async () => Promise.resolve(),
+	};
+}
+
+/** A file written in steps: first by Mediabunny, then read back to be completed by another pass. */
+export interface ScratchFile {
+	target: Target;
+	/** The file once the output is finalized. */
+	file: () => Promise<File>;
+	remove: () => Promise<void>;
+}
+
+/**
+ * A file in the browser's private storage for an intermediate result, such as a converted video
+ * that the remuxer then completes with subtitles; in memory when there is no private storage.
+ */
+export async function openScratchFile(name: string): Promise<ScratchFile> {
+	try {
+		const root = await navigator.storage.getDirectory();
+		const entry = `${TEMPORARY_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2)}`;
+		const handle = await root.getFileHandle(entry, { create: true });
+		const writable = await handle.createWritable();
+		let closed = false;
+		return {
+			target: new StreamTarget(forwardWrites(writable), { chunked: true, chunkSize: CHUNK_SIZE }),
+			file: async () => {
+				if (!closed) await writable.close();
+				closed = true;
+				const file = await handle.getFile();
+				return new File([file], name, { type: file.type });
+			},
+			remove: async () => {
+				if (!closed) await writable.abort().catch(() => undefined);
+				closed = true;
+				await root.removeEntry(entry).catch(() => undefined);
+			},
+		};
+	} catch {
+		// No private storage: built in memory.
+	}
+	const target = new BufferTarget();
+	return {
+		target,
+		file: async () => Promise.resolve(new File(target.buffer ? [target.buffer] : [], name)),
+		remove: async () => Promise.resolve(),
+	};
+}
+
+/**
+ * Opens the destination of an export before encoding starts, so a file of several gigabytes is
+ * written as it is produced and never held in memory:
+ *
+ * - where the browser allows it (Chrome, Edge), the user picks the file and it is written in place;
+ * - elsewhere, it is written to the browser's private storage on disk, then downloaded;
+ * - as a last resort, it is built in memory, then downloaded.
+ *
+ * Must be called from the click that starts the export: the file picker needs it. Resolves with
+ * null when the user closes the picker.
+ */
+export async function openSaveTarget(name: string, type: SaveType): Promise<SaveTarget | null> {
+	if (window.showSaveFilePicker) {
+		try {
+			const handle = await window.showSaveFilePicker({
+				suggestedName: name,
+				types: [{ description: type.description, accept: { [type.mime]: [`.${type.extension}`] } }],
+			});
+			return await fileTarget(handle);
+		} catch (error) {
+			if (isPickerCancel(error)) return null;
+			// Other failures (permissions, policy) fall back to a download.
+		}
+	}
+	return downloadTarget(name, type);
+}
+
+/**
+ * A new file in a folder the user picked: a file already there under the name is never written
+ * over, nor deleted when the export is thrown away; the new one gets a number, as downloads do.
+ */
+async function newFileIn(folder: FileSystemDirectoryHandle, name: string): Promise<SaveTarget> {
+	const dot = name.lastIndexOf('.');
+	const [stem, extension] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ''];
+	for (let number = 1; ; number++) {
+		const free = number === 1 ? name : `${stem} (${number})${extension}`;
+		// oxlint-disable-next-line no-await-in-loop -- one name after the other until one is free
+		const taken = await folder.getFileHandle(free).then(
+			() => true,
+			(error: unknown) => {
+				if (error instanceof DOMException && error.name === 'NotFoundError') return false;
+				// A folder of that name takes it too; anything else (permission lost) stops the export.
+				if (error instanceof DOMException && error.name === 'TypeMismatchError') return true;
+				throw error;
+			},
+		);
+		if (taken) continue;
+		// oxlint-disable-next-line no-await-in-loop
+		const handle = await folder.getFileHandle(free, { create: true });
+		return fileTarget(handle, async () => folder.removeEntry(free).catch(() => undefined));
+	}
+}
+
+/** Opens one destination per file of a batch. */
+export type BatchDestination = (name: string, type: SaveType) => Promise<SaveTarget>;
+
+/**
+ * Where a batch goes: a folder the user picks where the browser allows it, written file by file;
+ * otherwise every file is downloaded as it is ready. Must be called from the click that starts
+ * the export. Resolves with null when the user closes the picker.
+ */
+export async function openBatchDestination(startIn: 'music' | 'pictures'): Promise<BatchDestination | null> {
+	if (window.showDirectoryPicker) {
+		try {
+			const folder = await window.showDirectoryPicker({ mode: 'readwrite', startIn });
+			return async (name) => newFileIn(folder, name);
+		} catch (error) {
+			if (isPickerCancel(error)) return null;
+		}
+	}
+	return downloadTarget;
+}
+
+/** Files of a batch written one after the other into a folder, each as it is encoded. */
+export interface FolderTargets {
+	open: (name: string) => Promise<SaveTarget>;
+}
+
+/**
+ * A folder the user picks, where the browser allows it (Chrome, Edge); null otherwise, each file
+ * then going to the downloads. Throws an AbortError when the user closes the picker. Must be
+ * called from the click.
+ */
+export async function openFolderTargets(startIn: 'videos' | 'music'): Promise<FolderTargets | null> {
+	if (!window.showDirectoryPicker) return null;
+	let folder: FileSystemDirectoryHandle;
+	try {
+		folder = await window.showDirectoryPicker({ mode: 'readwrite', startIn });
+	} catch (error) {
+		if (isPickerCancel(error)) throw error;
+		return null;
+	}
+	return {
+		async open(name) {
+			return newFileIn(folder, name);
+		},
+	};
+}

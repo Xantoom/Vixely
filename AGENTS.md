@@ -1,56 +1,54 @@
-# GUIDELINES
+# Vixely
 
-This project is a Media converting, editing, exporting app fully web-client based.
+Video, image, GIF, audio and subtitle editors that run entirely in the browser: files never leave the device. Static
+site, no backend. Read this before changing anything.
 
-## TECH STACK
+## Stack
 
-- **Frontend:** React 19+, Typescript 6+, TailwindCSS 4+ (custom theme), Tanstack Router, Tanstack React Query 5.
-- **Server/Bundler:** Bun 1.3 for package manager, Vite 8+.
-- **Advanced:** You can use Rust and WebAssembly if needed.
-- **Production:** Github CI/CD Pipelines with a develop branch and main branch (main = production), Deployed on Railway.com (auto deploy when Merge on main and CI passed), DNS records on Cloudflare, Domain name on Hostinger (vixely.app).
-- **Environment:** On Railway, NODE_ENV=PRODUCTION, PORT=80.
-- **Librairies:** Mediabunny, Mediabunny extension for AC3/EAC3, JASSUB pour ASS subs, Zustand for stores, Oxlint/tsgolint for linter, Oxfmt for formatter.
+React 19, TypeScript, Tailwind CSS 4, Vite, Bun, TanStack Router, Zustand, Paraglide (English and French), Mediabunny,
+WebCodecs, WebGL2, and Rust crates compiled to WebAssembly (`vixely-*`). Served by Cloudflare Workers as static assets
+(`wrangler.jsonc`, `public/_headers`), with one small Worker for visit counting (`worker/`). `.github/workflows/ci.yml`
+checks every push, then deploys `main` to vixely.app and `v1` to vixely-preprod.xantoom.workers.dev.
 
-## PROJECT DESCRIPTION
+## Commands
 
-Vixely is a **web app**, **client-based**. Meaning I try to do everything in the client instead of the server.
-Thanks to [Mediabunny library](https://mediabunny.dev/), we can do: reading, writing, and converting media files, directly in the browser. **ALWAYS USE MEDIABUNNY IF POSSIBLE**.
+```bash
+bun install && bun run dev
+bun run typecheck && bun run lint && bun run fmt:check && bun run test
+bun run test:rust
+```
 
-The App has 3 functionnalities:
+- Browser scenarios are in `e2e/` (see its README). Run them with `JOBS=1` when a result looks odd: under load the dev
+  server makes some of them time out. `BASE=http://localhost:5400` points them at a dev server on another port.
+- After changing a patched package, delete `node_modules/.vite` and restart the dev server.
 
-- **A Video editor**: Get Metadata, Trim/Cut, Resize/Crop, Color Correction, Choose tracks (audios and subtitles), Export.
-- **An Image editor**: Get Metadata, Resize/Crop, Color Correction, Export. Target is [Photopea](https://www.photopea.com/).
-- **A GIF editor**: Get Metadata, Trim/Cut, Resize/Crop, Color Correction, Export. Target is [Ezgif](https://ezgif.com/).
+## Layout
 
-Everything except Export should be in **real-time preview**, **smooth** and **fast**.
+- `src/editors/<kind>`: one folder per editor; `src/editor`: what they share; `src/media`: reading, decoding, saving.
+- `src/workers`: everything heavy runs off the main thread. `src/document`: rules shared by timed editors.
+- `src/app`: site shell, pages and the service worker's client; `messages/`: every string, in both languages.
+- `patches/`: bun patches of Mediabunny (TrueHD in transport streams, HDR, 10 bits) and JASSUB. Port them when upgrading: `bun patch <pkg>`,
+  reapply with `patch -p1`, delete any `.rej` or `.orig` left behind, then `bun patch --commit`.
+- `vendor/`: gifski without threads for WebAssembly, truehd without what took 15 GB to compile; see their `VIXELY.md`.
 
-It should be possible also to capture a frame in video editor, and either to download it, or export it to the image editor. Also from a video to the GIF editor, and from the GIF editor to the Image editor.
+## Rules of the product
 
-We should have **presets**, stored in json files to quickly edit them, to have already configured settings for differents social networks: Discord, Twitch, TikTok, Twitter, Youtube etc. Max size, codec, bitrates, quality, resolution etc.
+- Nothing of the user's files is ever sent anywhere. Any new request to another site goes in the privacy page.
+- Encoding on the graphics card that fails offers a retry in software. No silent fallback.
+- A size limit is a ceiling: it never inflates a file, and estimates must be honest.
+- 7.1 TrueHD is decoded as 5.1, because Web Audio drops dialogue with 8 channels; copying keeps the 7.1.
 
-For now, the app is free to use. Later I'll add some ads with Google Adsense I think.
+## Rules of the interface
 
-## DIRECTIVES
+- Quiet flat chrome; colour only carries meaning. System font stack. No gradients, glows, cards in panels or ALL CAPS.
+- As little text as possible: icons with short tooltips, no marketing copy, no em dashes. Text must fit in both languages.
+- Everything clickable has `cursor: pointer`; what drags sideways has `ew-resize`.
+- Alerts are in-app dialogs, never `alert()` or `confirm()`. Scrollbars are always the app's own.
+- Export is a tab of the tool rail. Zoom has no buttons, only wheel and keyboard. Every editor can close its file.
+- Phones: media full width at the top, then the timeline, the panel and the tool bar at the bottom.
+- Aim for 120 fps: animate only `transform` and `opacity`, no CSS blur on large areas.
+- Check every interface change in French and English at 1440, 1100, 820 and 390 px, light and dark.
 
-- **ALWAYS USE SKILLS**.
-- **UI ALWAYS IN ENGLISH ONLY.**
-- **ALWAYS USE FRONTEND-DESIGN SKILL WHEN DOING UI/UX OR FRONT. ALWAYS USE VERCEL REACT BEST PRATICES.**.
-- In UI, there is no need for a lot of text.
-- Think about SEO, Google Ads, for better reaching and revenues.
-- Frontend should be **modern, but clean**. Nothing fancy neons and stuffs. Dark mode only and by default.
-- User experience is **vital**, the user should experience smooth, simple and fast UI (60fps minimum).
-- The app should be **responsive** and should be adapted to mobile, tablet (tablet mode should be more close to mobile version), and PC (16/9 monitors, or 3/2, 2/3, 21/9 or even 32/9). Every size must use the areas smartly.
-- Be careful about **SEO**, **Accessibility**, **UE/NON-UE LAWS (GPDR etc.)**.
-- When you finish a task, run lint then formatter, and if there is errors, fix them.
-- Code should be the cleanest possible, respect best pratices and folder structure should be clear.
+## Local files
 
-## Coding Style & Naming Conventions
-
-Formatting is enforced by `.editorconfig` and `.oxfmtrc.jsonc`: tabs, width 4, UTF-8, LF, semicolons, single quotes,
-trailing commas. Lint rules are in `.oxlintrc.json`.
-Use TypeScript strict mode patterns. Naming:
-
-- React components: `PascalCase` file names (for example `VideoPlayer.tsx`)
-- Hooks: `useSomething.ts`
-- Stores/util modules: `camelCase.ts`
-  Use `@/` imports for `src/*` paths. Do not manually edit generated files such as `src/routeTree.gen.ts`.
+Personal tooling stays out of the repository: `.claude/`, `.impeccable/` and the like are ignored and must not be added.

@@ -1,0 +1,3 @@
+# WebAssembly SIMD is supported by every current browser and the encoders rely on it for speed.
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "target-feature=+simd128"]

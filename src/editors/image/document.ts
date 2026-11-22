@@ -1,0 +1,291 @@
+import type { Overlay } from '@/editor/overlays/model';
+
+/**
+ * The image editing document: everything the user changed, never the pixels themselves.
+ *
+ * Order of operations, shared by the preview and the export:
+ * 1. orient the source (rotation, then mirror, as the user sees it),
+ * 2. straighten it by a free angle, enlarged just enough to leave no empty corner,
+ * 3. crop the result,
+ * 4. apply the adjustments, and blur or pixelate the zones asked for,
+ * 5. scale to the export size,
+ * 6. draw the text, stickers, shapes and drawings.
+ */
+
+export type Rotation = 0 | 90 | 180 | 270;
+
+export interface Size {
+	width: number;
+	height: number;
+}
+
+export interface Rect extends Size {
+	x: number;
+	y: number;
+}
+
+/**
+ * Each adjustment is 0 when neutral. Most go from -100 to 100; hue turns colours by -180 to 180
+ * degrees; blur, sepia and grain only add, from 0 to 100.
+ */
+export interface Adjustments {
+	exposure: number;
+	brightness: number;
+	contrast: number;
+	highlights: number;
+	shadows: number;
+	temperature: number;
+	tint: number;
+	saturation: number;
+	hue: number;
+	sepia: number;
+	blur: number;
+	/** Darkens the edges; below 0, lightens them. */
+	vignette: number;
+	grain: number;
+}
+
+export type AdjustmentId = keyof Adjustments;
+
+export interface ImageDoc {
+	rotation: Rotation;
+	flipX: boolean;
+	flipY: boolean;
+	/** Straightening, in degrees clockwise, from -45 to 45; absent for none. */
+	angle?: number;
+	/** Crop in oriented image pixels. Null keeps the whole image. */
+	crop: Rect | null;
+	adjust: Adjustments;
+	/** Text and stickers over the output, in front to back order. */
+	overlays: Overlay[];
+}
+
+export const NEUTRAL_ADJUSTMENTS: Adjustments = {
+	exposure: 0,
+	brightness: 0,
+	contrast: 0,
+	highlights: 0,
+	shadows: 0,
+	temperature: 0,
+	tint: 0,
+	saturation: 0,
+	hue: 0,
+	sepia: 0,
+	blur: 0,
+	vignette: 0,
+	grain: 0,
+};
+
+export const ADJUSTMENT_IDS: AdjustmentId[] = [
+	'exposure',
+	'brightness',
+	'contrast',
+	'highlights',
+	'shadows',
+	'temperature',
+	'tint',
+	'saturation',
+	'hue',
+	'sepia',
+	'blur',
+	'vignette',
+	'grain',
+];
+
+export const ADJUSTMENT_RANGE: Record<AdjustmentId, [min: number, max: number]> = {
+	exposure: [-100, 100],
+	brightness: [-100, 100],
+	contrast: [-100, 100],
+	highlights: [-100, 100],
+	shadows: [-100, 100],
+	temperature: [-100, 100],
+	tint: [-100, 100],
+	saturation: [-100, 100],
+	hue: [-180, 180],
+	sepia: [0, 100],
+	blur: [0, 100],
+	vignette: [-100, 100],
+	grain: [0, 100],
+};
+
+/** Adjustments with every value given, from a partial set (a look). */
+export function adjustments(values: Partial<Adjustments>): Adjustments {
+	return { ...NEUTRAL_ADJUSTMENTS, ...values };
+}
+
+export function sameAdjustments(a: Adjustments, b: Adjustments): boolean {
+	return ADJUSTMENT_IDS.every((id) => a[id] === b[id]);
+}
+
+export function createImageDoc(): ImageDoc {
+	return { rotation: 0, flipX: false, flipY: false, crop: null, adjust: NEUTRAL_ADJUSTMENTS, overlays: [] };
+}
+
+export function isAdjusted(adjust: Adjustments): boolean {
+	return ADJUSTMENT_IDS.some((id) => adjust[id] !== 0);
+}
+
+/**
+ * Always returns a plain object: an ImageBitmap exposes its size through prototype getters, which
+ * object spread would silently drop.
+ */
+export function orientedSize(source: Size, rotation: Rotation): Size {
+	return rotation === 90 || rotation === 270
+		? { width: source.height, height: source.width }
+		: { width: source.width, height: source.height };
+}
+
+/**
+ * The document drawn over the whole picture while cropping: its blurred zones, placed on the
+ * cropped output, moved to where that output lies in the whole picture, so they follow the frame.
+ */
+export function wholePictureDoc(doc: ImageDoc, crop: Rect, bounds: Size): ImageDoc {
+	if (!doc.overlays.some((overlay) => overlay.kind === 'zone')) return doc;
+	const scale = Math.min(crop.width, crop.height) / Math.min(bounds.width, bounds.height);
+	return {
+		...doc,
+		overlays: doc.overlays.map((overlay) =>
+			overlay.kind === 'zone'
+				? {
+						...overlay,
+						x: (crop.x + overlay.x * crop.width) / bounds.width,
+						y: (crop.y + overlay.y * crop.height) / bounds.height,
+						size: overlay.size * scale,
+					}
+				: overlay,
+		),
+	};
+}
+
+/** The part of the oriented image that ends up in the output. */
+export function effectiveCrop(doc: ImageDoc, source: Size): Rect {
+	const { width, height } = orientedSize(source, doc.rotation);
+	return doc.crop ?? { x: 0, y: 0, width, height };
+}
+
+const ROTATIONS: Rotation[] = [0, 90, 180, 270];
+
+export function rotate(doc: ImageDoc, source: Size, direction: 1 | -1): ImageDoc {
+	const rotation = ROTATIONS[(ROTATIONS.indexOf(doc.rotation) + direction + 4) % 4] ?? 0;
+	const before = orientedSize(source, doc.rotation);
+	// The crop turns with the image, so the same area stays selected.
+	const crop = doc.crop && rotateRect(doc.crop, before, direction);
+	// A quarter turn swaps the mirror axes as the user sees them.
+	return { ...doc, rotation, crop, flipX: doc.flipY, flipY: doc.flipX };
+}
+
+function rotateRect(rect: Rect, bounds: Size, direction: 1 | -1): Rect {
+	return direction === 1
+		? { x: bounds.height - rect.y - rect.height, y: rect.x, width: rect.height, height: rect.width }
+		: { x: rect.y, y: bounds.width - rect.x - rect.width, width: rect.height, height: rect.width };
+}
+
+export function flip(doc: ImageDoc, source: Size, axis: 'x' | 'y'): ImageDoc {
+	const bounds = orientedSize(source, doc.rotation);
+	const crop = doc.crop && {
+		...doc.crop,
+		x: axis === 'x' ? bounds.width - doc.crop.x - doc.crop.width : doc.crop.x,
+		y: axis === 'y' ? bounds.height - doc.crop.y - doc.crop.height : doc.crop.y,
+	};
+	// A mirror turns a tilt the other way: the straightening follows, so the picture stays level.
+	const angle = doc.angle ? -doc.angle : doc.angle;
+	return axis === 'x' ? { ...doc, flipX: !doc.flipX, crop, angle } : { ...doc, flipY: !doc.flipY, crop, angle };
+}
+
+/** Maps a point of the oriented image (normalised 0 to 1) back to the source texture. */
+function orientedToSource(doc: ImageDoc, u: number, v: number): [number, number] {
+	const x = doc.flipX ? 1 - u : u;
+	const y = doc.flipY ? 1 - v : v;
+	switch (doc.rotation) {
+		case 90:
+			return [y, 1 - x];
+		case 180:
+			return [1 - x, 1 - y];
+		case 270:
+			return [1 - y, x];
+		case 0:
+			return [x, y];
+	}
+}
+
+export const MAX_ANGLE = 45;
+
+/**
+ * How much a picture of `bounds` turned by `angle` degrees is enlarged to cover its own frame, so
+ * straightening leaves no empty corner.
+ */
+export function straightenScale(bounds: Size, angle: number): number {
+	const theta = (Math.abs(angle) * Math.PI) / 180;
+	const cos = Math.cos(theta);
+	const sin = Math.sin(theta);
+	return Math.max(cos + (bounds.height / bounds.width) * sin, cos + (bounds.width / bounds.height) * sin);
+}
+
+/**
+ * Affine transform from output coordinates (0 to 1, top left origin) to source texture
+ * coordinates, as a column-major 3×3 matrix ready for a WebGL uniform.
+ */
+export function sourceTransform(doc: ImageDoc, source: Size, region: Rect): Float32Array {
+	const bounds = orientedSize(source, doc.rotation);
+	const angle = doc.angle ?? 0;
+	const theta = (-angle * Math.PI) / 180;
+	const scale = angle === 0 ? 1 : straightenScale(bounds, angle);
+	const [cx, cy] = [bounds.width / 2, bounds.height / 2];
+	const at = (u: number, v: number) => {
+		// The point of the straightened picture, back to the oriented one: turned the other way
+		// around the middle, and shrunk by the enlargement.
+		const dx = region.x + u * region.width - cx;
+		const dy = region.y + v * region.height - cy;
+		const x = cx + (dx * Math.cos(theta) - dy * Math.sin(theta)) / scale;
+		const y = cy + (dx * Math.sin(theta) + dy * Math.cos(theta)) / scale;
+		return orientedToSource(doc, x / bounds.width, y / bounds.height);
+	};
+	const [x0, y0] = at(0, 0);
+	const [x1, y1] = at(1, 0);
+	const [x2, y2] = at(0, 1);
+	return new Float32Array([x1 - x0, y1 - y0, 0, x2 - x0, y2 - y0, 0, x0, y0, 1]);
+}
+
+/** Output size once scaled to fit `limit` on its longest side, never upscaled. */
+export function fitWithin(size: Size, limit: number): Size {
+	const scale = Math.min(1, limit / Math.max(size.width, size.height));
+	return { width: Math.max(1, Math.round(size.width * scale)), height: Math.max(1, Math.round(size.height * scale)) };
+}
+
+/**
+ * Carries a document edited on one image over to another of a different size, for batches.
+ * Rotation, mirrors and adjustments apply as they are. A crop keeps its aspect ratio, centred on
+ * the same relative point, when `ratio` is set; a free crop keeps its relative position and size.
+ */
+export function adaptDoc(doc: ImageDoc, from: Size, to: Size, ratio: number | null): ImageDoc {
+	if (!doc.crop) return doc;
+	const fromBounds = orientedSize(from, doc.rotation);
+	const toBounds = orientedSize(to, doc.rotation);
+	const scaleX = toBounds.width / fromBounds.width;
+	const scaleY = toBounds.height / fromBounds.height;
+
+	if (ratio === null) {
+		const x = Math.round(doc.crop.x * scaleX);
+		const y = Math.round(doc.crop.y * scaleY);
+		const width = Math.min(Math.round(doc.crop.width * scaleX), toBounds.width - x);
+		const height = Math.min(Math.round(doc.crop.height * scaleY), toBounds.height - y);
+		return { ...doc, crop: { x, y, width, height } };
+	}
+
+	// Largest rectangle of the ratio that fits the image, as large relative to it as the original crop.
+	const share = Math.min(1, Math.max(doc.crop.width / fromBounds.width, doc.crop.height / fromBounds.height));
+	let width = toBounds.width * share;
+	let height = width / ratio;
+	if (height > toBounds.height * share) {
+		height = toBounds.height * share;
+		width = height * ratio;
+	}
+	const centreX = (doc.crop.x + doc.crop.width / 2) * scaleX;
+	const centreY = (doc.crop.y + doc.crop.height / 2) * scaleY;
+	const x = Math.min(Math.max(centreX - width / 2, 0), toBounds.width - width);
+	const y = Math.min(Math.max(centreY - height / 2, 0), toBounds.height - height);
+	return {
+		...doc,
+		crop: { x: Math.round(x), y: Math.round(y), width: Math.round(width), height: Math.round(height) },
+	};
+}

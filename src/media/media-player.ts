@@ -1,0 +1,453 @@
+import { ALL_FORMATS, BlobSource, Input, type InputVideoTrack, type VideoSample, VideoSampleSink } from 'mediabunny';
+import type { GainPoint } from '@/document/gain-curve';
+import { type Range, toOutput, toSource, totalLength } from '@/document/timemap';
+import { AudioPlayer } from './audio-player';
+import { type AudioTrackInfo, listAudioTracks } from './audio-tracks';
+import { canDecode } from './decoders';
+import type { HeardSound } from './sound';
+
+export interface MediaDetails {
+	/** Seconds. */
+	duration: number;
+	/** Displayed size of the picture, rotation applied; null for audio files. */
+	video: { width: number; height: number } | null;
+	/** Every audio track of the file, playable or not. */
+	audioTracks: AudioTrackInfo[];
+}
+
+/** Draws one picture; the sample is closed right after. */
+export type Painter = (sample: VideoSample) => void;
+
+/** How far pictures may lag behind the clock before decoding jumps ahead, in seconds. */
+const CATCH_UP = 0.5;
+
+async function nextFrame(): Promise<void> {
+	await new Promise((resolve) => requestAnimationFrame(resolve));
+}
+
+/** The track players start with: the default one this browser can play, else the first it can. */
+function firstAudioTrack(tracks: AudioTrackInfo[]): AudioTrackInfo | null {
+	const playable = tracks.filter((track) => track.playable);
+	return playable.find((track) => track.default && !track.commentary) ?? playable[0] ?? null;
+}
+
+/**
+ * Plays a video file into a canvas, with one of its audio tracks. The audio player is the clock
+ * when there is sound; pictures are decoded just ahead and drawn when their time comes. Without
+ * sound, the page clock drives playback. Paused, the frame at the playhead is shown, so scrubbing
+ * shows pictures.
+ */
+export class MediaPlayer {
+	/** Called on every animation frame while playing, and when playback stops by itself. */
+	onTime: (time: number) => void = () => {};
+	onStateChange: (playing: boolean) => void = () => {};
+	/** Called when another audio track starts playing. */
+	onAudioTrack: (track: number | null) => void = () => {};
+	readonly ready: Promise<MediaDetails>;
+
+	private file: File;
+	private input: Input;
+	private sink: VideoSampleSink | null = null;
+	private videoTrack: InputVideoTrack | null = null;
+	/** Set once the default (often hardware) decoder failed: pictures are decoded by the CPU. */
+	private software = false;
+	/** Time of the first picture: it may come a little after zero. */
+	private firstPicture = 0;
+	private audio: AudioPlayer | null = null;
+	private audioTrackId: number | null = null;
+	/** The file's own audio tracks. */
+	private ownTracks: AudioTrackInfo[] = [];
+	/** Sound from other files heard over the pictures, by negative ID, as tracks of the video. */
+	private added: ReadonlyMap<number, File> = new Map();
+	/** A track from another file asked for before it was given. */
+	private wanted: number | null = null;
+	private canvas: HTMLCanvasElement | null = null;
+	private duration = 0;
+	/** Parts of the file played, in order; the whole file unless an editor removed passages. */
+	private ranges: Range[] | null = null;
+	/** How fast it plays, pitch kept. */
+	private speed = 1;
+	/** Fades in and out of the sound, in seconds of what is heard. */
+	private fade = { in: 0, out: 0 };
+	/** How each audio track is heard, by ID: its level and sound changes as the editor sets them. */
+	private sounds: ReadonlyMap<number, HeardSound> = new Map();
+	/** Draws a picture on the canvas; the default fits it in, as it comes. */
+	private painter: Painter | null = null;
+	/** Canvases attached, the last one drawn on. */
+	private views: { canvas: HTMLCanvasElement; painter: Painter | null }[] = [];
+	/** Page clock, for files without sound: page time at which an output time played. */
+	private anchor = { page: 0, output: 0 };
+	private position = 0;
+	private clockPlaying = false;
+	/** Incremented on every start and stop: a loop from an older run ends itself. */
+	private run = 0;
+	/** Paused frame requests: one at a time, the latest one wins. */
+	private stillRequest: number | null = null;
+	private stillBusy = false;
+	private disposed = false;
+
+	constructor(file: File) {
+		this.file = file;
+		this.input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
+		this.ready = this.open();
+	}
+
+	private async open(): Promise<MediaDetails> {
+		const [video, audioTracks, duration] = await Promise.all([
+			this.input.getPrimaryVideoTrack(),
+			listAudioTracks(this.input),
+			this.input.computeDuration(),
+		]);
+		this.duration = duration;
+		let size: MediaDetails['video'] = null;
+		if (video && (await canDecode(video))) {
+			this.videoTrack = video;
+			this.sink = new VideoSampleSink(video);
+			const [width, height, first] = await Promise.all([
+				video.getDisplayWidth(),
+				video.getDisplayHeight(),
+				video.getFirstTimestamp(),
+			]);
+			size = { width, height };
+			this.firstPicture = Math.max(0, first);
+		}
+		this.ownTracks = audioTracks;
+		const first = firstAudioTrack(audioTracks);
+		if (first) await this.useAudio(first.id);
+		return { duration, video: size, audioTracks };
+	}
+
+	get playing(): boolean {
+		return this.audio ? this.audio.playing : this.clockPlaying;
+	}
+
+	/** ID of the audio track heard, null when none plays. */
+	get audioTrack(): number | null {
+		return this.audioTrackId;
+	}
+
+	time(): number {
+		if (this.audio) return this.audio.time();
+		if (!this.clockPlaying) return this.position;
+		const ranges = this.played();
+		const output = this.anchor.output + ((performance.now() - this.anchor.page) / 1000) * this.speed;
+		return toSource(ranges, Math.min(totalLength(ranges), output));
+	}
+
+	/** Plays another audio track from the same moment, or none (null). */
+	async setAudioTrack(id: number | null) {
+		await this.ready;
+		this.wanted = id !== null && id < 0 && !this.added.has(id) ? id : null;
+		if (this.disposed || id === this.audioTrackId || this.wanted !== null) return;
+		const wasPlaying = this.playing;
+		const time = this.time();
+		if (wasPlaying) this.pause();
+		this.position = time;
+		await this.useAudio(id);
+		this.audio?.seek(time);
+		if (wasPlaying) await this.play();
+	}
+
+	/**
+	 * Sound from other files, by negative ID, offered as tracks of the video: they play from its
+	 * start, over the same passages. One no longer given gives way to the file's own sound.
+	 */
+	async setAddedAudio(files: ReadonlyMap<number, File>) {
+		this.added = files;
+		await this.ready;
+		const current = this.audioTrackId;
+		if (this.wanted !== null && files.has(this.wanted)) await this.setAudioTrack(this.wanted);
+		else if (current !== null && current < 0 && !files.has(current))
+			await this.setAudioTrack(firstAudioTrack(this.ownTracks)?.id ?? null);
+	}
+
+	private async useAudio(id: number | null) {
+		this.audio?.dispose();
+		this.audio = null;
+		this.audioTrackId = null;
+		const added = id !== null && id < 0 ? this.added.get(id) : undefined;
+		if (id !== null && (id >= 0 || added)) {
+			const audio = added ? new AudioPlayer(added) : new AudioPlayer(this.file, id);
+			if (await audio.playable()) {
+				audio.setPlan(this.plan(id));
+				audio.onTime = (time) => {
+					this.onTime(time);
+				};
+				audio.onStateChange = (playing) => {
+					if (!playing) this.stopPictures();
+					this.onStateChange(playing);
+				};
+				audio.seek(this.position);
+				this.audio = audio;
+				this.audioTrackId = id;
+			} else {
+				audio.dispose();
+			}
+		}
+		this.onAudioTrack(this.audioTrackId);
+	}
+
+	/**
+	 * Where pictures are drawn. The caller sizes it; `redraw` shows the current frame again. A
+	 * painter draws each picture its own way (the video editor's, with its edits); by default a
+	 * picture is fitted in the canvas as it comes. Returns a function that detaches it.
+	 */
+	attach(canvas: HTMLCanvasElement | null, painter: Painter | null = null): () => void {
+		if (!canvas) {
+			this.views = [];
+			this.show(null);
+			return () => undefined;
+		}
+		const view = { canvas, painter };
+		this.views.push(view);
+		this.show(view);
+		// Detaching gives the pictures back to the canvas shown before, as when a dialog with its own
+		// picture closes over the editor's.
+		return () => {
+			const top = this.views.at(-1) === view;
+			this.views = this.views.filter((entry) => entry !== view);
+			if (top) this.show(this.views.at(-1) ?? null);
+		};
+	}
+
+	private show(view: { canvas: HTMLCanvasElement; painter: Painter | null } | null) {
+		this.canvas = view?.canvas ?? null;
+		this.painter = view?.painter ?? null;
+		this.redraw();
+	}
+
+	redraw() {
+		if (!this.playing) this.showStill(this.time());
+	}
+
+	async play() {
+		await this.ready;
+		if (this.disposed || this.playing) return;
+		// Without a sound output, the page clock plays the pictures in silence.
+		if (this.audio && !(await this.audio.play())) {
+			this.audio.dispose();
+			this.audio = null;
+		}
+		if (this.disposed) return;
+		if (!this.audio) {
+			// At the end, play starts again from the beginning, like any player.
+			const ranges = this.played();
+			const output = toOutput(ranges, this.position);
+			this.anchor = { page: performance.now(), output: output >= totalLength(ranges) - 0.01 ? 0 : output };
+			this.clockPlaying = true;
+			this.onStateChange(true);
+			void this.tick(this.run);
+		}
+		void this.playPictures(this.run, this.time());
+	}
+
+	pause() {
+		if (!this.playing) return;
+		this.position = this.time();
+		this.stopPictures();
+		if (this.audio) {
+			this.audio.pause();
+		} else {
+			this.clockPlaying = false;
+			this.onStateChange(false);
+		}
+		this.showStill(this.position);
+	}
+
+	seek(time: number) {
+		const target = Math.min(this.duration || Infinity, Math.max(0, time));
+		this.position = target;
+		if (this.audio) this.audio.seek(target);
+		if (!this.playing) {
+			this.showStill(target);
+			return;
+		}
+		this.stopPictures();
+		if (!this.audio) {
+			this.anchor = { page: performance.now(), output: toOutput(this.played(), target) };
+			// The clock ran with the pictures stopped: it starts again with the new ones.
+			if (this.clockPlaying) void this.tick(this.run);
+		}
+		void this.playPictures(this.run, target);
+	}
+
+	dispose() {
+		this.disposed = true;
+		this.stopPictures();
+		this.audio?.dispose();
+		this.input.dispose();
+	}
+
+	/**
+	 * Some graphics drivers fail to decode files the browser says it can: the first failure moves
+	 * decoding to the CPU, and the caller tries again. False when there is nothing left to try.
+	 */
+	private fallBack(error: unknown): boolean {
+		console.error('[player] decoding failed', this.software ? '(software)' : '(default decoder)', error);
+		if (this.software || !this.videoTrack || this.disposed) return false;
+		this.software = true;
+		this.sink = new VideoSampleSink(this.videoTrack, { hardwareAcceleration: 'prefer-software' });
+		return true;
+	}
+
+	private stopPictures() {
+		this.run += 1;
+	}
+
+	/** The page clock of files without sound: reports time and stops at the end. */
+	private async tick(run: number) {
+		while (run === this.run && this.clockPlaying) {
+			const time = this.time();
+			this.onTime(time);
+			const ranges = this.played();
+			if (toOutput(ranges, time) >= totalLength(ranges)) {
+				this.position = ranges.at(-1)?.end ?? this.duration;
+				this.clockPlaying = false;
+				this.stopPictures();
+				this.onStateChange(false);
+				return;
+			}
+			// Frames follow the display: one update per repaint.
+			// oxlint-disable-next-line no-await-in-loop
+			await nextFrame();
+		}
+	}
+
+	/**
+	 * Plays only these parts of the file, in order: an editor's trim and cuts. Null plays it all.
+	 * Playing goes on from the same moment; the removed passages are skipped.
+	 */
+	setRanges(ranges: Range[] | null) {
+		const time = this.time();
+		this.ranges = ranges;
+		this.audio?.setPlan(this.plan());
+		if (this.clockPlaying) this.anchor = { page: performance.now(), output: toOutput(this.played(), time) };
+	}
+
+	/**
+	 * Plays faster or slower, pitch kept, the sound fading in and out over `fade` seconds of what
+	 * is heard. Playing goes on from the same moment.
+	 */
+	setShaping(speed: number, fade: { in: number; out: number }) {
+		const time = this.time();
+		this.speed = speed;
+		this.fade = fade;
+		this.audio?.setPlan(this.plan());
+		if (this.clockPlaying) this.anchor = { page: performance.now(), output: toOutput(this.played(), time) };
+	}
+
+	/** Hears each audio track, by ID, with its level and sound changes; tracks left out play as they are. */
+	setSounds(sounds: ReadonlyMap<number, HeardSound>) {
+		this.sounds = sounds;
+		this.audio?.setPlan(this.plan());
+	}
+
+	private plan(id = this.audioTrackId) {
+		const ranges = this.played();
+		const heard = id === null ? undefined : this.sounds.get(id);
+		const gain = heard?.gain ?? 1;
+		const fades = this.fadeEnvelope(totalLength(ranges));
+		// A level change scales the fades, or holds the whole way when there are none.
+		const envelope =
+			gain === 1
+				? fades
+				: fades.length > 0
+					? fades.map((point) => ({ time: point.time, gain: point.gain * gain }))
+					: [{ time: 0, gain }];
+		return { ranges, envelope, speed: this.speed, sound: heard?.sound ?? undefined };
+	}
+
+	/** The fades as a volume curve over output time before the speed change, `length` long. */
+	private fadeEnvelope(length: number): GainPoint[] {
+		const fadeIn = this.fade.in * this.speed;
+		const fadeOut = this.fade.out * this.speed;
+		if (fadeIn <= 0 && fadeOut <= 0) return [];
+		const points: GainPoint[] = [];
+		if (fadeIn > 0) points.push({ time: 0, gain: 0 }, { time: fadeIn, gain: 1 });
+		if (fadeOut > 0) points.push({ time: Math.max(fadeIn, length - fadeOut), gain: 1 }, { time: length, gain: 0 });
+		return points;
+	}
+
+	private played(): Range[] {
+		return this.ranges ?? [{ start: 0, end: this.duration }];
+	}
+
+	private draw(sample: VideoSample) {
+		if (this.painter) {
+			this.painter(sample);
+			return;
+		}
+		const context = this.canvas?.getContext('2d');
+		if (!context || !this.canvas) return;
+		context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+		sample.drawWithFit(context, { fit: 'contain' });
+	}
+
+	/** Decodes from `from` on and draws each picture when the clock reaches it. */
+	private async playPictures(run: number, from: number) {
+		const sink = this.sink;
+		if (!sink) return;
+		const samples = sink.samples(Math.max(from, this.firstPicture));
+		let next: VideoSample | null = null;
+		let behind = false;
+		try {
+			// Pictures come one after the other, each waiting for its time.
+			// oxlint-disable-next-line no-await-in-loop
+			while (run === this.run && (next = (await samples.next()).value ?? null)) {
+				// The clock jumped past a removed passage: decoding starts again where it is.
+				if (next.timestamp + next.duration < this.time() - CATCH_UP) {
+					behind = true;
+					break;
+				}
+				while (run === this.run && next.timestamp > this.time() + 0.004) {
+					// oxlint-disable-next-line no-await-in-loop
+					await nextFrame();
+				}
+				if (run !== this.run) break;
+				// A picture already replaced by the next one is skipped rather than flashed.
+				if (next.timestamp + next.duration >= this.time()) this.draw(next);
+				next.close();
+				next = null;
+			}
+		} catch (error) {
+			// Sound and time carry on; pictures start again from the CPU decoder, or stop.
+			if (this.fallBack(error) && run === this.run) void this.playPictures(run, this.time());
+		} finally {
+			next?.close();
+			await samples.return().catch(() => undefined);
+		}
+		if (behind && run === this.run) void this.playPictures(run, this.time());
+	}
+
+	/** Shows the frame at a time while paused. Requests made while one is decoding collapse into the last. */
+	private showStill(time: number) {
+		this.stillRequest = time;
+		if (this.stillBusy) return;
+		void (async () => {
+			this.stillBusy = true;
+			try {
+				await this.ready;
+				while (this.stillRequest !== null && !this.disposed) {
+					// Before the first picture, the first picture shows, as in any player.
+					const at = Math.max(this.stillRequest, this.firstPicture);
+					this.stillRequest = null;
+					try {
+						// oxlint-disable-next-line no-await-in-loop
+						const sample = await this.sink?.getSample(at);
+						if (sample) {
+							if (!this.playing) this.draw(sample);
+							sample.close();
+						}
+					} catch (error) {
+						// Tried again with the CPU decoder, unless a newer request came meanwhile.
+						if (this.fallBack(error)) this.stillRequest ??= at;
+					}
+				}
+			} catch {
+				// The file couldn't be opened: there is no picture to show.
+			} finally {
+				this.stillBusy = false;
+			}
+		})();
+	}
+}

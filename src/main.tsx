@@ -1,17 +1,46 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { RouterProvider, createRouter } from '@tanstack/react-router';
+import { createRouter, RouterProvider } from '@tanstack/react-router';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { HelmetProvider } from 'react-helmet-async';
-import { installObjectUrlMetricsPatch } from '@/utils/objectUrlMetrics.ts';
-import { routeTree } from './routeTree.gen.ts';
-import './styles.css';
+import { countPage } from './app/analytics';
+import { ErrorScreen } from './app/ErrorScreen';
+import { barePath, localePath, setAddressReplacer, startLocale } from './app/locale';
+import { applyUpdate, startPwa, usePwa, warmApp } from './app/pwa';
+import { isMediaKind } from './editors/registry';
+import { clearLeftovers } from './media/save-target';
+import { useSession } from './media/session';
+import { routeTree } from './routeTree.gen';
+import './styles/app.css';
 
-const queryClient = new QueryClient();
+startLocale();
 
-const router = createRouter({ routeTree, defaultPreload: 'intent' });
+const router = createRouter({
+	routeTree,
+	// The router sees addresses without their language, which is added back on the way out.
+	rewrite: {
+		input: ({ url }) => {
+			const bare = barePath(url.pathname);
+			if (bare === url.pathname) return undefined;
+			url.pathname = bare;
+			return url;
+		},
+		output: ({ url }) => {
+			const localized = localePath(url.pathname);
+			if (localized === url.pathname) return undefined;
+			url.pathname = localized;
+			return url;
+		},
+	},
+	defaultErrorComponent: ErrorScreen,
+	defaultPreload: 'intent',
+	scrollRestoration: true,
+});
 
-installObjectUrlMetricsPatch();
+// A new language: the address changes in place, and a new rewrite has the router write its links
+// again with the new prefix.
+setAddressReplacer((href) => {
+	router.history.replace(href, router.history.location.state);
+	router.update({ ...router.options, rewrite: { ...router.options.rewrite } });
+});
 
 declare module '@tanstack/react-router' {
 	interface Register {
@@ -19,12 +48,45 @@ declare module '@tanstack/react-router' {
 	}
 }
 
-createRoot(document.getElementById('root')!).render(
+startPwa();
+void clearLeftovers();
+// Work used to be kept across closed tabs, with copies of the files: what is left of it goes.
+try {
+	indexedDB.deleteDatabase('vixely-session');
+} catch {
+	// Storage refused (a private window): there is nothing kept either.
+}
+
+/**
+ * A new version takes over by itself when nothing would be lost: no file is open, and the visitor
+ * goes to another page or leaves the tab. With a file open, the button in the bar asks.
+ */
+const nothingOpen = () => {
+	const { opened, batch } = useSession.getState();
+	return Object.keys(opened).length === 0 && !batch;
+};
+const updateFree = () => usePwa.getState().updateReady && nothingOpen();
+router.subscribe('onBeforeNavigate', ({ toLocation, pathChanged }) => {
+	if (pathChanged && updateFree()) applyUpdate(new URL(toLocation.publicHref, location.origin).href);
+});
+document.addEventListener('visibilitychange', () => {
+	if (document.visibilityState === 'hidden' && updateFree()) applyUpdate();
+});
+
+// Counted once the page has its title, which its own effects set.
+router.subscribe('onResolved', ({ toLocation }) => {
+	const section = barePath(toLocation.pathname).split('/')[1] ?? '';
+	if (section === 'tools' || isMediaKind(section)) warmApp();
+	setTimeout(() => {
+		countPage(barePath(toLocation.pathname));
+	}, 300);
+});
+
+const root = document.getElementById('root');
+if (!root) throw new Error('Missing #root element');
+
+createRoot(root).render(
 	<StrictMode>
-		<HelmetProvider>
-			<QueryClientProvider client={queryClient}>
-				<RouterProvider router={router} />
-			</QueryClientProvider>
-		</HelmetProvider>
+		<RouterProvider router={router} />
 	</StrictMode>,
 );

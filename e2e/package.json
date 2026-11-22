@@ -1,0 +1,15 @@
+{
+	"name": "vixely-e2e",
+	"private": true,
+	"type": "module",
+	"description": "Browser checks run against the dev server (bun run dev). Each script drives headless Chromium through a scenario and prints what it measured.",
+	"scripts": {
+		"browsers": "bunx playwright-core install chromium firefox webkit"
+	},
+	"devDependencies": {
+		"@napi-rs/canvas": "^1.1.1",
+		"axe-core": "^4.14.1",
+		"fflate": "^0.8.3",
+		"playwright-core": "^1.65.1"
+	}
+}

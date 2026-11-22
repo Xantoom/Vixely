@@ -1,0 +1,36 @@
+import { createFileRoute, notFound } from '@tanstack/react-router';
+import { useEffect } from 'react';
+import { usePageHead } from '@/app/head';
+import { useLocale } from '@/app/locale';
+import { TaskContext } from '@/app/task-context';
+import { setTaskIntent, taskBySlug } from '@/app/tasks';
+import { EditorScreen } from '@/editor/EditorScreen';
+
+export const Route = createFileRoute('/tools/$task')({
+	beforeLoad: ({ params }) => {
+		// oxlint-disable-next-line only-throw-error -- how TanStack Router says a page doesn't exist
+		if (!taskBySlug(params.task)) throw notFound();
+	},
+	component: function TaskPage() {
+		useLocale();
+		const { task: slug } = Route.useParams();
+		const task = taskBySlug(slug);
+		// Set while rendering, so the editor finds it however soon a file opens, and again once
+		// mounted, as React may unmount and mount again in between.
+		const intent = task?.intent ?? null;
+		setTaskIntent(intent);
+		useEffect(() => {
+			setTaskIntent(intent);
+			return () => {
+				setTaskIntent(null);
+			};
+		}, [intent]);
+		usePageHead(task?.title() ?? null, task?.description());
+		if (!task) return null;
+		return (
+			<TaskContext value={task}>
+				<EditorScreen key={slug} kind={task.editor} initialTool={task.tool} />
+			</TaskContext>
+		);
+	},
+});

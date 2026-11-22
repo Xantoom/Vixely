@@ -1,28 +1,22 @@
 {
 	"compilerOptions": {
-		"lib": ["ESNext", "DOM"],
-		"target": "ESNext",
-		"module": "Preserve",
-		"moduleDetection": "force",
-		"jsx": "react-jsx",
-		"allowJs": true,
-
+		"target": "ES2023",
+		"lib": ["ES2023", "DOM", "DOM.Iterable", "WebWorker.ImportScripts"],
+		"module": "ESNext",
 		"moduleResolution": "bundler",
-		"allowImportingTsExtensions": true,
-		"verbatimModuleSyntax": true,
-		"noEmit": true,
-
+		"jsx": "react-jsx",
 		"strict": true,
-		"skipLibCheck": true,
-		"noFallthroughCasesInSwitch": true,
 		"noUncheckedIndexedAccess": true,
 		"noImplicitOverride": true,
-
-		"noUnusedLocals": false,
-		"noUnusedParameters": false,
-		"noPropertyAccessFromIndexSignature": false,
-
+		"noFallthroughCasesInSwitch": true,
+		"exactOptionalPropertyTypes": false,
+		"verbatimModuleSyntax": true,
+		"isolatedModules": true,
+		"allowJs": true,
+		"skipLibCheck": true,
+		"noEmit": true,
+		"types": ["vite/client"],
 		"paths": { "@/*": ["./src/*"] }
 	},
-	"include": ["src", "vite-env.d.ts", "wasm"]
+	"include": ["src", "worker"]
 }

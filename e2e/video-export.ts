@@ -1,0 +1,245 @@
+/**
+ * Converting videos in the video editor: an MKV with a passage removed and its colours changed
+ * (subtitles moved up, fonts kept), an MP4 with timed text, and a WebM at 480p. With FFPROBE set,
+ * each file is checked by FFmpeg's probe.
+ */
+import { engine, sample, BASE } from './engine';
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+
+const ffprobe = process.env.FFPROBE;
+const browser = await engine.launch();
+const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 }, locale: 'en-US', acceptDownloads: true });
+// Downloads rather than the file picker, which a headless browser can't show.
+await ctx.addInitScript(() => Object.defineProperty(window, 'showSaveFilePicker', { value: undefined }));
+const page = await ctx.newPage();
+const errors: string[] = [];
+page.on('pageerror', (e) => errors.push(e.message));
+page.on('console', (m) => {
+	if (m.type() === 'error') errors.push(m.text());
+});
+mkdirSync('shots', { recursive: true });
+const tools = page.locator('nav[aria-label="Editing tools"]');
+const aside = page.locator('aside');
+
+const open = async (path: string) => {
+	await page.goto(`${BASE}/video`);
+	await page.setInputFiles('input[type=file]', path);
+	await page.waitForSelector('[role=group][aria-label="Tracks"]', { timeout: 30000 });
+	await page.waitForTimeout(1500);
+};
+const removePassage = async (from: number, to: number, duration: number) => {
+	await tools.getByRole('button', { name: 'Edit', exact: true }).click();
+	const lanes = (await page.getByRole('group', { name: 'Tracks' }).boundingBox())!;
+	const x = (t: number) => lanes.x + (t / duration) * lanes.width;
+	await page.mouse.move(x(from), lanes.y + 20);
+	await page.mouse.down();
+	await page.mouse.move(x(to), lanes.y + 20, { steps: 6 });
+	await page.mouse.up();
+	await page.keyboard.press('Delete');
+};
+const convert = async (name: string, choose: () => Promise<void> = async () => {}, mode = /Convert/) => {
+	// Export may be open already, its tracks listed there: clicking it again would close it.
+	const back = aside.getByRole('button', { name: 'Back', exact: true });
+	if (await back.count()) await back.click();
+	else if (!(await aside.getByRole('radio', { name: mode }).count()))
+		await page.getByRole('navigation').getByRole('button', { name: 'Export', exact: true }).click();
+	await aside.getByRole('radio', { name: mode }).click();
+	await choose();
+	await page.waitForTimeout(300);
+	await aside.screenshot({ path: `shots/${name}-panel.png` });
+	const t0 = Date.now();
+	const [download] = await Promise.all([
+		page.waitForEvent('download', { timeout: 300000 }),
+		page.locator('aside + div').getByRole('button').first().click(),
+	]);
+	const data = readFileSync(await download.path());
+	writeFileSync(`shots/${name}`, data);
+	console.log(`${download.suggestedFilename()}: ${data.length} bytes in ${Date.now() - t0} ms`);
+	return `shots/${name}`;
+};
+const probe = (path: string) => {
+	if (!ffprobe) return;
+	const run = (args: string[]) => spawnSync(ffprobe, ['-v', 'error', ...args, path], { encoding: 'utf8' }).stdout.trim();
+	console.log(' ', run(['-show_entries', 'format=duration', '-of', 'csv=p=0']), 's');
+	console.log(' ', run(['-show_entries', 'stream=index,codec_type,codec_name,width,height:stream_tags=language,filename', '-of', 'compact']).replace(/\n/g, '\n  '));
+};
+const firstLines = (path: string, stream: string, from = 3) => {
+	if (!ffprobe) return;
+	const ffmpeg = ffprobe.replace(/ffprobe$/, 'ffmpeg');
+	const srt = spawnSync(ffmpeg, ['-v', 'error', '-i', path, '-map', stream, '-f', 'srt', '-'], { encoding: 'utf8' }).stdout;
+	console.log('  lines:', srt.split('\n\n').slice(from, from + 3).map((cue) => cue.split('\n').slice(1).join(' ')).join(' | '));
+};
+
+// 1. MKV: 0:04 → 0:08 removed, colours changed, subtitles and fonts carried over.
+await open(sample('short.mkv'));
+await removePassage(4, 8, 12);
+await tools.getByRole('button', { name: 'Adjust' }).click();
+await aside.getByRole('slider', { name: 'Saturation' }).focus();
+for (let i = 0; i < 30; i++) await page.keyboard.press('ArrowLeft');
+const mkv = await convert('converted.mkv');
+probe(mkv);
+if (ffprobe) console.log('  source lines:');
+firstLines(sample('short.mkv'), '0:s:0', 0);
+firstLines(mkv, '0:s:0', 0);
+
+// 2. MP4 with timed text, kept as MP4.
+await open(sample('clip.mp4'));
+await removePassage(4, 8, 24);
+probe(await convert('converted.mp4'));
+
+// 3. WebM at 480p.
+await open(sample('h264.mp4'));
+probe(
+	await convert('converted.webm', async () => {
+		await aside.getByLabel('Format', { exact: true }).click();
+		await page.getByRole('option', { name: 'WebM' }).click();
+		await aside.getByLabel('Resolution').click();
+		await page.getByRole('option', { name: /^480 p/ }).click();
+	}),
+);
+
+// 4. MKV trimmed and copied: nothing encoded again, subtitles and fonts kept, lines moved to
+// where the copy really starts (the key frame before the trim).
+await open(sample('clip.mkv'));
+await tools.getByRole('button', { name: 'Edit', exact: true }).click();
+await aside.getByLabel('Start', { exact: true }).fill('0:10.300');
+await aside.getByLabel('Start', { exact: true }).press('Enter');
+await aside.getByLabel('End', { exact: true }).fill('0:18.000');
+await aside.getByLabel('End', { exact: true }).press('Enter');
+const copied = await convert('trimmed.mkv', async () => {}, /Original/);
+probe(copied);
+firstLines(copied, '0:s:0');
+if (ffprobe) {
+	const packets = (path: string) =>
+		spawnSync(ffprobe, ['-v', 'error', '-select_streams', 'v', '-show_entries', 'packet=size', '-of', 'csv=p=0', '-read_intervals', '%+#5', path], { encoding: 'utf8' }).stdout.trim().replace(/\n/g, ' ');
+	console.log('  first video packets:', packets(copied));
+}
+
+// 5. MKV with two passages removed, copied: the parts widened to key frames, lines moved with them.
+await open(sample('clip.mkv'));
+await removePassage(5, 12, 24);
+await removePassage(15, 21, 24);
+const cutCopy = await convert(
+	'cut-copy.mkv',
+	async () => {
+		await page.waitForTimeout(1200);
+		await page.screenshot({ path: 'shots/cut-copy-timeline.png' });
+	},
+	/Original/,
+);
+probe(cutCopy);
+firstLines(cutCopy, '0:s:0');
+
+// 6. The same in an MP4.
+await open(sample('clip.mp4'));
+await removePassage(5, 12, 24);
+probe(await convert('cut-copy.mp4', async () => {}, /Original/));
+
+const loudness = (path: string, stream: string) => {
+	if (!ffprobe) return;
+	const ffmpeg = ffprobe.replace(/ffprobe$/, 'ffmpeg');
+	const out = spawnSync(ffmpeg, ['-i', path, '-map', stream, '-t', '20', '-af', 'volumedetect', '-f', 'null', '-'], { encoding: 'utf8' }).stderr;
+	console.log(`  ${stream} mean volume:`, /mean_volume: (\S+ dB)/.exec(out)?.[1]);
+};
+
+// 7. MKV as it is, its sound 6 dB louder and a WAV added: pictures copied, sound encoded again.
+await open(sample('clip.mkv'));
+await tools.getByRole('button', { name: 'Export', exact: true }).click();
+await aside.locator('[data-media=audio] [data-track-row]').first().click();
+await aside.getByRole('slider', { name: 'Volume', exact: true }).focus();
+for (let i = 0; i < 12; i++) await page.keyboard.press('ArrowRight');
+await aside.screenshot({ path: 'shots/tracks-tool.png' });
+await aside.getByRole('button', { name: 'Back', exact: true }).click();
+await aside.locator('input[type=file][accept^="audio"]').setInputFiles('samples/long.wav');
+await aside.getByText('Audio, long').waitFor();
+await aside.screenshot({ path: 'shots/audio-tool.png' });
+const louder = await convert('louder.mkv', async () => {}, /Original/);
+probe(louder);
+loudness(sample('clip.mkv'), '0:a:0');
+loudness(louder, '0:a:0');
+
+// 7b. MKV as it is, its sound track encoded again on its own terms: AAC at 96 kb/s.
+await open(sample('clip.mkv'));
+await tools.getByRole('button', { name: 'Export', exact: true }).click();
+await aside.locator('[data-media=audio] [data-track-row]').first().click();
+await aside.getByRole('radio', { name: 'Re-encode' }).click();
+await aside.getByLabel('Codec', { exact: true }).click();
+await page.getByRole('option', { name: 'AAC' }).click();
+await aside.getByLabel('Bitrate', { exact: true }).click();
+await page.getByRole('option', { name: '96 kb/s' }).click();
+const reencoded = await convert('reencoded.mkv', async () => {}, /Original/);
+probe(reencoded);
+if (ffprobe) {
+	const rate = spawnSync(ffprobe, ['-v', 'error', '-select_streams', 'a:0', '-show_entries', 'stream=codec_name:format=duration,size', '-of', 'compact', reencoded], { encoding: 'utf8' }).stdout.trim();
+	console.log('  re-encoded sound:', rate.replace(/\n/g, ' | '));
+}
+
+// 8. MP4 converted with a passage removed and a WAV added: the sound added follows the cut.
+await open(sample('clip.mp4'));
+await removePassage(4, 8, 24);
+await tools.getByRole('button', { name: 'Export', exact: true }).click();
+await aside.locator('input[type=file][accept^="audio"]').setInputFiles('samples/long.wav');
+await aside.getByText('Audio, long').waitFor();
+const dubbed = await convert('dubbed.mp4');
+probe(dubbed);
+
+const frames = (path: string, times: number[], name: string) => {
+	if (!ffprobe) return;
+	const ffmpeg = ffprobe.replace(/ffprobe$/, 'ffmpeg');
+	times.forEach((time, index) => {
+		spawnSync(ffmpeg, ['-v', 'error', '-y', '-ss', String(time), '-i', path, '-frames:v', '1', '-vf', 'scale=640:-2', `shots/${name}-${index}.png`]);
+	});
+};
+
+// 9. MKV converted to MP4 with its styled English subtitles burned in.
+await open(sample('short.mkv'));
+await tools.getByRole('button', { name: 'Export', exact: true }).click();
+await aside.locator('[data-track-row]').filter({ hasText: 'styled' }).click();
+await aside.getByRole('switch', { name: 'Burned into the picture' }).click();
+await aside.screenshot({ path: 'shots/subtitles-tool.png' });
+const burned = await convert('burned.mp4', async () => {
+	await aside.getByLabel('Format', { exact: true }).click();
+	await page.getByRole('option', { name: 'MP4' }).click();
+});
+probe(burned);
+frames(burned, [7.5, 10.5], 'burned');
+// A line is on screen at 7.5 s: the bottom of the picture must differ from the source's there.
+// Re-encoding moves pixels a little; a line of text moves some of them a lot (0 % without one,
+// 2.5 % with "English line 3").
+const bottom = (path: string, time: number) => {
+	if (!ffprobe) return null;
+	const ffmpeg = ffprobe.replace(/ffprobe$/, 'ffmpeg');
+	const args = ['-v', 'error', '-ss', String(time), '-i', path, '-frames:v', '1'];
+	const filter = ['-vf', 'scale=320:180,crop=320:40:0:140', '-pix_fmt', 'gray', '-f', 'rawvideo', '-'];
+	return spawnSync(ffmpeg, [...args, ...filter]).stdout as Buffer;
+};
+const drawn = bottom(burned, 7.5);
+const plain = bottom(sample('short.mkv'), 7.5);
+if (drawn && plain && drawn.length === plain.length && drawn.length > 0) {
+	let changed = 0;
+	for (let index = 0; index < drawn.length; index++) {
+		if (Math.abs((drawn[index] ?? 0) - (plain[index] ?? 0)) > 60) changed++;
+	}
+	const share = (100 * changed) / drawn.length;
+	console.log('  burned line, pixels changed:', `${share.toFixed(2)} %`);
+	if (share < 0.5) errors.push(`burned subtitles missing (${share.toFixed(2)} % of pixels changed)`);
+}
+
+// 10. PGS burned in, over the first 6 s.
+await open(sample('sample.mkv'));
+await tools.getByRole('button', { name: 'Edit', exact: true }).click();
+await aside.getByLabel('End', { exact: true }).fill('0:06.000');
+await aside.getByLabel('End', { exact: true }).press('Enter');
+await tools.getByRole('button', { name: 'Export', exact: true }).click();
+await aside.locator('[data-media=subtitles] [data-track-row]').first().click();
+await aside.getByRole('switch', { name: 'Burned into the picture' }).click();
+const pgs = await convert('burned-pgs.mp4', async () => {
+	await aside.getByLabel('Format', { exact: true }).click();
+	await page.getByRole('option', { name: 'MP4' }).click();
+});
+probe(pgs);
+frames(pgs, [1, 3, 5], 'burned-pgs');
+
+console.log(errors.length ? `errors: ${errors.join(' | ')}` : 'no errors');
+await browser.close();

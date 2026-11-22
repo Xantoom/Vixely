@@ -1,35 +1,36 @@
-# --- SYS FILES & IDE ---
-.idea/
-.vscode/
+# System and editors
 .DS_Store
 Thumbs.db
+.idea/
+.vscode/
 *.swp
 
-# --- PROJECT FILES ---
+# Dependencies and builds
 node_modules/
 dist/
-build/
 coverage/
-logs/
 *.log
 .env
-*.env.local
-*.env.development
-*.env.test
-*.env.production
+.env.*
 
-# --- GENERATED ---
+# Generated
 src/routeTree.gen.ts
-public/ffmpeg/
-public/jassub/
-wasm/
-
-# --- RUST ---
-vixely-core/target/
-
-# --- BUN ---
-.bun-cache/
-.bun-install/
-.bun-tmp/
+src/paraglide/
+src/wasm/vixely-core/
+src/wasm/vixely-image/
+src/wasm/vixely-image-mt/
+src/wasm/vixely-audio/
+src/wasm/vixely-gif/
+src/wasm/vixely-subs/
+src/wasm/vixely-truehd/
+project.inlang/cache/
+project.inlang/.gitignore
+target/
 .tanstack/
-.claude
+
+# Local tooling
+.claude/
+.impeccable/
+
+# Wrangler's local state
+.wrangler/

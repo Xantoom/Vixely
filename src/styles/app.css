@@ -1,0 +1,525 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens.
+ *
+ * The interface is neutral and flat; colour only carries meaning. Each media type owns one colour,
+ * used wherever that media type appears and on what is active in its editor (the playhead, the
+ * chosen tool, the primary action). The media itself is the only vivid thing on screen.
+ *
+ * Light and dark values live side by side through light-dark(). The theme follows the system
+ * unless the user picked one, which sets data-theme on <html>.
+ */
+:root {
+	color-scheme: light dark;
+
+	--bg: light-dark(#ffffff, #161618);
+	--canvas: light-dark(#f1f1f3, #0d0d0e);
+	--surface: light-dark(#f6f6f7, #1d1d20);
+	--surface-2: light-dark(#ececef, #26262a);
+	--line: light-dark(#e6e6ea, #262629);
+	--line-2: light-dark(#d3d3d9, #36363c);
+	/* The edge of what takes input (fields, checkboxes, radios): 3:1 against the page, so it can be found. */
+	--field-line: light-dark(#8a8a92, #6c6c74);
+	--track-base: light-dark(#d9dce2, #3a3c43);
+	--ink: light-dark(#111113, #f3f3f5);
+	--ink-2: light-dark(#3a3a40, #c8c8ce);
+	--muted: light-dark(#6c6c74, #8e8e97);
+	--primary: light-dark(#111113, #f3f3f5);
+	--primary-ink: light-dark(#ffffff, #111113);
+	--danger: light-dark(#c4321f, #ff6b57);
+	--focus: light-dark(#2f6bff, #7197ff);
+	/* Tooltips: dark in both themes, lifted off the page in the dark one. */
+	--tip-bg: light-dark(#1d1d20, #0b0b0c);
+	--tip-ink: light-dark(#f3f3f5, #f3f3f5);
+	--tip-line: light-dark(transparent, #34343a);
+	--scroll-thumb: light-dark(rgb(17 17 19 / 0.2), rgb(243 243 245 / 0.2));
+	--scroll-thumb-hover: light-dark(rgb(17 17 19 / 0.42), rgb(243 243 245 / 0.42));
+
+	--video-1: light-dark(#2f5bff, #5c86ff);
+	--video-ink: light-dark(#ffffff, #0a0d16);
+	--video-text: light-dark(#2448e6, #8eabff);
+
+	--image-1: light-dark(#ff6b1f, #ff8540);
+	--image-ink: #1c1206;
+	--image-text: light-dark(#b03f07, #ffa46e);
+
+	--gif-1: light-dark(#0fa968, #2dcb85);
+	--gif-ink: #04150d;
+	--gif-text: light-dark(#0b7a4c, #63dda3);
+
+	--audio-1: light-dark(#db2b67, #ff5c8f);
+	--audio-ink: light-dark(#ffffff, #1a0610);
+	--audio-text: light-dark(#c0245a, #ff94b6);
+
+	--subtitles-1: light-dark(#6a4bff, #8c72ff);
+	--subtitles-ink: light-dark(#ffffff, #0d0921);
+	--subtitles-text: light-dark(#5537ee, #b5a3ff);
+
+	/* The current editor's colour; neutral outside an editor. */
+	--ed: var(--primary);
+	--ed-ink: var(--primary-ink);
+	--ed-text: var(--ink);
+}
+
+:root[data-theme='light'] {
+	color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+	color-scheme: dark;
+}
+
+[data-media='video'] {
+	--ed: var(--video-1);
+	--ed-ink: var(--video-ink);
+	--ed-text: var(--video-text);
+}
+
+[data-media='image'] {
+	--ed: var(--image-1);
+	--ed-ink: var(--image-ink);
+	--ed-text: var(--image-text);
+}
+
+[data-media='gif'] {
+	--ed: var(--gif-1);
+	--ed-ink: var(--gif-ink);
+	--ed-text: var(--gif-text);
+}
+
+[data-media='audio'] {
+	--ed: var(--audio-1);
+	--ed-ink: var(--audio-ink);
+	--ed-text: var(--audio-text);
+}
+
+[data-media='subtitles'] {
+	--ed: var(--subtitles-1);
+	--ed-ink: var(--subtitles-ink);
+	--ed-text: var(--subtitles-text);
+}
+
+[data-media='batch'] {
+	--ed: var(--surface-2);
+	--ed-ink: var(--ink);
+	--ed-text: var(--ink);
+}
+
+@theme inline {
+	/* The system's own face, San Francisco on Apple devices, then Segoe, Helvetica and Arial. */
+	--font-sans:
+		-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable Text', 'Segoe UI', 'Helvetica Neue',
+		Helvetica, Arial, sans-serif;
+	--font-display:
+		-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI Variable Display', 'Segoe UI', 'Helvetica Neue',
+		Helvetica, Arial, sans-serif;
+	--font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+
+	/*
+	 * Type scale in rem, so the whole interface follows the browser's text size: 13, 14, 15, 16,
+	 * 18 and 20 px at the default size. Nothing goes below 13 px.
+	 */
+	--text-caption: 0.8125rem;
+	--text-caption--line-height: 1.35;
+	--text-small: 0.875rem;
+	--text-small--line-height: 1.45;
+	--text-ui: 0.9375rem;
+	--text-ui--line-height: 1.45;
+	--text-body: 1rem;
+	--text-body--line-height: 1.5;
+	--text-lead: 1.125rem;
+	--text-lead--line-height: 1.5;
+	--text-title: 1.25rem;
+	--text-title--line-height: 1.15;
+	--text-display: clamp(2.25rem, 5vw, 3.5rem);
+	--text-display--line-height: 1.02;
+
+	--radius-xs: 0.45rem;
+	--radius-sm: 0.65rem;
+	--radius-md: 0.9rem;
+
+	/* Motion: short, springy for things that pop, eased for things that slide. */
+	--ease-out-soft: cubic-bezier(0.22, 0.9, 0.24, 1);
+	--ease-spring: cubic-bezier(0.3, 1.35, 0.45, 1);
+
+	--color-bg: var(--bg);
+	--color-canvas: var(--canvas);
+	--color-surface: var(--surface);
+	--color-surface-2: var(--surface-2);
+	--color-line: var(--line);
+	--color-line-2: var(--line-2);
+	--color-field: var(--field-line);
+	--color-ink: var(--ink);
+	--color-ink-2: var(--ink-2);
+	--color-muted: var(--muted);
+	--color-primary: var(--primary);
+	--color-primary-ink: var(--primary-ink);
+	--color-danger: var(--danger);
+	--color-tip: var(--tip-bg);
+	--color-tip-ink: var(--tip-ink);
+	--color-ed: var(--ed);
+	--color-ed-ink: var(--ed-ink);
+	--color-ed-text: var(--ed-text);
+	--color-ed-soft: color-mix(in srgb, var(--ed) 13%, transparent);
+	--color-video: var(--video-1);
+	--color-audio: var(--audio-1);
+	--color-subtitles: var(--subtitles-1);
+}
+
+@layer base {
+	html,
+	body,
+	#root {
+		height: 100%;
+	}
+
+	body {
+		background: var(--bg);
+		color: var(--ink);
+		font-family: var(--font-sans);
+		font-size: 1rem;
+		line-height: 1.5;
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+	}
+
+	:focus-visible {
+		outline: 2px solid var(--focus);
+		outline-offset: 2px;
+	}
+
+	[data-media]:not([data-media='batch']) :focus-visible {
+		outline-color: var(--ed-text);
+	}
+
+	/* Whatever can be clicked shows it. */
+	a[href],
+	button:not(:disabled),
+	[role='button']:not([aria-disabled='true']),
+	[role='tab'],
+	[role='radio'],
+	[role='checkbox'],
+	[role='switch'],
+	[role='option'],
+	[role='menuitem'],
+	[role='menuitemradio'],
+	input[type='checkbox'],
+	input[type='radio'],
+	input[type='range'],
+	input[type='color'],
+	select:not(:disabled),
+	label[for],
+	label:has(input[type='checkbox'], input[type='radio']),
+	summary {
+		cursor: pointer;
+	}
+
+	button:disabled {
+		cursor: not-allowed;
+	}
+
+	/*
+	 * Scrollbars: a thin rounded thumb floating on no track, which thickens under the pointer.
+	 * Chromium and Safari draw them from the pseudo-elements; Firefox only takes a colour and a width.
+	 */
+	::-webkit-scrollbar {
+		width: 12px;
+		height: 12px;
+	}
+
+	::-webkit-scrollbar-track,
+	::-webkit-scrollbar-corner {
+		background: transparent;
+	}
+
+	::-webkit-scrollbar-thumb {
+		min-width: 40px;
+		min-height: 40px;
+		border: 3.5px solid transparent;
+		border-radius: 99px;
+		background: var(--scroll-thumb) padding-box;
+	}
+
+	::-webkit-scrollbar-thumb:hover {
+		border-width: 2px;
+		background-color: var(--scroll-thumb-hover);
+	}
+
+	::-webkit-scrollbar-thumb:active {
+		border-width: 2px;
+		background-color: var(--ed, var(--scroll-thumb-hover));
+	}
+
+	@supports not selector(::-webkit-scrollbar) {
+		* {
+			scrollbar-width: thin;
+			scrollbar-color: var(--scroll-thumb) transparent;
+		}
+	}
+
+	/* Handles that turn what they hold: a circular arrow, as in design tools. */
+	.cursor-rotate {
+		cursor:
+			url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg stroke='white' stroke-width='4.5'%3E%3Cpath d='M20 12a8 8 0 1 1-2.34-5.66'/%3E%3Cpath d='M20 4v4.5h-4.5'/%3E%3C/g%3E%3Cg stroke='black' stroke-width='2'%3E%3Cpath d='M20 12a8 8 0 1 1-2.34-5.66'/%3E%3Cpath d='M20 4v4.5h-4.5'/%3E%3C/g%3E%3C/svg%3E")
+				12 12,
+			grab;
+	}
+
+	/* Rows scrolled by grabbing them (useDragScroll). */
+	[data-drag-scroll] {
+		cursor: grab;
+	}
+
+	[data-dragging],
+	[data-dragging] * {
+		cursor: grabbing !important;
+		scroll-snap-type: none !important;
+		user-select: none;
+	}
+
+	/* A button busy with its own work (Button's `busy`). */
+	button[aria-disabled='true'] {
+		cursor: progress;
+	}
+}
+
+@utility tabular {
+	font-variant-numeric: tabular-nums;
+}
+
+/*
+ * On a touchscreen, a control smaller than a finger takes a 44 px band around it, without looking
+ * any bigger. The element must be positioned (relative or absolute).
+ */
+@utility touch-target {
+	@media (pointer: coarse) {
+		&::before {
+			content: '';
+			position: absolute;
+			inset: min(0px, calc((100% - 2.75rem) / 2));
+		}
+	}
+}
+
+/* The picture on the stage: lifted off it on larger screens, edge to edge on a phone. */
+@media (width >= 48rem) {
+	.stage-picture {
+		border-radius: 3px;
+		box-shadow:
+			0 1px 3px rgb(0 0 0 / 0.18),
+			0 12px 40px -12px rgb(0 0 0 / 0.35);
+	}
+}
+
+/* Things that open (menus, lists, tooltips) grow out of what opened them. */
+@keyframes menu-in {
+	from {
+		opacity: 0;
+		transform: translateY(var(--from-y, -6px)) scale(0.96);
+	}
+}
+
+.menu-in {
+	transform-origin: top center;
+	animation: menu-in 150ms var(--ease-out-soft);
+}
+
+.menu-in[data-down='false'] {
+	--from-y: 6px;
+	transform-origin: bottom center;
+}
+
+.tooltip-in {
+	--from-y: 3px;
+	animation: menu-in 120ms var(--ease-out-soft);
+}
+
+.tooltip-in[data-below='true'] {
+	--from-y: -3px;
+}
+
+/* A panel's content coming in when its tool is chosen. */
+@keyframes panel-in {
+	from {
+		opacity: 0;
+		transform: translateY(10px);
+	}
+}
+
+/* Another tool's settings come up into the panel. */
+.panel-in {
+	animation: panel-in 220ms var(--ease-out-soft);
+}
+
+/*
+ * A page opened inside a panel (a track's settings) comes in from the right; going back, the list
+ * it came from comes in from the left. The page's wrapper takes no box: its parts move each.
+ */
+.page-forward > * {
+	animation: page-forward 240ms var(--ease-out-soft) backwards;
+}
+
+.page-back > * {
+	animation: page-back 240ms var(--ease-out-soft) backwards;
+}
+
+@keyframes page-forward {
+	from {
+		opacity: 0;
+		transform: translateX(1.25rem);
+	}
+}
+
+@keyframes page-back {
+	from {
+		opacity: 0;
+		transform: translateX(-1.25rem);
+	}
+}
+
+@keyframes pop {
+	from {
+		opacity: 0;
+		transform: translateY(0.6rem) scale(0.98);
+	}
+}
+
+/*
+ * Going from one editor to another: the frame (bars, rail, panel) stays put, and what the stage
+ * shows comes in from the side the editor's tab sits on, fading in as it mounts a moment after
+ * the editor. Only transform and opacity move, which the compositor draws while it opens.
+ */
+.stage-in {
+	animation:
+		editor-slide 420ms var(--ease-out-soft) backwards,
+		editor-fade 300ms ease-out backwards;
+}
+
+.glow-in {
+	animation: editor-fade 420ms ease-out backwards;
+}
+
+@keyframes editor-slide {
+	from {
+		transform: translateX(calc(var(--editor-side, 1) * 1.5rem));
+	}
+}
+
+@keyframes editor-fade {
+	from {
+		opacity: 0;
+	}
+}
+
+/*
+ * Reduced motion: nothing travels or scales. Menus, tooltips and panels still fade in, briefly, so
+ * what opened stays legible; the editor's sideways slide becomes the fade alone.
+ */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		transition-duration: 0.01ms !important;
+		animation-duration: 0.01ms !important;
+	}
+
+	.menu-in,
+	.tooltip-in,
+	.panel-in,
+	.page-forward > *,
+	.page-back > *,
+	.stage-in,
+	.glow-in {
+		animation: editor-fade 120ms ease-out backwards !important;
+	}
+}
+
+/*
+ * Range slider. The track is --track: either a gradient showing what the setting does (blue to
+ * yellow for temperature) or, by default, the part between the neutral value and the thumb filled
+ * with the editor colour (Slider sets it).
+ */
+.slider {
+	--track-height: 0.375rem;
+}
+
+.slider::-webkit-slider-runnable-track {
+	height: var(--track-height);
+	border-radius: 1rem;
+	background: var(--track, var(--surface-2));
+}
+
+.slider::-moz-range-track {
+	height: var(--track-height);
+	border-radius: 1rem;
+	background: var(--track, var(--surface-2));
+}
+
+.slider::-webkit-slider-thumb {
+	appearance: none;
+	width: 1.25rem;
+	height: 1.25rem;
+	margin-top: calc((var(--track-height) - 1.25rem) / 2);
+	border-radius: 50%;
+	background: #fff;
+	box-shadow:
+		0 0 0 1px rgb(0 0 0 / 0.14),
+		0 2px 6px rgb(0 0 0 / 0.25);
+	transition: transform 0.18s var(--ease-out-soft);
+}
+
+.slider::-moz-range-thumb {
+	width: 1.25rem;
+	height: 1.25rem;
+	border: 0;
+	border-radius: 50%;
+	background: #fff;
+	box-shadow:
+		0 0 0 1px rgb(0 0 0 / 0.14),
+		0 2px 6px rgb(0 0 0 / 0.25);
+}
+
+.slider:hover::-webkit-slider-thumb {
+	transform: scale(1.08);
+}
+
+.slider:active::-webkit-slider-thumb {
+	transform: scale(1.18);
+}
+
+/* The listening volume beside the speaker: a thin bar, filled up to the level. */
+.volume-range {
+	appearance: none;
+	height: 1.5rem;
+	background: none;
+}
+
+.volume-range::-webkit-slider-runnable-track {
+	height: 0.25rem;
+	border-radius: 1rem;
+	background: linear-gradient(to right, var(--ink-2) var(--level), var(--surface-2) var(--level));
+}
+
+.volume-range::-moz-range-track {
+	height: 0.25rem;
+	border-radius: 1rem;
+	background: linear-gradient(to right, var(--ink-2) var(--level), var(--surface-2) var(--level));
+}
+
+.volume-range::-webkit-slider-thumb {
+	appearance: none;
+	width: 0.75rem;
+	height: 0.75rem;
+	margin-top: -0.25rem;
+	border-radius: 50%;
+	background: var(--ink);
+}
+
+.volume-range::-moz-range-thumb {
+	width: 0.75rem;
+	height: 0.75rem;
+	border: 0;
+	border-radius: 50%;
+	background: var(--ink);
+}
