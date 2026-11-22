@@ -2,7 +2,7 @@
  * The pages shown, as counted by worker/index.ts: the most visited pages over a number of days,
  * then visits by language, screen, country and the sites visitors came from.
  *
- *   CLOUDFLARE_API_TOKEN=… bun scripts/visits.ts [days] [--preprod]
+ *   CLOUDFLARE_API_TOKEN=… bun scripts/visits.ts [days]
  *
  * The token needs the "Account Analytics: Read" permission. Written as Markdown tables, which the
  * Visits workflow shows in its summary (.github/workflows/visits.yml).
@@ -13,7 +13,7 @@ const token = process.env.CLOUDFLARE_API_TOKEN;
 if (!token) throw new Error('Set CLOUDFLARE_API_TOKEN (Account Analytics: Read).');
 
 const days = Number(process.argv.find((arg) => /^\d+$/.test(arg)) ?? 7);
-const dataset = process.argv.includes('--preprod') ? 'vixely_preprod_visits' : 'vixely_visits';
+const dataset = 'vixely_visits';
 
 /** blob1 page, blob2 language, blob3 country, blob4 screen, blob5 the site visitors came from. */
 const COLUMNS = { page: 'blob1', language: 'blob2', country: 'blob3', screen: 'blob4', from: 'blob5' } as const;

@@ -15,7 +15,7 @@ Every scenario runs in Chromium unless `BROWSER=firefox` or `BROWSER=webkit` nam
 group (`image`, `gif`, `audio`, `subtitles`, `video`, `shell`) or single scenarios only. `./run-both.sh` runs Chromium
 and Firefox at once, each in its own `work/<browser>/` folder, where the scenarios save their files in `shots/`.
 `BASE=https://…` points them at another
-server, such as the production image or the preprod; the GIF and subtitle editor scenarios make their samples with the
+server, such as vixely.app; the GIF and subtitle editor scenarios make their samples with the
 dev server's own modules and only run against it.
 
 Samples the scenarios need are generated on the fly, or created by `bun samples.ts` into `e2e/samples/` (ignored by

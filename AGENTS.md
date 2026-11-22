@@ -8,7 +8,7 @@ site, no backend. Read this before changing anything.
 React 19, TypeScript, Tailwind CSS 4, Vite, Bun, TanStack Router, Zustand, Paraglide (English and French), Mediabunny,
 WebCodecs, WebGL2, and Rust crates compiled to WebAssembly (`vixely-*`). Served by Cloudflare Workers as static assets
 (`wrangler.jsonc`, `public/_headers`), with one small Worker for visit counting (`worker/`). `.github/workflows/ci.yml`
-checks every push, then deploys `main` to vixely.app and `v1` to vixely-preprod.xantoom.workers.dev.
+checks every push, then deploys `main` to vixely.app.
 
 ## Commands
 

@@ -63,5 +63,5 @@ export function sample(name: string): string {
 	return browserName === 'firefox' && existsSync(`samples/open/${name}`) ? `samples/open/${name}` : `samples/${name}`;
 }
 
-/** The site under test: the dev server unless BASE names another, such as the preprod. */
+/** The site under test: the dev server unless BASE names another, such as vixely.app. */
 export const BASE = process.env.BASE ?? 'http://localhost:5173';

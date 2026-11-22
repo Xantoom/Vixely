@@ -1,14 +1,14 @@
 name: CI
 
-# Every push and pull request is checked; a push to main (vixely.app) or v1
-# (vixely-preprod.xantoom.workers.dev) is then deployed, with the very build that was checked.
+# Every push and pull request is checked; a push to main is then deployed to vixely.app, with the
+# very build that was checked.
 # Deploying needs the repository secret CLOUDFLARE_API_TOKEN (template "Edit Cloudflare Workers").
 on:
     push:
-        branches: [main, v1]
+        branches: [main]
         paths-ignore: ['**.md', 'e2e/**', 'LICENSE']
     pull_request:
-        branches: [main, v1]
+        branches: [main]
         paths-ignore: ['**.md', 'e2e/**', 'LICENSE']
     workflow_dispatch:
 
@@ -74,7 +74,7 @@ jobs:
             - name: Build the site
               env:
                   # Link previews point to this deployment's own picture (see scripts/prerender.tsx).
-                  PUBLIC_DOMAIN: ${{ github.ref_name == 'main' && 'vixely.app' || 'vixely-preprod.xantoom.workers.dev' }}
+                  PUBLIC_DOMAIN: vixely.app
               run: bun run build:site
 
             - name: Type check
@@ -99,7 +99,7 @@ jobs:
                   if [ "$count" -gt 20000 ]; then echo "::error::$count files, over the 20,000 limit"; exit 1; fi
 
             - name: Keep the build
-              if: github.event_name != 'pull_request' && (github.ref_name == 'main' || github.ref_name == 'v1')
+              if: github.event_name != 'pull_request' && github.ref_name == 'main'
               uses: actions/upload-artifact@v7
               with:
                   name: dist
@@ -144,9 +144,9 @@ jobs:
     deploy:
         name: Deploy to Cloudflare
         needs: [check, rust]
-        if: github.event_name != 'pull_request' && (github.ref_name == 'main' || github.ref_name == 'v1')
+        if: github.event_name != 'pull_request' && github.ref_name == 'main'
         runs-on: ubuntu-latest
-        # One deployment at a time per branch.
+        # One deployment at a time.
         concurrency:
             group: deploy-${{ github.ref }}
             cancel-in-progress: false
@@ -169,5 +169,4 @@ jobs:
             - name: Deploy
               env:
                   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-                  WRANGLER_ENV: ${{ github.ref_name == 'main' && '' || 'preprod' }}
-              run: bunx wrangler@4 deploy ${WRANGLER_ENV:+--env "$WRANGLER_ENV"}
+              run: bunx wrangler@4 deploy

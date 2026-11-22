@@ -3,9 +3,6 @@
 // and the health check are in public/_headers, public/_redirects and public/healthz;
 // .github/workflows/ci.yml builds, checks and deploys.
 //
-//   wrangler deploy                 → "vixely", production (the main branch)
-//   wrangler deploy --env preprod   → "vixely-preprod" (the v1 branch)
-//
 // vixely.app and www.vixely.app are attached to the production Worker as Custom Domains in the
 // Cloudflare dashboard (Workers & Pages → vixely → Settings → Domains & Routes).
 {
@@ -28,19 +25,4 @@
 	"analytics_engine_datasets": [{ "binding": "VISITS", "dataset": "vixely_visits" }],
 	"workers_dev": true,
 	"preview_urls": false,
-	"env": {
-		"preprod": {
-			"name": "vixely-preprod",
-			"assets": {
-				"directory": "./dist",
-				"binding": "ASSETS",
-				"html_handling": "drop-trailing-slash",
-				"not_found_handling": "404-page",
-				"run_worker_first": ["/count"],
-			},
-			"analytics_engine_datasets": [{ "binding": "VISITS", "dataset": "vixely_preprod_visits" }],
-			"workers_dev": true,
-			"preview_urls": false,
-		},
-	},
 }

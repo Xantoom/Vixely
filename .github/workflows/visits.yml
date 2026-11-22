@@ -9,11 +9,6 @@ on:
             days:
                 description: Days
                 default: '7'
-            site:
-                description: Site
-                type: choice
-                options: [production, preprod]
-                default: production
 
 permissions:
     contents: read
@@ -36,4 +31,4 @@ jobs:
               env:
                   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_ANALYTICS_TOKEN }}
                   DAYS: ${{ inputs.days }}
-              run: bun scripts/visits.ts "$DAYS" ${{ inputs.site == 'preprod' && '--preprod' || '' }} >> "$GITHUB_STEP_SUMMARY"
+              run: bun scripts/visits.ts "$DAYS" >> "$GITHUB_STEP_SUMMARY"
