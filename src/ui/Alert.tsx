@@ -39,7 +39,7 @@ export function Alert({
 				// A press on the backdrop, outside the box, dismisses it.
 				if (event.target === event.currentTarget) onClose();
 			}}
-			className="bg-bg text-ink animate-[pop_0.24s_var(--ease-spring)] m-auto w-[min(26rem,calc(100vw-2rem))] rounded-md p-0 shadow-[0_32px_80px_-20px_rgb(0_0_0/0.45),0_0_0_1px_var(--line)] backdrop:bg-black/45 backdrop:backdrop-blur-[3px]"
+			className="bg-raised text-ink animate-[pop_0.24s_var(--ease-spring)] m-auto w-[min(26rem,calc(100vw-2rem))] rounded-md p-0 shadow-[0_32px_80px_-20px_rgb(0_0_0/0.45),0_0_0_1px_var(--line)] backdrop:bg-black/45 backdrop:backdrop-blur-[3px]"
 		>
 			<div className="grid gap-4 p-5">
 				<div className="flex items-start gap-3">

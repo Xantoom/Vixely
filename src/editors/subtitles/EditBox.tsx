@@ -96,7 +96,7 @@ function TimeBox({
 					}
 					if (event.key === 'Escape') event.currentTarget.value = shown;
 				}}
-				className="border-field bg-bg text-ink hover:border-muted tabular text-small h-8 pointer-coarse:h-10 w-[104px] rounded-xs max-sm:w-full max-sm:px-1.5 border px-2 transition-colors disabled:opacity-45"
+				className="border-field bg-raised text-ink hover:border-muted x-tabular text-small h-8 pointer-coarse:h-10 w-[104px] rounded-xs max-sm:w-full max-sm:px-1.5 border px-2 transition-colors disabled:opacity-45"
 			/>
 		</label>
 	);
@@ -214,7 +214,7 @@ export function EditBox() {
 	return (
 		<section
 			aria-label={m.subs_line_editor()}
-			className="bg-bg flex h-full min-h-0 flex-col gap-2.5 rounded-md p-3 shadow-[inset_0_0_0_1px_var(--line)] max-lg:rounded-none max-lg:shadow-none"
+			className="bg-raised flex h-full min-h-0 flex-col gap-2.5 rounded-md p-3 shadow-[inset_0_0_0_1px_var(--line)] max-lg:rounded-none max-lg:shadow-none"
 		>
 			<div className="flex flex-wrap items-end gap-x-2 gap-y-2">
 				<p className="text-ui mr-1 grid h-8 items-center font-semibold whitespace-nowrap max-sm:mr-auto">
@@ -323,7 +323,7 @@ export function EditBox() {
 						})}
 						<span className="flex-1" />
 						{cue && (
-							<span className="text-caption tabular text-muted px-2 whitespace-nowrap">
+							<span className="text-caption x-tabular text-muted px-2 whitespace-nowrap">
 								{m.subs_characters({ count: characters })}
 								{' · '}
 								<span
@@ -403,7 +403,7 @@ export function EditBox() {
 								preview((present) => updateCue(present, cue.id, { fields: { ...cue.fields, name } }));
 							}}
 							onBlur={settle}
-							className="border-field bg-bg text-ui hover:border-muted placeholder:text-muted h-10 w-36 min-w-0 rounded-xs border px-2.5 transition-colors max-sm:flex-1"
+							className="border-field bg-raised text-ui hover:border-muted placeholder:text-muted h-10 w-36 min-w-0 rounded-xs border px-2.5 transition-colors max-sm:flex-1"
 						/>
 					)}
 				</div>

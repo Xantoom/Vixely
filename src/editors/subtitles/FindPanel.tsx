@@ -123,7 +123,7 @@ export function FindPanel() {
 								event.preventDefault();
 								next(event.shiftKey ? -1 : 1);
 							}}
-							className="border-field bg-bg text-ui text-ink hover:border-muted aria-invalid:border-danger h-8 pointer-coarse:h-10 w-0 min-w-0 flex-1 rounded-xs border px-2.5 font-mono transition-colors"
+							className="border-field bg-raised text-ui text-ink hover:border-muted aria-invalid:border-danger h-8 pointer-coarse:h-10 w-0 min-w-0 flex-1 rounded-xs border px-2.5 font-mono transition-colors"
 						/>
 						<IconButton
 							label={m.find_previous()}
@@ -146,7 +146,7 @@ export function FindPanel() {
 					</div>
 					<p
 						role="status"
-						className={`text-small tabular min-h-5 font-mono ${invalid ? 'text-danger' : 'text-muted'}`}
+						className={`text-small x-tabular min-h-5 font-mono ${invalid ? 'text-danger' : 'text-muted'}`}
 					>
 						{status}
 					</p>
@@ -186,7 +186,7 @@ export function FindPanel() {
 						onChange={(event) => {
 							setBy(event.target.value);
 						}}
-						className="border-field bg-bg text-ui text-ink hover:border-muted h-8 pointer-coarse:h-10 w-full rounded-xs border px-2.5 font-mono transition-colors"
+						className="border-field bg-raised text-ui text-ink hover:border-muted h-8 pointer-coarse:h-10 w-full rounded-xs border px-2.5 font-mono transition-colors"
 					/>
 				</div>
 				<div className="grid grid-cols-2 gap-2">

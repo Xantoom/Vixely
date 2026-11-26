@@ -9,6 +9,8 @@ import { isMediaKind } from './editors/registry';
 import { clearLeftovers } from './media/save-target';
 import { useSession } from './media/session';
 import { routeTree } from './routeTree.gen';
+import '@fontsource-variable/inter';
+import '@fontsource-variable/jetbrains-mono';
 import './styles/app.css';
 
 startLocale();

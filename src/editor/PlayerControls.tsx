@@ -39,7 +39,7 @@ function PlayButton({
 			data-tip={playing ? m.pause() : m.play()}
 			disabled={disabled}
 			onClick={onToggle}
-			className={`bg-ed text-ed-ink ease-spring relative grid ${box} flex-none place-items-center rounded-full transition-[transform,filter] duration-200 enabled:hover:scale-[1.06] enabled:hover:brightness-[1.06] enabled:active:scale-[0.94] disabled:opacity-45`}
+			className={`bg-ed text-ed-ink ease-spring relative grid ${box} flex-none place-items-center rounded-full transition-[transform,filter] duration-200 motion-safe:enabled:hover:scale-[1.06] enabled:hover:brightness-[1.06] motion-safe:enabled:active:scale-[0.94] disabled:opacity-45 motion-reduce:transition-none`}
 		>
 			<Play
 				size={icon}
@@ -163,7 +163,7 @@ export function PlayTime({
 		<span
 			role="timer"
 			aria-label={m.playhead()}
-			className="text-small tabular whitespace-nowrap [text-box:trim-both_cap_alphabetic]"
+			className="text-small x-tabular whitespace-nowrap [text-box:trim-both_cap_alphabetic]"
 		>
 			<span className="text-ink font-medium">{formatPreciseTime(Math.min(time, length), length)}</span>
 			{/* On a phone the bar has room for the time alone. */}
@@ -266,13 +266,13 @@ function SeekBar() {
 				)}
 				<div className="bg-ed absolute inset-y-0 left-0 rounded-full" style={{ width: `${ratio * 100}%` }} />
 				<div
-					className="ease-spring absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 scale-75 rounded-full bg-white shadow-[0_0_0_1px_rgb(0_0_0/0.15),0_2px_6px_rgb(0_0_0/0.3)] transition-transform duration-150 group-hover/seek:scale-100 group-focus-visible/seek:scale-100 group-data-dragging-seek/seek:scale-110"
+					className="ease-spring absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 scale-75 rounded-full bg-white shadow-[0_0_0_1px_rgb(0_0_0/0.15),0_2px_6px_rgb(0_0_0/0.3)] transition-transform duration-150 group-hover/seek:scale-100 group-focus-visible/seek:scale-100 group-data-dragging-seek/seek:scale-110 motion-reduce:transition-none"
 					style={{ left: `${ratio * 100}%` }}
 				/>
 			</div>
 			{hover !== null && length > 0 && (
 				<span
-					className="bg-tip text-tip-ink tabular pointer-events-none absolute bottom-full mb-1 -translate-x-1/2 rounded-xs px-1.5 py-0.5 text-caption shadow-[0_0_0_1px_var(--tip-line)] font-medium whitespace-nowrap"
+					className="bg-tip text-tip-ink x-tabular pointer-events-none absolute bottom-full mb-1 -translate-x-1/2 rounded-xs px-1.5 py-0.5 text-caption shadow-[0_0_0_1px_var(--tip-line)] font-medium whitespace-nowrap"
 					style={{ left: `${(hover / length) * 100}%` }}
 				>
 					{formatPreciseTime(hover)}
@@ -302,7 +302,7 @@ function StepButton({
 			data-tip={label}
 			disabled={disabled}
 			onClick={onStep}
-			className={`text-ink-2 enabled:hover:bg-surface enabled:hover:text-ink touch-target relative grid size-9 place-items-center rounded-full transition-colors disabled:opacity-45 max-sm:size-8 ${className}`}
+			className={`text-ink-2 enabled:hover:bg-surface enabled:hover:text-ink x-touch-target relative grid size-9 place-items-center rounded-full transition-colors disabled:opacity-45 max-sm:size-8 ${className}`}
 		>
 			{direction < 0 ? (
 				<ChevronFirst className="size-[1.15rem]" aria-hidden="true" />

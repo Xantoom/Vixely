@@ -23,7 +23,7 @@ export interface Chapter {
 }
 
 /** The Dolby Vision configuration as stored, to be written again unchanged. */
-export interface DolbyVisionRecord {
+interface DolbyVisionRecord {
 	box: 'dvcC' | 'dvvC' | 'dvwC';
 	record: Uint8Array;
 }

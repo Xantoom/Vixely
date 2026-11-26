@@ -43,7 +43,7 @@ function isVertical(doc: SubtitleDoc, video: { width: number; height: number } |
 }
 
 /** Whether the subtitles shown are for a vertical video, by the video playing or the script's size. */
-export function useVertical(): boolean {
+function useVertical(): boolean {
 	const doc = useSubtitleDoc();
 	const video = usePlayback((state) => state.details?.video ?? null);
 	return isVertical(doc, video);

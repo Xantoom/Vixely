@@ -59,7 +59,7 @@ export function TranslatePanel({ fileName }: { fileName: string }) {
 			<PanelTitle>{m.tool_translate()}</PanelTitle>
 			{origin && (
 				<Section title={m.translate_progress()}>
-					<p className="text-body tabular">
+					<p className="text-body x-tabular">
 						{m.translate_done({ done: origin.size - left, total: origin.size })}
 					</p>
 					<div

@@ -87,7 +87,7 @@ export function Viewer({ kind, opened }: { kind: MediaKind; opened: OpenedFile |
 			<ol className="grid max-h-full w-full max-w-[560px] content-center gap-1 overflow-auto">
 				{opened.info.cues.slice(0, 8).map((cue) => (
 					<li key={`${cue.start}-${cue.text}`} className="grid grid-cols-[104px_minmax(0,1fr)] gap-4 py-1.5">
-						<span className="text-small text-muted tabular">{formatTimecode(cue.start)}</span>
+						<span className="text-small text-muted x-tabular">{formatTimecode(cue.start)}</span>
 						<span className="text-body">{cue.text}</span>
 					</li>
 				))}

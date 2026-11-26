@@ -161,7 +161,7 @@ export function Menu<T extends string>({
 						show(true);
 					}
 				}}
-				className={`text-ink-2 hover:bg-surface hover:text-ink aria-expanded:bg-surface aria-expanded:text-ink touch-target relative grid h-10 min-w-10 place-items-center rounded-sm transition-colors duration-150 ${buttonClassName}`}
+				className={`text-ink-2 hover:bg-surface hover:text-ink aria-expanded:bg-surface aria-expanded:text-ink x-touch-target relative grid h-10 min-w-10 place-items-center rounded-sm transition-colors duration-150 ${buttonClassName}`}
 			>
 				{children}
 			</button>
@@ -171,7 +171,7 @@ export function Menu<T extends string>({
 						ref={popoverRef}
 						data-media={media ?? undefined}
 						data-down={place?.down ?? true}
-						className={`menu-in bg-bg text-ink fixed z-50 flex flex-col overflow-hidden rounded-md shadow-[0_0_0_1px_var(--line-2),0_18px_44px_-14px_rgb(0_0_0/0.4)] ${
+						className={`menu-in bg-raised text-ink fixed z-50 flex flex-col overflow-hidden rounded-md shadow-[0_0_0_1px_var(--line-2),0_18px_44px_-14px_rgb(0_0_0/0.4)] ${
 							described
 								? 'w-[min(18rem,calc(100vw-16px))]'
 								: 'max-w-[min(420px,calc(100vw-16px))] min-w-44'
@@ -235,7 +235,7 @@ export function Menu<T extends string>({
 										<span className="grid min-w-0 flex-1 gap-0.5">
 											<span className="leading-snug [overflow-wrap:anywhere]">{item.label}</span>
 											{item.description && (
-												<span className="text-caption text-muted tabular truncate">
+												<span className="text-caption text-muted x-tabular truncate">
 													{item.description}
 												</span>
 											)}

@@ -521,7 +521,7 @@ export function bitrateForSize(megabytes: number, seconds: number, audio: number
  * The source's video bitrate brought to the output (kb/s): fewer pixels or pictures need fewer
  * bits, by the usual 0.75 power. Null when the file doesn't tell its bitrate.
  */
-export function sourceCeiling(
+function sourceCeiling(
 	source: Pick<VideoSource, 'bitrate' | 'frameRate'>,
 	upright: Size,
 	output: Size,
@@ -544,7 +544,7 @@ export function sizeLimits(current: number | null): number[] {
  * Size of a file written at these bitrates (kb/s), in MB of a million bytes, with the share the
  * container takes. Encoders keep close to a set bitrate, so this lands within a few percent.
  */
-export function estimatedMegabytes(video: number, audio: number, seconds: number): number {
+function estimatedMegabytes(video: number, audio: number, seconds: number): number {
 	return ((video + audio) * 1000 * seconds * CONTAINER_SHARE) / 8 / 1_000_000;
 }
 

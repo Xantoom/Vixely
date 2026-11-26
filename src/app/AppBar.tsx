@@ -78,7 +78,7 @@ function EditorTabs({ current, from }: { current: MediaKind; from: MediaKind | n
 							<span
 								ref={mark}
 								aria-hidden="true"
-								className="bg-bg absolute inset-0 z-0 origin-left rounded-[0.45rem] shadow-[0_1px_2px_rgb(0_0_0/0.08),0_0_0_1px_var(--line)]"
+								className="bg-raised absolute inset-0 z-0 origin-left rounded-[0.45rem] shadow-[0_1px_2px_rgb(0_0_0/0.08),0_0_0_1px_var(--line)]"
 							/>
 						)}
 						<Icon
@@ -109,7 +109,7 @@ export function AppBar({ editor, fileName, actions, onSearch, heading, from = nu
 						to="/"
 						aria-label={m.app_home()}
 						title={m.app_home()}
-						className={`hover:bg-surface touch-target relative grid size-9 flex-none place-items-center rounded-sm transition-colors ${editor ? 'md:size-10' : ''}`}
+						className={`hover:bg-surface x-touch-target relative grid size-9 flex-none place-items-center rounded-sm transition-colors ${editor ? 'md:size-10' : ''}`}
 					>
 						<LogoMark size={26} className={editor ? 'md:size-8' : undefined} />
 					</Link>

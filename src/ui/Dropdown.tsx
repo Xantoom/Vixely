@@ -191,17 +191,17 @@ export function Dropdown<T extends string>({
 				else show();
 			}}
 			onKeyDown={onButtonKeyDown}
-			className={`group/dropdown touch-target relative flex min-w-0 items-center gap-1.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
+			className={`group/dropdown x-touch-target relative flex min-w-0 items-center gap-1.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
 				compact
 					? 'text-ink-2 enabled:hover:text-ink enabled:hover:bg-surface aria-expanded:bg-surface aria-expanded:text-ink h-8 max-w-60 rounded-sm pr-7 pl-2 shadow-[inset_0_0_0_1px_var(--line-2)]'
-					: 'border-field bg-bg text-ink enabled:hover:border-muted aria-expanded:border-muted h-8 w-full rounded-xs border pr-7 pl-2.5 text-small'
+					: 'border-field bg-raised text-ink enabled:hover:border-muted aria-expanded:border-muted h-8 w-full rounded-xs border pr-7 pl-2.5 text-small'
 			} ${className}`}
 		>
 			{Icon && <Icon size={15} aria-hidden="true" className="flex-none" />}
 			{current?.leading}
 			<span className={`truncate ${compact ? 'text-ui' : ''}`}>{current?.label ?? ''}</span>
 			<span
-				className="border-muted pointer-events-none absolute top-1/2 right-3 size-1.5 -translate-y-[70%] rotate-45 border-r-[1.5px] border-b-[1.5px] transition-transform group-aria-expanded/dropdown:translate-y-[-20%] group-aria-expanded/dropdown:rotate-[225deg]"
+				className="border-muted pointer-events-none absolute top-1/2 right-3 size-1.5 -translate-y-[70%] rotate-45 border-r-[1.5px] border-b-[1.5px] transition-transform group-aria-expanded/dropdown:translate-y-[-20%] group-aria-expanded/dropdown:rotate-[225deg] motion-reduce:transition-none"
 				aria-hidden="true"
 			/>
 		</button>
@@ -223,7 +223,7 @@ export function Dropdown<T extends string>({
 						data-media={media ?? undefined}
 						onKeyDown={onListKeyDown}
 						data-down={place?.down ?? true}
-						className="menu-in bg-bg text-ink fixed z-50 grid max-w-[min(420px,calc(100vw-16px))] content-start gap-px overflow-y-auto overscroll-contain rounded-sm p-1 shadow-[0_0_0_1px_var(--line-2),0_16px_40px_-12px_rgb(0_0_0/0.35)] outline-none"
+						className="menu-in bg-raised text-ink fixed z-50 grid max-w-[min(420px,calc(100vw-16px))] content-start gap-px overflow-y-auto overscroll-contain rounded-sm p-1 shadow-[0_0_0_1px_var(--line-2),0_16px_40px_-12px_rgb(0_0_0/0.35)] outline-none"
 						style={
 							place
 								? {
@@ -236,7 +236,7 @@ export function Dropdown<T extends string>({
 						}
 					>
 						{withSearch && (
-							<div className="bg-bg sticky -top-1 z-10 -mx-1 -mt-1 mb-1 border-b border-(--line) p-1">
+							<div className="bg-raised sticky -top-1 z-10 -mx-1 -mt-1 mb-1 border-b border-(--line) p-1">
 								<div className="relative">
 									<Search
 										className="text-muted pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2"

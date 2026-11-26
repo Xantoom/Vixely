@@ -166,7 +166,7 @@ function ColorChooser({ value, onChange }: { value: string; onChange: (color: st
 					onBlur={() => {
 						setDraft(null);
 					}}
-					className="border-field bg-bg text-ink hover:border-muted h-8 pointer-coarse:h-10 min-w-0 flex-1 rounded-xs border px-2.5 text-caption uppercase transition-colors"
+					className="border-field bg-raised text-ink hover:border-muted h-8 pointer-coarse:h-10 min-w-0 flex-1 rounded-xs border px-2.5 text-caption uppercase transition-colors"
 				/>
 			</div>
 		</div>
@@ -227,7 +227,7 @@ export function ColorPopover({
 							event.stopPropagation();
 							if (event.key === 'Escape') close(true);
 						}}
-						className="menu-in bg-bg text-ink fixed z-50 rounded-md p-3 shadow-[0_0_0_1px_var(--line-2),0_18px_44px_-14px_rgb(0_0_0/0.4)]"
+						className="menu-in bg-raised text-ink fixed z-50 rounded-md p-3 shadow-[0_0_0_1px_var(--line-2),0_18px_44px_-14px_rgb(0_0_0/0.4)]"
 						style={place ? { top: place.top, left: place.left } : { top: 0, left: 0, visibility: 'hidden' }}
 					>
 						<ColorChooser value={value} onChange={onChange} />

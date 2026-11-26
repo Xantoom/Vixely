@@ -83,7 +83,7 @@ export function DropZone({
 				}}
 				className={`group grid w-full place-content-center justify-items-center gap-3 rounded-md border-[1.5px] border-dashed px-5 text-center transition-colors duration-150 ${
 					large ? 'min-h-[clamp(20rem,52vh,34rem)] py-12' : compact ? 'min-h-56 py-8' : 'min-h-60 py-8'
-				} border-line-2 bg-surface hover:border-ink-2 hover:bg-bg`}
+				} border-line-2 bg-raised hover:border-ink-2`}
 			>
 				{/* In an editor, its own kind of file; on the home page, every kind. Others still open. */}
 				<span className="flex gap-1.5" aria-hidden="true">
@@ -93,7 +93,9 @@ export function DropZone({
 							kind={kind}
 							size="lg"
 							className={`transition-transform duration-200 ${
-								index % 2 === 0 ? 'group-hover:-translate-y-[3px]' : 'group-hover:translate-y-[3px]'
+								index % 2 === 0
+									? 'motion-safe:group-hover:-translate-y-[3px]'
+									: 'motion-safe:group-hover:translate-y-[3px]'
 							}`}
 						/>
 					))}
@@ -133,7 +135,7 @@ export function DropZone({
 						if (address.trim()) void download(async () => fetchFile(address));
 					}}
 				>
-					<label className="border-field bg-bg focus-within:border-muted flex h-10 min-w-0 flex-1 items-center gap-2 rounded-sm border px-3 transition-colors">
+					<label className="border-field bg-raised focus-within:border-muted flex h-10 min-w-0 flex-1 items-center gap-2 rounded-sm border px-3 transition-colors">
 						<Link2 className="text-muted size-[1.1rem] flex-none" aria-hidden="true" />
 						<span className="sr-only">{m.url_label()}</span>
 						<input

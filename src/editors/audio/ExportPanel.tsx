@@ -258,7 +258,7 @@ export function ExportPanel({
 						<div className="grid gap-1.5">
 							<FieldRow label={m.info_sample_rate()} htmlFor={rateId}>
 								{info.sampleRates.length === 1 ? (
-									<span className="tabular text-right text-small">
+									<span className="x-tabular text-right text-small">
 										{formatSampleRate(info.sampleRates[0] ?? 48_000)}
 									</span>
 								) : (
@@ -314,7 +314,7 @@ export function ExportPanel({
 			{bytes !== null && (
 				<div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
 					<span className="text-ui text-ink-2">{m.export_estimate()}</span>
-					<span className="tabular text-small">≈ {formatBytes(Math.round(bytes))}</span>
+					<span className="x-tabular text-small">≈ {formatBytes(Math.round(bytes))}</span>
 				</div>
 			)}
 
@@ -484,7 +484,7 @@ export function ExportFooter({
 			{status === 'saving' && (
 				<div className="bg-surface-2 h-1 overflow-hidden rounded-full" aria-hidden="true">
 					<div
-						className="bg-ed h-full origin-left transition-transform duration-200"
+						className="bg-ed h-full origin-left transition-transform duration-200 motion-reduce:transition-none"
 						style={{ transform: `scaleX(${progress})` }}
 					/>
 				</div>

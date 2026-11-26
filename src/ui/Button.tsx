@@ -50,7 +50,7 @@ export function IconButton({
 			type={type}
 			aria-label={label}
 			title={tip ? label : undefined}
-			className={`text-muted enabled:hover:bg-surface enabled:hover:text-ink aria-pressed:bg-ed-soft aria-pressed:text-ed-text touch-target relative grid size-10 flex-none place-items-center rounded-sm transition-colors duration-150 disabled:opacity-40 ${className}`}
+			className={`text-muted enabled:hover:bg-surface enabled:hover:text-ink aria-pressed:bg-ed-soft aria-pressed:text-ed-text x-touch-target relative grid size-10 flex-none place-items-center rounded-sm transition-colors duration-150 disabled:opacity-40 ${className}`}
 			{...props}
 		>
 			{children}

@@ -94,7 +94,7 @@ function BatchTable({
 			<div
 				role="table"
 				aria-label={m.batch_label()}
-				className="bg-bg min-h-0 flex-1 overflow-auto rounded-xs shadow-[inset_0_0_0_1px_var(--line)]"
+				className="bg-raised min-h-0 flex-1 overflow-auto rounded-xs shadow-[inset_0_0_0_1px_var(--line)]"
 			>
 				<div
 					role="row"
@@ -135,10 +135,10 @@ function BatchTable({
 									</>
 								)}
 							</span>
-							<span role="cell" className="tabular px-2">
+							<span role="cell" className="x-tabular px-2">
 								{doc ? shownCues(doc).length : doc === null ? '–' : ''}
 							</span>
-							<span role="cell" className="tabular flex items-center gap-1 px-2">
+							<span role="cell" className="x-tabular flex items-center gap-1 px-2">
 								{from !== null && (
 									<>
 										{formatPreciseTime(from / 1000)}
@@ -168,7 +168,7 @@ function BatchTable({
 										onClick={() => {
 											remove(item.id);
 										}}
-										className="text-muted hover:text-ink hover:bg-surface touch-target relative grid size-6 place-items-center rounded-xs"
+										className="text-muted hover:text-ink hover:bg-surface x-touch-target relative grid size-6 place-items-center rounded-xs"
 									>
 										<X size={13} />
 									</button>

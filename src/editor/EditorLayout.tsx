@@ -128,7 +128,7 @@ function Rail({
 			>
 				<span
 					aria-hidden="true"
-					className={`bg-ed-soft pointer-events-none absolute top-0 left-0 rounded-md ${moved.current ? 'ease-spring transition-[transform,width,height,opacity] duration-300' : ''} ${mark ? 'opacity-100' : 'opacity-0'}`}
+					className={`bg-ed-soft pointer-events-none absolute top-0 left-0 rounded-md ${moved.current ? 'ease-spring transition-[transform,width,height,opacity] duration-300 motion-reduce:transition-none' : ''} ${mark ? 'opacity-100' : 'opacity-0'}`}
 					style={
 						mark
 							? {
@@ -169,7 +169,7 @@ function Rail({
 								<Icon
 									strokeWidth={1.75}
 									aria-hidden="true"
-									className="ease-spring size-[1.4rem] transition-transform duration-300 group-hover:-translate-y-px"
+									className="ease-spring size-[1.4rem] transition-transform duration-300 motion-safe:group-hover:-translate-y-px motion-reduce:transition-none"
 								/>
 								{/* Any language fits: a long name goes on two lines rather than past the rail. */}
 								<span className="max-w-full text-center leading-tight text-balance">
@@ -218,7 +218,7 @@ function Rail({
 				}}
 				className="group text-caption text-ed-text enabled:hover:bg-ed-soft aria-pressed:bg-ed-soft relative m-1.5 grid min-w-15 flex-none md:mx-1.5 md:mt-0 md:mb-3 justify-items-center gap-1.5 rounded-md px-1 pt-2.5 pb-2.5 font-semibold transition-colors duration-200 disabled:opacity-40"
 			>
-				<span className="bg-ed text-ed-ink ease-spring grid size-8 place-items-center rounded-sm transition-transform duration-300 group-enabled:group-hover:-translate-y-px">
+				<span className="bg-ed text-ed-ink ease-spring grid size-8 place-items-center rounded-sm transition-transform duration-300 group-enabled:group-hover:-translate-y-px motion-reduce:transition-none">
 					<Download strokeWidth={2} aria-hidden="true" className="size-[1.1rem]" />
 				</span>
 				<span className="max-w-full text-center leading-tight text-balance">{TOOL_LABELS.export()}</span>

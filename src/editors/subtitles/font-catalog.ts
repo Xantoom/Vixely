@@ -17,7 +17,7 @@ const SOURCES = import.meta.glob<string>(
 	{ query: '?url', import: 'default', eager: true },
 );
 
-export type FontCategory = 'sans' | 'serif' | 'mono' | 'display' | 'handwriting';
+type FontCategory = 'sans' | 'serif' | 'mono' | 'display' | 'handwriting';
 
 export interface BundledFont {
 	family: string;

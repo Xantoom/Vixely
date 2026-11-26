@@ -19,7 +19,7 @@ function State({ ok, vixely = false }: { ok: boolean; vixely?: boolean }) {
 function CodecTable({ title, codecs }: { title: string; codecs: CodecSupport[] }) {
 	return (
 		<section className="grid content-start gap-4">
-			<h2 className="font-display text-title font-bold tracking-[-0.02em]">{title}</h2>
+			<h2 className="text-title font-bold tracking-[-0.02em]">{title}</h2>
 			<table className="text-body w-full border-collapse">
 				<thead>
 					<tr className="text-ui text-muted border-line border-b text-left">
@@ -93,7 +93,7 @@ function SystemScreen() {
 			<SiteHeader />
 			<main className="mx-auto grid w-full max-w-[76rem] flex-1 content-start gap-12 px-[clamp(1rem,4vw,2.5rem)] pt-[clamp(3rem,7vw,5rem)] pb-[clamp(3rem,7vw,5rem)]">
 				<div className="grid gap-3.5">
-					<h1 className="font-display max-w-[18ch] text-[clamp(2.25rem,5vw,3.5rem)] leading-[1.02] font-bold tracking-[-0.025em] text-balance">
+					<h1 className="max-w-[18ch] text-[clamp(2.25rem,5vw,3.5rem)] leading-[1.02] font-bold tracking-[-0.025em] text-balance">
 						{m.system_title()}
 					</h1>
 					<p className="text-lead text-muted max-w-[52ch]">{m.system_lede()}</p>
@@ -102,9 +102,7 @@ function SystemScreen() {
 				{caps ? (
 					<div className="grid gap-12 lg:grid-cols-3">
 						<section className="grid content-start gap-4">
-							<h2 className="font-display text-title font-bold tracking-[-0.02em]">
-								{m.system_features()}
-							</h2>
+							<h2 className="text-title font-bold tracking-[-0.02em]">{m.system_features()}</h2>
 							<dl className="text-body grid">
 								{features.map(([label, value]) => (
 									<div
@@ -114,7 +112,7 @@ function SystemScreen() {
 										<dt className="text-ink-2">{label}</dt>
 										<dd>
 											{typeof value === 'string' ? (
-												<span className="tabular">{value}</span>
+												<span className="x-tabular">{value}</span>
 											) : (
 												<State ok={value} />
 											)}

@@ -25,10 +25,8 @@ function NotFound() {
 		<div className="flex min-h-full flex-col">
 			<SiteHeader />
 			<main className="mx-auto grid w-full max-w-[44rem] flex-1 content-center gap-6 px-[clamp(1rem,4vw,2.5rem)] py-16">
-				<p className="font-display text-muted text-[clamp(4rem,12vw,7rem)] leading-none font-bold tracking-[-0.05em]">
-					404
-				</p>
-				<h1 className="font-display text-[clamp(1.75rem,4vw,2.5rem)] leading-tight font-bold tracking-[-0.02em]">
+				<p className="text-muted text-[clamp(4rem,12vw,7rem)] leading-none font-bold tracking-[-0.05em]">404</p>
+				<h1 className="text-[clamp(1.75rem,4vw,2.5rem)] leading-tight font-bold tracking-[-0.02em]">
 					{m.not_found_title()}
 				</h1>
 				<p className="text-lead text-muted">{m.not_found_text()}</p>

@@ -67,7 +67,7 @@ export function EditorSwitcher({ current }: { current: MediaKind }) {
 					role="menu"
 					aria-label={m.switch_editor()}
 					onKeyDown={onMenuKeyDown}
-					className="bg-bg absolute top-11 left-0 z-30 grid min-w-56 gap-0.5 rounded-md p-1.5 shadow-[0_0_0_1px_var(--line-2),0_16px_40px_-12px_rgb(0_0_0/0.3)]"
+					className="bg-raised absolute top-11 left-0 z-30 grid min-w-56 gap-0.5 rounded-md p-1.5 shadow-[0_0_0_1px_var(--line-2),0_16px_40px_-12px_rgb(0_0_0/0.3)]"
 				>
 					{EDITOR_ORDER.map((kind) => (
 						<Link

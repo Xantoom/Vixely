@@ -40,10 +40,11 @@ bun run test:rust
 
 ## Rules of the interface
 
-- Quiet flat chrome; colour only carries meaning. System font stack. No gradients, glows, cards in panels or ALL CAPS.
+- Built on the Xantoom design system (see below): its tokens, Inter and JetBrains Mono, focus ring and scrollbars.
+  Quiet flat chrome; colour only carries meaning. No gradients, glows, cards in panels or ALL CAPS.
 - As little text as possible: icons with short tooltips, no marketing copy, no em dashes. Text must fit in both languages.
 - Everything clickable has `cursor: pointer`; what drags sideways has `ew-resize`.
-- Alerts are in-app dialogs, never `alert()` or `confirm()`. Scrollbars are always the app's own.
+- Alerts are in-app dialogs, never `alert()` or `confirm()`. Scrollbars come from the design system.
 - Export is a tab of the tool rail. Zoom has no buttons, only wheel and keyboard. Every editor can close its file.
 - Phones: media full width at the top, then the timeline, the panel and the tool bar at the bottom.
 - Aim for 120 fps: animate only `transform` and `opacity`, no CSS blur on large areas.
@@ -52,3 +53,11 @@ bun run test:rust
 ## Local files
 
 Personal tooling stays out of the repository: `.claude/`, `.impeccable/` and the like are ignored and must not be added.
+
+<!-- xantoom-design:start -->
+
+## Design system
+
+This project uses the Xantoom design system. Before any UI work (pages, components, styles, motion, icons,
+layout), read `.agents/skills/xantoom-design/SKILL.md` and follow it.
+<!-- xantoom-design:end -->

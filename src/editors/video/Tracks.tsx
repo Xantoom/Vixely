@@ -56,7 +56,7 @@ const KIND_NAMES: Record<MuxKind, () => string> = {
 	subtitle: () => m.subs_language_unknown(),
 };
 
-export function trackLabel(track: MuxTrack): string {
+function trackLabel(track: MuxTrack): string {
 	const language = track.language && track.language !== 'und' ? languageName(track.language) : '';
 	// Video rarely has a language: it is called by what it is.
 	const fallback = track.subtitle === 'new' ? m.subs_new_track() : KIND_NAMES[track.kind]();
@@ -182,7 +182,7 @@ function TrackLine({ file, track, onOpen }: { file: File; track: MuxTrack; onOpe
 						{track.forced && <Badge>{m.track_badge_forced()}</Badge>}
 						{burned && <Badge>{m.tracks_col_burn()}</Badge>}
 					</span>
-					<span className="text-small text-muted min-w-0 truncate tabular">
+					<span className="text-small text-muted min-w-0 truncate x-tabular">
 						{blocked ?? facts.join(', ')}
 						{changes.length > 0 && <span className="text-ed-text"> → {changes.join(', ')}</span>}
 					</span>
@@ -245,7 +245,7 @@ function TrackList({
 			action={
 				<>
 					{tracks.length > 0 && (
-						<span className="text-small text-muted tabular">
+						<span className="text-small text-muted x-tabular">
 							{m.tracks_kept({ kept, count: tracks.length })}
 						</span>
 					)}
@@ -477,14 +477,14 @@ function TrackPage({
 	const burned = exportSettings?.burn === track.key;
 	const blocked = blockedReason(track);
 	const field =
-		'border-field bg-bg text-ui hover:border-muted h-9 w-full min-w-0 rounded-xs border px-2.5 transition-colors';
+		'border-field bg-raised text-ui hover:border-muted h-9 w-full min-w-0 rounded-xs border px-2.5 transition-colors';
 
 	return (
 		<>
 			<PanelTitle onBack={onBack}>{trackLabel(track)}</PanelTitle>
 
 			<div data-media={KIND_MEDIA[track.kind]} className="grid gap-1">
-				<p className="text-small text-muted tabular">{blocked ?? facts.join(', ')}</p>
+				<p className="text-small text-muted x-tabular">{blocked ?? facts.join(', ')}</p>
 				<Switch
 					label={m.track_in_file()}
 					checked={track.include}

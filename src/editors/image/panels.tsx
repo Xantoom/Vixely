@@ -200,7 +200,7 @@ export function CropPanel({
 						}}
 					/>
 				)}
-				<p className="text-small text-muted tabular">
+				<p className="text-small text-muted x-tabular">
 					{m.crop_result({ size: `${crop.width} × ${crop.height}` })}
 				</p>
 			</Section>

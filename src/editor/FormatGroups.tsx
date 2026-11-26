@@ -55,7 +55,7 @@ export function FormatGroups({
 							{holds ? (
 								<span className="bg-ed size-1.5 rounded-full" aria-hidden="true" />
 							) : (
-								<span className="text-caption text-muted tabular">{group.choices.length}</span>
+								<span className="text-caption text-muted x-tabular">{group.choices.length}</span>
 							)}
 							<ChevronDown
 								size={16}
@@ -76,7 +76,7 @@ export function FormatGroups({
 											onClick={() => {
 												onChoose(choice.id);
 											}}
-											className="bg-surface hover:bg-surface-2 aria-pressed:bg-ed-soft aria-pressed:shadow-[inset_0_0_0_1.5px_var(--ed)] ease-spring grid grid-cols-[1.5rem_minmax(0,1fr)] items-center gap-2.5 rounded-sm px-2.5 py-1.5 text-left transition-[background-color,transform] duration-200 active:scale-[0.98]"
+											className="bg-surface hover:bg-surface-2 aria-pressed:bg-ed-soft aria-pressed:shadow-[inset_0_0_0_1.5px_var(--ed)] ease-spring grid grid-cols-[1.5rem_minmax(0,1fr)] items-center gap-2.5 rounded-sm px-2.5 py-1.5 text-left transition-[background-color,transform] duration-200 motion-safe:active:scale-[0.98] motion-reduce:transition-none"
 										>
 											<span className="grid size-6 place-items-center" aria-hidden="true">
 												<span
@@ -93,7 +93,9 @@ export function FormatGroups({
 											</span>
 											<span className="grid min-w-0">
 												<span className="text-ui truncate">{choice.label}</span>
-												<span className="text-caption text-muted tabular">{choice.detail}</span>
+												<span className="text-caption text-muted x-tabular">
+													{choice.detail}
+												</span>
 											</span>
 										</button>
 									);

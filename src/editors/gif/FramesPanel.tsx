@@ -522,7 +522,7 @@ export function FramesPanel({ engine, fileName }: { engine: GifEngine; fileName:
 							className={`group hover:bg-surface aria-selected:bg-ed-soft aria-selected:shadow-[inset_0_0_0_1.5px_var(--ed)] grid content-start gap-1 rounded-sm p-1 text-left transition-colors ${several && shown === index ? 'outline-ed outline-2 outline-offset-1' : ''}`}
 						>
 							<Thumbnail engine={engine} frame={frame} composer={composer} />
-							<span className="text-caption text-muted group-aria-selected:text-ink-2 tabular flex justify-between px-0.5">
+							<span className="text-caption text-muted group-aria-selected:text-ink-2 x-tabular flex justify-between px-0.5">
 								<span>{shown + 1}</span>
 								<span>{Math.round(frame.duration * 1000)} ms</span>
 							</span>

@@ -115,7 +115,7 @@ function ChooseVideo({ onChoose }: { onChoose: () => void }) {
 			onClick={onChoose}
 			className="group border-line-2 bg-surface hover:border-ink-2 flex min-h-16 w-full items-center gap-3 rounded-md border-[1.5px] border-dashed px-4 py-3 text-left transition-colors"
 		>
-			<span className="bg-ed text-ed-ink grid size-9 flex-none place-items-center rounded-lg transition-transform duration-200 group-hover:-translate-y-0.5">
+			<span className="bg-ed text-ed-ink grid size-9 flex-none place-items-center rounded-lg transition-transform duration-200 motion-safe:group-hover:-translate-y-0.5 motion-reduce:transition-none">
 				<Film className="size-5" aria-hidden="true" />
 			</span>
 			<span className="text-ui font-semibold">{m.subs_video_load()}</span>

@@ -160,7 +160,7 @@ export function SocialShapes({ chosen, onChoose }: { chosen: string | null; onCh
 									>
 										<Glyph width={format.width} height={format.height} />
 										<span className="font-medium whitespace-nowrap">{format.label()}</span>
-										<span className="text-muted tabular">{format.aspect}</span>
+										<span className="text-muted x-tabular">{format.aspect}</span>
 									</button>
 								);
 							})}

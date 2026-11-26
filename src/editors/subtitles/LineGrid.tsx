@@ -144,7 +144,7 @@ export function LineGrid() {
 			onScroll={(event) => {
 				setScrollTop(event.currentTarget.scrollTop);
 			}}
-			className="bg-bg focus-visible:outline-ed relative h-full min-h-0 overflow-auto rounded-xs shadow-[inset_0_0_0_1px_var(--line)] outline-offset-[-2px]"
+			className="bg-raised focus-visible:outline-ed relative h-full min-h-0 overflow-auto rounded-xs shadow-[inset_0_0_0_1px_var(--line)] outline-offset-[-2px]"
 		>
 			<div
 				role="row"
@@ -192,7 +192,7 @@ export function LineGrid() {
 						>
 							<span
 								role="gridcell"
-								className={`tabular flex items-center gap-1 px-2 ${flagged ? `${alarm} font-semibold` : quiet} ${
+								className={`x-tabular flex items-center gap-1 px-2 ${flagged ? `${alarm} font-semibold` : quiet} ${
 									index === current
 										? 'shadow-[inset_3px_0_0_var(--ed)]'
 										: flagged
@@ -205,16 +205,16 @@ export function LineGrid() {
 									<span className="sr-only">{flagged.map((issue) => label(issue)).join(', ')}</span>
 								)}
 							</span>
-							<span role="gridcell" className="tabular flex items-center px-2">
+							<span role="gridcell" className="x-tabular flex items-center px-2">
 								{formatPreciseTime(line.start / 1000)}
 							</span>
-							<span role="gridcell" className="tabular flex items-center px-2">
+							<span role="gridcell" className="x-tabular flex items-center px-2">
 								{formatPreciseTime(line.end / 1000)}
 							</span>
 							{speedShown && (
 								<span
 									role="gridcell"
-									className={`tabular flex items-center px-2 ${
+									className={`x-tabular flex items-center px-2 ${
 										speed > FAST_READING ? `${alarm} font-semibold` : quiet
 									}`}
 								>

@@ -135,7 +135,7 @@ function systemFamily(family: string): Promise<Uint8Array[]> | null {
 const siteUrl = (path: string) => new URL(path, location.href).href;
 
 /** Where a font named by the subtitles is drawn from. */
-export type FontOrigin = 'file' | 'added' | 'system' | 'vixely' | 'equivalent' | 'missing';
+type FontOrigin = 'file' | 'added' | 'system' | 'vixely' | 'equivalent' | 'missing';
 
 export interface FontChoice {
 	/** The name the subtitles use. */
@@ -333,7 +333,7 @@ const fileIds = new WeakMap<Uint8Array, number>();
 let nextFileId = 0;
 
 /** A name for a set of font files, the same while the files are. */
-export function fontsKey(fonts: readonly (Uint8Array | string)[]): string {
+function fontsKey(fonts: readonly (Uint8Array | string)[]): string {
 	return fonts
 		.map((font) => {
 			if (typeof font === 'string') return font;

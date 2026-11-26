@@ -89,7 +89,7 @@ export function AudioStage({ opened }: { opened: OpenedFile }) {
 				{(tags?.title || tags?.artist || tags?.album) && (
 					<div className="grid min-w-0 gap-1 md:gap-1.5">
 						{tags.title && (
-							<p className="font-display text-[clamp(1.25rem,2.6vw,2.4rem)] leading-tight font-semibold tracking-[-0.02em] [overflow-wrap:anywhere]">
+							<p className="text-[clamp(1.25rem,2.6vw,2.4rem)] leading-tight font-semibold tracking-[-0.02em] [overflow-wrap:anywhere]">
 								{tags.title}
 							</p>
 						)}

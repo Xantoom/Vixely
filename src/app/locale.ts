@@ -24,7 +24,7 @@ export function useLocale(): Locale {
 const PREFIX = '/fr';
 
 /** Whether an address is a French page's. */
-export function isFrenchPath(path: string): boolean {
+function isFrenchPath(path: string): boolean {
 	return path === PREFIX || path.startsWith(`${PREFIX}/`);
 }
 

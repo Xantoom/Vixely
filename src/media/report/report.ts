@@ -25,7 +25,7 @@ import { type Chapter, type ContainerFacts, type DolbyVision, readContainerFacts
 export type { Chapter, ContentLight, DolbyVision, MasteringDisplay };
 
 /** How a track is meant to be used, as the file marks it. */
-export interface TrackFlags {
+interface TrackFlags {
 	default: boolean;
 	forced: boolean;
 	commentary: boolean;

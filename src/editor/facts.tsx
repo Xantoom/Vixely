@@ -5,7 +5,7 @@ export function Row({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-3">
 			<dt className="text-small text-muted whitespace-nowrap">{label}</dt>
-			<dd className="text-ui text-ink tabular text-right font-medium text-balance">{value}</dd>
+			<dd className="text-ui text-ink x-tabular text-right font-medium text-balance">{value}</dd>
 		</div>
 	);
 }

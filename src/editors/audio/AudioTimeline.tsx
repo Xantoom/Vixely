@@ -110,7 +110,7 @@ function Transport({ engine }: { engine: AudioEngine }) {
 						) : (
 							progress < 1 &&
 							peaks && (
-								<span className="text-small text-muted tabular truncate">
+								<span className="text-small text-muted x-tabular truncate">
 									{m.waveform_reading({ percent: Math.floor(progress * 100) })}
 								</span>
 							)
@@ -328,7 +328,7 @@ function WaveArea({ engine, trimmable, fill }: { engine: AudioEngine; trimmable:
 							onClick={() => {
 								apply((current) => restoreCut(current, index));
 							}}
-							className="bg-bg text-ink-2 hover:text-ink touch-target absolute top-1.5 left-1/2 grid size-6 -translate-x-1/2 place-items-center rounded-full shadow-[0_0_0_1px_var(--line-2)] transition-colors"
+							className="bg-raised text-ink-2 hover:text-ink x-touch-target absolute top-1.5 left-1/2 grid size-6 -translate-x-1/2 place-items-center rounded-full shadow-[0_0_0_1px_var(--line-2)] transition-colors"
 						>
 							<RotateCcw size={12} strokeWidth={2.4} />
 						</button>

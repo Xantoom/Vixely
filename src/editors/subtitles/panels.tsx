@@ -277,7 +277,7 @@ export function OffsetField({ id, value, onChange }: { id: string; value: number
 				if (event.key === 'Enter') commit();
 				if (event.key === 'Escape') setDraft(null);
 			}}
-			className="border-field bg-bg text-ink hover:border-muted tabular h-8 pointer-coarse:h-10 w-full cursor-text rounded-xs border px-2.5 text-small transition-colors"
+			className="border-field bg-raised text-ink hover:border-muted x-tabular h-8 pointer-coarse:h-10 w-full cursor-text rounded-xs border px-2.5 text-small transition-colors"
 		/>
 	);
 }
@@ -360,7 +360,7 @@ export function TimingPanel() {
 					].map(({ id, cue, target, index }) => (
 						<div key={id} className="grid gap-1.5">
 							<p className="text-ui text-ink-2 line-clamp-1">
-								<span className="text-muted tabular mr-2 text-caption">
+								<span className="text-muted x-tabular mr-2 text-caption">
 									{formatPreciseTime(cue.start / 1000)}
 								</span>
 								{cueLabel(cue, doc.format).replace(/\n/g, ' ')}
@@ -393,7 +393,7 @@ export function TimingPanel() {
 						</div>
 					))}
 					{sync ? (
-						<p className="text-small text-muted tabular">
+						<p className="text-small text-muted x-tabular">
 							{m.subs_sync_result({
 								percent: `${sync.scale >= 1 ? '+' : '−'}${formatPercent(decimal(Math.abs(sync.scale - 1) * 100, 2))}`,
 								offset: signedSeconds(Math.round(sync.offset)),

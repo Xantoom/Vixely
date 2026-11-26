@@ -351,7 +351,7 @@ function HoldButton({ className = '', onPicture = false }: { className?: string;
 			onBlur={() => {
 				setHolding(false);
 			}}
-			className={`aria-pressed:bg-ed aria-pressed:text-ed-ink touch-target grid size-9 place-items-center transition-colors duration-150 select-none disabled:cursor-default disabled:opacity-35 ${
+			className={`aria-pressed:bg-ed aria-pressed:text-ed-ink x-touch-target grid size-9 place-items-center transition-colors duration-150 select-none disabled:cursor-default disabled:opacity-35 ${
 				onPicture
 					? 'rounded-full bg-black/55 text-white backdrop-blur-md'
 					: 'text-ink-2 enabled:hover:bg-surface enabled:hover:text-ink relative rounded-sm'
@@ -443,7 +443,7 @@ function CompareLine() {
 				style={{ left: 'var(--split, 50%)' }}
 			>
 				<span className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-white shadow-[0_0_0_1px_rgb(0_0_0/0.25)]" />
-				<span className="group-focus-visible:outline-ed-text absolute top-1/2 left-1/2 grid size-8 -translate-1/2 place-items-center rounded-full bg-white text-black shadow-[0_0_0_1px_rgb(0_0_0/0.15),0_4px_12px_rgb(0_0_0/0.35)] transition-transform group-hover:scale-105 group-focus-visible:outline-2 group-focus-visible:outline-offset-2">
+				<span className="group-focus-visible:outline-ed-text absolute top-1/2 left-1/2 grid size-8 -translate-1/2 place-items-center rounded-full bg-white text-black shadow-[0_0_0_1px_rgb(0_0_0/0.15),0_4px_12px_rgb(0_0_0/0.35)] transition-transform motion-safe:group-hover:scale-105 group-focus-visible:outline-2 group-focus-visible:outline-offset-2 motion-reduce:transition-none">
 					<ChevronsLeftRight className="size-4" strokeWidth={2.2} aria-hidden="true" />
 				</span>
 			</div>
@@ -464,11 +464,11 @@ export function ZoomStatus({
 	return (
 		<>
 			{size && (
-				<span className="text-small text-muted tabular">
+				<span className="text-small text-muted x-tabular">
 					{size.width} × {size.height} px
 				</span>
 			)}
-			{children && <span className="text-small text-muted tabular ml-4 flex gap-4">{children}</span>}
+			{children && <span className="text-small text-muted x-tabular ml-4 flex gap-4">{children}</span>}
 			<span className="ml-auto flex items-center gap-1">{comparable && <CompareButtons />}</span>
 		</>
 	);

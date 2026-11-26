@@ -28,7 +28,7 @@ function Dialog({ label, onClose, children }: { label: string; onClose: () => vo
 			onClick={(event) => {
 				if (event.target === event.currentTarget) onClose();
 			}}
-			className="bg-bg text-ink animate-[pop_0.24s_var(--ease-spring)] mx-auto mt-[12vh] w-[min(36rem,calc(100%-2rem))] overflow-hidden rounded-md p-0 shadow-[0_24px_64px_-16px_rgb(0_0_0/0.35),0_0_0_1px_var(--line)] backdrop:bg-black/35 backdrop:backdrop-blur-[3px]"
+			className="bg-raised text-ink animate-[pop_0.24s_var(--ease-spring)] mx-auto mt-[12vh] w-[min(36rem,calc(100%-2rem))] overflow-hidden rounded-md p-0 shadow-[0_24px_64px_-16px_rgb(0_0_0/0.35),0_0_0_1px_var(--line)] backdrop:bg-black/35 backdrop:backdrop-blur-[3px]"
 		>
 			{children}
 		</dialog>

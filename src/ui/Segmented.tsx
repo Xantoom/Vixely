@@ -26,7 +26,7 @@ export function Segmented<T extends string>({
 					onClick={() => {
 						onChange(option.value);
 					}}
-					className="text-ui text-muted hover:text-ink aria-checked:bg-bg aria-checked:text-ink flex h-8 flex-1 items-center justify-center gap-1.5 rounded-[0.45rem] px-2.5 font-medium whitespace-nowrap transition-[background-color,color,box-shadow] duration-150 aria-checked:shadow-[0_1px_2px_rgb(0_0_0/0.08),0_0_0_1px_var(--line)]"
+					className="text-ui text-muted hover:text-ink aria-checked:bg-raised aria-checked:text-ink flex h-8 flex-1 items-center justify-center gap-1.5 rounded-[0.45rem] px-2.5 font-medium whitespace-nowrap transition-[background-color,color,box-shadow] duration-150 aria-checked:shadow-[0_1px_2px_rgb(0_0_0/0.08),0_0_0_1px_var(--line)]"
 				>
 					{option.label}
 				</button>

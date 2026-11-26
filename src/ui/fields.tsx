@@ -5,7 +5,7 @@ import { m } from '@/paraglide/messages.js';
 import { Dropdown, type DropdownOption } from './Dropdown';
 
 const FIELD =
-	'h-10 w-full rounded-xs border border-field bg-bg text-small text-ink transition-colors hover:border-muted';
+	'h-10 w-full rounded-xs border border-field bg-raised text-small text-ink transition-colors hover:border-muted';
 
 /** A label and its control on one row: the label reads left, the value sits right. */
 export function FieldRow({ label, htmlFor, children }: { label: string; htmlFor?: string; children: ReactNode }) {
@@ -116,7 +116,7 @@ export function TextField({
 				onChange={(event) => {
 					onChange(event.target.value);
 				}}
-				className="border-field bg-bg text-ui text-ink hover:border-muted placeholder:text-muted h-8 pointer-coarse:h-10 w-full cursor-text rounded-xs border px-2.5 transition-colors"
+				className="border-field bg-raised text-ui text-ink hover:border-muted placeholder:text-muted h-8 pointer-coarse:h-10 w-full cursor-text rounded-xs border px-2.5 transition-colors"
 			/>
 		</div>
 	);
@@ -161,7 +161,7 @@ export function TimeField({
 				if (event.key === 'Enter') commitDraft();
 				if (event.key === 'Escape') setDraft(null);
 			}}
-			className={`${FIELD} tabular cursor-text px-2.5`}
+			className={`${FIELD} x-tabular cursor-text px-2.5`}
 		/>
 	);
 }
@@ -232,13 +232,13 @@ export function Slider({
 							onChange(defaultValue);
 							onEnd();
 						}}
-						className="text-muted enabled:hover:bg-surface enabled:hover:text-ink touch-target relative -my-1 ml-auto grid size-6 flex-none cursor-pointer place-items-center rounded-xs transition-[opacity,color,background-color] duration-200 disabled:pointer-events-none disabled:opacity-0"
+						className="text-muted enabled:hover:bg-surface enabled:hover:text-ink x-touch-target relative -my-1 ml-auto grid size-6 flex-none cursor-pointer place-items-center rounded-xs transition-[opacity,color,background-color] duration-200 disabled:pointer-events-none disabled:opacity-0"
 					>
 						<RotateCcw className="size-3.5" aria-hidden="true" />
 					</button>
 				)}
 				<output
-					className={`tabular text-small text-ink flex-none text-right ${resettable ? '' : 'ml-auto'}`}
+					className={`x-tabular text-small text-ink flex-none text-right ${resettable ? '' : 'ml-auto'}`}
 					aria-label={m.slider_value({ label })}
 				>
 					{format(value)}
@@ -357,7 +357,7 @@ export function Switch({
 				aria-hidden="true"
 				className="bg-(--track-base) group-aria-checked:bg-ed ease-spring relative h-6 w-10 flex-none rounded-full transition-colors duration-200"
 			>
-				<span className="ease-spring absolute top-0.5 left-0.5 size-5 rounded-full bg-white shadow-sm transition-transform duration-200 group-aria-checked:translate-x-4" />
+				<span className="ease-spring absolute top-0.5 left-0.5 size-5 rounded-full bg-white shadow-sm transition-transform duration-200 group-aria-checked:translate-x-4 motion-reduce:transition-none" />
 			</span>
 		</button>
 	);

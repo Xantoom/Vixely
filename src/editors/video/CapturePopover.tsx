@@ -77,7 +77,7 @@ export function CapturePopover({
 								close(true);
 							}
 						}}
-						className="menu-in bg-bg text-ink fixed z-50 flex w-max max-w-[calc(100vw-16px)] min-w-60 flex-col rounded-md shadow-[0_0_0_1px_var(--line-2),0_18px_44px_-14px_rgb(0_0_0/0.4)]"
+						className="menu-in bg-raised text-ink fixed z-50 flex w-max max-w-[calc(100vw-16px)] min-w-60 flex-col rounded-md shadow-[0_0_0_1px_var(--line-2),0_18px_44px_-14px_rgb(0_0_0/0.4)]"
 						style={place ? { top: place.top, left: place.left } : { top: 0, left: 0, visibility: 'hidden' }}
 					>
 						<div className="border-line border-b p-1.5">

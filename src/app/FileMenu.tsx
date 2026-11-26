@@ -58,7 +58,7 @@ export function FileMenu({
 							{/* The whole name, which the bar cuts short: long names wrap anywhere. */}
 							<span className="text-ui text-ink font-medium [overflow-wrap:anywhere]">{fileName}</span>
 							{opened && (
-								<span className="text-small text-muted tabular">
+								<span className="text-small text-muted x-tabular">
 									{opened.format.toUpperCase()}, {formatBytes(opened.file.size)}
 								</span>
 							)}

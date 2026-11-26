@@ -58,7 +58,7 @@ function ColorChoice({
 					// The colour changes; how see-through it is stays.
 					onChange(toAssColor(color, opacity));
 				}}
-				className="size-9 rounded-full shadow-[inset_0_0_0_1px_rgb(0_0_0/0.18)] transition-transform duration-200 hover:scale-105"
+				className="size-9 rounded-full shadow-[inset_0_0_0_1px_rgb(0_0_0/0.18)] transition-transform duration-200 motion-safe:hover:scale-105 motion-reduce:transition-none"
 			>
 				<span
 					className="block size-full rounded-full"
@@ -135,7 +135,7 @@ export function StylesPanel({ title }: { title: string }) {
 						<span className="text-body truncate" style={{ fontFamily: item.fontname }}>
 							{item.name}
 						</span>
-						<span className="text-small text-muted tabular">
+						<span className="text-small text-muted x-tabular">
 							{m.style_lines({ count: use.get(item.name ?? '') ?? 0 })}
 						</span>
 					</button>
@@ -177,7 +177,7 @@ export function StylesPanel({ title }: { title: string }) {
 									preview((before) => updateStyle(before, index, { name }));
 								}}
 								onBlur={settle}
-								className="border-field bg-bg text-ui text-ink hover:border-muted h-8 pointer-coarse:h-10 w-full rounded-xs border px-2.5 transition-colors"
+								className="border-field bg-raised text-ui text-ink hover:border-muted h-8 pointer-coarse:h-10 w-full rounded-xs border px-2.5 transition-colors"
 							/>
 						</label>
 						<FontField

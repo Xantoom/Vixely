@@ -59,7 +59,7 @@ export function ViewScroll({
 		>
 			<div className="ease-out-soft absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-(--track-base) opacity-60 transition-[height] duration-150 group-hover:h-1.5" />
 			<div
-				className="ease-out-soft absolute top-1/2 h-1.5 min-w-6 -translate-y-1/2 rounded-full bg-(--scroll-thumb-hover) transition-[height,background-color] duration-150 group-hover:h-2.5 group-active:bg-(--ed)"
+				className="ease-out-soft absolute top-1/2 h-1.5 min-w-6 -translate-y-1/2 rounded-full bg-(--x-scrollbar-thumb) transition-[height,background-color] duration-150 group-hover:h-2.5 group-active:bg-(--ed)"
 				style={{ left: `${(view.start / duration) * 100}%`, width: `${(span / duration) * 100}%` }}
 			/>
 		</div>

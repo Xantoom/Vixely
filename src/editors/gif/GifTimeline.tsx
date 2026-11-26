@@ -132,7 +132,7 @@ export function GifTimeline({ engine }: { engine: GifEngine }) {
 				time={
 					<span className="flex items-center gap-3 whitespace-nowrap">
 						<GifTime length={engine.length} />
-						<span className="text-small text-muted tabular max-lg:hidden">
+						<span className="text-small text-muted x-tabular max-lg:hidden">
 							{output.width} × {output.height} px
 						</span>
 					</span>

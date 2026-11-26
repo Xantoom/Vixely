@@ -15,7 +15,7 @@ import { TASKS } from './tasks';
 
 const WRAP = 'mx-auto w-full max-w-[76rem] px-[clamp(1rem,4vw,2.5rem)]';
 const SECTION = 'grid scroll-mt-20 gap-8 pt-[clamp(4rem,8vw,6.5rem)] max-md:gap-5 max-md:pt-14';
-const H2 = 'font-display text-[clamp(1.5rem,3vw,2.25rem)] leading-[1.1] font-semibold tracking-[-0.015em] text-balance';
+const H2 = 'text-[clamp(1.5rem,3vw,2.25rem)] leading-[1.1] font-semibold tracking-[-0.015em] text-balance';
 
 /**
  * The pictures of an editor, as one row that scrolls sideways on a phone rather than a second row
@@ -153,7 +153,7 @@ function EditorTabs() {
 					<ShotTabs key={kind} shots={editor.shots} shot={shot} onShot={setShot} />
 				</figure>
 				<div className="grid gap-5">
-					<h3 className="font-display text-[1.5rem] font-semibold tracking-[-0.015em]">{editor.title}</h3>
+					<h3 className="text-[1.5rem] font-semibold tracking-[-0.015em]">{editor.title}</h3>
 					<p className="text-lead text-muted">{editor.lede}</p>
 					<ul className="grid gap-4">
 						{editor.points.map(([title, text]) => (
@@ -211,9 +211,9 @@ function Tasks() {
 							<summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden">
 								<Tile kind={kind} size="sm" />
 								<span className="text-body flex-1 font-semibold">{copy.editors[kind].title}</span>
-								<span className="text-small text-muted tabular">{tasks.length}</span>
+								<span className="text-small text-muted x-tabular">{tasks.length}</span>
 								<ChevronDown
-									className="text-muted size-5 transition-transform duration-200 group-open:rotate-180"
+									className="text-muted size-5 transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none"
 									aria-hidden="true"
 								/>
 							</summary>
@@ -273,7 +273,7 @@ function Faq() {
 						<summary className="text-lead flex cursor-pointer list-none items-center justify-between gap-4 py-5 font-semibold [&::-webkit-details-marker]:hidden">
 							{question}
 							<Plus
-								className="text-muted size-5 flex-none transition-transform duration-200 group-open:rotate-45"
+								className="text-muted size-5 flex-none transition-transform duration-200 group-open:rotate-45 motion-reduce:transition-none"
 								aria-hidden="true"
 							/>
 						</summary>

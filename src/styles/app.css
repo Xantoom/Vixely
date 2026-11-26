@@ -1,40 +1,40 @@
-@import 'tailwindcss';
-
 /*
- * Design tokens.
+ * The Xantoom design system sits in the lowest layer, so Tailwind and this file always win over it. It brings the
+ * grounds, text, status colours, type (Inter, JetBrains Mono), radii, focus ring, selection and scrollbars.
  *
- * The interface is neutral and flat; colour only carries meaning. Each media type owns one colour,
- * used wherever that media type appears and on what is active in its editor (the playhead, the
- * chosen tool, the primary action). The media itself is the only vivid thing on screen.
- *
- * Light and dark values live side by side through light-dark(). The theme follows the system
- * unless the user picked one, which sets data-theme on <html>.
+ * The names below are Vixely's own, mapped onto the design-system tokens, so the components keep their classes.
+ * The chrome is neutral and flat; colour only carries meaning. Each media type owns one colour, used wherever
+ * that media type appears and on what is active in its editor (the playhead, the chosen tool, the primary action).
+ * The media itself is the only vivid thing on screen.
  */
-:root {
-	color-scheme: light dark;
+@layer x;
+@import 'tailwindcss';
+@import 'xantoom-design/css';
+@import 'xantoom-design/themes/vixely.css';
 
-	--bg: light-dark(#ffffff, #161618);
-	--canvas: light-dark(#f1f1f3, #0d0d0e);
-	--surface: light-dark(#f6f6f7, #1d1d20);
-	--surface-2: light-dark(#ececef, #26262a);
-	--line: light-dark(#e6e6ea, #262629);
-	--line-2: light-dark(#d3d3d9, #36363c);
+:root {
+	--bg: var(--x-bg);
+	/* Behind the media: a step below the ground. */
+	--canvas: light-dark(color-mix(in oklab, var(--x-bg) 97%, black), color-mix(in oklab, var(--x-bg) 55%, black));
+	/*
+	 * Recessed fills (a segmented control's track, a search field, a hovered row), then a deeper one. What floats or
+	 * takes input (menus, dialogs, fields, the selected pill) sits on --x-raised (bg-raised).
+	 */
+	--surface: color-mix(in oklab, var(--x-bg) 95%, var(--x-fg));
+	--surface-2: color-mix(in oklab, var(--x-bg) 90%, var(--x-fg));
+	--line: var(--x-line);
+	--line-2: var(--x-line-strong);
 	/* The edge of what takes input (fields, checkboxes, radios): 3:1 against the page, so it can be found. */
-	--field-line: light-dark(#8a8a92, #6c6c74);
-	--track-base: light-dark(#d9dce2, #3a3c43);
-	--ink: light-dark(#111113, #f3f3f5);
-	--ink-2: light-dark(#3a3a40, #c8c8ce);
-	--muted: light-dark(#6c6c74, #8e8e97);
-	--primary: light-dark(#111113, #f3f3f5);
-	--primary-ink: light-dark(#ffffff, #111113);
-	--danger: light-dark(#c4321f, #ff6b57);
-	--focus: light-dark(#2f6bff, #7197ff);
+	--field-line: var(--x-control-border);
+	--track-base: var(--x-line-strong);
+	--ink: var(--x-fg);
+	--ink-2: var(--x-fg-muted);
+	--muted: var(--x-fg-faint);
+	--danger: var(--x-danger);
 	/* Tooltips: dark in both themes, lifted off the page in the dark one. */
 	--tip-bg: light-dark(#1d1d20, #0b0b0c);
-	--tip-ink: light-dark(#f3f3f5, #f3f3f5);
+	--tip-ink: #f3f3f5;
 	--tip-line: light-dark(transparent, #34343a);
-	--scroll-thumb: light-dark(rgb(17 17 19 / 0.2), rgb(243 243 245 / 0.2));
-	--scroll-thumb-hover: light-dark(rgb(17 17 19 / 0.42), rgb(243 243 245 / 0.42));
 
 	--video-1: light-dark(#2f5bff, #5c86ff);
 	--video-ink: light-dark(#ffffff, #0a0d16);
@@ -57,9 +57,9 @@
 	--subtitles-text: light-dark(#5537ee, #b5a3ff);
 
 	/* The current editor's colour; neutral outside an editor. */
-	--ed: var(--primary);
-	--ed-ink: var(--primary-ink);
-	--ed-text: var(--ink);
+	--ed: var(--x-fg);
+	--ed-ink: var(--x-bg);
+	--ed-text: var(--x-fg);
 }
 
 :root[data-theme='light'] {
@@ -107,14 +107,8 @@
 }
 
 @theme inline {
-	/* The system's own face, San Francisco on Apple devices, then Segoe, Helvetica and Arial. */
-	--font-sans:
-		-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable Text', 'Segoe UI', 'Helvetica Neue',
-		Helvetica, Arial, sans-serif;
-	--font-display:
-		-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI Variable Display', 'Segoe UI', 'Helvetica Neue',
-		Helvetica, Arial, sans-serif;
-	--font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+	--font-sans: var(--x-font-sans);
+	--font-mono: var(--x-font-mono);
 
 	/*
 	 * Type scale in rem, so the whole interface follows the browser's text size: 13, 14, 15, 16,
@@ -132,19 +126,19 @@
 	--text-lead--line-height: 1.5;
 	--text-title: 1.25rem;
 	--text-title--line-height: 1.15;
-	--text-display: clamp(2.25rem, 5vw, 3.5rem);
-	--text-display--line-height: 1.02;
 
-	--radius-xs: 0.45rem;
-	--radius-sm: 0.65rem;
-	--radius-md: 0.9rem;
+	/* The design system's radii, set by the Vixely theme's knob. */
+	--radius-xs: var(--x-radius-sm);
+	--radius-sm: var(--x-radius-md);
+	--radius-md: var(--x-radius-lg);
 
-	/* Motion: short, springy for things that pop, eased for things that slide. */
-	--ease-out-soft: cubic-bezier(0.22, 0.9, 0.24, 1);
+	/* Motion: the Xantoom ease for things that slide, a spring for things that pop. */
+	--ease-out-soft: var(--x-ease-out);
 	--ease-spring: cubic-bezier(0.3, 1.35, 0.45, 1);
 
 	--color-bg: var(--bg);
 	--color-canvas: var(--canvas);
+	--color-raised: var(--x-raised);
 	--color-surface: var(--surface);
 	--color-surface-2: var(--surface-2);
 	--color-line: var(--line);
@@ -153,8 +147,6 @@
 	--color-ink: var(--ink);
 	--color-ink-2: var(--ink-2);
 	--color-muted: var(--muted);
-	--color-primary: var(--primary);
-	--color-primary-ink: var(--primary-ink);
 	--color-danger: var(--danger);
 	--color-tip: var(--tip-bg);
 	--color-tip-ink: var(--tip-ink);
@@ -163,8 +155,6 @@
 	--color-ed-text: var(--ed-text);
 	--color-ed-soft: color-mix(in srgb, var(--ed) 13%, transparent);
 	--color-video: var(--video-1);
-	--color-audio: var(--audio-1);
-	--color-subtitles: var(--subtitles-1);
 }
 
 @layer base {
@@ -175,87 +165,13 @@
 	}
 
 	body {
-		background: var(--bg);
-		color: var(--ink);
-		font-family: var(--font-sans);
-		font-size: 1rem;
-		line-height: 1.5;
 		-webkit-font-smoothing: antialiased;
 		-moz-osx-font-smoothing: grayscale;
 	}
 
-	:focus-visible {
-		outline: 2px solid var(--focus);
-		outline-offset: 2px;
-	}
-
+	/* In an editor, the focus ring takes its colour. */
 	[data-media]:not([data-media='batch']) :focus-visible {
 		outline-color: var(--ed-text);
-	}
-
-	/* Whatever can be clicked shows it. */
-	a[href],
-	button:not(:disabled),
-	[role='button']:not([aria-disabled='true']),
-	[role='tab'],
-	[role='radio'],
-	[role='checkbox'],
-	[role='switch'],
-	[role='option'],
-	[role='menuitem'],
-	[role='menuitemradio'],
-	input[type='checkbox'],
-	input[type='radio'],
-	input[type='range'],
-	input[type='color'],
-	select:not(:disabled),
-	label[for],
-	label:has(input[type='checkbox'], input[type='radio']),
-	summary {
-		cursor: pointer;
-	}
-
-	button:disabled {
-		cursor: not-allowed;
-	}
-
-	/*
-	 * Scrollbars: a thin rounded thumb floating on no track, which thickens under the pointer.
-	 * Chromium and Safari draw them from the pseudo-elements; Firefox only takes a colour and a width.
-	 */
-	::-webkit-scrollbar {
-		width: 12px;
-		height: 12px;
-	}
-
-	::-webkit-scrollbar-track,
-	::-webkit-scrollbar-corner {
-		background: transparent;
-	}
-
-	::-webkit-scrollbar-thumb {
-		min-width: 40px;
-		min-height: 40px;
-		border: 3.5px solid transparent;
-		border-radius: 99px;
-		background: var(--scroll-thumb) padding-box;
-	}
-
-	::-webkit-scrollbar-thumb:hover {
-		border-width: 2px;
-		background-color: var(--scroll-thumb-hover);
-	}
-
-	::-webkit-scrollbar-thumb:active {
-		border-width: 2px;
-		background-color: var(--ed, var(--scroll-thumb-hover));
-	}
-
-	@supports not selector(::-webkit-scrollbar) {
-		* {
-			scrollbar-width: thin;
-			scrollbar-color: var(--scroll-thumb) transparent;
-		}
 	}
 
 	/* Handles that turn what they hold: a circular arrow, as in design tools. */
@@ -281,24 +197,6 @@
 	/* A button busy with its own work (Button's `busy`). */
 	button[aria-disabled='true'] {
 		cursor: progress;
-	}
-}
-
-@utility tabular {
-	font-variant-numeric: tabular-nums;
-}
-
-/*
- * On a touchscreen, a control smaller than a finger takes a 44 px band around it, without looking
- * any bigger. The element must be positioned (relative or absolute).
- */
-@utility touch-target {
-	@media (pointer: coarse) {
-		&::before {
-			content: '';
-			position: absolute;
-			inset: min(0px, calc((100% - 2.75rem) / 2));
-		}
 	}
 }
 
@@ -413,17 +311,11 @@
 }
 
 /*
- * Reduced motion: nothing travels or scales. Menus, tooltips and panels still fade in, briefly, so
- * what opened stays legible; the editor's sideways slide becomes the fade alone.
+ * Reduced motion: nothing travels or scales. Menus, tooltips and panels still fade in, briefly, so what opened
+ * stays legible; the editor's sideways slide becomes the fade alone. Hover and press transforms use Tailwind's
+ * motion-safe variant, and transform transitions motion-reduce:transition-none.
  */
 @media (prefers-reduced-motion: reduce) {
-	*,
-	*::before,
-	*::after {
-		transition-duration: 0.01ms !important;
-		animation-duration: 0.01ms !important;
-	}
-
 	.menu-in,
 	.tooltip-in,
 	.panel-in,

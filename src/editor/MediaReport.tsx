@@ -150,9 +150,9 @@ function More({ children }: { children: ReactNode }) {
 	const section = use(SectionTitle);
 	return (
 		<details className="group mt-1">
-			<summary className="text-small text-muted hover:text-ink touch-target relative flex w-fit cursor-pointer list-none items-center gap-1 rounded-xs [&::-webkit-details-marker]:hidden">
+			<summary className="text-small text-muted hover:text-ink x-touch-target relative flex w-fit cursor-pointer list-none items-center gap-1 rounded-xs [&::-webkit-details-marker]:hidden">
 				<ChevronRight
-					className="size-4 transition-transform duration-150 group-open:rotate-90"
+					className="size-4 transition-transform duration-150 group-open:rotate-90 motion-reduce:transition-none"
 					strokeWidth={2}
 					aria-hidden="true"
 				/>
@@ -487,7 +487,7 @@ export function ReportExtras({ report }: { report: MediaReport }) {
 							// Two chapters may share a start and a name.
 							// oxlint-disable-next-line react/no-array-index-key
 							<li key={index} className="grid grid-cols-[1.75rem_minmax(0,1fr)] items-baseline gap-2">
-								<span className="text-small text-muted tabular text-right">{index + 1}</span>
+								<span className="text-small text-muted x-tabular text-right">{index + 1}</span>
 								<span className="text-ui text-ink break-words">{chapter.name || '–'}</span>
 							</li>
 						))}

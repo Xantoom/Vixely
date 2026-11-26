@@ -196,7 +196,7 @@ export function BandsSection({ width, height }: { width: number; height: number 
 				</FieldRow>
 			)}
 			{current && (
-				<p className="text-small text-muted tabular">
+				<p className="text-small text-muted x-tabular">
 					{layout.width} × {layout.height} px
 				</p>
 			)}

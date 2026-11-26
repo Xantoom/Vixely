@@ -30,7 +30,7 @@ function ValueRow({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
 			<span className="text-ui text-ink-2">{label}</span>
-			<span className="tabular text-small">{value}</span>
+			<span className="x-tabular text-small">{value}</span>
 		</div>
 	);
 }
@@ -310,7 +310,7 @@ function AudioSpeed() {
 	);
 }
 
-export const EQ_PRESET_LABELS: Record<EqPresetId, () => string> = {
+const EQ_PRESET_LABELS: Record<EqPresetId, () => string> = {
 	flat: () => m.eq_flat(),
 	voice: () => m.eq_voice(),
 	bass: () => m.eq_bass(),
@@ -415,7 +415,7 @@ function EqCurve({
 					<span
 						key={db}
 						aria-hidden="true"
-						className="text-caption tabular text-muted pointer-events-none absolute left-1.5 -translate-y-1/2 leading-none"
+						className="text-caption x-tabular text-muted pointer-events-none absolute left-1.5 -translate-y-1/2 leading-none"
 						style={{ top: `${(curveY(db) / CURVE.height) * 100}%` }}
 					>
 						{db > 0 ? `+${db} dB` : `−${-db} dB`}
@@ -467,14 +467,14 @@ function EqCurve({
 								set(step === null ? 0 : gain + step);
 							}}
 							onKeyUp={onSettle}
-							className="group bg-bg touch-target absolute size-4 -translate-1/2 cursor-ns-resize touch-none rounded-full shadow-[inset_0_0_0_2.5px_var(--ed)]"
+							className="group bg-raised x-touch-target absolute size-4 -translate-1/2 cursor-ns-resize touch-none rounded-full shadow-[inset_0_0_0_2.5px_var(--ed)]"
 							style={{
 								left: `${curveX(band.frequency) * 100}%`,
 								top: `${(curveY(gain) / CURVE.height) * 100}%`,
 							}}
 						>
 							<span
-								className={`text-caption tabular bg-tip text-tip-ink pointer-events-none absolute bottom-full left-1/2 mb-1.5 -translate-x-1/2 rounded-xs px-1.5 py-0.5 whitespace-nowrap shadow-[0_0_0_1px_var(--tip-line)] transition-opacity ${active === index ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100'}`}
+								className={`text-caption x-tabular bg-tip text-tip-ink pointer-events-none absolute bottom-full left-1/2 mb-1.5 -translate-x-1/2 rounded-xs px-1.5 py-0.5 whitespace-nowrap shadow-[0_0_0_1px_var(--tip-line)] transition-opacity ${active === index ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100'}`}
 							>
 								{formatDb(gain)}
 							</span>
@@ -482,7 +482,7 @@ function EqCurve({
 					);
 				})}
 			</div>
-			<div className="text-caption text-muted tabular relative h-4" aria-hidden="true">
+			<div className="text-caption text-muted x-tabular relative h-4" aria-hidden="true">
 				{EQ_BANDS.map((band) => (
 					<span
 						key={band.frequency}

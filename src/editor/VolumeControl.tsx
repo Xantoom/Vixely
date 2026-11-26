@@ -115,7 +115,7 @@ export function VolumeControl() {
 								close(true);
 							}
 						}}
-						className="menu-in bg-bg text-ink fixed z-50 flex items-center gap-2 rounded-md py-1.5 pr-3.5 pl-1.5 shadow-[0_0_0_1px_var(--line-2),0_18px_44px_-14px_rgb(0_0_0/0.4)]"
+						className="menu-in bg-raised text-ink fixed z-50 flex items-center gap-2 rounded-md py-1.5 pr-3.5 pl-1.5 shadow-[0_0_0_1px_var(--line-2),0_18px_44px_-14px_rgb(0_0_0/0.4)]"
 						style={place ? { top: place.top, left: place.left } : { top: 0, left: 0, visibility: 'hidden' }}
 					>
 						<button
@@ -142,7 +142,7 @@ export function VolumeControl() {
 							className="volume-range w-32"
 							style={{ '--level': `${percent}%` }}
 						/>
-						<output className="text-small tabular text-ink w-12 text-right whitespace-nowrap">
+						<output className="text-small x-tabular text-ink w-12 text-right whitespace-nowrap">
 							{percent} %
 						</output>
 					</div>,

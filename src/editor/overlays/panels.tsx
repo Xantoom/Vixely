@@ -112,14 +112,14 @@ function ColorPicker({ label, value, onChange }: { label: string; value: string;
 							onChange(swatch);
 						}}
 						style={{ background: swatch }}
-						className="ease-spring touch-target relative size-7 rounded-full shadow-[inset_0_0_0_1px_rgb(0_0_0/0.15)] transition-transform duration-200 hover:scale-110 aria-checked:shadow-[0_0_0_2px_var(--bg),0_0_0_4px_var(--ed)]"
+						className="ease-spring x-touch-target relative size-7 rounded-full shadow-[inset_0_0_0_1px_rgb(0_0_0/0.15)] transition-transform duration-200 motion-safe:hover:scale-110 aria-checked:shadow-[0_0_0_2px_var(--bg),0_0_0_4px_var(--ed)] motion-reduce:transition-none"
 					/>
 				))}
 				<ColorPopover
 					label={m.color_other()}
 					value={current}
 					onChange={onChange}
-					className={`ease-spring size-7 rounded-full bg-[conic-gradient(#ff3b30,#ffe14d,#34c759,#00c7be,#0a84ff,#bf5af2,#ff3b30)] shadow-[inset_0_0_0_1px_rgb(0_0_0/0.15)] transition-transform duration-200 hover:scale-110 aria-expanded:shadow-[0_0_0_2px_var(--bg),0_0_0_4px_var(--ed)] ${SWATCHES.includes(current) ? '' : 'shadow-[0_0_0_2px_var(--bg),0_0_0_4px_var(--ed)]'}`}
+					className={`ease-spring size-7 rounded-full bg-[conic-gradient(#ff3b30,#ffe14d,#34c759,#00c7be,#0a84ff,#bf5af2,#ff3b30)] shadow-[inset_0_0_0_1px_rgb(0_0_0/0.15)] transition-transform duration-200 motion-safe:hover:scale-110 aria-expanded:shadow-[0_0_0_2px_var(--bg),0_0_0_4px_var(--ed)] ${SWATCHES.includes(current) ? '' : 'shadow-[0_0_0_2px_var(--bg),0_0_0_4px_var(--ed)]'}`}
 				>
 					{!SWATCHES.includes(current) && (
 						<span
@@ -482,7 +482,7 @@ function TextStyles({ onAdd }: { onAdd: (style: TextStyleId) => void }) {
 						onClick={() => {
 							onAdd(style);
 						}}
-						className="bg-surface hover:bg-surface-2 ease-spring grid h-16 place-items-center rounded-sm px-2 transition-[background-color,transform] duration-200 active:scale-[0.97]"
+						className="bg-surface hover:bg-surface-2 ease-spring grid h-16 place-items-center rounded-sm px-2 transition-[background-color,transform] duration-200 motion-safe:active:scale-[0.97] motion-reduce:transition-none"
 					>
 						<span
 							className="truncate text-[1.2rem] leading-none"
@@ -537,7 +537,7 @@ function ShapePicker({ color, onAdd }: { color: string; onAdd: (overlay: Overlay
 					onClick={() => {
 						onAdd(createShape(id, color));
 					}}
-					className="bg-surface hover:bg-surface-2 text-ink-2 ease-spring grid aspect-square place-items-center rounded-sm transition-transform duration-200 active:scale-95"
+					className="bg-surface hover:bg-surface-2 text-ink-2 ease-spring grid aspect-square place-items-center rounded-sm transition-transform duration-200 motion-safe:active:scale-95 motion-reduce:transition-none"
 				>
 					<svg viewBox="0 0 24 24" className="size-6" aria-hidden="true">
 						<path d={SHAPE_ICONS[id]} fill="currentColor" fillRule="evenodd" />
@@ -562,7 +562,7 @@ function StickerPicker({ onAdd }: { onAdd: (overlay: Overlay) => void }) {
 								onClick={() => {
 									onAdd(createSticker(emoji));
 								}}
-								className="hover:bg-surface ease-spring grid aspect-square place-items-center rounded-sm transition-transform duration-200 hover:scale-110 active:scale-95"
+								className="hover:bg-surface ease-spring grid aspect-square place-items-center rounded-sm transition-transform duration-200 motion-safe:hover:scale-110 motion-safe:active:scale-95 motion-reduce:transition-none"
 							>
 								<img src={`/stickers/${emoji}.svg`} alt="" className="size-8" draggable={false} />
 							</button>
@@ -635,7 +635,7 @@ function ZoneEffects({
 					onClick={() => {
 						onChoose(id);
 					}}
-					className="text-ui text-ink-2 hover:bg-surface aria-checked:bg-ed-soft aria-checked:text-ink ease-spring flex h-11 items-center justify-center gap-2 rounded-sm font-medium shadow-[inset_0_0_0_1px_var(--line-2)] transition-[background-color,box-shadow,transform] duration-200 active:scale-[0.98] aria-checked:shadow-[inset_0_0_0_1.5px_var(--ed)]"
+					className="text-ui text-ink-2 hover:bg-surface aria-checked:bg-ed-soft aria-checked:text-ink ease-spring flex h-11 items-center justify-center gap-2 rounded-sm font-medium shadow-[inset_0_0_0_1px_var(--line-2)] transition-[background-color,box-shadow,transform] duration-200 motion-safe:active:scale-[0.98] aria-checked:shadow-[inset_0_0_0_1.5px_var(--ed)] motion-reduce:transition-none"
 				>
 					<Icon size={18} aria-hidden="true" />
 					{name()}
@@ -786,7 +786,7 @@ function LayerList({ editing }: { editing: OverlayEditing }) {
 						</span>
 						<span className="text-ui min-w-0 flex-1 truncate font-medium">{layerName(overlay)}</span>
 						{editing.timing && (
-							<span className="text-caption text-muted tabular flex-none">
+							<span className="text-caption text-muted x-tabular flex-none">
 								{overlay.span
 									? `${formatClock(overlay.span.start)}–${formatClock(overlay.span.end)}`
 									: m.layers_always()}
@@ -932,7 +932,7 @@ export function LayersPanel({
 				<Section
 					title={m.layers_applied()}
 					action={
-						<span className="bg-surface text-small tabular grid h-6 min-w-6 place-items-center rounded-full px-2 font-semibold">
+						<span className="bg-surface text-small x-tabular grid h-6 min-w-6 place-items-center rounded-full px-2 font-semibold">
 							{editing.overlays.length}
 						</span>
 					}

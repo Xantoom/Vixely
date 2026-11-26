@@ -119,7 +119,7 @@ export function KeptPanel<T extends Kept>({ editing }: { editing: KeptEditing<T>
 								key={`${removed.start}-${removed.end}`}
 								className="border-line flex items-center justify-between gap-3 border-b py-1 last:border-b-0"
 							>
-								<span className="tabular text-small">
+								<span className="x-tabular text-small">
 									{formatPreciseTime(removed.start)} → {formatPreciseTime(removed.end)}
 								</span>
 								<IconButton

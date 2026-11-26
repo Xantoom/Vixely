@@ -134,7 +134,7 @@ export function useExportMode(): 'copy' | 'encode' {
  * The container written when converting; copying keeps the source's kind (MKV for Matroska and
  * WebM, MP4 for MP4 and QuickTime).
  */
-export function exportTarget(mode: 'copy' | 'encode', settings: VideoExportSettings | null): VideoContainer | null {
+function exportTarget(mode: 'copy' | 'encode', settings: VideoExportSettings | null): VideoContainer | null {
 	return mode === 'encode' ? (settings?.container ?? null) : null;
 }
 
@@ -553,7 +553,7 @@ function Outcome({ upright }: { upright: Size }) {
 					<div key={row.label} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
 						<dt className="text-ui text-ink-2">{row.label}</dt>
 						<dd
-							className={`tabular text-small text-right ${row.tone === 'danger' ? 'text-danger' : 'text-ink'}`}
+							className={`x-tabular text-small text-right ${row.tone === 'danger' ? 'text-danger' : 'text-ink'}`}
 						>
 							{row.value}
 						</dd>
