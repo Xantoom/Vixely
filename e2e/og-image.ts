@@ -48,7 +48,8 @@ await card.setContent(`<!doctype html>
 	}
 	.text { position: absolute; left: 72px; top: 0; bottom: 0; width: 380px; display: grid; align-content: center; gap: 28px; }
 	.mark { display: flex; align-items: center; gap: 20px; }
-	.tile { width: 76px; height: 76px; border-radius: 20px; background: #f3f3f5; display: grid; place-items: center; }
+	.tile { width: 76px; height: 76px; flex: none; }
+	.tile svg { display: block; width: 100%; height: 100%; }
 	.name { font-size: 72px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
 	.line { font-size: 34px; font-weight: 600; line-height: 1.25; letter-spacing: -0.01em; color: #c8c8ce; text-wrap: balance; }
 	.editors { font-size: 22px; line-height: 1.5; color: #8e8e97; }
@@ -61,9 +62,7 @@ await card.setContent(`<!doctype html>
 </style>
 <div class="text">
 	<div class="mark">
-		<div class="tile">
-			<svg width="48" height="48" viewBox="0 0 24 24"><path d="M5.8 7h3.1l3.1 8.2L15.1 7h3.1l-4.7 11h-3z" fill="#111113"/></svg>
-		</div>
+		<div class="tile">${readFileSync(resolve('../public/favicon.svg'), 'utf8').replace('viewBox="0 0 32 32"', 'viewBox="1 1 30 30"')}</div>
 		<div class="name">Vixely</div>
 	</div>
 	<div class="line">Media editors in your browser</div>
