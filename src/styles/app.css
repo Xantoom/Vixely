@@ -9,7 +9,7 @@
  */
 @layer x;
 @import 'tailwindcss';
-@import 'xantoom-design/css';
+@import 'xantoom-design/foundation';
 @import 'xantoom-design/themes/vixely.css';
 
 :root {

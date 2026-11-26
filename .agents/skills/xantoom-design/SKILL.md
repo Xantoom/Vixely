@@ -4,7 +4,7 @@ description: The Xantoom design system, shared by every Xantoom web app (Vixion,
 license: MIT
 metadata:
   author: Xantoom
-  version: 0.2.1
+  version: 0.2.2
 ---
 
 # Xantoom design system
@@ -51,7 +51,7 @@ The package is `xantoom-design` (github.com/Xantoom/xantoom-design). It ships pu
 ## Adding the design system to a project
 
 ```sh
-bun add github:Xantoom/xantoom-design#v0.2.1
+bun add github:Xantoom/xantoom-design#v0.2.2
 bunx xantoom-design sync          # copies this skill into .agents/skills/, links .claude/skills/, adds pointers
 ```
 
@@ -63,6 +63,10 @@ install. Commit the synced files: an agent reads them before any install.
 @import "xantoom-design/css";
 @import "xantoom-design/themes/vexode.css";
 ```
+
+An app that brings its own components (React Aria, a Tailwind kit) imports `xantoom-design/foundation` instead of
+`xantoom-design/css`: the same tokens, reset, base, motion and utilities, without the components (about 3 KB brotli
+instead of 8). It still follows the rules below.
 
 ```html
 <meta name="color-scheme" content="light dark">
