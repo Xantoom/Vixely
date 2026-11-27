@@ -58,7 +58,7 @@ export function CapturePopover({
 					show();
 				}}
 				// The icon sits as far from the line before it as the time does.
-				className="text-muted hover:bg-surface hover:text-ink aria-expanded:bg-surface aria-expanded:text-ink -ml-1.5 grid size-10 flex-none place-items-center rounded-sm transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50 max-md:ml-0"
+				className="text-fg-faint hover:bg-sunken hover:text-fg aria-expanded:bg-sunken aria-expanded:text-fg -ml-1.5 grid size-10 flex-none place-items-center rounded-md transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50 max-md:ml-0"
 			>
 				<Camera size={17} aria-hidden="true" />
 			</button>
@@ -77,7 +77,7 @@ export function CapturePopover({
 								close(true);
 							}
 						}}
-						className="menu-in bg-raised text-ink fixed z-50 flex w-max max-w-[calc(100vw-16px)] min-w-60 flex-col rounded-md shadow-[0_0_0_1px_var(--line-2),0_18px_44px_-14px_rgb(0_0_0/0.4)]"
+						className="menu-in bg-raised text-fg fixed z-50 flex w-max max-w-[calc(100vw-16px)] min-w-60 flex-col rounded-lg shadow-[0_0_0_1px_var(--x-line-strong),0_18px_44px_-14px_rgb(0_0_0/0.4)]"
 						style={place ? { top: place.top, left: place.left } : { top: 0, left: 0, visibility: 'hidden' }}
 					>
 						<div className="border-line border-b p-1.5">
@@ -100,9 +100,9 @@ export function CapturePopover({
 										close(true);
 										onRun(source, action);
 									}}
-									className="text-ui hover:bg-surface-2 focus-visible:bg-surface-2 flex min-h-9 items-center gap-2.5 rounded-sm px-2.5 py-1.5 text-left whitespace-nowrap transition-colors duration-100 outline-none"
+									className="text-ui hover:bg-sunken-2 focus-visible:bg-sunken-2 flex min-h-9 items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left whitespace-nowrap transition-colors duration-100 outline-none"
 								>
-									<Icon className="text-ink-2 size-4 flex-none" aria-hidden="true" />
+									<Icon className="text-fg-muted size-4 flex-none" aria-hidden="true" />
 									{label}
 								</button>
 							))}

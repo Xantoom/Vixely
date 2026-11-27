@@ -23,7 +23,7 @@ export function PicturePreview({ picture }: { picture: Picture }) {
 	return (
 		<canvas
 			ref={canvasRef}
-			className="min-h-0 w-full flex-1 rounded-xs bg-black object-contain p-2 shadow-[0_0_0_1px_var(--line)]"
+			className="min-h-0 w-full flex-1 rounded-sm bg-black object-contain p-2 shadow-[0_0_0_1px_var(--x-line)]"
 			aria-label={m.subs_picture()}
 		/>
 	);
@@ -56,7 +56,7 @@ export function PictureThumb({ picture }: { picture: Picture }) {
 				className="h-6 max-w-full min-w-0 rounded-[3px] bg-black object-contain px-1"
 				aria-label={picture.forced ? m.subs_picture_forced() : m.subs_picture()}
 			/>
-			{picture.forced && <span className="text-small text-muted flex-none">{m.subs_forced()}</span>}
+			{picture.forced && <span className="text-small text-fg-faint flex-none">{m.subs_forced()}</span>}
 		</span>
 	);
 }

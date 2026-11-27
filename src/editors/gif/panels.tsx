@@ -196,7 +196,7 @@ export function BandsSection({ width, height }: { width: number; height: number 
 				</FieldRow>
 			)}
 			{current && (
-				<p className="text-small text-muted x-tabular">
+				<p className="text-small text-fg-faint x-tabular">
 					{layout.width} × {layout.height} px
 				</p>
 			)}
@@ -617,7 +617,7 @@ export function ExportFooter({
 	return (
 		<>
 			{status === 'saving' && (
-				<div className="bg-surface-2 h-1 overflow-hidden rounded-full" aria-hidden="true">
+				<div className="bg-sunken-2 h-1 overflow-hidden rounded-full" aria-hidden="true">
 					<div
 						className={`bg-ed h-full origin-left transition-transform duration-200 ${progress === null ? 'animate-pulse' : ''}`}
 						style={{ transform: `scaleX(${progress ?? 1})` }}

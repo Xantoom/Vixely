@@ -132,7 +132,7 @@ export function GifTimeline({ engine }: { engine: GifEngine }) {
 				time={
 					<span className="flex items-center gap-3 whitespace-nowrap">
 						<GifTime length={engine.length} />
-						<span className="text-small text-muted x-tabular max-lg:hidden">
+						<span className="text-small text-fg-faint x-tabular max-lg:hidden">
 							{output.width} × {output.height} px
 						</span>
 					</span>
@@ -165,7 +165,7 @@ export function GifTimeline({ engine }: { engine: GifEngine }) {
 					aria-label={m.filmstrip()}
 					// Focusable, so the keyboard reaches it: the arrows step through the frames.
 					tabIndex={0}
-					className="focus-visible:outline-ed-text relative cursor-pointer touch-none overflow-visible rounded-sm bg-[color-mix(in_srgb,var(--gif-1)_16%,var(--bg))] select-none"
+					className="focus-visible:outline-ed-text relative cursor-pointer touch-none overflow-visible rounded-md bg-[color-mix(in_srgb,var(--gif-1)_16%,var(--x-bg))] select-none"
 					style={{ height: STRIP_HEIGHT }}
 					onPointerDown={(event) => {
 						if (event.button !== 0) return;
@@ -174,7 +174,7 @@ export function GifTimeline({ engine }: { engine: GifEngine }) {
 					}}
 				>
 					{/* Everything drawn to the timeline scale is clipped to the strip when zoomed in. */}
-					<div className="absolute inset-0 overflow-hidden rounded-sm">
+					<div className="absolute inset-0 overflow-hidden rounded-md">
 						{source && <Filmstrip source={source} width={width} view={view} />}
 						{[
 							{ start: 0, end: doc.trim.start },
@@ -189,7 +189,7 @@ export function GifTimeline({ engine }: { engine: GifEngine }) {
 								/>
 							))}
 						<div
-							className="shadow-[inset_0_0_0_2px_var(--ed)] pointer-events-none absolute inset-y-0 rounded-sm"
+							className="shadow-[inset_0_0_0_2px_var(--ed)] pointer-events-none absolute inset-y-0 rounded-md"
 							style={{ left: percent(doc.trim.start), width: length(doc.trim.end - doc.trim.start) }}
 						/>
 					</div>

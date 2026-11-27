@@ -4,8 +4,8 @@ import type { ReactNode } from 'react';
 export function Row({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-3">
-			<dt className="text-small text-muted whitespace-nowrap">{label}</dt>
-			<dd className="text-ui text-ink x-tabular text-right font-medium text-balance">{value}</dd>
+			<dt className="text-small text-fg-faint whitespace-nowrap">{label}</dt>
+			<dd className="text-ui text-fg x-tabular text-right font-medium text-balance">{value}</dd>
 		</div>
 	);
 }
@@ -14,8 +14,8 @@ export function Row({ label, value }: { label: string; value: string }) {
 export function TextRow({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] items-baseline gap-3">
-			<dt className="text-small text-muted">{label}</dt>
-			<dd className="text-ui text-ink text-right font-medium break-words">{value}</dd>
+			<dt className="text-small text-fg-faint">{label}</dt>
+			<dd className="text-ui text-fg text-right font-medium break-words">{value}</dd>
 		</div>
 	);
 }

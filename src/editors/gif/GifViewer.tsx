@@ -117,7 +117,7 @@ function GifPicture({
 		<>
 			<canvas
 				ref={canvasRef}
-				className={`block size-full stage-picture bg-[conic-gradient(var(--surface-2)_25%,var(--bg)_0_50%,var(--surface-2)_0_75%,var(--bg)_0)] bg-size-[16px_16px] ${scale > 1.5 ? '[image-rendering:pixelated]' : ''}`}
+				className={`block size-full stage-picture bg-[conic-gradient(var(--sunken-2)_25%,var(--x-bg)_0_50%,var(--sunken-2)_0_75%,var(--x-bg)_0)] bg-size-[16px_16px] ${scale > 1.5 ? '[image-rendering:pixelated]' : ''}`}
 			/>
 			{!cropping && overlays && (
 				<OverlayLayer

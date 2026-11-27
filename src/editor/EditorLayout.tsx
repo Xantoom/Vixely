@@ -128,7 +128,7 @@ function Rail({
 			>
 				<span
 					aria-hidden="true"
-					className={`bg-ed-soft pointer-events-none absolute top-0 left-0 rounded-md ${moved.current ? 'ease-spring transition-[transform,width,height,opacity] duration-300 motion-reduce:transition-none' : ''} ${mark ? 'opacity-100' : 'opacity-0'}`}
+					className={`bg-ed-soft pointer-events-none absolute top-0 left-0 rounded-lg ${moved.current ? 'ease-spring transition-[transform,width,height,opacity] duration-300 motion-reduce:transition-none' : ''} ${mark ? 'opacity-100' : 'opacity-0'}`}
 					style={
 						mark
 							? {
@@ -164,7 +164,7 @@ function Rail({
 										behavior: 'smooth',
 									});
 								}}
-								className={`group text-caption enabled:hover:bg-surface enabled:hover:text-ink disabled:opacity-40 aria-pressed:text-ed-text relative grid min-w-[4.5rem] aria-pressed:hover:bg-transparent flex-1 justify-items-center gap-1.5 rounded-md px-1 pt-3 pb-2.5 font-medium text-muted transition-colors duration-200 md:flex-none ${hidden ? 'max-md:hidden' : ''}`}
+								className={`group text-caption enabled:hover:bg-sunken enabled:hover:text-fg disabled:opacity-40 aria-pressed:text-ed-text relative grid min-w-[4.5rem] aria-pressed:hover:bg-transparent flex-1 justify-items-center gap-1.5 rounded-lg px-1 pt-3 pb-2.5 font-medium text-fg-faint transition-colors duration-200 md:flex-none ${hidden ? 'max-md:hidden' : ''}`}
 							>
 								<Icon
 									strokeWidth={1.75}
@@ -184,7 +184,7 @@ function Rail({
 						<button
 							type="button"
 							disabled
-							className="text-caption text-muted grid min-w-[4.5rem] flex-1 justify-items-center gap-1.5 rounded-md px-1 pt-3 pb-2.5 font-medium opacity-40 md:hidden"
+							className="text-caption text-fg-faint grid min-w-[4.5rem] flex-1 justify-items-center gap-1.5 rounded-lg px-1 pt-3 pb-2.5 font-medium opacity-40 md:hidden"
 						>
 							{moreFace}
 						</button>
@@ -202,7 +202,7 @@ function Rail({
 							})}
 							onChange={onSelect}
 							className="min-w-[4.5rem] flex-1 md:hidden"
-							buttonClassName={`text-caption h-auto! w-full items-start gap-1.5 rounded-md! px-1 pt-3 pb-2.5 font-medium ${foldedOpen ? 'bg-ed-soft text-ed-text! hover:bg-ed-soft!' : 'text-muted!'}`}
+							buttonClassName={`text-caption h-auto! w-full items-start gap-1.5 rounded-lg! px-1 pt-3 pb-2.5 font-medium ${foldedOpen ? 'bg-ed-soft text-ed-text! hover:bg-ed-soft!' : 'text-fg-faint!'}`}
 						>
 							{moreFace}
 						</Menu>
@@ -216,9 +216,9 @@ function Rail({
 				onClick={() => {
 					onSelect('export');
 				}}
-				className="group text-caption text-ed-text enabled:hover:bg-ed-soft aria-pressed:bg-ed-soft relative m-1.5 grid min-w-15 flex-none md:mx-1.5 md:mt-0 md:mb-3 justify-items-center gap-1.5 rounded-md px-1 pt-2.5 pb-2.5 font-semibold transition-colors duration-200 disabled:opacity-40"
+				className="group text-caption text-ed-text enabled:hover:bg-ed-soft aria-pressed:bg-ed-soft relative m-1.5 grid min-w-15 flex-none md:mx-1.5 md:mt-0 md:mb-3 justify-items-center gap-1.5 rounded-lg px-1 pt-2.5 pb-2.5 font-semibold transition-colors duration-200 disabled:opacity-40"
 			>
-				<span className="bg-ed text-ed-ink ease-spring grid size-8 place-items-center rounded-sm transition-transform duration-300 group-enabled:group-hover:-translate-y-px motion-reduce:transition-none">
+				<span className="bg-ed text-ed-ink ease-spring grid size-8 place-items-center rounded-md transition-transform duration-300 group-enabled:group-hover:-translate-y-px motion-reduce:transition-none">
 					<Download strokeWidth={2} aria-hidden="true" className="size-[1.1rem]" />
 				</span>
 				<span className="max-w-full text-center leading-tight text-balance">{TOOL_LABELS.export()}</span>
@@ -592,7 +592,7 @@ export function EditorLayout({
 				// The panel's column slides open and shut, the stage following it (sizes measured in
 				// JavaScript wait meanwhile). Coming from another editor, the frame stays put: only what
 				// it shows comes in, from that editor's side.
-				className={`ease-out-soft grid min-h-0 flex-1 grid-cols-1 transition-[grid-template-columns] duration-240 md:grid-rows-[minmax(0,1fr)_auto] ${phoneRows} ${open ? 'md:grid-cols-[var(--rail-w)_var(--panel-w)_minmax(0,1fr)]' : 'md:grid-cols-[var(--rail-w)_0px_minmax(0,1fr)]'}`}
+				className={`ease-out grid min-h-0 flex-1 grid-cols-1 transition-[grid-template-columns] duration-240 md:grid-rows-[minmax(0,1fr)_auto] ${phoneRows} ${open ? 'md:grid-cols-[var(--rail-w)_var(--panel-w)_minmax(0,1fr)]' : 'md:grid-cols-[var(--rail-w)_0px_minmax(0,1fr)]'}`}
 			>
 				<div className="z-30 max-md:order-4 md:row-span-2">
 					<Rail

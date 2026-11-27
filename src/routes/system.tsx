@@ -10,7 +10,7 @@ import { m } from '@/paraglide/messages.js';
 
 function State({ ok, vixely = false }: { ok: boolean; vixely?: boolean }) {
 	return (
-		<span className={ok ? 'text-ink' : 'text-muted'}>
+		<span className={ok ? 'text-fg' : 'text-fg-faint'}>
 			{ok ? (vixely ? m.available_vixely() : m.available()) : m.unavailable()}
 		</span>
 	);
@@ -22,7 +22,7 @@ function CodecTable({ title, codecs }: { title: string; codecs: CodecSupport[] }
 			<h2 className="text-title font-bold tracking-[-0.02em]">{title}</h2>
 			<table className="text-body w-full border-collapse">
 				<thead>
-					<tr className="text-ui text-muted border-line border-b text-left">
+					<tr className="text-ui text-fg-faint border-line border-b text-left">
 						<th className="py-2 pr-3 font-medium">{m.system_codec()}</th>
 						<th className="py-2 pr-3 font-medium">{m.system_decode()}</th>
 						<th className="py-2 font-medium">{m.system_encode()}</th>
@@ -96,7 +96,7 @@ function SystemScreen() {
 					<h1 className="max-w-[18ch] text-[clamp(2.25rem,5vw,3.5rem)] leading-[1.02] font-bold tracking-[-0.025em] text-balance">
 						{m.system_title()}
 					</h1>
-					<p className="text-lead text-muted max-w-[52ch]">{m.system_lede()}</p>
+					<p className="text-lead text-fg-faint max-w-[52ch]">{m.system_lede()}</p>
 				</div>
 
 				{caps ? (
@@ -109,7 +109,7 @@ function SystemScreen() {
 										key={label}
 										className="border-line grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b py-2.5"
 									>
-										<dt className="text-ink-2">{label}</dt>
+										<dt className="text-fg-muted">{label}</dt>
 										<dd>
 											{typeof value === 'string' ? (
 												<span className="x-tabular">{value}</span>
@@ -125,7 +125,7 @@ function SystemScreen() {
 						<CodecTable title={m.system_audio_codecs()} codecs={caps.audio} />
 					</div>
 				) : (
-					<p className="text-body text-muted">{m.system_checking()}</p>
+					<p className="text-body text-fg-faint">{m.system_checking()}</p>
 				)}
 			</main>
 			<SiteFooter />

@@ -48,7 +48,7 @@ function PlayheadLine({ view }: { view: Range }) {
 	if (left < 0 || left > 100) return null;
 	return (
 		<div
-			className="bg-ink pointer-events-none absolute inset-y-0 w-px"
+			className="bg-fg pointer-events-none absolute inset-y-0 w-px"
 			style={{ left: `${left}%` }}
 			aria-hidden="true"
 		/>
@@ -294,7 +294,8 @@ export function AudioBox({ transport = true }: { transport?: boolean }) {
 	const playBefore = (small = false) => (
 		<IconButton
 			label={m.subs_play_before()}
-			className={small ? 'enabled:hover:bg-surface-2! size-8!' : 'enabled:hover:bg-surface-2! size-9!'}
+			size={small ? 'sm' : 'md'}
+			className="enabled:hover:bg-sunken-2!"
 			disabled={!cue}
 			onClick={() => {
 				if (cue) playRange(Math.max(0, cue.start / 1000 - AROUND), cue.start / 1000);
@@ -306,7 +307,8 @@ export function AudioBox({ transport = true }: { transport?: boolean }) {
 	const playLine = (phone = false) => (
 		<IconButton
 			label={m.subs_play_line()}
-			className={phone ? 'enabled:hover:bg-surface-2! size-8! sm:hidden' : 'enabled:hover:bg-surface-2! size-9!'}
+			size={phone ? 'sm' : 'md'}
+			className={phone ? 'enabled:hover:bg-sunken-2! sm:hidden' : 'enabled:hover:bg-sunken-2!'}
 			disabled={!cue}
 			onClick={() => {
 				if (cue) playRange(cue.start / 1000, cue.end / 1000);
@@ -318,7 +320,8 @@ export function AudioBox({ transport = true }: { transport?: boolean }) {
 	const playAfter = (small = false) => (
 		<IconButton
 			label={m.subs_play_after()}
-			className={small ? 'enabled:hover:bg-surface-2! size-8!' : 'enabled:hover:bg-surface-2! size-9!'}
+			size={small ? 'sm' : 'md'}
+			className="enabled:hover:bg-sunken-2!"
 			disabled={!cue}
 			onClick={() => {
 				if (cue) playRange(cue.end / 1000, cue.end / 1000 + AROUND);
@@ -331,7 +334,7 @@ export function AudioBox({ transport = true }: { transport?: boolean }) {
 		<div
 			role="group"
 			aria-label={m.subs_play_around()}
-			className="bg-surface flex flex-none items-center gap-0.5 rounded-md p-0.5"
+			className="bg-sunken flex flex-none items-center gap-0.5 rounded-lg p-0.5"
 		>
 			{playBefore()}
 			{playLine()}
@@ -391,7 +394,7 @@ export function AudioBox({ transport = true }: { transport?: boolean }) {
 					event.preventDefault();
 				}}
 				onWheel={onWheel}
-				className="bg-surface relative min-h-16 flex-1 cursor-crosshair touch-none overflow-hidden rounded-xs shadow-[inset_0_0_0_1px_var(--line)] select-none"
+				className="bg-sunken relative min-h-16 flex-1 cursor-crosshair touch-none overflow-hidden rounded-sm shadow-[inset_0_0_0_1px_var(--x-line)] select-none"
 			>
 				{visible.map((line) =>
 					line.id === cue?.id ? null : (
@@ -399,12 +402,12 @@ export function AudioBox({ transport = true }: { transport?: boolean }) {
 							key={line.id}
 							className={`absolute inset-y-0 border-x ${
 								hasError(issues.get(line.id))
-									? 'border-danger/60 bg-[color-mix(in_srgb,var(--danger)_12%,transparent)] shadow-[inset_0_2px_0_var(--danger)]'
+									? 'border-danger/60 bg-[color-mix(in_srgb,var(--x-danger)_12%,transparent)] shadow-[inset_0_2px_0_var(--x-danger)]'
 									: 'bg-ed/10 border-ed/40'
 							}`}
 							style={{ left: `${toX(line.start)}%`, width: `${toX(line.end) - toX(line.start)}%` }}
 						>
-							<span className="text-caption text-ink-2 absolute top-1 right-1 left-1 truncate">
+							<span className="text-caption text-fg-muted absolute top-1 right-1 left-1 truncate">
 								{shortLabel(line)}
 							</span>
 						</div>
@@ -416,7 +419,7 @@ export function AudioBox({ transport = true }: { transport?: boolean }) {
 						style={{ left: `${toX(cue.start)}%`, width: `${toX(cue.end) - toX(cue.start)}%` }}
 					>
 						{/* Clear of the handles at the top of its edges. */}
-						<span className="text-caption text-ink absolute top-1 right-2.5 left-2.5 truncate">
+						<span className="text-caption text-fg absolute top-1 right-2.5 left-2.5 truncate">
 							{shortLabel(cue)}
 						</span>
 					</div>
@@ -442,7 +445,7 @@ export function AudioBox({ transport = true }: { transport?: boolean }) {
 				{(!file || !hasAudio) && (
 					<span
 						role="img"
-						className="text-muted pointer-events-none absolute right-2 bottom-2"
+						className="text-fg-faint pointer-events-none absolute right-2 bottom-2"
 						title={m.subs_no_audio()}
 						aria-label={m.subs_no_audio()}
 					>

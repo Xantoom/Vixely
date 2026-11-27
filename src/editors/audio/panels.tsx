@@ -29,7 +29,7 @@ import { useAudioDoc, useAudioEditor } from './store';
 function ValueRow({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
-			<span className="text-ui text-ink-2">{label}</span>
+			<span className="text-ui text-fg-muted">{label}</span>
 			<span className="x-tabular text-small">{value}</span>
 		</div>
 	);
@@ -374,7 +374,7 @@ function EqCurve({
 	};
 	return (
 		<div className="grid gap-1.5">
-			<div ref={boxRef} role="group" aria-label={m.eq_curve()} className="bg-surface relative h-36 rounded-sm">
+			<div ref={boxRef} role="group" aria-label={m.eq_curve()} className="bg-sunken relative h-36 rounded-md">
 				<svg
 					viewBox={`0 0 ${CURVE.width} ${CURVE.height}`}
 					className="absolute inset-0 size-full"
@@ -398,7 +398,7 @@ function EqCurve({
 						x2={CURVE.width}
 						y1={curveY(0)}
 						y2={curveY(0)}
-						className="stroke-line-2"
+						className="stroke-line-strong"
 						strokeWidth={1}
 						vectorEffect="non-scaling-stroke"
 					/>
@@ -415,7 +415,7 @@ function EqCurve({
 					<span
 						key={db}
 						aria-hidden="true"
-						className="text-caption x-tabular text-muted pointer-events-none absolute left-1.5 -translate-y-1/2 leading-none"
+						className="text-caption x-tabular text-fg-faint pointer-events-none absolute left-1.5 -translate-y-1/2 leading-none"
 						style={{ top: `${(curveY(db) / CURVE.height) * 100}%` }}
 					>
 						{db > 0 ? `+${db} dB` : `−${-db} dB`}
@@ -474,7 +474,7 @@ function EqCurve({
 							}}
 						>
 							<span
-								className={`text-caption x-tabular bg-tip text-tip-ink pointer-events-none absolute bottom-full left-1/2 mb-1.5 -translate-x-1/2 rounded-xs px-1.5 py-0.5 whitespace-nowrap shadow-[0_0_0_1px_var(--tip-line)] transition-opacity ${active === index ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100'}`}
+								className={`text-caption x-tabular bg-tip text-tip-ink pointer-events-none absolute bottom-full left-1/2 mb-1.5 -translate-x-1/2 rounded-sm px-1.5 py-0.5 whitespace-nowrap shadow-[0_0_0_1px_var(--tip-line)] transition-opacity ${active === index ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100'}`}
 							>
 								{formatDb(gain)}
 							</span>
@@ -482,7 +482,7 @@ function EqCurve({
 					);
 				})}
 			</div>
-			<div className="text-caption text-muted x-tabular relative h-4" aria-hidden="true">
+			<div className="text-caption text-fg-faint x-tabular relative h-4" aria-hidden="true">
 				{EQ_BANDS.map((band) => (
 					<span
 						key={band.frequency}

@@ -4,7 +4,7 @@ description: The Xantoom design system, shared by every Xantoom web app (Vixion,
 license: MIT
 metadata:
   author: Xantoom
-  version: 0.2.2
+  version: 0.4.2
 ---
 
 # Xantoom design system
@@ -47,11 +47,23 @@ The package is `xantoom-design` (github.com/Xantoom/xantoom-design). It ships pu
   everything clickable (the reset does it for native controls).
 - **Performance first.** No `transition: all`, no animated layout properties (accordion height is the one
   exception), `content-visibility` for long lists, and no blur filters on large surfaces.
+- **Native first.** Build on the platform (`<dialog>`, `popover`, `<select>`, `interestfor`, radios) and this design
+  system's classes. Add an interface library (React Aria and the like) only where the platform still lacks the
+  behaviour (accessible drag and drop, a combobox, a styled select in Firefox), and say why in a comment.
+- **Reorganise, do not stack.** When room runs out, a component changes its layout instead of wrapping: secondary
+  settings fold behind one button, the main action becomes an icon, the search takes the width. Key it to its
+  container (`@container`), so it also holds in a narrow panel on a wide screen. No wasted space at any width.
+- **Favicons served right.** Link the icon with a content hash (`/favicon.svg?v=<8 hex of its SHA-256>`) and serve it
+  with its type (`image/svg+xml`): without the type the browser ignores it and keeps another app's icon from the
+  same port; without the hash it keeps an old one.
+- **Theme contrast.** An app with its own themes runs `bunx xantoom-design contrast <themes.css> --theme <app>` in its
+  tests or CI (`--prefix <app>` when it names some colours itself, `--ground <name>` for each ground of its own): text
+  pairs reach 4.5:1 and interface colours 3:1 in every theme.
 
 ## Adding the design system to a project
 
 ```sh
-bun add github:Xantoom/xantoom-design#v0.2.2
+bun add github:Xantoom/xantoom-design#v0.4.2
 bunx xantoom-design sync          # copies this skill into .agents/skills/, links .claude/skills/, adds pointers
 ```
 
@@ -64,9 +76,29 @@ install. Commit the synced files: an agent reads them before any install.
 @import "xantoom-design/themes/vexode.css";
 ```
 
-An app that brings its own components (React Aria, a Tailwind kit) imports `xantoom-design/foundation` instead of
-`xantoom-design/css`: the same tokens, reset, base, motion and utilities, without the components (about 3 KB brotli
-instead of 8). It still follows the rules below.
+A site that uses only some components imports `xantoom-design/foundation` (tokens, reset, base, motion and
+utilities, about 3 KB brotli) plus their families, `xantoom-design/components/<family>.css` (`actions`, `forms`,
+`content`, `feedback`, `navigation`, `overlays`; a toast's close button needs `actions`). The skip link is in the
+foundation: every page has one.
+
+A React and Tailwind app uses the design system's components through `xantoom-design/react` and its tokens through
+`xantoom-design/tailwind.css`: never a second button, menu, field, tooltip or dialog of its own, and never a colour,
+radius, shadow or duration outside the tokens (Tailwind's palette is cleared; an app-only colour goes in the app's
+own `@theme`, defined from `--x-*` tokens). See [references/components.md](references/components.md#react).
+
+```css
+/* Tailwind's preflight under the design system, its utilities over it. */
+@layer theme, base, x, components, utilities;
+@import 'tailwindcss';
+@import 'xantoom-design/foundation';
+@import 'xantoom-design/components/overlays.css';   /* and the other families the app's components use */
+@import 'xantoom-design/themes/vexode.css';
+@import 'xantoom-design/tailwind.css';               /* bg-surface, text-fg-muted, rounded-md, duration-fast… */
+```
+
+```tsx
+import { Button, Dialog, Menu, MenuItem, TextField, Tooltip } from 'xantoom-design/react';
+```
 
 ```html
 <meta name="color-scheme" content="light dark">

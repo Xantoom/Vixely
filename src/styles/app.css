@@ -1,36 +1,34 @@
 /*
- * The Xantoom design system sits in the lowest layer, so Tailwind and this file always win over it. It brings the
+ * The Xantoom design system sits under Tailwind's utilities, so a utility always wins over it. It brings the
  * grounds, text, status colours, type (Inter, JetBrains Mono), radii, focus ring, selection and scrollbars.
  *
- * The names below are Vixely's own, mapped onto the design-system tokens, so the components keep their classes.
+ * Colours go by the design system's names (`bg-raised`, `text-fg-muted`, `border-line`) through its Tailwind bridge;
+ * below are only the colours Vixely adds: recessed fills, tooltips and one colour per media type.
  * The chrome is neutral and flat; colour only carries meaning. Each media type owns one colour, used wherever
  * that media type appears and on what is active in its editor (the playhead, the chosen tool, the primary action).
  * The media itself is the only vivid thing on screen.
  */
-@layer x;
+@layer theme, base, x, components, utilities;
 @import 'tailwindcss';
 @import 'xantoom-design/foundation';
+@import 'xantoom-design/components/actions.css';
+@import 'xantoom-design/components/forms.css';
+@import 'xantoom-design/components/content.css';
+@import 'xantoom-design/components/feedback.css';
+@import 'xantoom-design/components/overlays.css';
 @import 'xantoom-design/themes/vixely.css';
+@import 'xantoom-design/tailwind.css';
 
 :root {
-	--bg: var(--x-bg);
 	/* Behind the media: a step below the ground. */
 	--canvas: light-dark(color-mix(in oklab, var(--x-bg) 97%, black), color-mix(in oklab, var(--x-bg) 55%, black));
 	/*
 	 * Recessed fills (a segmented control's track, a search field, a hovered row), then a deeper one. What floats or
 	 * takes input (menus, dialogs, fields, the selected pill) sits on --x-raised (bg-raised).
 	 */
-	--surface: color-mix(in oklab, var(--x-bg) 95%, var(--x-fg));
-	--surface-2: color-mix(in oklab, var(--x-bg) 90%, var(--x-fg));
-	--line: var(--x-line);
-	--line-2: var(--x-line-strong);
-	/* The edge of what takes input (fields, checkboxes, radios): 3:1 against the page, so it can be found. */
-	--field-line: var(--x-control-border);
+	--sunken: color-mix(in oklab, var(--x-bg) 95%, var(--x-fg));
+	--sunken-2: color-mix(in oklab, var(--x-bg) 90%, var(--x-fg));
 	--track-base: var(--x-line-strong);
-	--ink: var(--x-fg);
-	--ink-2: var(--x-fg-muted);
-	--muted: var(--x-fg-faint);
-	--danger: var(--x-danger);
 	/* Tooltips: dark in both themes, lifted off the page in the dark one. */
 	--tip-bg: light-dark(#1d1d20, #0b0b0c);
 	--tip-ink: #f3f3f5;
@@ -101,15 +99,28 @@
 }
 
 [data-media='batch'] {
-	--ed: var(--surface-2);
-	--ed-ink: var(--ink);
-	--ed-text: var(--ink);
+	--ed: var(--sunken-2);
+	--ed-ink: var(--x-fg);
+	--ed-text: var(--x-fg);
+}
+
+/*
+ * The design system's filled components (a primary button, a checked switch) take the editor's colour; outside an
+ * editor --ed is the ink, so they stay neutral there. In an editor its accent (focus ring, current choice) does too.
+ * Declared on each scope, so var(--ed) resolves where it is set.
+ */
+:root,
+[data-media] {
+	--x-fill: linear-gradient(var(--ed) 0 0);
+	--x-fill-2: var(--ed);
+	--x-on-fill: var(--ed-ink);
+}
+
+[data-media]:not([data-media='batch']) {
+	--x-accent: var(--ed-text);
 }
 
 @theme inline {
-	--font-sans: var(--x-font-sans);
-	--font-mono: var(--x-font-mono);
-
 	/*
 	 * Type scale in rem, so the whole interface follows the browser's text size: 13, 14, 15, 16,
 	 * 18 and 20 px at the default size. Nothing goes below 13 px.
@@ -127,27 +138,12 @@
 	--text-title: 1.25rem;
 	--text-title--line-height: 1.15;
 
-	/* The design system's radii, set by the Vixely theme's knob. */
-	--radius-xs: var(--x-radius-sm);
-	--radius-sm: var(--x-radius-md);
-	--radius-md: var(--x-radius-lg);
-
-	/* Motion: the Xantoom ease for things that slide, a spring for things that pop. */
-	--ease-out-soft: var(--x-ease-out);
+	/* Motion: a spring for things that pop; things that slide use the design system's ease-out. */
 	--ease-spring: cubic-bezier(0.3, 1.35, 0.45, 1);
 
-	--color-bg: var(--bg);
 	--color-canvas: var(--canvas);
-	--color-raised: var(--x-raised);
-	--color-surface: var(--surface);
-	--color-surface-2: var(--surface-2);
-	--color-line: var(--line);
-	--color-line-2: var(--line-2);
-	--color-field: var(--field-line);
-	--color-ink: var(--ink);
-	--color-ink-2: var(--ink-2);
-	--color-muted: var(--muted);
-	--color-danger: var(--danger);
+	--color-sunken: var(--sunken);
+	--color-sunken-2: var(--sunken-2);
 	--color-tip: var(--tip-bg);
 	--color-tip-ink: var(--tip-ink);
 	--color-ed: var(--ed);
@@ -155,6 +151,8 @@
 	--color-ed-text: var(--ed-text);
 	--color-ed-soft: color-mix(in srgb, var(--ed) 13%, transparent);
 	--color-video: var(--video-1);
+	--color-white: #fff;
+	--color-black: #000;
 }
 
 @layer base {
@@ -220,7 +218,7 @@
 
 .menu-in {
 	transform-origin: top center;
-	animation: menu-in 150ms var(--ease-out-soft);
+	animation: menu-in 150ms var(--x-ease-out);
 }
 
 .menu-in[data-down='false'] {
@@ -230,7 +228,7 @@
 
 .tooltip-in {
 	--from-y: 3px;
-	animation: menu-in 120ms var(--ease-out-soft);
+	animation: menu-in 120ms var(--x-ease-out);
 }
 
 .tooltip-in[data-below='true'] {
@@ -247,7 +245,7 @@
 
 /* Another tool's settings come up into the panel. */
 .panel-in {
-	animation: panel-in 220ms var(--ease-out-soft);
+	animation: panel-in 220ms var(--x-ease-out);
 }
 
 /*
@@ -255,11 +253,11 @@
  * it came from comes in from the left. The page's wrapper takes no box: its parts move each.
  */
 .page-forward > * {
-	animation: page-forward 240ms var(--ease-out-soft) backwards;
+	animation: page-forward 240ms var(--x-ease-out) backwards;
 }
 
 .page-back > * {
-	animation: page-back 240ms var(--ease-out-soft) backwards;
+	animation: page-back 240ms var(--x-ease-out) backwards;
 }
 
 @keyframes page-forward {
@@ -290,7 +288,7 @@
  */
 .stage-in {
 	animation:
-		editor-slide 420ms var(--ease-out-soft) backwards,
+		editor-slide 420ms var(--x-ease-out) backwards,
 		editor-fade 300ms ease-out backwards;
 }
 
@@ -339,13 +337,13 @@
 .slider::-webkit-slider-runnable-track {
 	height: var(--track-height);
 	border-radius: 1rem;
-	background: var(--track, var(--surface-2));
+	background: var(--track, var(--sunken-2));
 }
 
 .slider::-moz-range-track {
 	height: var(--track-height);
 	border-radius: 1rem;
-	background: var(--track, var(--surface-2));
+	background: var(--track, var(--sunken-2));
 }
 
 .slider::-webkit-slider-thumb {
@@ -358,7 +356,7 @@
 	box-shadow:
 		0 0 0 1px rgb(0 0 0 / 0.14),
 		0 2px 6px rgb(0 0 0 / 0.25);
-	transition: transform 0.18s var(--ease-out-soft);
+	transition: transform 0.18s var(--x-ease-out);
 }
 
 .slider::-moz-range-thumb {
@@ -390,13 +388,13 @@
 .volume-range::-webkit-slider-runnable-track {
 	height: 0.25rem;
 	border-radius: 1rem;
-	background: linear-gradient(to right, var(--ink-2) var(--level), var(--surface-2) var(--level));
+	background: linear-gradient(to right, var(--x-fg-muted) var(--level), var(--sunken-2) var(--level));
 }
 
 .volume-range::-moz-range-track {
 	height: 0.25rem;
 	border-radius: 1rem;
-	background: linear-gradient(to right, var(--ink-2) var(--level), var(--surface-2) var(--level));
+	background: linear-gradient(to right, var(--x-fg-muted) var(--level), var(--sunken-2) var(--level));
 }
 
 .volume-range::-webkit-slider-thumb {
@@ -405,7 +403,7 @@
 	height: 0.75rem;
 	margin-top: -0.25rem;
 	border-radius: 50%;
-	background: var(--ink);
+	background: var(--x-fg);
 }
 
 .volume-range::-moz-range-thumb {
@@ -413,5 +411,5 @@
 	height: 0.75rem;
 	border: 0;
 	border-radius: 50%;
-	background: var(--ink);
+	background: var(--x-fg);
 }

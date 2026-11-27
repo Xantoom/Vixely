@@ -28,7 +28,7 @@ The source of truth is `tokens/*.tokens.json` (DTCG 2025.10). A colour's dark va
 | `--x-text-display` | Fluid hero size, from 3xl to 5xl |
 | `--x-leading`, `--x-leading-tight` | Line heights, raised automatically for scripts that need it |
 | `--x-space-0-5` … `--x-space-24` | 0.125 to 6 rem, multiplied by the theme density |
-| `--x-radius-sm`, `-md`, `-lg`, `-xl` | 0.375 to 1.375 rem, multiplied by the theme radius. Nest them concentrically: a child's radius is the parent's minus the gap |
+| `--x-radius-sm`, `-md`, `-lg`, `-xl` | 6, 8, 10 and 14 px, multiplied by the theme radius (0.9 to 1.1: a theme tilts the shape, never changes it). Nest them concentrically: a child's radius is the parent's minus the gap. Shape follows the role: a word (status, label) has `sm` corners, a number that grows is a pill (`x-count`), a person is a circle, a switch keeps its round track |
 | `--x-control` | Height of buttons and fields: 2.5 rem, or 2.75 rem on touch screens |
 | `--x-size-container` | Page column (76 rem) |
 | `--x-duration-fast`, `-base`, `-slow` | 160, 240, 420 ms |

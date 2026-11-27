@@ -209,7 +209,7 @@ function Lanes({ file, aspect, cutting }: { file: File; aspect: number; cutting:
 			className={`relative grid touch-none gap-1 select-none ${cutting ? 'cursor-text' : 'cursor-pointer'}`}
 		>
 			<div
-				className="relative overflow-hidden rounded-sm bg-[color-mix(in_srgb,var(--video-1)_16%,var(--bg))]"
+				className="relative overflow-hidden rounded-md bg-[color-mix(in_srgb,var(--video-1)_16%,var(--x-bg))]"
 				style={{ height: STRIP_HEIGHT }}
 			>
 				<Filmstrip file={file} view={view} aspect={aspect} height={STRIP_HEIGHT} />
@@ -225,7 +225,7 @@ function Lanes({ file, aspect, cutting }: { file: File; aspect: number; cutting:
 				isVisible(removed, view) ? (
 					<div
 						key={`${removed.start}-${removed.end}`}
-						className="bg-canvas/70 absolute inset-y-0 bg-[repeating-linear-gradient(135deg,transparent_0_6px,color-mix(in_srgb,var(--ink)_12%,transparent)_6px_7px)] shadow-[inset_1px_0_0_var(--line-2),inset_-1px_0_0_var(--line-2)]"
+						className="bg-canvas/70 absolute inset-y-0 bg-[repeating-linear-gradient(135deg,transparent_0_6px,color-mix(in_srgb,var(--x-fg)_12%,transparent)_6px_7px)] shadow-[inset_1px_0_0_var(--x-line-strong),inset_-1px_0_0_var(--x-line-strong)]"
 						style={rangeBox(removed, view)}
 					>
 						{cutting && (
@@ -242,7 +242,7 @@ function Lanes({ file, aspect, cutting }: { file: File; aspect: number; cutting:
 								onClick={() => {
 									apply((current) => restoreCut(current, index));
 								}}
-								className="bg-raised text-ink-2 hover:text-ink x-touch-target absolute top-1.5 left-1/2 grid size-6 -translate-x-1/2 place-items-center rounded-full shadow-[0_0_0_1px_var(--line-2)] transition-colors"
+								className="bg-raised text-fg-muted hover:text-fg x-touch-target absolute top-1.5 left-1/2 grid size-6 -translate-x-1/2 place-items-center rounded-full shadow-[0_0_0_1px_var(--x-line-strong)] transition-colors"
 							>
 								<RotateCcw size={12} strokeWidth={2.4} />
 							</button>
@@ -260,7 +260,7 @@ function Lanes({ file, aspect, cutting }: { file: File; aspect: number; cutting:
 			))}
 			{selection && isVisible(selection, view) && (
 				<div
-					className="bg-ink/10 pointer-events-none absolute inset-y-0 shadow-[inset_1px_0_0_var(--ink),inset_-1px_0_0_var(--ink)]"
+					className="bg-fg/10 pointer-events-none absolute inset-y-0 shadow-[inset_1px_0_0_var(--x-fg),inset_-1px_0_0_var(--x-fg)]"
 					style={rangeBox(selection, view)}
 				/>
 			)}

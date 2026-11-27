@@ -73,7 +73,7 @@ function BatchTable({
 					type="button"
 					disabled={locked}
 					onClick={() => inputRef.current?.click()}
-					className="text-ui text-ink-2 enabled:hover:bg-surface enabled:hover:text-ink flex h-8 items-center gap-1.5 rounded-sm px-2.5 font-medium transition-colors disabled:opacity-40"
+					className="text-ui text-fg-muted enabled:hover:bg-sunken enabled:hover:text-fg flex h-8 items-center gap-1.5 rounded-md px-2.5 font-medium transition-colors disabled:opacity-40"
 				>
 					<Plus size={15} aria-hidden="true" />
 					{m.batch_add_audio()}
@@ -94,11 +94,11 @@ function BatchTable({
 			<div
 				role="table"
 				aria-label={m.batch_label()}
-				className="bg-raised min-h-0 flex-1 overflow-auto rounded-xs shadow-[inset_0_0_0_1px_var(--line)]"
+				className="bg-raised min-h-0 flex-1 overflow-auto rounded-sm shadow-[inset_0_0_0_1px_var(--x-line)]"
 			>
 				<div
 					role="row"
-					className="bg-surface border-line text-caption text-muted sticky top-0 grid h-7 items-center border-b font-medium"
+					className="bg-sunken border-line text-caption text-fg-faint sticky top-0 grid h-7 items-center border-b font-medium"
 					style={{ gridTemplateColumns: columns }}
 				>
 					{[m.info_file(), m.info_format(), m.subs_lines(), m.subs_first_line(), '', ''].map(
@@ -126,7 +126,7 @@ function BatchTable({
 							<span role="cell" className="truncate px-2" title={item.file.name}>
 								{item.file.name}
 							</span>
-							<span role="cell" className="text-muted flex items-center gap-1 px-2">
+							<span role="cell" className="text-fg-faint flex items-center gap-1 px-2">
 								{source}
 								{target && target !== source && (
 									<>
@@ -144,7 +144,7 @@ function BatchTable({
 										{formatPreciseTime(from / 1000)}
 										{to !== from && to !== null && (
 											<>
-												<ArrowRight size={12} aria-hidden="true" className="text-muted" />
+												<ArrowRight size={12} aria-hidden="true" className="text-fg-faint" />
 												<span className="text-ed-text">{formatPreciseTime(to / 1000)}</span>
 											</>
 										)}
@@ -168,7 +168,7 @@ function BatchTable({
 										onClick={() => {
 											remove(item.id);
 										}}
-										className="text-muted hover:text-ink hover:bg-surface x-touch-target relative grid size-6 place-items-center rounded-xs"
+										className="text-fg-faint hover:text-fg hover:bg-sunken x-touch-target relative grid size-6 place-items-center rounded-sm"
 									>
 										<X size={13} />
 									</button>

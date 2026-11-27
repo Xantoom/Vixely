@@ -77,7 +77,7 @@ function AspectTiles({
 						onClick={() => {
 							onChange(id);
 						}}
-						className="group text-ink-2 hover:bg-surface aria-checked:bg-ed-soft aria-checked:text-ink grid justify-items-center gap-1 rounded-sm px-1 pt-2.5 pb-2 shadow-[inset_0_0_0_1px_var(--line-2)] transition-[background-color,box-shadow,color] duration-150 aria-checked:shadow-[inset_0_0_0_1.5px_var(--ed)]"
+						className="group text-fg-muted hover:bg-sunken aria-checked:bg-ed-soft aria-checked:text-fg grid justify-items-center gap-1 rounded-md px-1 pt-2.5 pb-2 shadow-[inset_0_0_0_1px_var(--x-line-strong)] transition-[background-color,box-shadow,color] duration-150 aria-checked:shadow-[inset_0_0_0_1.5px_var(--ed)]"
 					>
 						<span className="grid h-6 w-9 place-items-center" aria-hidden="true">
 							<span
@@ -139,7 +139,7 @@ export function CropPanel({
 
 	const field = (key: keyof Rect, label: string, max: number, min = 0) => (
 		<label className="grid gap-1">
-			<span className="text-caption text-muted">{label}</span>
+			<span className="text-caption text-fg-faint">{label}</span>
 			<NumberField
 				value={crop[key]}
 				unit="px"
@@ -200,7 +200,7 @@ export function CropPanel({
 						}}
 					/>
 				)}
-				<p className="text-small text-muted x-tabular">
+				<p className="text-small text-fg-faint x-tabular">
 					{m.crop_result({ size: `${crop.width} × ${crop.height}` })}
 				</p>
 			</Section>
@@ -397,7 +397,7 @@ export function ExportPanel({ source, photo }: { source: ImageBitmap; photo: Pho
 		<>
 			<PanelTitle>{m.export()}</PanelTitle>
 			{preset && (
-				<p className="bg-ed-soft text-ed-text text-ui rounded-sm px-3.5 py-2.5 font-medium">
+				<p className="bg-ed-soft text-ed-text text-ui rounded-md px-3.5 py-2.5 font-medium">
 					{m.preset_chosen({ name: `${presetGroupTitle(preset.id)} · ${preset.label()}` })}
 				</p>
 			)}
@@ -503,7 +503,7 @@ export function ExportPanel({ source, photo }: { source: ImageBitmap; photo: Pho
 					)}
 				</div>
 			)}
-			<p className="text-small text-muted">
+			<p className="text-small text-fg-faint">
 				{settings.format === 'ico'
 					? m.export_output({ size: iconSizes.join(', ') })
 					: m.export_output({ size: `${current.width} × ${current.height}` })}

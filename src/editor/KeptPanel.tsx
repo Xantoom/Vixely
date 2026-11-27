@@ -49,7 +49,7 @@ export function TrimRow({
 	const id = useId();
 	return (
 		<div className="grid grid-cols-[minmax(0,1fr)_9rem_auto] items-center gap-2">
-			<label htmlFor={id} className="text-ui text-ink-2">
+			<label htmlFor={id} className="text-ui text-fg-muted">
 				{label}
 			</label>
 			<TimeField id={id} value={value} min={0} max={max} onCommit={onCommit} />

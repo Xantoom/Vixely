@@ -98,7 +98,7 @@ function ColorPicker({ label, value, onChange }: { label: string; value: string;
 	const current = value.slice(0, 7).toLowerCase();
 	return (
 		<div className="grid gap-2">
-			<span className="text-ui text-ink-2">{label}</span>
+			<span className="text-ui text-fg-muted">{label}</span>
 			<div role="radiogroup" aria-label={label} className="flex flex-wrap items-center gap-1.5">
 				{SWATCHES.map((swatch) => (
 					<button
@@ -112,14 +112,14 @@ function ColorPicker({ label, value, onChange }: { label: string; value: string;
 							onChange(swatch);
 						}}
 						style={{ background: swatch }}
-						className="ease-spring x-touch-target relative size-7 rounded-full shadow-[inset_0_0_0_1px_rgb(0_0_0/0.15)] transition-transform duration-200 motion-safe:hover:scale-110 aria-checked:shadow-[0_0_0_2px_var(--bg),0_0_0_4px_var(--ed)] motion-reduce:transition-none"
+						className="ease-spring x-touch-target relative size-7 rounded-full shadow-[inset_0_0_0_1px_rgb(0_0_0/0.15)] transition-transform duration-200 motion-safe:hover:scale-110 aria-checked:shadow-[0_0_0_2px_var(--x-bg),0_0_0_4px_var(--ed)] motion-reduce:transition-none"
 					/>
 				))}
 				<ColorPopover
 					label={m.color_other()}
 					value={current}
 					onChange={onChange}
-					className={`ease-spring size-7 rounded-full bg-[conic-gradient(#ff3b30,#ffe14d,#34c759,#00c7be,#0a84ff,#bf5af2,#ff3b30)] shadow-[inset_0_0_0_1px_rgb(0_0_0/0.15)] transition-transform duration-200 motion-safe:hover:scale-110 aria-expanded:shadow-[0_0_0_2px_var(--bg),0_0_0_4px_var(--ed)] ${SWATCHES.includes(current) ? '' : 'shadow-[0_0_0_2px_var(--bg),0_0_0_4px_var(--ed)]'}`}
+					className={`ease-spring size-7 rounded-full bg-[conic-gradient(#ff3b30,#ffe14d,#34c759,#00c7be,#0a84ff,#bf5af2,#ff3b30)] shadow-[inset_0_0_0_1px_rgb(0_0_0/0.15)] transition-transform duration-200 motion-safe:hover:scale-110 aria-expanded:shadow-[0_0_0_2px_var(--x-bg),0_0_0_4px_var(--ed)] ${SWATCHES.includes(current) ? '' : 'shadow-[0_0_0_2px_var(--x-bg),0_0_0_4px_var(--ed)]'}`}
 				>
 					{!SWATCHES.includes(current) && (
 						<span
@@ -349,7 +349,7 @@ function TextSettings({
 						editing.preview(updateText(text.id, { text: event.target.value }));
 					}}
 					onBlur={editing.settle}
-					className="bg-surface text-body focus:shadow-[inset_0_0_0_1.5px_var(--ed)] w-full resize-none rounded-sm px-3.5 py-2.5 outline-none"
+					className="bg-sunken text-body focus:shadow-[inset_0_0_0_1.5px_var(--ed)] w-full resize-none rounded-md px-3.5 py-2.5 outline-none"
 				/>
 			</Section>
 			<Section title={m.text_style()}>
@@ -447,7 +447,7 @@ function TextSettings({
 							onClick={() => {
 								change(next);
 							}}
-							className="text-ui aria-pressed:bg-ed-soft aria-pressed:text-ed-text aria-pressed:shadow-[inset_0_0_0_1.5px_var(--ed)] rounded-full px-3.5 py-1.5 font-medium shadow-[inset_0_0_0_1px_var(--line-2)] transition-colors"
+							className="text-ui aria-pressed:bg-ed-soft aria-pressed:text-ed-text aria-pressed:shadow-[inset_0_0_0_1.5px_var(--ed)] rounded-full px-3.5 py-1.5 font-medium shadow-[inset_0_0_0_1px_var(--x-line-strong)] transition-colors"
 						>
 							{label}
 						</button>
@@ -482,7 +482,7 @@ function TextStyles({ onAdd }: { onAdd: (style: TextStyleId) => void }) {
 						onClick={() => {
 							onAdd(style);
 						}}
-						className="bg-surface hover:bg-surface-2 ease-spring grid h-16 place-items-center rounded-sm px-2 transition-[background-color,transform] duration-200 motion-safe:active:scale-[0.97] motion-reduce:transition-none"
+						className="bg-sunken hover:bg-sunken-2 ease-spring grid h-16 place-items-center rounded-md px-2 transition-[background-color,transform] duration-200 motion-safe:active:scale-[0.97] motion-reduce:transition-none"
 					>
 						<span
 							className="truncate text-[1.2rem] leading-none"
@@ -537,7 +537,7 @@ function ShapePicker({ color, onAdd }: { color: string; onAdd: (overlay: Overlay
 					onClick={() => {
 						onAdd(createShape(id, color));
 					}}
-					className="bg-surface hover:bg-surface-2 text-ink-2 ease-spring grid aspect-square place-items-center rounded-sm transition-transform duration-200 motion-safe:active:scale-95 motion-reduce:transition-none"
+					className="bg-sunken hover:bg-sunken-2 text-fg-muted ease-spring grid aspect-square place-items-center rounded-md transition-transform duration-200 motion-safe:active:scale-95 motion-reduce:transition-none"
 				>
 					<svg viewBox="0 0 24 24" className="size-6" aria-hidden="true">
 						<path d={SHAPE_ICONS[id]} fill="currentColor" fillRule="evenodd" />
@@ -562,7 +562,7 @@ function StickerPicker({ onAdd }: { onAdd: (overlay: Overlay) => void }) {
 								onClick={() => {
 									onAdd(createSticker(emoji));
 								}}
-								className="hover:bg-surface ease-spring grid aspect-square place-items-center rounded-sm transition-transform duration-200 motion-safe:hover:scale-110 motion-safe:active:scale-95 motion-reduce:transition-none"
+								className="hover:bg-sunken ease-spring grid aspect-square place-items-center rounded-md transition-transform duration-200 motion-safe:hover:scale-110 motion-safe:active:scale-95 motion-reduce:transition-none"
 							>
 								<img src={`/stickers/${emoji}.svg`} alt="" className="size-8" draggable={false} />
 							</button>
@@ -570,7 +570,7 @@ function StickerPicker({ onAdd }: { onAdd: (overlay: Overlay) => void }) {
 					</div>
 				</Section>
 			))}
-			<p className="text-caption text-muted">{m.stickers_credit()}</p>
+			<p className="text-caption text-fg-faint">{m.stickers_credit()}</p>
 		</>
 	);
 }
@@ -593,12 +593,12 @@ function LayerThumb({ overlay }: { overlay: Overlay }) {
 	}
 	if (overlay.kind === 'zone') {
 		const Icon = overlay.effect === 'blur' ? Droplets : Grid3x3;
-		return <Icon className="text-ink-2 size-4.5" aria-hidden="true" />;
+		return <Icon className="text-fg-muted size-4.5" aria-hidden="true" />;
 	}
 	if (overlay.kind === 'drawing') {
 		return <Brush className="size-4.5" style={{ color: overlay.strokes[0]?.color }} aria-hidden="true" />;
 	}
-	return <Type className="text-ink-2 size-4.5" aria-hidden="true" />;
+	return <Type className="text-fg-muted size-4.5" aria-hidden="true" />;
 }
 
 function layerName(overlay: Overlay): string {
@@ -635,7 +635,7 @@ function ZoneEffects({
 					onClick={() => {
 						onChoose(id);
 					}}
-					className="text-ui text-ink-2 hover:bg-surface aria-checked:bg-ed-soft aria-checked:text-ink ease-spring flex h-11 items-center justify-center gap-2 rounded-sm font-medium shadow-[inset_0_0_0_1px_var(--line-2)] transition-[background-color,box-shadow,transform] duration-200 motion-safe:active:scale-[0.98] aria-checked:shadow-[inset_0_0_0_1.5px_var(--ed)] motion-reduce:transition-none"
+					className="text-ui text-fg-muted hover:bg-sunken aria-checked:bg-ed-soft aria-checked:text-fg ease-spring flex h-11 items-center justify-center gap-2 rounded-md font-medium shadow-[inset_0_0_0_1px_var(--x-line-strong)] transition-[background-color,box-shadow,transform] duration-200 motion-safe:active:scale-[0.98] aria-checked:shadow-[inset_0_0_0_1.5px_var(--ed)] motion-reduce:transition-none"
 				>
 					<Icon size={18} aria-hidden="true" />
 					{name()}
@@ -779,14 +779,14 @@ function LayerList({ editing }: { editing: OverlayEditing }) {
 								select(overlay.id);
 							}
 						}}
-						className="hover:bg-surface aria-pressed:bg-ed-soft aria-pressed:shadow-[inset_0_0_0_1.5px_var(--ed)] group flex h-12 cursor-pointer items-center gap-3 rounded-sm pr-1 pl-2 transition-[background-color,box-shadow] active:cursor-grabbing"
+						className="hover:bg-sunken aria-pressed:bg-ed-soft aria-pressed:shadow-[inset_0_0_0_1.5px_var(--ed)] group flex h-12 cursor-pointer items-center gap-3 rounded-md pr-1 pl-2 transition-[background-color,box-shadow] active:cursor-grabbing"
 					>
-						<span className="bg-surface-2 grid size-8 flex-none place-items-center rounded-xs">
+						<span className="bg-sunken-2 grid size-8 flex-none place-items-center rounded-sm">
 							<LayerThumb overlay={overlay} />
 						</span>
 						<span className="text-ui min-w-0 flex-1 truncate font-medium">{layerName(overlay)}</span>
 						{editing.timing && (
-							<span className="text-caption text-muted x-tabular flex-none">
+							<span className="text-caption text-fg-faint x-tabular flex-none">
 								{overlay.span
 									? `${formatClock(overlay.span.start)}–${formatClock(overlay.span.end)}`
 									: m.layers_always()}
@@ -799,11 +799,11 @@ function LayerList({ editing }: { editing: OverlayEditing }) {
 								editing.apply((list) => list.filter((candidate) => candidate.id !== overlay.id));
 								if (overlay.id === selectedId) select(null);
 							}}
-							className="text-muted hover:text-danger"
+							className="text-fg-faint hover:text-danger"
 						>
 							<Trash2 className="size-4" />
 						</IconButton>
-						<ChevronRight className="text-muted size-4 flex-none" aria-hidden="true" />
+						<ChevronRight className="text-fg-faint size-4 flex-none" aria-hidden="true" />
 					</div>
 				</li>
 			))}
@@ -888,7 +888,7 @@ export function LayersPanel({
 						select(null);
 						setAdding(null);
 					}}
-					className="text-ui text-ink-2 hover:text-ink hover:bg-surface -mx-2 -mt-2 flex h-9 items-center gap-1.5 justify-self-start rounded-sm px-2 font-medium"
+					className="text-ui text-fg-muted hover:text-fg hover:bg-sunken -mx-2 -mt-2 flex h-9 items-center gap-1.5 justify-self-start rounded-md px-2 font-medium"
 				>
 					<ChevronLeft className="size-4" aria-hidden="true" />
 					{m.layers_all({ count: editing.overlays.length })}
@@ -932,7 +932,7 @@ export function LayersPanel({
 				<Section
 					title={m.layers_applied()}
 					action={
-						<span className="bg-surface text-small x-tabular grid h-6 min-w-6 place-items-center rounded-full px-2 font-semibold">
+						<span className="bg-sunken text-small x-tabular grid h-6 min-w-6 place-items-center rounded-full px-2 font-semibold">
 							{editing.overlays.length}
 						</span>
 					}
@@ -957,7 +957,7 @@ export function LayersPanel({
 								onClick={() => {
 									setAdding(adding === kind ? null : kind);
 								}}
-								className="text-caption text-ink-2 hover:bg-surface hover:text-ink aria-pressed:bg-ed-soft aria-pressed:text-ink grid justify-items-center gap-1.5 rounded-sm px-1 pt-2.5 pb-2 font-medium shadow-[inset_0_0_0_1px_var(--line-2)] transition-[background-color,box-shadow,color] aria-pressed:shadow-[inset_0_0_0_1.5px_var(--ed)]"
+								className="text-caption text-fg-muted hover:bg-sunken hover:text-fg aria-pressed:bg-ed-soft aria-pressed:text-fg grid justify-items-center gap-1.5 rounded-md px-1 pt-2.5 pb-2 font-medium shadow-[inset_0_0_0_1px_var(--x-line-strong)] transition-[background-color,box-shadow,color] aria-pressed:shadow-[inset_0_0_0_1.5px_var(--ed)]"
 							>
 								<Icon size={18} aria-hidden="true" />
 								{ADD_LABELS[kind]()}

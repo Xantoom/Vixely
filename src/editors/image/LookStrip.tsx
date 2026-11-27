@@ -79,7 +79,7 @@ export function LookStrip({ editing }: { editing: PictureEditing }) {
 			onClick={() => {
 				page(direction);
 			}}
-			className={`bg-raised text-ink-2 hover:text-ink x-touch-target absolute z-10 grid size-8 -translate-y-1/2 place-items-center rounded-full shadow-[0_0_0_1px_var(--line-2),0_4px_12px_-4px_rgb(0_0_0/0.3)] transition-colors ${direction < 0 ? '-left-2' : '-right-2'}`}
+			className={`bg-raised text-fg-muted hover:text-fg x-touch-target absolute z-10 grid size-8 -translate-y-1/2 place-items-center rounded-full shadow-[0_0_0_1px_var(--x-line-strong),0_4px_12px_-4px_rgb(0_0_0/0.3)] transition-colors ${direction < 0 ? '-left-2' : '-right-2'}`}
 			style={{ top: 4 + TILE / 2 }}
 		>
 			{direction < 0 ? (
@@ -123,9 +123,9 @@ export function LookStrip({ editing }: { editing: PictureEditing }) {
 									else canvases.current.delete(tile.id);
 								}}
 								style={{ width: TILE, height: TILE }}
-								className="bg-surface ease-spring group-aria-checked:shadow-[0_0_0_2px_var(--bg),0_0_0_4px_var(--ed)] rounded-sm transition-[transform,box-shadow] duration-200 motion-safe:group-hover:scale-[1.04] group-active:scale-[0.97] motion-reduce:transition-none"
+								className="bg-sunken ease-spring group-aria-checked:shadow-[0_0_0_2px_var(--x-bg),0_0_0_4px_var(--ed)] rounded-md transition-[transform,box-shadow] duration-200 motion-safe:group-hover:scale-[1.04] group-active:scale-[0.97] motion-reduce:transition-none"
 							/>
-							<span className="text-small text-ink-2 group-aria-checked:text-ed-text font-medium group-aria-checked:font-semibold">
+							<span className="text-small text-fg-muted group-aria-checked:text-ed-text font-medium group-aria-checked:font-semibold">
 								{tile.label}
 							</span>
 						</button>

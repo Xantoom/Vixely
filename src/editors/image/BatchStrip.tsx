@@ -54,7 +54,7 @@ function Thumb({ item }: { item: BatchFile }) {
 		};
 	}, [item]);
 	return failed ? (
-		<span className="text-caption text-muted grid size-full place-items-center">{item.format}</span>
+		<span className="text-caption text-fg-faint grid size-full place-items-center">{item.format}</span>
 	) : (
 		<canvas ref={ref} className="size-full object-cover" />
 	);
@@ -115,7 +115,7 @@ export function BatchStrip({ statuses, locked }: { statuses: ReadonlyMap<number,
 							if (made) await navigate({ to: EDITORS.gif.path });
 						});
 					}}
-					className="text-ui text-ink-2 enabled:hover:bg-surface enabled:hover:text-ink ml-auto flex h-8 items-center gap-1.5 rounded-sm px-2.5 font-medium transition-colors disabled:opacity-40"
+					className="text-ui text-fg-muted enabled:hover:bg-sunken enabled:hover:text-fg ml-auto flex h-8 items-center gap-1.5 rounded-md px-2.5 font-medium transition-colors disabled:opacity-40"
 				>
 					<Film size={15} aria-hidden="true" />
 					{m.batch_make_gif()}
@@ -124,7 +124,7 @@ export function BatchStrip({ statuses, locked }: { statuses: ReadonlyMap<number,
 					type="button"
 					disabled={locked}
 					onClick={() => inputRef.current?.click()}
-					className="text-ui text-ink-2 enabled:hover:bg-surface enabled:hover:text-ink flex h-8 items-center gap-1.5 rounded-sm px-2.5 font-medium transition-colors disabled:opacity-40"
+					className="text-ui text-fg-muted enabled:hover:bg-sunken enabled:hover:text-fg flex h-8 items-center gap-1.5 rounded-md px-2.5 font-medium transition-colors disabled:opacity-40"
 				>
 					<Plus size={15} aria-hidden="true" />
 					{m.batch_add()}
@@ -143,7 +143,7 @@ export function BatchStrip({ statuses, locked }: { statuses: ReadonlyMap<number,
 				/>
 			</div>
 			{error?.reason === 'skipped' && (
-				<p className="text-small text-muted -mt-1">{m.batch_skipped({ count: error.count })}</p>
+				<p className="text-small text-fg-faint -mt-1">{m.batch_skipped({ count: error.count })}</p>
 			)}
 			<ol ref={dragScroll} className="flex gap-2 overflow-x-auto pb-1">
 				{batch.map((item) => {
@@ -155,8 +155,10 @@ export function BatchStrip({ statuses, locked }: { statuses: ReadonlyMap<number,
 								onClick={() => void select(item)}
 								aria-current={selected}
 								title={item.file.name}
-								className={`bg-surface-2 relative block h-16 w-24 overflow-hidden rounded-xs transition-shadow ${
-									selected ? 'shadow-[0_0_0_2px_var(--ed)]' : 'hover:shadow-[0_0_0_2px_var(--line-2)]'
+								className={`bg-sunken-2 relative block h-16 w-24 overflow-hidden rounded-sm transition-shadow ${
+									selected
+										? 'shadow-[0_0_0_2px_var(--ed)]'
+										: 'hover:shadow-[0_0_0_2px_var(--x-line-strong)]'
 								}`}
 							>
 								<Thumb item={item} />
@@ -170,7 +172,7 @@ export function BatchStrip({ statuses, locked }: { statuses: ReadonlyMap<number,
 									onClick={() => {
 										remove(item.id);
 									}}
-									className="bg-raised text-ink-2 hover:text-ink absolute -top-1.5 -right-1.5 grid size-5 place-items-center rounded-full opacity-0 pointer-coarse:opacity-100 pointer-coarse:before:absolute pointer-coarse:before:-inset-3 shadow-[0_0_0_1px_var(--line-2)] transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+									className="bg-raised text-fg-muted hover:text-fg absolute -top-1.5 -right-1.5 grid size-5 place-items-center rounded-full opacity-0 pointer-coarse:opacity-100 pointer-coarse:before:absolute pointer-coarse:before:-inset-3 shadow-[0_0_0_1px_var(--x-line-strong)] transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
 								>
 									<X size={12} strokeWidth={2.5} />
 								</button>

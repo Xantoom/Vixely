@@ -161,7 +161,7 @@ export function GifEditorScreen({ initialTool }: { initialTool?: ToolId }) {
 			);
 		if (engine.failed) return <p className="text-body text-danger">{m.gif_failed()}</p>;
 		if (engine.reading !== null && engine.reading > 0) {
-			return <p className="text-body text-muted">{m.gif_reading({ count: engine.reading })}</p>;
+			return <p className="text-body text-fg-faint">{m.gif_reading({ count: engine.reading })}</p>;
 		}
 		return <Viewer kind="gif" opened={opened} />;
 	};

@@ -21,7 +21,7 @@ export function FitButton({
 			aria-label={label}
 			data-tip={label}
 			onClick={onFit}
-			className="text-ink-2 hover:bg-surface hover:text-ink grid size-8 flex-none place-items-center rounded-sm transition-colors"
+			className="text-fg-muted hover:bg-sunken hover:text-fg grid size-8 flex-none place-items-center rounded-md transition-colors"
 		>
 			<Scan className="size-4" aria-hidden="true" />
 		</button>

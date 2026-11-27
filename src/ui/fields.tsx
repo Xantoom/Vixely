@@ -5,13 +5,13 @@ import { m } from '@/paraglide/messages.js';
 import { Dropdown, type DropdownOption } from './Dropdown';
 
 const FIELD =
-	'h-10 w-full rounded-xs border border-field bg-raised text-small text-ink transition-colors hover:border-muted';
+	'h-10 w-full rounded-sm border border-control-border bg-raised text-small text-fg transition-colors hover:border-fg-faint';
 
 /** A label and its control on one row: the label reads left, the value sits right. */
 export function FieldRow({ label, htmlFor, children }: { label: string; htmlFor?: string; children: ReactNode }) {
 	return (
 		<div className="grid grid-cols-[minmax(0,1fr)_160px] items-center gap-3">
-			<label htmlFor={htmlFor} className="text-ui text-ink-2">
+			<label htmlFor={htmlFor} className="text-ui text-fg-muted">
 				{label}
 			</label>
 			{children}
@@ -82,7 +82,7 @@ export function NumberField({
 				className={`${FIELD} cursor-text px-2.5 ${unit ? 'pr-8' : ''}`}
 			/>
 			{unit && (
-				<span className="text-caption text-muted pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2">
+				<span className="text-caption text-fg-faint pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2">
 					{unit}
 				</span>
 			)}
@@ -105,7 +105,7 @@ export function TextField({
 	const id = useId();
 	return (
 		<div className="grid gap-1.5">
-			<label htmlFor={id} className="text-ui text-ink-2">
+			<label htmlFor={id} className="text-ui text-fg-muted">
 				{label}
 			</label>
 			<input
@@ -116,7 +116,7 @@ export function TextField({
 				onChange={(event) => {
 					onChange(event.target.value);
 				}}
-				className="border-field bg-raised text-ui text-ink hover:border-muted placeholder:text-muted h-8 pointer-coarse:h-10 w-full cursor-text rounded-xs border px-2.5 transition-colors"
+				className="border-control-border bg-raised text-ui text-fg hover:border-fg-faint placeholder:text-fg-faint h-8 pointer-coarse:h-10 w-full cursor-text rounded-sm border px-2.5 transition-colors"
 			/>
 		</div>
 	);
@@ -218,7 +218,7 @@ export function Slider({
 	return (
 		<div className="grid gap-1.5">
 			<div className="flex items-center justify-between gap-2">
-				<label htmlFor={id} className={hideLabel ? 'sr-only' : 'text-ui text-ink-2 min-w-0 flex-1 truncate'}>
+				<label htmlFor={id} className={hideLabel ? 'sr-only' : 'text-ui text-fg-muted min-w-0 flex-1 truncate'}>
 					{label}
 				</label>
 				{resettable && (
@@ -232,13 +232,13 @@ export function Slider({
 							onChange(defaultValue);
 							onEnd();
 						}}
-						className="text-muted enabled:hover:bg-surface enabled:hover:text-ink x-touch-target relative -my-1 ml-auto grid size-6 flex-none cursor-pointer place-items-center rounded-xs transition-[opacity,color,background-color] duration-200 disabled:pointer-events-none disabled:opacity-0"
+						className="text-fg-faint enabled:hover:bg-sunken enabled:hover:text-fg x-touch-target relative -my-1 ml-auto grid size-6 flex-none cursor-pointer place-items-center rounded-sm transition-[opacity,color,background-color] duration-200 disabled:pointer-events-none disabled:opacity-0"
 					>
 						<RotateCcw className="size-3.5" aria-hidden="true" />
 					</button>
 				)}
 				<output
-					className={`x-tabular text-small text-ink flex-none text-right ${resettable ? '' : 'ml-auto'}`}
+					className={`x-tabular text-small text-fg flex-none text-right ${resettable ? '' : 'ml-auto'}`}
 					aria-label={m.slider_value({ label })}
 				>
 					{format(value)}
@@ -264,7 +264,7 @@ export function Slider({
 				}}
 				className="slider h-6 w-full cursor-pointer touch-pan-y appearance-none bg-transparent"
 			/>
-			{hint && <p className="text-small text-muted -mt-0.5">{hint}</p>}
+			{hint && <p className="text-small text-fg-faint -mt-0.5">{hint}</p>}
 		</div>
 	);
 }
@@ -298,16 +298,16 @@ export function OptionList<T extends string>({
 					onClick={() => {
 						onChange(option.value);
 					}}
-					className="enabled:hover:bg-surface group grid grid-cols-[16px_minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-0.5 rounded-xs px-2.5 py-2 text-left disabled:cursor-not-allowed"
+					className="enabled:hover:bg-sunken group grid grid-cols-[16px_minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-0.5 rounded-sm px-2.5 py-2 text-left disabled:cursor-not-allowed"
 				>
-					<span className="size-4 translate-y-0.5 self-start rounded-full shadow-[inset_0_0_0_1.5px_var(--field-line)] group-disabled:opacity-45 group-aria-checked:shadow-[inset_0_0_0_5px_var(--ed)]" />
+					<span className="size-4 translate-y-0.5 self-start rounded-full shadow-[inset_0_0_0_1.5px_var(--x-control-border)] group-disabled:opacity-45 group-aria-checked:shadow-[inset_0_0_0_5px_var(--ed)]" />
 					<span className="text-body group-disabled:opacity-45">{option.label}</span>
-					<span className="text-small text-muted flex items-center gap-1.5 group-disabled:opacity-45">
+					<span className="text-small text-fg-faint flex items-center gap-1.5 group-disabled:opacity-45">
 						{option.disabled && option.reason && <Lock size={12} aria-hidden="true" />}
 						{option.detail}
 					</span>
 					{option.description && (
-						<span className="text-small text-muted col-start-2 col-end-4 text-pretty">
+						<span className="text-small text-fg-faint col-start-2 col-end-4 text-pretty">
 							{option.description}
 						</span>
 					)}
@@ -349,7 +349,7 @@ export function Switch({
 			className={
 				hideLabel
 					? 'group grid flex-none place-items-center disabled:cursor-not-allowed disabled:opacity-45 pointer-coarse:min-h-11'
-					: 'group text-ui text-ink-2 flex items-center justify-between gap-3 py-1 text-left disabled:cursor-not-allowed disabled:opacity-45 pointer-coarse:min-h-11'
+					: 'group text-ui text-fg-muted flex items-center justify-between gap-3 py-1 text-left disabled:cursor-not-allowed disabled:opacity-45 pointer-coarse:min-h-11'
 			}
 		>
 			{!hideLabel && label}

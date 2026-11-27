@@ -193,7 +193,7 @@ export function ExportFooter({ source, file, photo, batch, onStatus, onRunning }
 	return (
 		<>
 			{!batch && status !== 'saving' && (
-				<p className="text-small text-muted x-tabular text-center" aria-live="polite">
+				<p className="text-small text-fg-faint x-tabular text-center" aria-live="polite">
 					{estimate === null
 						? m.weight_estimating()
 						: m.weight_estimate({
@@ -203,7 +203,7 @@ export function ExportFooter({ source, file, photo, batch, onStatus, onRunning }
 				</p>
 			)}
 			{batch && status === 'saving' && (
-				<div className="bg-surface-2 h-1 overflow-hidden rounded-full" aria-hidden="true">
+				<div className="bg-sunken-2 h-1 overflow-hidden rounded-full" aria-hidden="true">
 					<div
 						className="bg-ed h-full origin-left transition-transform duration-300 motion-reduce:transition-none"
 						style={{ transform: `scaleX(${progress.done / Math.max(progress.total, 1)})` }}
@@ -227,7 +227,7 @@ export function ExportFooter({ source, file, photo, batch, onStatus, onRunning }
 			</div>
 			<ExportAnnounce status={status} />
 			{batch && weights && weights.after > 0 && status !== 'saving' && (
-				<p className="text-small text-muted x-tabular text-center">
+				<p className="text-small text-fg-faint x-tabular text-center">
 					{m.weight_change({
 						before: formatBytes(weights.before),
 						after: formatBytes(weights.after),

@@ -5,6 +5,9 @@ touch, mouse or keyboard.
 
 ## Principles
 
+- When room runs out, reorganise rather than stack: a toolbar folds its secondary settings behind one button, turns
+  its main action into an icon and lets the search take the width; a two-column comparison stays two columns with
+  shorter labels. Wrapping onto a second line is the last resort, never the plan.
 - Components adapt to the space they get (container queries, `auto-fill` grids, wrapping flex), not to device
   names. Media queries are for the page frame (`x-shell`, dialog to bottom sheet) and for capabilities
   (`pointer: coarse`, `hover`, `prefers-*`).

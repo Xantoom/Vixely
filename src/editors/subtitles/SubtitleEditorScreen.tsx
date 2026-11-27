@@ -125,7 +125,7 @@ function SingleSubtitleScreen({ initialTool }: { initialTool?: ToolId }) {
 		if (!opened) return <EmptyViewer kind="subtitles" />;
 		if (status === 'unreadable') return <p className="text-body text-danger">{m.subs_unreadable()}</p>;
 		return (
-			<p className="text-body text-muted x-tabular">
+			<p className="text-body text-fg-faint x-tabular">
 				{source === 'video'
 					? m.subs_reading_track({ percent: Math.floor(progress * 100) })
 					: m.drop_reading({ name: opened.file.name })}

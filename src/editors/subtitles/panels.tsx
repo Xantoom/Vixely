@@ -88,9 +88,9 @@ function TracksSection({ fileName }: { fileName: string }) {
 							onClick={() => {
 								choose(track.key);
 							}}
-							className="enabled:hover:bg-surface group grid grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-3 rounded-xs px-2.5 py-2 text-left disabled:cursor-not-allowed disabled:opacity-45"
+							className="enabled:hover:bg-sunken group grid grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-3 rounded-sm px-2.5 py-2 text-left disabled:cursor-not-allowed disabled:opacity-45"
 						>
-							<span className="size-4 rounded-full shadow-[inset_0_0_0_1.5px_var(--line-2)] group-aria-checked:shadow-[inset_0_0_0_5px_var(--ed)]" />
+							<span className="size-4 rounded-full shadow-[inset_0_0_0_1.5px_var(--x-line-strong)] group-aria-checked:shadow-[inset_0_0_0_5px_var(--ed)]" />
 							<span className="grid min-w-0">
 								<span className="text-body flex min-w-0 items-center gap-1.5">
 									<span className="truncate">{projectTrackName(track, fileName)}</span>
@@ -103,7 +103,7 @@ function TracksSection({ fileName }: { fileName: string }) {
 									)}
 								</span>
 								{info && (info.default || info.forced) && (
-									<span className="text-small text-muted">
+									<span className="text-small text-fg-faint">
 										{[
 											info.default ? m.subs_track_default() : '',
 											info.forced ? m.subs_track_forced() : '',
@@ -113,7 +113,7 @@ function TracksSection({ fileName }: { fileName: string }) {
 									</span>
 								)}
 							</span>
-							<span className="text-small text-muted flex items-center gap-1.5">
+							<span className="text-small text-fg-faint flex items-center gap-1.5">
 								{!usable && info && <Ban size={13} aria-hidden="true" />}
 								{info ? (
 									codecLabel(info)
@@ -147,7 +147,6 @@ export function TrackPicker({ fileName }: { fileName: string }) {
 			label={m.subs_tracks()}
 			title={m.subs_tracks()}
 			value={current === null ? null : String(current)}
-			align="start"
 			rows={8}
 			items={tracks.map((track, index) => ({
 				value: String(track.key),
@@ -277,7 +276,7 @@ export function OffsetField({ id, value, onChange }: { id: string; value: number
 				if (event.key === 'Enter') commit();
 				if (event.key === 'Escape') setDraft(null);
 			}}
-			className="border-field bg-raised text-ink hover:border-muted x-tabular h-8 pointer-coarse:h-10 w-full cursor-text rounded-xs border px-2.5 text-small transition-colors"
+			className="border-control-border bg-raised text-fg hover:border-fg-faint x-tabular h-8 pointer-coarse:h-10 w-full cursor-text rounded-sm border px-2.5 text-small transition-colors"
 		/>
 	);
 }
@@ -359,8 +358,8 @@ export function TimingPanel() {
 						{ id: secondId, cue: second, target: secondTarget, index: 1 },
 					].map(({ id, cue, target, index }) => (
 						<div key={id} className="grid gap-1.5">
-							<p className="text-ui text-ink-2 line-clamp-1">
-								<span className="text-muted x-tabular mr-2 text-caption">
+							<p className="text-ui text-fg-muted line-clamp-1">
+								<span className="text-fg-faint x-tabular mr-2 text-caption">
 									{formatPreciseTime(cue.start / 1000)}
 								</span>
 								{cueLabel(cue, doc.format).replace(/\n/g, ' ')}
@@ -393,7 +392,7 @@ export function TimingPanel() {
 						</div>
 					))}
 					{sync ? (
-						<p className="text-small text-muted x-tabular">
+						<p className="text-small text-fg-faint x-tabular">
 							{m.subs_sync_result({
 								percent: `${sync.scale >= 1 ? '+' : '−'}${formatPercent(decimal(Math.abs(sync.scale - 1) * 100, 2))}`,
 								offset: signedSeconds(Math.round(sync.offset)),

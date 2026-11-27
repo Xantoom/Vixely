@@ -29,11 +29,11 @@ export function SitePage({ content }: { content: PageContent }) {
 						<h1 className="text-[clamp(2.25rem,5vw,3.5rem)] leading-[1.02] font-bold tracking-[-0.025em] text-balance">
 							{content.title}
 						</h1>
-						{content.lede && <p className="text-lead text-muted">{content.lede}</p>}
+						{content.lede && <p className="text-lead text-fg-faint">{content.lede}</p>}
 					</header>
 					{content.sections.map((section) => (
-						<section key={section.title} className="text-body text-ink-2 grid gap-3 leading-relaxed">
-							<h2 className="text-ink text-[1.5rem] font-bold tracking-[-0.025em]">{section.title}</h2>
+						<section key={section.title} className="text-body text-fg-muted grid gap-3 leading-relaxed">
+							<h2 className="text-fg text-[1.5rem] font-bold tracking-[-0.025em]">{section.title}</h2>
 							{section.body}
 						</section>
 					))}

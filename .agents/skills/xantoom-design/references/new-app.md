@@ -53,6 +53,8 @@ All logos share one grammar, so they read as a family:
   - Vixeeny: the four corners of a capture zone.
 - **Test it** at 16, 32 and 48 px, on light and dark grounds, and in one colour. Under 32 px, drop the element and
   enlarge the V if the element turns to mush. Ask what it evokes to someone who does not know the app.
+- **The family's logos** live in `xantoom-design/brand/<app>.svg`: copy an app's logo there when it changes, and
+  import it from there (a site listing the apps never keeps its own copies).
 - **Files:** `favicon.svg` (the tile), `apple-touch-icon.png` (180 px, full bleed), `icon-192.png`, `icon-512.png`,
   and `maskable-512.png` (full bleed, with the mark scaled to 74 % to stay inside the safe zone). Render SVG to PNG
   with `@resvg/resvg-js`. Never generate images with AI.

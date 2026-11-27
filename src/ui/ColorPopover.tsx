@@ -120,7 +120,7 @@ function ColorChooser({ value, onChange }: { value: string; onChange: (color: st
 							: { ...hsv, s: Math.min(1, Math.max(0, hsv.s + step / 100)) },
 					);
 				}}
-				className="relative h-36 cursor-crosshair touch-none rounded-sm"
+				className="relative h-36 cursor-crosshair touch-none rounded-md"
 				style={{
 					background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, ${pure})`,
 				}}
@@ -150,7 +150,7 @@ function ColorChooser({ value, onChange }: { value: string; onChange: (color: st
 			</div>
 			<div className="flex items-center gap-2">
 				<span
-					className="size-8 flex-none rounded-xs shadow-[inset_0_0_0_1px_rgb(0_0_0/0.15)]"
+					className="size-8 flex-none rounded-sm shadow-[inset_0_0_0_1px_rgb(0_0_0/0.15)]"
 					style={{ background: hsvToHex(hsv) }}
 					aria-hidden="true"
 				/>
@@ -166,7 +166,7 @@ function ColorChooser({ value, onChange }: { value: string; onChange: (color: st
 					onBlur={() => {
 						setDraft(null);
 					}}
-					className="border-field bg-raised text-ink hover:border-muted h-8 pointer-coarse:h-10 min-w-0 flex-1 rounded-xs border px-2.5 text-caption uppercase transition-colors"
+					className="border-control-border bg-raised text-fg hover:border-fg-faint h-8 pointer-coarse:h-10 min-w-0 flex-1 rounded-sm border px-2.5 text-caption uppercase transition-colors"
 				/>
 			</div>
 		</div>
@@ -227,7 +227,7 @@ export function ColorPopover({
 							event.stopPropagation();
 							if (event.key === 'Escape') close(true);
 						}}
-						className="menu-in bg-raised text-ink fixed z-50 rounded-md p-3 shadow-[0_0_0_1px_var(--line-2),0_18px_44px_-14px_rgb(0_0_0/0.4)]"
+						className="menu-in bg-raised text-fg fixed z-50 rounded-lg p-3 shadow-[0_0_0_1px_var(--x-line-strong),0_18px_44px_-14px_rgb(0_0_0/0.4)]"
 						style={place ? { top: place.top, left: place.left } : { top: 0, left: 0, visibility: 'hidden' }}
 					>
 						<ColorChooser value={value} onChange={onChange} />

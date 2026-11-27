@@ -50,7 +50,7 @@ export function BatchList({ statuses, locked, count, addLabel, accept }: BatchLi
 					type="button"
 					disabled={locked}
 					onClick={() => inputRef.current?.click()}
-					className="text-ui text-ink-2 enabled:hover:bg-surface enabled:hover:text-ink flex h-8 flex-none items-center gap-1.5 rounded-sm px-2.5 font-medium transition-colors disabled:opacity-40"
+					className="text-ui text-fg-muted enabled:hover:bg-sunken enabled:hover:text-fg flex h-8 flex-none items-center gap-1.5 rounded-md px-2.5 font-medium transition-colors disabled:opacity-40"
 				>
 					<Plus size={15} aria-hidden="true" />
 					{addLabel}
@@ -69,7 +69,7 @@ export function BatchList({ statuses, locked, count, addLabel, accept }: BatchLi
 				/>
 			</div>
 			{error?.reason === 'skipped' && (
-				<p className="text-small text-muted -mt-1">{m.batch_skipped({ count: error.count })}</p>
+				<p className="text-small text-fg-faint -mt-1">{m.batch_skipped({ count: error.count })}</p>
 			)}
 			<ol ref={dragScroll} className="flex gap-1.5 overflow-x-auto pb-2">
 				{batch.map((item) => {
@@ -81,10 +81,10 @@ export function BatchList({ statuses, locked, count, addLabel, accept }: BatchLi
 								onClick={() => void select(item)}
 								aria-current={selected}
 								title={item.file.name}
-								className={`text-ui flex h-8 max-w-56 items-center gap-2 rounded-sm px-3 transition-colors ${
+								className={`text-ui flex h-8 max-w-56 items-center gap-2 rounded-md px-3 transition-colors ${
 									selected
 										? 'bg-ed-soft text-ed-text font-medium'
-										: 'text-ink-2 hover:bg-surface hover:text-ink shadow-[inset_0_0_0_1px_var(--line)]'
+										: 'text-fg-muted hover:bg-sunken hover:text-fg shadow-[inset_0_0_0_1px_var(--x-line)]'
 								}`}
 							>
 								<span className="truncate">{item.file.name}</span>
@@ -98,7 +98,7 @@ export function BatchList({ statuses, locked, count, addLabel, accept }: BatchLi
 									onClick={() => {
 										remove(item.id);
 									}}
-									className="bg-raised text-ink-2 hover:text-ink absolute -top-1.5 -right-1.5 grid size-5 place-items-center rounded-full opacity-0 pointer-coarse:opacity-100 pointer-coarse:before:absolute pointer-coarse:before:-inset-3 shadow-[0_0_0_1px_var(--line-2)] transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+									className="bg-raised text-fg-muted hover:text-fg absolute -top-1.5 -right-1.5 grid size-5 place-items-center rounded-full opacity-0 pointer-coarse:opacity-100 pointer-coarse:before:absolute pointer-coarse:before:-inset-3 shadow-[0_0_0_1px_var(--x-line-strong)] transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
 								>
 									<X size={12} strokeWidth={2.5} />
 								</button>

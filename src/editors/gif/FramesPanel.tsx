@@ -106,7 +106,7 @@ function Thumbnail({
 			observer.disconnect();
 		};
 	}, [engine, frame, composer, doc]);
-	return <canvas ref={ref} className="bg-surface-2 block h-auto w-full rounded-xs" />;
+	return <canvas ref={ref} className="bg-sunken-2 block h-auto w-full rounded-sm" />;
 }
 
 /** Shortest frame delay browsers play as asked, in milliseconds; and the longest offered. */
@@ -298,7 +298,7 @@ export function FramesPanel({ engine, fileName }: { engine: GifEngine; fileName:
 					{ownFrames && key !== null && (
 						<div className="flex flex-wrap items-end gap-2">
 							<label className="grid min-w-28 flex-1 gap-1.5">
-								<span className="text-ui text-ink-2">{m.frame_duration()}</span>
+								<span className="text-ui text-fg-muted">{m.frame_duration()}</span>
 								<NumberField
 									value={Math.round(current.duration * 1000)}
 									unit="ms"
@@ -519,10 +519,10 @@ export function FramesPanel({ engine, fileName }: { engine: GifEngine; fileName:
 							onClick={(event) => {
 								pick(frame, event);
 							}}
-							className={`group hover:bg-surface aria-selected:bg-ed-soft aria-selected:shadow-[inset_0_0_0_1.5px_var(--ed)] grid content-start gap-1 rounded-sm p-1 text-left transition-colors ${several && shown === index ? 'outline-ed outline-2 outline-offset-1' : ''}`}
+							className={`group hover:bg-sunken aria-selected:bg-ed-soft aria-selected:shadow-[inset_0_0_0_1.5px_var(--ed)] grid content-start gap-1 rounded-md p-1 text-left transition-colors ${several && shown === index ? 'outline-ed outline-2 outline-offset-1' : ''}`}
 						>
 							<Thumbnail engine={engine} frame={frame} composer={composer} />
-							<span className="text-caption text-muted group-aria-selected:text-ink-2 x-tabular flex justify-between px-0.5">
+							<span className="text-caption text-fg-faint group-aria-selected:text-fg-muted x-tabular flex justify-between px-0.5">
 								<span>{shown + 1}</span>
 								<span>{Math.round(frame.duration * 1000)} ms</span>
 							</span>

@@ -25,17 +25,19 @@ function NotFound() {
 		<div className="flex min-h-full flex-col">
 			<SiteHeader />
 			<main className="mx-auto grid w-full max-w-[44rem] flex-1 content-center gap-6 px-[clamp(1rem,4vw,2.5rem)] py-16">
-				<p className="text-muted text-[clamp(4rem,12vw,7rem)] leading-none font-bold tracking-[-0.05em]">404</p>
+				<p className="text-fg-faint text-[clamp(4rem,12vw,7rem)] leading-none font-bold tracking-[-0.05em]">
+					404
+				</p>
 				<h1 className="text-[clamp(1.75rem,4vw,2.5rem)] leading-tight font-bold tracking-[-0.02em]">
 					{m.not_found_title()}
 				</h1>
-				<p className="text-lead text-muted">{m.not_found_text()}</p>
+				<p className="text-lead text-fg-faint">{m.not_found_text()}</p>
 				<ul className="border-line grid border-t">
 					{EDITOR_ORDER.map((kind) => (
 						<li key={kind} className="border-line border-b">
 							<Link
 								to={EDITORS[kind].path}
-								className="text-body hover:bg-surface -mx-2 flex items-center gap-3 rounded-sm px-2 py-2.5 font-medium transition-colors"
+								className="text-body hover:bg-sunken -mx-2 flex items-center gap-3 rounded-md px-2 py-2.5 font-medium transition-colors"
 							>
 								<Tile kind={kind} size="sm" />
 								{EDITORS[kind].label()}

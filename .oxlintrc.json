@@ -163,7 +163,7 @@
 			"exemptDestructuredRootsFromChecks": false,
 			"tagNamePreference": {}
 		},
-		"shadcn": { "ui": "@/ui" }
+		"shadcn": { "ui": "@/ui", "themeImports": ["^xantoom-design/"] }
 	},
 	"env": { "browser": true, "es2024": true },
 	"globals": { "FileReaderSync": "readonly", "__VIXELY_VERSION__": "readonly" },

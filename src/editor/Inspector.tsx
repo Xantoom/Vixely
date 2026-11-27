@@ -222,7 +222,7 @@ export function ToolLater({ kind, tool }: { kind: MediaKind; tool: ToolId }) {
 	return (
 		<>
 			<PanelTitle>{TOOL_LABELS[tool]()}</PanelTitle>
-			<p className="text-ui text-muted -mt-3">{m.tool_later({ editor: EDITORS[kind].label() })}</p>
+			<p className="text-ui text-fg-faint -mt-3">{m.tool_later({ editor: EDITORS[kind].label() })}</p>
 		</>
 	);
 }

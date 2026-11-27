@@ -63,7 +63,7 @@ export function TranslatePanel({ fileName }: { fileName: string }) {
 						{m.translate_done({ done: origin.size - left, total: origin.size })}
 					</p>
 					<div
-						className="bg-surface-2 h-1.5 overflow-hidden rounded-full"
+						className="bg-sunken-2 h-1.5 overflow-hidden rounded-full"
 						role="progressbar"
 						aria-label={m.translate_progress()}
 						aria-valuemin={0}
@@ -136,7 +136,7 @@ export function TranslatePanel({ fileName }: { fileName: string }) {
 			)}
 			<Section title={m.translate_new()}>
 				{texts.length === 0 ? (
-					<p className="text-ui text-muted">{m.translate_nothing()}</p>
+					<p className="text-ui text-fg-faint">{m.translate_nothing()}</p>
 				) : (
 					<div className="grid gap-2.5">
 						<FieldRow label={m.translate_from()} htmlFor={ids.source}>

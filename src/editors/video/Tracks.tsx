@@ -173,21 +173,21 @@ function TrackLine({ file, track, onOpen }: { file: File; track: MuxTrack; onOpe
 				onClick={() => {
 					onOpen(track.key);
 				}}
-				className="hover:bg-surface -mr-2 flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-sm py-2 pr-1 pl-2 text-left transition-colors"
+				className="hover:bg-sunken -mr-2 flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md py-2 pr-1 pl-2 text-left transition-colors"
 			>
 				<span className={`grid min-w-0 flex-1 gap-0.5 ${track.include ? '' : 'opacity-55'}`}>
 					<span className="flex min-w-0 items-center gap-1.5">
-						<span className="text-ui text-ink min-w-0 truncate font-medium">{label}</span>
+						<span className="text-ui text-fg min-w-0 truncate font-medium">{label}</span>
 						{track.default && <Badge>{m.track_badge_default()}</Badge>}
 						{track.forced && <Badge>{m.track_badge_forced()}</Badge>}
 						{burned && <Badge>{m.tracks_col_burn()}</Badge>}
 					</span>
-					<span className="text-small text-muted min-w-0 truncate x-tabular">
+					<span className="text-small text-fg-faint min-w-0 truncate x-tabular">
 						{blocked ?? facts.join(', ')}
 						{changes.length > 0 && <span className="text-ed-text"> → {changes.join(', ')}</span>}
 					</span>
 				</span>
-				<ChevronRight className="text-muted size-4 flex-none" aria-hidden="true" />
+				<ChevronRight className="text-fg-faint size-4 flex-none" aria-hidden="true" />
 			</button>
 		</li>
 	);
@@ -195,7 +195,7 @@ function TrackLine({ file, track, onOpen }: { file: File; track: MuxTrack; onOpe
 
 function Badge({ children }: { children: string }) {
 	return (
-		<span className="bg-ed-soft text-ed-text text-caption flex-none rounded-xs px-1.5 py-px font-medium">
+		<span className="bg-ed-soft text-ed-text text-caption flex-none rounded-sm px-1.5 py-px font-medium">
 			{children}
 		</span>
 	);
@@ -245,7 +245,7 @@ function TrackList({
 			action={
 				<>
 					{tracks.length > 0 && (
-						<span className="text-small text-muted x-tabular">
+						<span className="text-small text-fg-faint x-tabular">
 							{m.tracks_kept({ kept, count: tracks.length })}
 						</span>
 					)}
@@ -258,7 +258,7 @@ function TrackList({
 			{children}
 			<div data-media={KIND_MEDIA[kind]} className="grid">
 				{tracks.length === 0 ? (
-					<p className="text-ui text-muted">{empty}</p>
+					<p className="text-ui text-fg-faint">{empty}</p>
 				) : (
 					<ul className="divide-line -my-1 grid divide-y">
 						{shown.map((track) => (
@@ -273,7 +273,7 @@ function TrackList({
 							if (shared) shared.toggle(kind);
 							else setOwn((value) => !value);
 						}}
-						className="text-ui text-ed-text hover:text-ink mt-1 justify-self-start py-1.5 font-medium transition-colors"
+						className="text-ui text-ed-text hover:text-fg mt-1 justify-self-start py-1.5 font-medium transition-colors"
 					>
 						{unfolded ? m.tracks_fewer() : m.tracks_more({ count: tracks.length - SHOWN_FOLDED })}
 					</button>
@@ -321,7 +321,7 @@ export function SoundTracks({
 	// Sound files dropped on the page become tracks of the video; videos still open.
 	useDropHandler(async (files) => add(files, true));
 
-	if (!tracks) return <p className="text-ui text-muted">{m.subs_reading_track({ percent: 0 })}</p>;
+	if (!tracks) return <p className="text-ui text-fg-faint">{m.subs_reading_track({ percent: 0 })}</p>;
 	return (
 		<TrackList
 			file={opened.file}
@@ -397,7 +397,7 @@ export function SubtitleTracks({
 		return true;
 	});
 
-	if (!tracks) return <p className="text-ui text-muted">{m.subs_reading_track({ percent: 0 })}</p>;
+	if (!tracks) return <p className="text-ui text-fg-faint">{m.subs_reading_track({ percent: 0 })}</p>;
 	return (
 		<TrackList
 			file={opened.file}
@@ -477,14 +477,14 @@ function TrackPage({
 	const burned = exportSettings?.burn === track.key;
 	const blocked = blockedReason(track);
 	const field =
-		'border-field bg-raised text-ui hover:border-muted h-9 w-full min-w-0 rounded-xs border px-2.5 transition-colors';
+		'border-control-border bg-raised text-ui hover:border-fg-faint h-9 w-full min-w-0 rounded-sm border px-2.5 transition-colors';
 
 	return (
 		<>
 			<PanelTitle onBack={onBack}>{trackLabel(track)}</PanelTitle>
 
 			<div data-media={KIND_MEDIA[track.kind]} className="grid gap-1">
-				<p className="text-small text-muted x-tabular">{blocked ?? facts.join(', ')}</p>
+				<p className="text-small text-fg-faint x-tabular">{blocked ?? facts.join(', ')}</p>
 				<Switch
 					label={m.track_in_file()}
 					checked={track.include}
@@ -502,7 +502,7 @@ function TrackPage({
 								setExport(value ? { burn: track.key, mode: 'encode' } : { burn: null });
 							}}
 						/>
-						{burned && <p className="text-small text-muted">{m.tracks_burn_hint()}</p>}
+						{burned && <p className="text-small text-fg-faint">{m.tracks_burn_hint()}</p>}
 					</>
 				)}
 			</div>
@@ -558,7 +558,7 @@ function TrackPage({
 									change({ forced });
 								}}
 							/>
-							<p className="text-small text-muted">{m.track_forced_hint()}</p>
+							<p className="text-small text-fg-faint">{m.track_forced_hint()}</p>
 						</div>
 					)}
 				</div>
@@ -587,7 +587,7 @@ function TrackPage({
 									});
 								}}
 							/>
-							{!track.encode && <p className="text-small text-muted">{soundDefault}</p>}
+							{!track.encode && <p className="text-small text-fg-faint">{soundDefault}</p>}
 						</div>
 						{track.encode && (
 							<>

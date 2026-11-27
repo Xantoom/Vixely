@@ -50,7 +50,7 @@ export function TimeRuler({ view, onSeek }: { view: Range; onSeek?: (time: numbe
 		<div
 			ref={ref}
 			aria-hidden="true"
-			className={`text-caption text-muted relative h-[18px] overflow-hidden select-none ${onSeek ? 'cursor-pointer' : ''}`}
+			className={`text-caption text-fg-faint relative h-[18px] overflow-hidden select-none ${onSeek ? 'cursor-pointer' : ''}`}
 			onPointerDown={(event) => {
 				if (!onSeek || event.button !== 0) return;
 				event.currentTarget.setPointerCapture(event.pointerId);
@@ -63,7 +63,7 @@ export function TimeRuler({ view, onSeek }: { view: Range; onSeek?: (time: numbe
 			{ticks.map((t) => (
 				<span
 					key={t}
-					className="border-line-2 absolute top-0 h-full border-l pl-1 leading-none whitespace-nowrap"
+					className="border-line-strong absolute top-0 h-full border-l pl-1 leading-none whitespace-nowrap"
 					style={{ left: `${((t - view.start) / span) * 100}%` }}
 				>
 					{label(t, step)}

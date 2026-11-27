@@ -22,7 +22,7 @@ export function BrandLogo({ logo, size = 28 }: { logo: LogoId; size?: number }) 
 	if (logo === 'email' || logo === 'square' || logo === 'uhd' || logo === 'web') {
 		return (
 			<span
-				className={`${tile} bg-surface-2 text-ink-2 shadow-[inset_0_0_0_1px_var(--line-2)]`}
+				className={`${tile} bg-sunken-2 text-fg-muted shadow-[inset_0_0_0_1px_var(--x-line-strong)]`}
 				style={{ width: size, height: size }}
 				aria-hidden="true"
 			>

@@ -21,7 +21,7 @@ function PosterCanvas({ bitmap }: { bitmap: ImageBitmap }) {
 }
 
 function Message({ children }: { children: string }) {
-	return <p className="text-body text-muted">{children}</p>;
+	return <p className="text-body text-fg-faint">{children}</p>;
 }
 
 /**
@@ -40,12 +40,12 @@ function FromVideo({ kind }: { kind: MediaKind }) {
 			onClick={() => {
 				openFrom('video', kind);
 			}}
-			className="hover:bg-surface border-line-2 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-md border px-4 py-3 text-left transition-colors"
+			className="hover:bg-sunken border-line-strong grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors"
 		>
 			<Tile kind="video" size="lg" />
 			<span className="grid min-w-0">
 				<span className="text-body font-semibold">{m.use_open_video()}</span>
-				<span className="text-small text-muted truncate" title={video.file.name}>
+				<span className="text-small text-fg-faint truncate" title={video.file.name}>
 					{video.file.name}
 				</span>
 			</span>
@@ -64,7 +64,7 @@ export function EmptyViewer({ kind }: { kind: MediaKind }) {
 					<p className="text-title font-bold tracking-[-0.02em] text-balance" aria-hidden="true">
 						{task.title()}
 					</p>
-					<p className="text-body text-muted">{task.description()}</p>
+					<p className="text-body text-fg-faint">{task.description()}</p>
 				</div>
 			)}
 			<FromVideo kind={kind} />
@@ -87,7 +87,7 @@ export function Viewer({ kind, opened }: { kind: MediaKind; opened: OpenedFile |
 			<ol className="grid max-h-full w-full max-w-[560px] content-center gap-1 overflow-auto">
 				{opened.info.cues.slice(0, 8).map((cue) => (
 					<li key={`${cue.start}-${cue.text}`} className="grid grid-cols-[104px_minmax(0,1fr)] gap-4 py-1.5">
-						<span className="text-small text-muted x-tabular">{formatTimecode(cue.start)}</span>
+						<span className="text-small text-fg-faint x-tabular">{formatTimecode(cue.start)}</span>
 						<span className="text-body">{cue.text}</span>
 					</li>
 				))}

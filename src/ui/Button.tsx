@@ -1,59 +1,48 @@
+// Buttons are the design system's. In an editor, its primary look and pressed state take the editor's colour
+// (app.css maps the design system's fill and accent onto it).
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
-
-type Variant = 'primary' | 'secondary';
-
-const VARIANTS: Record<Variant, string> = {
-	// The primary action takes the colour of the current editor, neutral elsewhere.
-	primary:
-		'bg-ed text-ed-ink font-semibold hover:brightness-[1.07] disabled:opacity-45 disabled:hover:brightness-100 aria-disabled:opacity-45 aria-disabled:hover:brightness-100',
-	// Edged like the fields it often sits beside, so it shows even while it waits.
-	secondary: 'text-ink font-medium shadow-[inset_0_0_0_1px_var(--field-line)] hover:bg-surface disabled:opacity-45',
-};
+import { Button as DsButton, buttonProps } from 'xantoom-design/react';
 
 export function Button({
 	variant = 'secondary',
-	className = '',
-	type = 'button',
-	busy = false,
-	onClick,
+	size = 'md',
 	...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
-	variant?: Variant;
-	/** Working: looks disabled and does nothing, but keeps the keyboard focus, unlike `disabled`. */
+	variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
+	size?: 'sm' | 'md' | 'lg';
+	/** Working: a spinner over the kept label, no second press, and the keyboard focus stays, unlike `disabled`. */
 	busy?: boolean;
 }) {
-	return (
-		<button
-			type={type}
-			aria-disabled={busy || undefined}
-			onClick={busy ? undefined : onClick}
-			className={`text-ui inline-flex h-10 items-center justify-center gap-2 rounded-sm px-4.5 whitespace-nowrap transition-[filter,background-color] duration-150 ${VARIANTS[variant]} ${className}`}
-			{...props}
-		/>
-	);
+	return <DsButton variant={variant} size={size} {...props} />;
 }
 
 /**
- * Square button for a single icon. The label is announced and shown as a tooltip, unless `tip` is
- * false: beside words that already say it.
+ * Square button for a single icon. The label is announced and shown as a tooltip (the app's, from `title`), unless
+ * `tip` is false: beside words that already say it.
  */
 export function IconButton({
 	label,
 	tip = true,
-	children,
-	className = '',
+	size = 'md',
+	className,
 	type = 'button',
 	...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; tip?: boolean; children: ReactNode }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+	label: string;
+	tip?: boolean;
+	size?: 'sm' | 'md';
+	children: ReactNode;
+}) {
+	const look = buttonProps({ variant: 'ghost', size });
 	return (
 		<button
+			{...look}
+			data-icon=""
 			type={type}
 			aria-label={label}
 			title={tip ? label : undefined}
-			className={`text-muted enabled:hover:bg-surface enabled:hover:text-ink aria-pressed:bg-ed-soft aria-pressed:text-ed-text x-touch-target relative grid size-10 flex-none place-items-center rounded-sm transition-colors duration-150 disabled:opacity-40 ${className}`}
+			className={className ? `${look.className} ${className}` : look.className}
 			{...props}
-		>
-			{children}
-		</button>
+		/>
 	);
 }

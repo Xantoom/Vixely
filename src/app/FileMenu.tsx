@@ -51,14 +51,13 @@ export function FileMenu({
 			<Menu<FileAction>
 				label={m.file_menu()}
 				value={null}
-				align="start"
 				header={
 					fileName && (
 						<div className="grid max-w-80 gap-0.5">
 							{/* The whole name, which the bar cuts short: long names wrap anywhere. */}
-							<span className="text-ui text-ink font-medium [overflow-wrap:anywhere]">{fileName}</span>
+							<span className="text-ui text-fg font-medium [overflow-wrap:anywhere]">{fileName}</span>
 							{opened && (
-								<span className="text-small text-muted x-tabular">
+								<span className="text-small text-fg-faint x-tabular">
 									{opened.format.toUpperCase()}, {formatBytes(opened.file.size)}
 								</span>
 							)}
@@ -78,7 +77,7 @@ export function FileMenu({
 			>
 				<FileIcon className="size-4 flex-none md:hidden" aria-hidden="true" />
 				<span className="relative top-px min-w-0 truncate max-md:sr-only">{fileName ?? m.file_menu()}</span>
-				<ChevronDown className="text-muted size-4 flex-none" aria-hidden="true" />
+				<ChevronDown className="text-fg-faint size-4 flex-none" aria-hidden="true" />
 			</Menu>
 			<input
 				ref={picker}

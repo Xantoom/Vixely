@@ -52,10 +52,10 @@ function MetaField({
 		setDraft(null);
 	};
 	const field =
-		'border-field bg-raised text-ui text-ink hover:border-muted w-full cursor-text rounded-xs border px-2.5 transition-colors';
+		'border-control-border bg-raised text-ui text-fg hover:border-fg-faint w-full cursor-text rounded-sm border px-2.5 transition-colors';
 	return (
 		<div className="grid gap-1.5">
-			<label htmlFor={id} className="text-ui text-ink-2">
+			<label htmlFor={id} className="text-ui text-fg-muted">
 				{label}
 			</label>
 			{multiline ? (
@@ -113,7 +113,7 @@ function CoverPreview({ cover }: { cover: CoverImage }) {
 		};
 	}, [cover]);
 	return url ? (
-		<img src={url} alt={m.meta_cover()} className="bg-surface max-h-40 w-full rounded-sm object-contain" />
+		<img src={url} alt={m.meta_cover()} className="bg-sunken max-h-40 w-full rounded-md object-contain" />
 	) : null;
 }
 
@@ -184,11 +184,11 @@ export function MetadataSection({ opened }: { opened: OpenedFile }) {
 					}}
 				/>
 				<div className="grid gap-1.5">
-					<span className="text-ui text-ink-2">{m.meta_cover()}</span>
+					<span className="text-ui text-fg-muted">{m.meta_cover()}</span>
 					{meta.cover ? (
 						<CoverPreview cover={meta.cover} />
 					) : (
-						<p className="text-ui text-muted">{m.meta_no_cover()}</p>
+						<p className="text-ui text-fg-faint">{m.meta_no_cover()}</p>
 					)}
 					<input
 						ref={picker}

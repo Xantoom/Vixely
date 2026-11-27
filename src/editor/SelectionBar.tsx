@@ -21,7 +21,7 @@ function BarButton({
 			type="button"
 			title={shortcut ? `${label} (${shortcut})` : label}
 			onClick={onClick}
-			className="text-ui hover:bg-surface-2 flex h-8 items-center gap-1.5 rounded-xs px-2.5 font-medium transition-colors"
+			className="text-ui hover:bg-sunken-2 flex h-8 items-center gap-1.5 rounded-sm px-2.5 font-medium transition-colors"
 		>
 			{children}
 			{label}
@@ -54,10 +54,10 @@ export function SelectionBar<T extends Kept>({
 			onPointerDown={(event) => {
 				event.stopPropagation();
 			}}
-			className="menu-in bg-raised absolute -top-11 z-20 flex items-center gap-0.5 rounded-sm p-1 whitespace-nowrap shadow-[0_0_0_1px_var(--line-2),0_10px_28px_-10px_rgb(0_0_0/0.35)]"
+			className="menu-in bg-raised absolute -top-11 z-20 flex items-center gap-0.5 rounded-md p-1 whitespace-nowrap shadow-[0_0_0_1px_var(--x-line-strong),0_10px_28px_-10px_rgb(0_0_0/0.35)]"
 			style={{ left: `${middle * 100}%`, transform: `translateX(-${middle * 100}%)` }}
 		>
-			<span className="text-caption text-muted x-tabular px-2">
+			<span className="text-caption text-fg-faint x-tabular px-2">
 				{formatPreciseTime(selection.end - selection.start)}
 			</span>
 			<BarButton
@@ -84,7 +84,7 @@ export function SelectionBar<T extends Kept>({
 				aria-label={m.selection_clear()}
 				title={`${m.selection_clear()} (Esc)`}
 				onClick={onClear}
-				className="text-muted hover:bg-surface-2 hover:text-ink grid size-8 place-items-center rounded-xs transition-colors"
+				className="text-fg-faint hover:bg-sunken-2 hover:text-fg grid size-8 place-items-center rounded-sm transition-colors"
 			>
 				<X size={15} aria-hidden="true" />
 			</button>

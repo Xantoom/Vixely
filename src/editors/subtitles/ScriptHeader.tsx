@@ -57,7 +57,7 @@ function CommitText({
 	return (
 		<div className="grid gap-1.5">
 			<div className="flex min-h-5 items-center justify-between gap-2">
-				<label htmlFor={id} className="text-ui text-ink-2 truncate">
+				<label htmlFor={id} className="text-ui text-fg-muted truncate">
 					{label}
 				</label>
 				{onRemove && (
@@ -83,7 +83,7 @@ function CommitText({
 					if (event.key === 'Enter') commit();
 					if (event.key === 'Escape') setDraft(null);
 				}}
-				className="border-field bg-raised text-ui text-ink hover:border-muted placeholder:text-muted h-8 pointer-coarse:h-10 w-full min-w-0 cursor-text rounded-xs border px-2.5 transition-colors"
+				className="border-control-border bg-raised text-ui text-fg hover:border-fg-faint placeholder:text-fg-faint h-8 pointer-coarse:h-10 w-full min-w-0 cursor-text rounded-sm border px-2.5 transition-colors"
 			/>
 		</div>
 	);
@@ -136,7 +136,7 @@ export function ScriptHeaderSection() {
 		<Group title={m.subs_head()} defaultOpen={false}>
 			<div className="grid gap-3">
 				<div className="grid gap-1.5">
-					<label htmlFor={generatorId} className="text-ui text-ink-2">
+					<label htmlFor={generatorId} className="text-ui text-fg-muted">
 						{m.subs_head_generator()}
 					</label>
 					<input
@@ -152,7 +152,7 @@ export function ScriptHeaderSection() {
 						onKeyDown={(event) => {
 							if (event.key === 'Enter') event.currentTarget.blur();
 						}}
-						className="border-field bg-raised text-ui text-ink hover:border-muted h-8 pointer-coarse:h-10 w-full min-w-0 cursor-text rounded-xs border px-2.5 transition-colors"
+						className="border-control-border bg-raised text-ui text-fg hover:border-fg-faint h-8 pointer-coarse:h-10 w-full min-w-0 cursor-text rounded-sm border px-2.5 transition-colors"
 					/>
 				</div>
 				{CREDITS.map((key) => (
@@ -199,7 +199,7 @@ export function ScriptHeaderSection() {
 						onChange={(key) => {
 							save([...entries, { key, value: '' }]);
 						}}
-						buttonClassName="text-ui text-muted -ml-2 justify-self-start px-2 font-medium"
+						buttonClassName="text-ui text-fg-faint -ml-2 justify-self-start px-2 font-medium"
 					>
 						<span className="flex items-center gap-2">
 							<Plus size={16} aria-hidden="true" />

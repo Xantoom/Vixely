@@ -15,7 +15,7 @@ export function Section({ title, action, children }: { title: string; action?: R
 	return (
 		<section className="border-line grid gap-3.5 border-t pt-4">
 			<div className="-my-1 flex min-h-8 items-center gap-2">
-				<h3 className="text-ui text-ink flex-1 font-semibold tracking-[-0.005em]">{title}</h3>
+				<h3 className="text-ui text-fg flex-1 font-semibold tracking-[-0.005em]">{title}</h3>
 				{action}
 			</div>
 			{children}
@@ -62,7 +62,7 @@ export function Group({
 					aria-expanded={open}
 					aria-controls={bodyId}
 					onClick={toggle}
-					className="text-ui text-ink flex flex-1 items-center gap-2 py-1.5 text-left font-semibold tracking-[-0.005em]"
+					className="text-ui text-fg flex flex-1 items-center gap-2 py-1.5 text-left font-semibold tracking-[-0.005em]"
 				>
 					{title}
 					<span
@@ -74,13 +74,13 @@ export function Group({
 				{/* A larger target for the mouse; the keyboard and assistive tech use the title. */}
 				<IconButton label={title} tip={false} aria-hidden="true" tabIndex={-1} onClick={toggle}>
 					<ChevronDown
-						className={`ease-out-soft size-[1.15rem] transition-transform duration-300 ${open ? '' : '-rotate-90'}`}
+						className={`ease-out size-[1.15rem] transition-transform duration-300 ${open ? '' : '-rotate-90'}`}
 					/>
 				</IconButton>
 			</div>
 			<div
 				id={bodyId}
-				className={`ease-out-soft grid transition-[grid-template-rows] duration-300 ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+				className={`ease-out grid transition-[grid-template-rows] duration-300 ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
 			>
 				{/* Folded, its settings are out of reach of the keyboard and of assistive tech too. */}
 				<div className="overflow-hidden" inert={!open}>
@@ -99,7 +99,7 @@ export function ToolButton({ label, icon, onClick }: { label: string; icon: Reac
 			aria-label={label}
 			title={label}
 			onClick={onClick}
-			className="text-ink-2 hover:bg-surface hover:text-ink grid h-10 place-items-center rounded-sm shadow-[inset_0_0_0_1px_var(--line-2)] transition-colors"
+			className="text-fg-muted hover:bg-sunken hover:text-fg grid h-10 place-items-center rounded-md shadow-[inset_0_0_0_1px_var(--x-line-strong)] transition-colors"
 		>
 			{icon}
 		</button>
@@ -146,7 +146,7 @@ export function SpeedChoices({
 					onClick={() => {
 						onChange(choice);
 					}}
-					className="text-ui x-tabular text-ink-2 hover:bg-surface aria-checked:bg-ed-soft aria-checked:text-ink h-9 rounded-sm font-medium shadow-[inset_0_0_0_1px_var(--line-2)] transition-[background-color,box-shadow] aria-checked:shadow-[inset_0_0_0_1.5px_var(--ed)]"
+					className="text-ui x-tabular text-fg-muted hover:bg-sunken aria-checked:bg-ed-soft aria-checked:text-fg h-9 rounded-md font-medium shadow-[inset_0_0_0_1px_var(--x-line-strong)] transition-[background-color,box-shadow] aria-checked:shadow-[inset_0_0_0_1.5px_var(--ed)]"
 				>
 					{format.format(choice)}×
 				</button>

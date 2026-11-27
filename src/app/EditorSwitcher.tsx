@@ -52,13 +52,13 @@ export function EditorSwitcher({ current }: { current: MediaKind }) {
 				onClick={() => {
 					setOpen((value) => !value);
 				}}
-				className="hover:bg-surface flex h-11 items-center gap-2.5 rounded-sm pr-2.5 pl-1.5 transition-colors"
+				className="hover:bg-sunken flex h-11 items-center gap-2.5 rounded-md pr-2.5 pl-1.5 transition-colors"
 			>
 				<Tile kind={current} size="lg" />
 				<span className="text-body font-semibold tracking-[-0.015em] max-sm:sr-only">
 					{EDITORS[current].label()}
 				</span>
-				<ChevronDown size={14} className="text-muted" aria-hidden="true" />
+				<ChevronDown size={14} className="text-fg-faint" aria-hidden="true" />
 			</button>
 
 			{open && (
@@ -67,7 +67,7 @@ export function EditorSwitcher({ current }: { current: MediaKind }) {
 					role="menu"
 					aria-label={m.switch_editor()}
 					onKeyDown={onMenuKeyDown}
-					className="bg-raised absolute top-11 left-0 z-30 grid min-w-56 gap-0.5 rounded-md p-1.5 shadow-[0_0_0_1px_var(--line-2),0_16px_40px_-12px_rgb(0_0_0/0.3)]"
+					className="bg-raised absolute top-11 left-0 z-30 grid min-w-56 gap-0.5 rounded-lg p-1.5 shadow-[0_0_0_1px_var(--x-line-strong),0_16px_40px_-12px_rgb(0_0_0/0.3)]"
 				>
 					{EDITOR_ORDER.map((kind) => (
 						<Link
@@ -78,7 +78,7 @@ export function EditorSwitcher({ current }: { current: MediaKind }) {
 							onClick={() => {
 								setOpen(false);
 							}}
-							className="text-body hover:bg-surface aria-[current=page]:bg-surface-2 flex items-center gap-3 rounded-xs px-2.5 py-2 font-medium"
+							className="text-body hover:bg-sunken aria-[current=page]:bg-sunken-2 flex items-center gap-3 rounded-sm px-2.5 py-2 font-medium"
 						>
 							<Tile kind={kind} size="sm" />
 							{EDITORS[kind].label()}

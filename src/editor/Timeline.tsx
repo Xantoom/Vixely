@@ -15,7 +15,7 @@ function ClipHead({ poster }: { poster: ImageBitmap }) {
 		canvas.width = Math.round((poster.width / poster.height) * 96);
 		canvas.getContext('2d')?.drawImage(poster, 0, 0, canvas.width, canvas.height);
 	}, [poster]);
-	return <canvas ref={ref} className="h-full w-auto rounded-l-xs" />;
+	return <canvas ref={ref} className="h-full w-auto rounded-l-sm" />;
 }
 
 /** Where the file is: follows playback, moved on every frame without redrawing the lanes. */
@@ -23,7 +23,7 @@ function Playhead({ duration }: { duration: number }) {
 	const time = usePlayback((state) => state.time);
 	return (
 		<div
-			className="bg-ink pointer-events-none absolute top-0 -bottom-1 w-0.5 -translate-x-1/2"
+			className="bg-fg pointer-events-none absolute top-0 -bottom-1 w-0.5 -translate-x-1/2"
 			style={{ left: `${Math.min(1, Math.max(0, time / duration)) * 100}%` }}
 			aria-hidden="true"
 		/>
@@ -92,7 +92,7 @@ export function Timeline({ file, info, poster }: { file: File; info: MediaInfo |
 	return (
 		<section aria-label={m.timeline()} className="border-line grid gap-1.5 border-t px-4 pt-2.5 pb-4">
 			<div className="text-ui flex items-baseline gap-2">
-				<span className="text-muted">{m.info_duration()}</span>
+				<span className="text-fg-faint">{m.info_duration()}</span>
 				<span className="x-tabular text-small">{duration === null ? '–' : formatTimecode(duration, fps)}</span>
 			</div>
 
@@ -113,11 +113,11 @@ export function Timeline({ file, info, poster }: { file: File; info: MediaInfo |
 					onPointerMove={(event) => {
 						if (event.currentTarget.hasPointerCapture(event.pointerId)) seekAt(event);
 					}}
-					className={`relative grid touch-none gap-1.5 rounded-xs select-none ${live ? 'cursor-pointer' : ''}`}
+					className={`relative grid touch-none gap-1.5 rounded-sm select-none ${live ? 'cursor-pointer' : ''}`}
 				>
 					<TimeRuler view={{ start: 0, end: duration }} />
 					{info?.video && (
-						<div className="flex h-12 overflow-hidden rounded-xs bg-[color-mix(in_srgb,var(--video-1)_16%,var(--bg))] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--video-1)_35%,transparent)]">
+						<div className="flex h-12 overflow-hidden rounded-sm bg-[color-mix(in_srgb,var(--video-1)_16%,var(--x-bg))] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--video-1)_35%,transparent)]">
 							{poster && <ClipHead poster={poster} />}
 						</div>
 					)}

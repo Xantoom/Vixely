@@ -35,7 +35,7 @@ export function UpdateButton() {
 			{asking && (
 				<Alert
 					title={m.app_update_title()}
-					icon={<RefreshCw className="text-ink-2 size-5" aria-hidden="true" />}
+					icon={<RefreshCw className="text-fg-muted size-5" aria-hidden="true" />}
 					onClose={() => {
 						setAsking(false);
 					}}

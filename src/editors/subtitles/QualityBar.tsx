@@ -117,7 +117,7 @@ export function LineIssues({ issues, label }: { issues: readonly IssueId[]; labe
 			{sorted.map((issue) => (
 				<li
 					key={issue}
-					className={`flex items-start gap-1.5 ${HINTS.has(issue) ? 'text-muted' : 'text-danger'}`}
+					className={`flex items-start gap-1.5 ${HINTS.has(issue) ? 'text-fg-faint' : 'text-danger'}`}
 				>
 					<TriangleAlert className="mt-0.5 size-3.5 flex-none" aria-hidden="true" />
 					{label(issue)}
@@ -172,7 +172,7 @@ export function QualityBar() {
 				detail: value === 'auto' && chosen && mode === 'auto' ? MODE_LABELS[chosen.profile]() : undefined,
 			}))}
 			onChange={setMode}
-			buttonClassName={`h-8! min-w-8! text-muted ${quiet ? 'hover:bg-surface-2! aria-expanded:bg-surface-2!' : ''}`}
+			buttonClassName={`h-8! min-w-8! text-fg-faint ${quiet ? 'hover:bg-sunken-2! aria-expanded:bg-sunken-2!' : ''}`}
 		>
 			<SlidersHorizontal className="size-4" aria-hidden="true" />
 		</Menu>
@@ -181,7 +181,7 @@ export function QualityBar() {
 	return (
 		<div className="text-small flex h-9 min-w-0 flex-none items-center gap-1.5">
 			{chosen === null ? (
-				<span className="text-muted min-w-0 flex-1 truncate pl-1">{m.subs_advice_disabled()}</span>
+				<span className="text-fg-faint min-w-0 flex-1 truncate pl-1">{m.subs_advice_disabled()}</span>
 			) : flagged > 0 ? (
 				<>
 					<TriangleAlert className="text-danger ml-1 size-4 flex-none" aria-hidden="true" />
@@ -191,7 +191,7 @@ export function QualityBar() {
 					<button
 						type="button"
 						onClick={next}
-						className="hover:bg-surface flex h-8 flex-none items-center gap-1 rounded-sm px-2 font-medium transition-colors"
+						className="hover:bg-sunken flex h-8 flex-none items-center gap-1 rounded-md px-2 font-medium transition-colors"
 					>
 						{m.subs_check_next()}
 						<ChevronDown className="size-4" aria-hidden="true" />

@@ -61,7 +61,7 @@ function EditorTabs({ current, from }: { current: MediaKind; from: MediaKind | n
 		};
 	}, [from]);
 	return (
-		<nav ref={nav} aria-label={m.switch_editor()} className="bg-surface flex gap-0.5 rounded-md p-0.5">
+		<nav ref={nav} aria-label={m.switch_editor()} className="bg-sunken flex gap-0.5 rounded-lg p-0.5">
 			{EDITOR_ORDER.map((kind) => {
 				const Icon = MEDIA_ICONS[kind];
 				return (
@@ -71,14 +71,14 @@ function EditorTabs({ current, from }: { current: MediaKind; from: MediaKind | n
 						data-media={kind}
 						aria-current={kind === current ? 'page' : undefined}
 						title={EDITORS[kind].label()}
-						className="group text-ui text-muted hover:text-ink aria-[current=page]:text-ink relative flex h-8 items-center gap-2 rounded-[0.45rem] px-3 font-medium transition-colors duration-150 max-xl:px-2.5"
+						className="group text-ui text-fg-faint hover:text-fg aria-[current=page]:text-fg relative flex h-8 items-center gap-2 rounded-[0.45rem] px-3 font-medium transition-colors duration-150 max-xl:px-2.5"
 					>
 						{kind === current && (
 							// Under every tab's words, its own and the others' it slides past.
 							<span
 								ref={mark}
 								aria-hidden="true"
-								className="bg-raised absolute inset-0 z-0 origin-left rounded-[0.45rem] shadow-[0_1px_2px_rgb(0_0_0/0.08),0_0_0_1px_var(--line)]"
+								className="bg-raised absolute inset-0 z-0 origin-left rounded-[0.45rem] shadow-[0_1px_2px_rgb(0_0_0/0.08),0_0_0_1px_var(--x-line)]"
 							/>
 						)}
 						<Icon
@@ -109,7 +109,7 @@ export function AppBar({ editor, fileName, actions, onSearch, heading, from = nu
 						to="/"
 						aria-label={m.app_home()}
 						title={m.app_home()}
-						className={`hover:bg-surface x-touch-target relative grid size-9 flex-none place-items-center rounded-sm transition-colors ${editor ? 'md:size-10' : ''}`}
+						className={`hover:bg-sunken x-touch-target relative grid size-9 flex-none place-items-center rounded-md transition-colors ${editor ? 'md:size-10' : ''}`}
 					>
 						<LogoMark size={26} className={editor ? 'md:size-8' : undefined} />
 					</Link>

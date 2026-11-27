@@ -81,9 +81,9 @@ export function DropZone({
 						inputRef.current?.click();
 					}
 				}}
-				className={`group grid w-full place-content-center justify-items-center gap-3 rounded-md border-[1.5px] border-dashed px-5 text-center transition-colors duration-150 ${
+				className={`group grid w-full place-content-center justify-items-center gap-3 rounded-lg border-[1.5px] border-dashed px-5 text-center transition-colors duration-150 ${
 					large ? 'min-h-[clamp(20rem,52vh,34rem)] py-12' : compact ? 'min-h-56 py-8' : 'min-h-60 py-8'
-				} border-line-2 bg-raised hover:border-ink-2`}
+				} border-line-strong bg-raised hover:border-fg-muted`}
 			>
 				{/* In an editor, its own kind of file; on the home page, every kind. Others still open. */}
 				<span className="flex gap-1.5" aria-hidden="true">
@@ -110,9 +110,9 @@ export function DropZone({
 					)}
 				</span>
 				{!reading && (
-					<span className="text-muted text-body pointer-coarse:hidden">
+					<span className="text-fg-faint text-body pointer-coarse:hidden">
 						{m.drop_or()}{' '}
-						<span className="text-ink underline underline-offset-[3px]">{m.drop_choose()}</span>
+						<span className="text-fg underline underline-offset-[3px]">{m.drop_choose()}</span>
 					</span>
 				)}
 				<input
@@ -135,8 +135,8 @@ export function DropZone({
 						if (address.trim()) void download(async () => fetchFile(address));
 					}}
 				>
-					<label className="border-field bg-raised focus-within:border-muted flex h-10 min-w-0 flex-1 items-center gap-2 rounded-sm border px-3 transition-colors">
-						<Link2 className="text-muted size-[1.1rem] flex-none" aria-hidden="true" />
+					<label className="border-control-border bg-raised focus-within:border-fg-faint flex h-10 min-w-0 flex-1 items-center gap-2 rounded-md border px-3 transition-colors">
+						<Link2 className="text-fg-faint size-[1.1rem] flex-none" aria-hidden="true" />
 						<span className="sr-only">{m.url_label()}</span>
 						<input
 							type="url"
@@ -145,7 +145,7 @@ export function DropZone({
 							onChange={(event) => {
 								setAddress(event.target.value);
 							}}
-							className="text-ui placeholder:text-muted min-w-0 flex-1 bg-transparent outline-none"
+							className="text-ui placeholder:text-fg-faint min-w-0 flex-1 bg-transparent outline-none"
 						/>
 					</label>
 					<Button type="submit" busy={downloading} disabled={!address.trim()}>
@@ -173,7 +173,7 @@ export function DropZone({
 				<p
 					id="drop-error"
 					role="alert"
-					className={`text-body max-w-[70ch] ${error.reason === 'skipped' ? 'text-muted' : 'text-danger'}`}
+					className={`text-body max-w-[70ch] ${error.reason === 'skipped' ? 'text-fg-faint' : 'text-danger'}`}
 				>
 					{errorMessage(error)}
 				</p>

@@ -113,7 +113,7 @@ function ChooseVideo({ onChoose }: { onChoose: () => void }) {
 		<button
 			type="button"
 			onClick={onChoose}
-			className="group border-line-2 bg-surface hover:border-ink-2 flex min-h-16 w-full items-center gap-3 rounded-md border-[1.5px] border-dashed px-4 py-3 text-left transition-colors"
+			className="group border-line-strong bg-sunken hover:border-fg-muted flex min-h-16 w-full items-center gap-3 rounded-lg border-[1.5px] border-dashed px-4 py-3 text-left transition-colors"
 		>
 			<span className="bg-ed text-ed-ink grid size-9 flex-none place-items-center rounded-lg transition-transform duration-200 motion-safe:group-hover:-translate-y-0.5 motion-reduce:transition-none">
 				<Film className="size-5" aria-hidden="true" />
@@ -134,14 +134,14 @@ export function useChoosingVideo(): boolean {
 function VideoBar({ name, onReplace, onRemove }: { name: string; onReplace: () => void; onRemove: () => void }) {
 	return (
 		<div className="flex min-w-0 items-center gap-2 max-lg:px-3">
-			<Film className="text-muted size-4 flex-none" aria-hidden="true" />
-			<span className="text-small text-ink-2 min-w-0 flex-1 truncate" title={name}>
+			<Film className="text-fg-faint size-4 flex-none" aria-hidden="true" />
+			<span className="text-small text-fg-muted min-w-0 flex-1 truncate" title={name}>
 				{name}
 			</span>
 			<button
 				type="button"
 				onClick={onReplace}
-				className="text-small text-ink-2 hover:bg-surface hover:text-ink flex h-8 flex-none items-center gap-1.5 rounded-sm px-2 font-medium transition-colors"
+				className="text-small text-fg-muted hover:bg-sunken hover:text-fg flex h-8 flex-none items-center gap-1.5 rounded-md px-2 font-medium transition-colors"
 			>
 				<Replace className="size-4" aria-hidden="true" />
 				<span className="max-sm:sr-only">{m.subs_video_replace()}</span>
@@ -149,7 +149,7 @@ function VideoBar({ name, onReplace, onRemove }: { name: string; onReplace: () =
 			<button
 				type="button"
 				onClick={onRemove}
-				className="text-small text-ink-2 hover:bg-surface hover:text-danger flex h-8 flex-none items-center gap-1.5 rounded-sm px-2 font-medium transition-colors"
+				className="text-small text-fg-muted hover:bg-sunken hover:text-danger flex h-8 flex-none items-center gap-1.5 rounded-md px-2 font-medium transition-colors"
 			>
 				<Trash2 className="size-4" aria-hidden="true" />
 				<span className="max-sm:sr-only">{m.subs_video_remove()}</span>
@@ -218,7 +218,7 @@ export function SubtitleViewer({
 				// On narrow screens the picture spans the width, as tall as its shape needs.
 				style={{ '--frame': `${frame.width} / ${frame.height}` }}
 			>
-				{ambient && <Ambient bitmap={ambient} className="rounded-md" />}
+				{ambient && <Ambient bitmap={ambient} className="rounded-lg" />}
 				<div className="absolute inset-x-0" style={controls ? { top, height } : { inset: 0 }}>
 					<PlayerPicture width={width} height={height}>
 						{width > 0 && (

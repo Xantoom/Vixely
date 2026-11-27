@@ -28,7 +28,7 @@ function Dialog({ label, onClose, children }: { label: string; onClose: () => vo
 			onClick={(event) => {
 				if (event.target === event.currentTarget) onClose();
 			}}
-			className="bg-raised text-ink animate-[pop_0.24s_var(--ease-spring)] mx-auto mt-[12vh] w-[min(36rem,calc(100%-2rem))] overflow-hidden rounded-md p-0 shadow-[0_24px_64px_-16px_rgb(0_0_0/0.35),0_0_0_1px_var(--line)] backdrop:bg-black/35 backdrop:backdrop-blur-[3px]"
+			className="bg-raised text-fg animate-[pop_0.24s_var(--ease-spring)] mx-auto mt-[12vh] w-[min(36rem,calc(100%-2rem))] overflow-hidden rounded-lg p-0 shadow-[0_24px_64px_-16px_rgb(0_0_0/0.35),0_0_0_1px_var(--x-line)] backdrop:bg-black/35 backdrop:backdrop-blur-[3px]"
 		>
 			{children}
 		</dialog>
@@ -55,7 +55,7 @@ export function CommandPalette({ commands, onClose }: { commands: Command[]; onC
 	return (
 		<Dialog label={m.command_search()} onClose={onClose}>
 			<div className="border-line flex items-center gap-3 border-b px-5">
-				<Search className="text-muted size-5 flex-none" aria-hidden="true" />
+				<Search className="text-fg-faint size-5 flex-none" aria-hidden="true" />
 				<input
 					autoFocus
 					role="combobox"
@@ -82,7 +82,7 @@ export function CommandPalette({ commands, onClose }: { commands: Command[]; onC
 				/>
 			</div>
 			<div id={listId} role="listbox" aria-label={m.command_search()} className="max-h-[22rem] overflow-auto p-2">
-				{shown.length === 0 && <p className="text-ui text-muted px-3 py-4">{m.command_none()}</p>}
+				{shown.length === 0 && <p className="text-ui text-fg-faint px-3 py-4">{m.command_none()}</p>}
 				{shown.map((command, position) => {
 					const Icon = command.icon;
 					return (
@@ -97,7 +97,7 @@ export function CommandPalette({ commands, onClose }: { commands: Command[]; onC
 							onClick={() => {
 								run(command);
 							}}
-							className="text-ui aria-selected:bg-ed-soft aria-selected:text-ed-text flex cursor-pointer items-center gap-3 rounded-sm px-3 py-2.5"
+							className="text-ui aria-selected:bg-ed-soft aria-selected:text-ed-text flex cursor-pointer items-center gap-3 rounded-md px-3 py-2.5"
 						>
 							<Icon className="size-5 flex-none" aria-hidden="true" />
 							<span className="flex-1">{command.label}</span>
@@ -117,7 +117,7 @@ function Keys({ keys }: { keys: string }) {
 			{keys.split(' ').map((key) => (
 				<kbd
 					key={key}
-					className="text-caption text-muted min-w-6 rounded-[0.35rem] px-1.5 py-0.5 text-center shadow-[inset_0_0_0_1px_var(--line-2)]"
+					className="text-caption text-fg-faint min-w-6 rounded-[0.35rem] px-1.5 py-0.5 text-center shadow-[inset_0_0_0_1px_var(--x-line-strong)]"
 				>
 					{key}
 				</kbd>
@@ -139,7 +139,7 @@ export function ShortcutHelp({ groups, onClose }: { groups: ShortcutGroup[]; onC
 				<h2 className="text-title font-[650] tracking-[-0.02em]">{m.shortcuts_title()}</h2>
 				{groups.map((group) => (
 					<section key={group.title} className="grid gap-1">
-						<h3 className="text-small text-muted font-medium">{group.title}</h3>
+						<h3 className="text-small text-fg-faint font-medium">{group.title}</h3>
 						{group.shortcuts.map(([label, keys]) => (
 							<div
 								key={label}

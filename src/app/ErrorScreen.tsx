@@ -8,7 +8,7 @@ export function ErrorScreen() {
 			<h1 className="text-[clamp(1.75rem,4vw,2.5rem)] leading-tight font-bold tracking-[-0.025em]">
 				{m.error_title()}
 			</h1>
-			<p className="text-body text-ink-2">{m.error_body()}</p>
+			<p className="text-body text-fg-muted">{m.error_body()}</p>
 			<Button
 				variant="primary"
 				onClick={() => {

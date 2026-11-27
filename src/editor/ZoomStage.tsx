@@ -354,7 +354,7 @@ function HoldButton({ className = '', onPicture = false }: { className?: string;
 			className={`aria-pressed:bg-ed aria-pressed:text-ed-ink x-touch-target grid size-9 place-items-center transition-colors duration-150 select-none disabled:cursor-default disabled:opacity-35 ${
 				onPicture
 					? 'rounded-full bg-black/55 text-white backdrop-blur-md'
-					: 'text-ink-2 enabled:hover:bg-surface enabled:hover:text-ink relative rounded-sm'
+					: 'text-fg-muted enabled:hover:bg-sunken enabled:hover:text-fg relative rounded-md'
 			} ${className}`}
 		>
 			<Eye className="size-[1.1rem]" aria-hidden="true" />
@@ -375,7 +375,7 @@ function SideBySideButton() {
 			onClick={() => {
 				setComparing(!comparing);
 			}}
-			className="aria-pressed:bg-ed aria-pressed:text-ed-ink text-ink-2 hover:bg-surface hover:text-ink grid size-9 place-items-center rounded-sm transition-colors duration-150 select-none"
+			className="aria-pressed:bg-ed aria-pressed:text-ed-ink text-fg-muted hover:bg-sunken hover:text-fg grid size-9 place-items-center rounded-md transition-colors duration-150 select-none"
 		>
 			<Columns2 className="size-[1.1rem]" aria-hidden="true" />
 		</button>
@@ -409,10 +409,10 @@ function CompareLine() {
 	const percent = Math.round(split * 100);
 	return (
 		<>
-			<span className="pointer-events-none absolute top-2 left-2 rounded-xs bg-black/60 px-1.5 py-0.5 text-caption font-medium text-white">
+			<span className="pointer-events-none absolute top-2 left-2 rounded-sm bg-black/60 px-1.5 py-0.5 text-caption font-medium text-white">
 				{m.compare_original()}
 			</span>
-			<span className="pointer-events-none absolute top-2 right-2 rounded-xs bg-black/60 px-1.5 py-0.5 text-caption font-medium text-white">
+			<span className="pointer-events-none absolute top-2 right-2 rounded-sm bg-black/60 px-1.5 py-0.5 text-caption font-medium text-white">
 				{m.compare_result()}
 			</span>
 			<div
@@ -464,11 +464,11 @@ export function ZoomStatus({
 	return (
 		<>
 			{size && (
-				<span className="text-small text-muted x-tabular">
+				<span className="text-small text-fg-faint x-tabular">
 					{size.width} × {size.height} px
 				</span>
 			)}
-			{children && <span className="text-small text-muted x-tabular ml-4 flex gap-4">{children}</span>}
+			{children && <span className="text-small text-fg-faint x-tabular ml-4 flex gap-4">{children}</span>}
 			<span className="ml-auto flex items-center gap-1">{comparable && <CompareButtons />}</span>
 		</>
 	);

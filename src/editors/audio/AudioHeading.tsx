@@ -40,7 +40,7 @@ export function AudioHeading({ opened }: { opened: OpenedFile }) {
 	return (
 		<div className="flex min-w-0 items-center gap-4">
 			<div
-				className="bg-ed-soft text-ed-text grid size-14 flex-none place-items-center overflow-hidden rounded-sm md:size-16"
+				className="bg-ed-soft text-ed-text grid size-14 flex-none place-items-center overflow-hidden rounded-md md:size-16"
 				aria-hidden="true"
 			>
 				{opened.poster ? <Cover bitmap={opened.poster} /> : <AudioLines size={26} strokeWidth={1.75} />}
@@ -49,7 +49,7 @@ export function AudioHeading({ opened }: { opened: OpenedFile }) {
 				<p className="text-title truncate font-semibold tracking-[-0.015em]">
 					{tags?.title || opened.file.name}
 				</p>
-				{byline && <p className="text-ui text-muted truncate">{byline}</p>}
+				{byline && <p className="text-ui text-fg-faint truncate">{byline}</p>}
 			</div>
 		</div>
 	);
@@ -76,7 +76,7 @@ export function AudioStage({ opened }: { opened: OpenedFile }) {
 				}`}
 			>
 				<div
-					className="bg-ed-soft text-ed-text grid aspect-square h-full max-h-full min-h-0 flex-none place-items-center overflow-hidden rounded-lg shadow-[0_24px_60px_-20px_rgb(0_0_0/0.45),0_0_0_1px_rgb(0_0_0/0.06)] max-md:size-24 max-md:rounded-md"
+					className="bg-ed-soft text-ed-text grid aspect-square h-full max-h-full min-h-0 flex-none place-items-center overflow-hidden rounded-lg shadow-[0_24px_60px_-20px_rgb(0_0_0/0.45),0_0_0_1px_rgb(0_0_0/0.06)] max-md:size-24 max-md:rounded-lg"
 					aria-hidden="true"
 				>
 					{poster ? (
@@ -93,8 +93,8 @@ export function AudioStage({ opened }: { opened: OpenedFile }) {
 								{tags.title}
 							</p>
 						)}
-						{tags.artist && <p className="text-lead text-ink-2 truncate">{tags.artist}</p>}
-						{tags.album && <p className="text-ui text-muted truncate">{tags.album}</p>}
+						{tags.artist && <p className="text-lead text-fg-muted truncate">{tags.artist}</p>}
+						{tags.album && <p className="text-ui text-fg-faint truncate">{tags.album}</p>}
 					</div>
 				)}
 			</div>

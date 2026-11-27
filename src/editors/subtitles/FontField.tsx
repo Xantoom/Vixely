@@ -89,7 +89,7 @@ export function FontField({
 		<div className="grid gap-1.5">
 			<div className="grid grid-cols-[minmax(0,1fr)_6rem] items-end gap-2">
 				<div className="grid gap-1.5">
-					<span className="text-ui text-ink-2" aria-hidden="true">
+					<span className="text-ui text-fg-muted" aria-hidden="true">
 						{m.style_font()}
 					</span>
 					<Dropdown label={m.style_font()} value={value} options={options} onChange={onChange} />
@@ -97,7 +97,7 @@ export function FontField({
 				{beside}
 			</div>
 			{replaced && (
-				<p className="text-small text-muted" role="status">
+				<p className="text-small text-fg-faint" role="status">
 					{current.origin === 'equivalent'
 						? m.fonts_replaced({ font: current.shownAs ?? '' })
 						: m.fonts_missing({ font: value })}
@@ -107,7 +107,7 @@ export function FontField({
 				<button
 					type="button"
 					onClick={() => inputRef.current?.click()}
-					className="text-small text-ink-2 hover:text-ink flex items-center gap-1 font-medium"
+					className="text-small text-fg-muted hover:text-fg flex items-center gap-1 font-medium"
 				>
 					<Plus size={14} aria-hidden="true" />
 					{m.fonts_add()}
@@ -118,7 +118,7 @@ export function FontField({
 						disabled={system.state === 'denied'}
 						title={system.state === 'denied' ? m.fonts_system_denied() : undefined}
 						onClick={() => void system.request()}
-						className="text-small text-ink-2 enabled:hover:text-ink flex items-center gap-1 font-medium disabled:cursor-not-allowed disabled:opacity-50"
+						className="text-small text-fg-muted enabled:hover:text-fg flex items-center gap-1 font-medium disabled:cursor-not-allowed disabled:opacity-50"
 					>
 						<Monitor size={14} aria-hidden="true" />
 						{m.fonts_system()}

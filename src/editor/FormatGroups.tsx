@@ -48,19 +48,19 @@ export function FormatGroups({
 							onClick={() => {
 								setOpen(expanded ? null : group.logo);
 							}}
-							className="hover:bg-surface text-ui grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 rounded-sm px-2 py-1.5 text-left font-medium transition-colors"
+							className="hover:bg-sunken text-ui grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 rounded-md px-2 py-1.5 text-left font-medium transition-colors"
 						>
 							<BrandLogo logo={group.logo} size={26} />
 							<span className="truncate">{group.title}</span>
 							{holds ? (
 								<span className="bg-ed size-1.5 rounded-full" aria-hidden="true" />
 							) : (
-								<span className="text-caption text-muted x-tabular">{group.choices.length}</span>
+								<span className="text-caption text-fg-faint x-tabular">{group.choices.length}</span>
 							)}
 							<ChevronDown
 								size={16}
 								aria-hidden="true"
-								className={`text-muted transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
+								className={`text-fg-faint transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
 							/>
 						</button>
 						{expanded && (
@@ -76,11 +76,11 @@ export function FormatGroups({
 											onClick={() => {
 												onChoose(choice.id);
 											}}
-											className="bg-surface hover:bg-surface-2 aria-pressed:bg-ed-soft aria-pressed:shadow-[inset_0_0_0_1.5px_var(--ed)] ease-spring grid grid-cols-[1.5rem_minmax(0,1fr)] items-center gap-2.5 rounded-sm px-2.5 py-1.5 text-left transition-[background-color,transform] duration-200 motion-safe:active:scale-[0.98] motion-reduce:transition-none"
+											className="bg-sunken hover:bg-sunken-2 aria-pressed:bg-ed-soft aria-pressed:shadow-[inset_0_0_0_1.5px_var(--ed)] ease-spring grid grid-cols-[1.5rem_minmax(0,1fr)] items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left transition-[background-color,transform] duration-200 motion-safe:active:scale-[0.98] motion-reduce:transition-none"
 										>
 											<span className="grid size-6 place-items-center" aria-hidden="true">
 												<span
-													className="border-ink-2 rounded-[2px] border-[1.5px]"
+													className="border-fg-muted rounded-[2px] border-[1.5px]"
 													style={{
 														width: wide
 															? '100%'
@@ -93,7 +93,7 @@ export function FormatGroups({
 											</span>
 											<span className="grid min-w-0">
 												<span className="text-ui truncate">{choice.label}</span>
-												<span className="text-caption text-muted x-tabular">
+												<span className="text-caption text-fg-faint x-tabular">
 													{choice.detail}
 												</span>
 											</span>

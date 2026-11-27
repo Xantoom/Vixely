@@ -5,7 +5,7 @@ import { LogoMark } from '@/ui/Logo';
 import { homeCopy } from './home/copy';
 import { TASKS } from './tasks';
 
-const LINK = 'text-ui text-ink-2 hover:text-ink block py-1 transition-colors';
+const LINK = 'text-ui text-fg-muted hover:text-fg block py-1 transition-colors';
 
 /** Tasks worth a place at the foot of every page. */
 const FOOT_TASKS = new Set(['compress-video', 'video-to-gif', 'compress-image', 'normalize-audio', 'resync-subtitles']);
@@ -13,7 +13,7 @@ const FOOT_TASKS = new Set(['compress-video', 'video-to-gif', 'compress-image', 
 /** Every page's foot: the editors, the main tasks, the pages about the site and its source. */
 export function SiteFooter() {
 	const copy = homeCopy();
-	const heading = 'text-small text-ink mb-2.5 font-semibold';
+	const heading = 'text-small text-fg mb-2.5 font-semibold';
 	return (
 		<footer className="border-line mt-[clamp(4rem,8vw,6.5rem)] border-t">
 			<div className="mx-auto grid w-full max-w-[76rem] grid-cols-2 gap-8 px-[clamp(1rem,4vw,2.5rem)] py-12 md:grid-cols-[1.4fr_repeat(4,1fr)]">
@@ -22,7 +22,7 @@ export function SiteFooter() {
 						<LogoMark size={28} />
 						<span className="text-lead font-bold tracking-[-0.02em]">Vixely</span>
 					</Link>
-					<p className="text-ui text-muted mt-3 max-w-[26ch]">{copy.footer.tagline}</p>
+					<p className="text-ui text-fg-faint mt-3 max-w-[26ch]">{copy.footer.tagline}</p>
 				</div>
 				<nav aria-label={copy.footer.editors}>
 					<h2 className={heading}>{copy.footer.editors}</h2>

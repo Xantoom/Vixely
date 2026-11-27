@@ -193,15 +193,15 @@ export function Dropdown<T extends string>({
 			onKeyDown={onButtonKeyDown}
 			className={`group/dropdown x-touch-target relative flex min-w-0 items-center gap-1.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
 				compact
-					? 'text-ink-2 enabled:hover:text-ink enabled:hover:bg-surface aria-expanded:bg-surface aria-expanded:text-ink h-8 max-w-60 rounded-sm pr-7 pl-2 shadow-[inset_0_0_0_1px_var(--line-2)]'
-					: 'border-field bg-raised text-ink enabled:hover:border-muted aria-expanded:border-muted h-8 w-full rounded-xs border pr-7 pl-2.5 text-small'
+					? 'text-fg-muted enabled:hover:text-fg enabled:hover:bg-sunken aria-expanded:bg-sunken aria-expanded:text-fg h-8 max-w-60 rounded-md pr-7 pl-2 shadow-[inset_0_0_0_1px_var(--x-line-strong)]'
+					: 'border-control-border bg-raised text-fg enabled:hover:border-fg-faint aria-expanded:border-fg-faint h-8 w-full rounded-sm border pr-7 pl-2.5 text-small'
 			} ${className}`}
 		>
 			{Icon && <Icon size={15} aria-hidden="true" className="flex-none" />}
 			{current?.leading}
 			<span className={`truncate ${compact ? 'text-ui' : ''}`}>{current?.label ?? ''}</span>
 			<span
-				className="border-muted pointer-events-none absolute top-1/2 right-3 size-1.5 -translate-y-[70%] rotate-45 border-r-[1.5px] border-b-[1.5px] transition-transform group-aria-expanded/dropdown:translate-y-[-20%] group-aria-expanded/dropdown:rotate-[225deg] motion-reduce:transition-none"
+				className="border-fg-faint pointer-events-none absolute top-1/2 right-3 size-1.5 -translate-y-[70%] rotate-45 border-r-[1.5px] border-b-[1.5px] transition-transform group-aria-expanded/dropdown:translate-y-[-20%] group-aria-expanded/dropdown:rotate-[225deg] motion-reduce:transition-none"
 				aria-hidden="true"
 			/>
 		</button>
@@ -223,7 +223,7 @@ export function Dropdown<T extends string>({
 						data-media={media ?? undefined}
 						onKeyDown={onListKeyDown}
 						data-down={place?.down ?? true}
-						className="menu-in bg-raised text-ink fixed z-50 grid max-w-[min(420px,calc(100vw-16px))] content-start gap-px overflow-y-auto overscroll-contain rounded-sm p-1 shadow-[0_0_0_1px_var(--line-2),0_16px_40px_-12px_rgb(0_0_0/0.35)] outline-none"
+						className="menu-in bg-raised text-fg fixed z-50 grid max-w-[min(420px,calc(100vw-16px))] content-start gap-px overflow-y-auto overscroll-contain rounded-md p-1 shadow-[0_0_0_1px_var(--x-line-strong),0_16px_40px_-12px_rgb(0_0_0/0.35)] outline-none"
 						style={
 							place
 								? {
@@ -236,10 +236,10 @@ export function Dropdown<T extends string>({
 						}
 					>
 						{withSearch && (
-							<div className="bg-raised sticky -top-1 z-10 -mx-1 -mt-1 mb-1 border-b border-(--line) p-1">
+							<div className="bg-raised sticky -top-1 z-10 -mx-1 -mt-1 mb-1 border-b border-(--x-line) p-1">
 								<div className="relative">
 									<Search
-										className="text-muted pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2"
+										className="text-fg-faint pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2"
 										aria-hidden="true"
 									/>
 									<input
@@ -265,13 +265,13 @@ export function Dropdown<T extends string>({
 											);
 											setActive(first);
 										}}
-										className="bg-surface text-ui h-8 w-full rounded-xs pr-2 pl-7 outline-none [&::-webkit-search-cancel-button]:hidden"
+										className="bg-sunken text-ui h-8 w-full rounded-sm pr-2 pl-7 outline-none [&::-webkit-search-cancel-button]:hidden"
 									/>
 								</div>
 							</div>
 						)}
 						{visible.length === 0 && (
-							<p className="text-small text-muted px-2 py-1.5">{m.search_nothing()}</p>
+							<p className="text-small text-fg-faint px-2 py-1.5">{m.search_nothing()}</p>
 						)}
 						{visible.map((index, position) => {
 							const option = options[index];
@@ -283,7 +283,7 @@ export function Dropdown<T extends string>({
 									{heading && (
 										<div
 											role="presentation"
-											className="text-caption text-muted px-2 pt-2 pb-1 font-medium first:pt-1"
+											className="text-caption text-fg-faint px-2 pt-2 pb-1 font-medium first:pt-1"
 										>
 											{heading}
 										</div>
@@ -301,11 +301,11 @@ export function Dropdown<T extends string>({
 										onClick={() => {
 											pick(index);
 										}}
-										className={`text-ui flex min-h-8 items-center gap-2 rounded-xs py-1.5 pr-2.5 pl-2 whitespace-nowrap ${
+										className={`text-ui flex min-h-8 items-center gap-2 rounded-sm py-1.5 pr-2.5 pl-2 whitespace-nowrap ${
 											option.disabled
-												? 'text-muted cursor-not-allowed opacity-60'
+												? 'text-fg-faint cursor-not-allowed opacity-60'
 												: 'cursor-pointer'
-										} ${index === active && !option.disabled ? 'bg-surface-2' : ''}`}
+										} ${index === active && !option.disabled ? 'bg-sunken-2' : ''}`}
 									>
 										<span className="grid w-4 flex-none place-items-center">
 											{index === selected ? (
@@ -327,7 +327,7 @@ export function Dropdown<T extends string>({
 											{option.label}
 										</span>
 										{option.detail && (
-											<span className="text-muted ml-auto pl-4">{option.detail}</span>
+											<span className="text-fg-faint ml-auto pl-4">{option.detail}</span>
 										)}
 									</div>
 								</Fragment>

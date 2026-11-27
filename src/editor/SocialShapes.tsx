@@ -156,18 +156,18 @@ export function SocialShapes({ chosen, onChoose }: { chosen: string | null; onCh
 										onClick={() => {
 											onChoose(shape);
 										}}
-										className="text-small text-ink-2 hover:bg-surface hover:text-ink aria-checked:bg-ed-soft aria-checked:text-ink flex h-8 items-center gap-1.5 rounded-sm px-2 shadow-[inset_0_0_0_1px_var(--line-2)] transition-[background-color,box-shadow] aria-checked:shadow-[inset_0_0_0_1.5px_var(--ed)]"
+										className="text-small text-fg-muted hover:bg-sunken hover:text-fg aria-checked:bg-ed-soft aria-checked:text-fg flex h-8 items-center gap-1.5 rounded-md px-2 shadow-[inset_0_0_0_1px_var(--x-line-strong)] transition-[background-color,box-shadow] aria-checked:shadow-[inset_0_0_0_1.5px_var(--ed)]"
 									>
 										<Glyph width={format.width} height={format.height} />
 										<span className="font-medium whitespace-nowrap">{format.label()}</span>
-										<span className="text-muted x-tabular">{format.aspect}</span>
+										<span className="text-fg-faint x-tabular">{format.aspect}</span>
 									</button>
 								);
 							})}
 						</div>
 					</div>
 				))}
-				{shown.length === 0 && <p className="text-small text-muted py-2">{m.search_nothing()}</p>}
+				{shown.length === 0 && <p className="text-small text-fg-faint py-2">{m.search_nothing()}</p>}
 			</div>
 		</div>
 	);

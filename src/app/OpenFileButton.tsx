@@ -30,7 +30,7 @@ export function OpenFileButton({
 				onClick={() => {
 					if (!busy) inputRef.current?.click();
 				}}
-				className={`bg-ink text-bg inline-flex items-center justify-center gap-2.5 font-semibold whitespace-nowrap transition-[filter] duration-150 hover:brightness-125 aria-disabled:opacity-60 ${className}`}
+				className={`bg-fg text-bg inline-flex items-center justify-center gap-2.5 font-semibold whitespace-nowrap transition-[filter] duration-150 hover:brightness-125 aria-disabled:opacity-60 ${className}`}
 			>
 				<Upload className="size-[1.15em]" aria-hidden="true" />
 				{busy ? reading : children}

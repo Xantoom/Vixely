@@ -45,7 +45,7 @@ function ShotTabs({
 					onClick={() => {
 						onShot(index);
 					}}
-					className="text-ui text-muted hover:text-ink aria-pressed:bg-surface aria-pressed:text-ink flex-none rounded-full px-3.5 py-1.5 font-medium whitespace-nowrap transition-colors"
+					className="text-ui text-fg-faint hover:text-fg aria-pressed:bg-sunken aria-pressed:text-fg flex-none rounded-full px-3.5 py-1.5 font-medium whitespace-nowrap transition-colors"
 				>
 					{item.caption}
 				</button>
@@ -60,7 +60,7 @@ function SectionHeader({ id, title, lede }: { id: string; title: string; lede?: 
 			<h2 id={id} className={H2}>
 				{title}
 			</h2>
-			{lede && <p className="text-lead text-muted">{lede}</p>}
+			{lede && <p className="text-lead text-fg-faint">{lede}</p>}
 		</header>
 	);
 }
@@ -125,7 +125,7 @@ function EditorTabs() {
 							choose(id);
 						}}
 						onKeyDown={onKeyDown}
-						className="text-body flex items-center gap-2.5 rounded-full py-1.5 pr-4 pl-1.5 font-semibold shadow-[inset_0_0_0_1px_var(--line-2)] transition-[background-color,box-shadow] duration-150 hover:bg-[var(--surface)] aria-selected:bg-[var(--surface)] aria-selected:shadow-[inset_0_0_0_1.5px_var(--ed)]"
+						className="text-body flex items-center gap-2.5 rounded-full py-1.5 pr-4 pl-1.5 font-semibold shadow-[inset_0_0_0_1px_var(--x-line-strong)] transition-[background-color,box-shadow] duration-150 hover:bg-[var(--sunken)] aria-selected:bg-[var(--sunken)] aria-selected:shadow-[inset_0_0_0_1.5px_var(--ed)]"
 					>
 						<Tile kind={id} className="!rounded-full" />
 						{copy.editors[id].title}
@@ -154,18 +154,18 @@ function EditorTabs() {
 				</figure>
 				<div className="grid gap-5">
 					<h3 className="text-[1.5rem] font-semibold tracking-[-0.015em]">{editor.title}</h3>
-					<p className="text-lead text-muted">{editor.lede}</p>
+					<p className="text-lead text-fg-faint">{editor.lede}</p>
 					<ul className="grid gap-4">
 						{editor.points.map(([title, text]) => (
 							<li key={title} className="grid gap-0.5">
 								<span className="text-body font-semibold">{title}</span>
-								<span className="text-ui text-muted">{text}</span>
+								<span className="text-ui text-fg-faint">{text}</span>
 							</li>
 						))}
 					</ul>
 					<Link
 						to={EDITORS[kind].path}
-						className="bg-ed text-ed-ink text-body inline-flex h-11 items-center justify-self-start rounded-sm px-5 font-semibold transition-[filter] hover:brightness-[1.07]"
+						className="bg-ed text-ed-ink text-body inline-flex h-11 items-center justify-self-start rounded-md px-5 font-semibold transition-[filter] hover:brightness-[1.07]"
 					>
 						{editor.open}
 					</Link>
@@ -193,7 +193,7 @@ function Tasks() {
 									<Link
 										to="/tools/$task"
 										params={{ task: task.slug }}
-										className="text-body text-ink-2 hover:text-ink decoration-(--ed) block py-2.5 underline-offset-4 transition-colors hover:underline"
+										className="text-body text-fg-muted hover:text-fg decoration-(--ed) block py-2.5 underline-offset-4 transition-colors hover:underline"
 									>
 										{task.title()}
 									</Link>
@@ -211,9 +211,9 @@ function Tasks() {
 							<summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden">
 								<Tile kind={kind} size="sm" />
 								<span className="text-body flex-1 font-semibold">{copy.editors[kind].title}</span>
-								<span className="text-small text-muted x-tabular">{tasks.length}</span>
+								<span className="text-small text-fg-faint x-tabular">{tasks.length}</span>
 								<ChevronDown
-									className="text-muted size-5 transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none"
+									className="text-fg-faint size-5 transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none"
 									aria-hidden="true"
 								/>
 							</summary>
@@ -223,7 +223,7 @@ function Tasks() {
 										<Link
 											to="/tools/$task"
 											params={{ task: task.slug }}
-											className="text-body text-ink-2 active:text-ink block py-2.5"
+											className="text-body text-fg-muted active:text-fg block py-2.5"
 										>
 											{task.title()}
 										</Link>
@@ -254,7 +254,7 @@ function Formats() {
 							<span className="bg-ed size-2 rounded-full" aria-hidden="true" />
 							{group.title}
 						</dt>
-						<dd className="text-body text-ink-2">{group.items.join(', ')}</dd>
+						<dd className="text-body text-fg-muted">{group.items.join(', ')}</dd>
 					</div>
 				))}
 			</dl>
@@ -273,11 +273,11 @@ function Faq() {
 						<summary className="text-lead flex cursor-pointer list-none items-center justify-between gap-4 py-5 font-semibold [&::-webkit-details-marker]:hidden">
 							{question}
 							<Plus
-								className="text-muted size-5 flex-none transition-transform duration-200 group-open:rotate-45 motion-reduce:transition-none"
+								className="text-fg-faint size-5 flex-none transition-transform duration-200 group-open:rotate-45 motion-reduce:transition-none"
 								aria-hidden="true"
 							/>
 						</summary>
-						<p className="text-body text-muted mb-5 max-w-[62ch]">{answer}</p>
+						<p className="text-body text-fg-faint mb-5 max-w-[62ch]">{answer}</p>
 					</details>
 				))}
 			</div>

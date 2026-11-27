@@ -42,7 +42,7 @@
         "react": "^19.3.1",
         "react-dom": "^19.3.1",
         "wasm-feature-detect": "^1.10.1",
-        "xantoom-design": "github:Xantoom/xantoom-design#v0.2.2",
+        "xantoom-design": "github:Xantoom/xantoom-design#v0.4.2",
         "zustand": "^5.1.0",
       },
       "devDependencies": {
@@ -741,7 +741,7 @@
 
     "why-is-node-running": ["why-is-node-running@3.2.1", "", { "bin": { "why-is-node-running": "cli.js" } }, "sha512-Tb2FUhB4vUsGQlfSquQLYkApkuPAFQXGFzxWKHHumVz2dK+X1RUm/HnID4+TfIGYJ1kTcwOaCk/buYCEJr6YjQ=="],
 
-    "xantoom-design": ["xantoom-design@github:Xantoom/xantoom-design#b2069aa", { "bin": { "xantoom-design": "./scripts/sync.ts" } }, "Xantoom-xantoom-design-b2069aa", "sha512-Y8Kr5Xy5A56MdYkHskCZRYOZBZrnV5Pcq9ssf2RRdImONl7b8zhKXD4c3OzYRsSnOF+eY/loBH8oVLV0WYuImw=="],
+    "xantoom-design": ["xantoom-design@github:Xantoom/xantoom-design#3c9924f", { "peerDependencies": { "react": ">=19.2" }, "optionalPeers": ["react"], "bin": { "xantoom-design": "./scripts/sync.ts" } }, "Xantoom-xantoom-design-3c9924f", "sha512-RJVxoYeunv22+VrNXNhP2F1XGhgzZuHhuXlpbuXxTm83ov+tYpBitm/lVebhjTegdeSlO7aLvQwvnXft1YXKzQ=="],
 
     "yallist": ["yallist@3.1.1", "", {}, "sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g=="],
 

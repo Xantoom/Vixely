@@ -4,7 +4,7 @@ import { m } from '@/paraglide/messages.js';
 const SMALLER = [25, 50, 75];
 
 const CHIP =
-	'text-ui x-tabular text-ink-2 hover:bg-surface aria-checked:bg-ed-soft aria-checked:text-ink h-9 rounded-sm font-medium shadow-[inset_0_0_0_1px_var(--line-2)] transition-[background-color,box-shadow] aria-checked:shadow-[inset_0_0_0_1.5px_var(--ed)] disabled:opacity-40';
+	'text-ui x-tabular text-fg-muted hover:bg-sunken aria-checked:bg-ed-soft aria-checked:text-fg h-9 rounded-md font-medium shadow-[inset_0_0_0_1px_var(--x-line-strong)] transition-[background-color,box-shadow] aria-checked:shadow-[inset_0_0_0_1.5px_var(--ed)] disabled:opacity-40';
 
 /**
  * Shares of the picture in one row: smaller ones, then the original. Enlarging adds no detail: a

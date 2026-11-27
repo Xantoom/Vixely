@@ -25,7 +25,7 @@ export function SiteHeader() {
 				<Link
 					to="/"
 					aria-label={m.app_home()}
-					className="hover:bg-surface -ml-1.5 flex h-10 items-center gap-2.5 rounded-sm px-1.5 transition-colors"
+					className="hover:bg-sunken -ml-1.5 flex h-10 items-center gap-2.5 rounded-md px-1.5 transition-colors"
 				>
 					<LogoMark size={30} />
 					<span className="text-lead font-bold tracking-[-0.02em]">Vixely</span>
@@ -36,7 +36,7 @@ export function SiteHeader() {
 							key={hash}
 							to="/"
 							hash={hash}
-							className="text-ui text-ink-2 hover:text-ink flex h-10 items-center font-medium transition-colors"
+							className="text-ui text-fg-muted hover:text-fg flex h-10 items-center font-medium transition-colors"
 						>
 							{label}
 						</Link>
@@ -59,7 +59,7 @@ export function SiteHeader() {
 					<ThemeMenu />
 					<OpenFileButton
 						reading={copy.reading}
-						className="text-ui ml-1.5 h-10 rounded-sm px-4 max-sm:hidden"
+						className="text-ui ml-1.5 h-10 rounded-md px-4 max-sm:hidden"
 					>
 						{copy.nav.open}
 					</OpenFileButton>

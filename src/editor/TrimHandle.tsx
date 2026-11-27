@@ -65,7 +65,7 @@ export function TrimHandle({ label, time, duration, view, onMove, onEnd }: TrimH
 			style={{ left: `${((time - view.start) / span) * 100}%` }}
 		>
 			<span className="bg-ed absolute inset-y-0 left-1/2 w-[3px] -translate-x-1/2 rounded-full" />
-			<span className="bg-ed absolute top-1/2 left-1/2 h-7 w-2.5 -translate-1/2 rounded-full shadow-[0_0_0_2px_var(--bg)] transition-transform motion-safe:group-hover:scale-110 group-focus-visible:scale-110 motion-reduce:transition-none" />
+			<span className="bg-ed absolute top-1/2 left-1/2 h-7 w-2.5 -translate-1/2 rounded-full shadow-[0_0_0_2px_var(--x-bg)] transition-transform motion-safe:group-hover:scale-110 group-focus-visible:scale-110 motion-reduce:transition-none" />
 		</div>
 	);
 }

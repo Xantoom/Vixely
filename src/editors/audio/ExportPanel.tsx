@@ -72,11 +72,11 @@ function CoverPreview({ source, cover }: { source: ImageBitmap | null; cover: Au
 		canvas.getContext('2d')?.drawImage(source, 0, 0, canvas.width, canvas.height);
 	}, [source, cover]);
 
-	const box = 'size-16 flex-none rounded-xs bg-surface-2 object-cover shadow-[0_0_0_1px_var(--line)]';
+	const box = 'size-16 flex-none rounded-sm bg-sunken-2 object-cover shadow-[0_0_0_1px_var(--x-line)]';
 	if (typeof cover === 'object' && url) return <img src={url} alt="" className={box} />;
 	if (cover === 'keep' && source) return <canvas ref={canvasRef} className={box} />;
 	return (
-		<span className={`${box} text-caption text-muted grid place-items-center p-1 text-center`}>
+		<span className={`${box} text-caption text-fg-faint grid place-items-center p-1 text-center`}>
 			{m.cover_none()}
 		</span>
 	);
@@ -90,16 +90,17 @@ function CoverField({ source }: { source: ImageBitmap | null }) {
 
 	return (
 		<div className="grid gap-1.5">
-			<span className="text-ui text-ink-2">{m.cover()}</span>
+			<span className="text-ui text-fg-muted">{m.cover()}</span>
 			<div className="flex items-center gap-3">
 				<CoverPreview source={source} cover={cover} />
 				<div className="flex flex-wrap gap-2">
-					<Button className="h-8 px-3" onClick={() => inputRef.current?.click()}>
+					<Button size="sm" className="px-3" onClick={() => inputRef.current?.click()}>
 						{hasCover ? m.cover_change() : m.cover_add()}
 					</Button>
 					{hasCover ? (
 						<Button
-							className="h-8 px-3"
+							size="sm"
+							className="px-3"
 							onClick={() => {
 								setExport({ cover: 'none' });
 							}}
@@ -109,7 +110,8 @@ function CoverField({ source }: { source: ImageBitmap | null }) {
 					) : (
 						source && (
 							<Button
-								className="h-8 px-3"
+								size="sm"
+								className="px-3"
 								onClick={() => {
 									setExport({ cover: 'keep' });
 								}}
@@ -233,7 +235,7 @@ export function ExportPanel({
 								setExport({ format, bitrate: AUDIO_FORMATS[format].defaultBitrate });
 							}}
 						/>
-						{opus === false && <p className="text-small text-muted">{m.opus_unavailable()}</p>}
+						{opus === false && <p className="text-small text-fg-faint">{m.opus_unavailable()}</p>}
 					</div>
 
 					<div className="grid gap-3.5">
@@ -313,14 +315,14 @@ export function ExportPanel({
 
 			{bytes !== null && (
 				<div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
-					<span className="text-ui text-ink-2">{m.export_estimate()}</span>
+					<span className="text-ui text-fg-muted">{m.export_estimate()}</span>
 					<span className="x-tabular text-small">≈ {formatBytes(Math.round(bytes))}</span>
 				</div>
 			)}
 
 			<Group title={m.export_metadata()} defaultOpen={false}>
 				{batch || !settings.tags ? (
-					<p className="text-small text-muted">{m.batch_tags_kept()}</p>
+					<p className="text-small text-fg-faint">{m.batch_tags_kept()}</p>
 				) : (
 					<MetadataFields tags={settings.tags} cover={cover} />
 				)}
@@ -482,7 +484,7 @@ export function ExportFooter({
 	return (
 		<>
 			{status === 'saving' && (
-				<div className="bg-surface-2 h-1 overflow-hidden rounded-full" aria-hidden="true">
+				<div className="bg-sunken-2 h-1 overflow-hidden rounded-full" aria-hidden="true">
 					<div
 						className="bg-ed h-full origin-left transition-transform duration-200 motion-reduce:transition-none"
 						style={{ transform: `scaleX(${progress})` }}

@@ -269,7 +269,7 @@ function Destination({ upright, batch = false }: { upright: Size; batch?: boolea
 						else choose(value);
 					}}
 				/>
-				<p className="text-small text-muted text-pretty">
+				<p className="text-small text-fg-faint text-pretty">
 					{settings.preset && preset ? presetReason(settings.preset) : m.preset_custom_reason()}
 				</p>
 			</div>
@@ -551,9 +551,9 @@ function Outcome({ upright }: { upright: Size }) {
 			<dl className="grid gap-1.5">
 				{rows.map((row) => (
 					<div key={row.label} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
-						<dt className="text-ui text-ink-2">{row.label}</dt>
+						<dt className="text-ui text-fg-muted">{row.label}</dt>
 						<dd
-							className={`x-tabular text-small text-right ${row.tone === 'danger' ? 'text-danger' : 'text-ink'}`}
+							className={`x-tabular text-small text-right ${row.tone === 'danger' ? 'text-danger' : 'text-fg'}`}
 						>
 							{row.value}
 						</dd>
@@ -562,7 +562,7 @@ function Outcome({ upright }: { upright: Size }) {
 			</dl>
 			{plan.squeezed && <p className="text-small text-danger text-pretty">{m.bitrate_squeezed()}</p>}
 			{settings.encoder === 'gpu' && depth === 8 && (settings.codec === 'hevc' || settings.codec === 'av1') && (
-				<p className="text-small text-muted text-pretty">{m.bit_depth_unavailable()}</p>
+				<p className="text-small text-fg-faint text-pretty">{m.bit_depth_unavailable()}</p>
 			)}
 		</section>
 	);
@@ -585,15 +585,15 @@ function ConvertSettings({ upright, batch = false }: { upright: Size; batch?: bo
 			>
 				<div className="grid gap-5">
 					<div className="grid gap-2.5">
-						<h4 className="text-small text-muted font-medium">{m.export_picture()}</h4>
+						<h4 className="text-small text-fg-faint font-medium">{m.export_picture()}</h4>
 						<PictureFields upright={upright} />
 					</div>
 					<div className="grid gap-2.5">
-						<h4 className="text-small text-muted font-medium">{m.export_encoding()}</h4>
+						<h4 className="text-small text-fg-faint font-medium">{m.export_encoding()}</h4>
 						<EncodingFields />
 					</div>
 					<div className="grid gap-2.5">
-						<h4 className="text-small text-muted font-medium">{m.export_quality_size()}</h4>
+						<h4 className="text-small text-fg-faint font-medium">{m.export_quality_size()}</h4>
 						<RateFields upright={upright} />
 					</div>
 				</div>

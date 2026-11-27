@@ -84,7 +84,7 @@ export function PlayerMenu<T extends string>({
 			items={items}
 			onChange={onChange}
 			rows={4}
-			buttonClassName="text-muted"
+			buttonClassName="text-fg-faint"
 		>
 			<span className="relative grid place-items-center">
 				<Icon size={18} aria-hidden="true" />
@@ -165,9 +165,9 @@ export function PlayTime({
 			aria-label={m.playhead()}
 			className="text-small x-tabular whitespace-nowrap [text-box:trim-both_cap_alphabetic]"
 		>
-			<span className="text-ink font-medium">{formatPreciseTime(Math.min(time, length), length)}</span>
+			<span className="text-fg font-medium">{formatPreciseTime(Math.min(time, length), length)}</span>
 			{/* On a phone the bar has room for the time alone. */}
-			{!short && <span className="text-muted max-sm:hidden"> / {formatPreciseTime(length)}</span>}
+			{!short && <span className="text-fg-faint max-sm:hidden"> / {formatPreciseTime(length)}</span>}
 		</span>
 	);
 }
@@ -256,11 +256,11 @@ function SeekBar() {
 		>
 			<div
 				ref={trackRef}
-				className="ease-out-soft relative h-1.5 bg-[var(--track-base)] w-full rounded-full transition-[height] duration-150 group-hover/seek:h-2 group-data-dragging-seek/seek:h-2"
+				className="ease-out relative h-1.5 bg-[var(--track-base)] w-full rounded-full transition-[height] duration-150 group-hover/seek:h-2 group-data-dragging-seek/seek:h-2"
 			>
 				{hover !== null && length > 0 && (
 					<div
-						className="absolute inset-y-0 left-0 rounded-full bg-[color-mix(in_srgb,var(--ink)_22%,transparent)]"
+						className="absolute inset-y-0 left-0 rounded-full bg-[color-mix(in_srgb,var(--x-fg)_22%,transparent)]"
 						style={{ width: `${(hover / length) * 100}%` }}
 					/>
 				)}
@@ -272,7 +272,7 @@ function SeekBar() {
 			</div>
 			{hover !== null && length > 0 && (
 				<span
-					className="bg-tip text-tip-ink x-tabular pointer-events-none absolute bottom-full mb-1 -translate-x-1/2 rounded-xs px-1.5 py-0.5 text-caption shadow-[0_0_0_1px_var(--tip-line)] font-medium whitespace-nowrap"
+					className="bg-tip text-tip-ink x-tabular pointer-events-none absolute bottom-full mb-1 -translate-x-1/2 rounded-sm px-1.5 py-0.5 text-caption shadow-[0_0_0_1px_var(--tip-line)] font-medium whitespace-nowrap"
 					style={{ left: `${(hover / length) * 100}%` }}
 				>
 					{formatPreciseTime(hover)}
@@ -302,7 +302,7 @@ function StepButton({
 			data-tip={label}
 			disabled={disabled}
 			onClick={onStep}
-			className={`text-ink-2 enabled:hover:bg-surface enabled:hover:text-ink x-touch-target relative grid size-9 place-items-center rounded-full transition-colors disabled:opacity-45 max-sm:size-8 ${className}`}
+			className={`text-fg-muted enabled:hover:bg-sunken enabled:hover:text-fg x-touch-target relative grid size-9 place-items-center rounded-full transition-colors disabled:opacity-45 max-sm:size-8 ${className}`}
 		>
 			{direction < 0 ? (
 				<ChevronFirst className="size-[1.15rem]" aria-hidden="true" />

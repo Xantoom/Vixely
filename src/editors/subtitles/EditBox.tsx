@@ -81,7 +81,7 @@ function TimeBox({
 	};
 	return (
 		<label className="grid gap-0.5 max-sm:min-w-0 max-sm:flex-1">
-			<span className="text-caption text-muted">{label}</span>
+			<span className="text-caption text-fg-faint">{label}</span>
 			<input
 				ref={ref}
 				defaultValue={shown}
@@ -96,7 +96,7 @@ function TimeBox({
 					}
 					if (event.key === 'Escape') event.currentTarget.value = shown;
 				}}
-				className="border-field bg-raised text-ink hover:border-muted x-tabular text-small h-8 pointer-coarse:h-10 w-[104px] rounded-xs max-sm:w-full max-sm:px-1.5 border px-2 transition-colors disabled:opacity-45"
+				className="border-control-border bg-raised text-fg hover:border-fg-faint x-tabular text-small h-8 pointer-coarse:h-10 w-[104px] rounded-sm max-sm:w-full max-sm:px-1.5 border px-2 transition-colors disabled:opacity-45"
 			/>
 		</label>
 	);
@@ -214,7 +214,7 @@ export function EditBox() {
 	return (
 		<section
 			aria-label={m.subs_line_editor()}
-			className="bg-raised flex h-full min-h-0 flex-col gap-2.5 rounded-md p-3 shadow-[inset_0_0_0_1px_var(--line)] max-lg:rounded-none max-lg:shadow-none"
+			className="bg-raised flex h-full min-h-0 flex-col gap-2.5 rounded-lg p-3 shadow-[inset_0_0_0_1px_var(--x-line)] max-lg:rounded-none max-lg:shadow-none"
 		>
 			<div className="flex flex-wrap items-end gap-x-2 gap-y-2">
 				<p className="text-ui mr-1 grid h-8 items-center font-semibold whitespace-nowrap max-sm:mr-auto">
@@ -259,7 +259,7 @@ export function EditBox() {
 					</div>
 					<IconButton
 						label={m.subs_times_here()}
-						className="size-8"
+						size="sm"
 						disabled={!cue}
 						onClick={() => {
 							const time = usePlayback.getState().time * 1000;
@@ -285,7 +285,7 @@ export function EditBox() {
 							{ value: 'delete', label: m.subs_delete_line(), disabled: !cue },
 						]}
 						onChange={lineActions}
-						buttonClassName="text-muted hover:bg-surface hover:text-ink size-8! flex! items-center justify-center rounded-sm"
+						buttonClassName="text-fg-faint hover:bg-sunken hover:text-fg size-8! flex! items-center justify-center rounded-md"
 					>
 						<MoreHorizontal className="size-4.5" aria-hidden="true" />
 						<span className="sr-only">{m.subs_line_actions()}</span>
@@ -295,7 +295,7 @@ export function EditBox() {
 			{cue && origin?.has(cue.id) && (
 				<p
 					aria-label={m.subs_original()}
-					className="bg-surface text-body text-ink-2 max-h-20 overflow-auto rounded-sm px-3 py-2 whitespace-pre-wrap"
+					className="bg-sunken text-body text-fg-muted max-h-20 overflow-auto rounded-md px-3 py-2 whitespace-pre-wrap"
 				>
 					{origin.get(cue.id)}
 				</p>
@@ -303,7 +303,7 @@ export function EditBox() {
 			{picture && cue?.picture ? (
 				<PicturePreview picture={cue.picture} />
 			) : (
-				<div className="border-field focus-within:border-ed hover:border-muted flex min-h-20 flex-1 flex-col rounded-sm border transition-colors">
+				<div className="border-control-border focus-within:border-ed hover:border-fg-faint flex min-h-20 flex-1 flex-col rounded-md border transition-colors">
 					<div className="border-line flex items-center gap-0.5 border-b px-1 py-0.5">
 						{(['b', 'i', 'u', 's'] as const).map((style) => {
 							const Icon = STYLE_ICONS[style];
@@ -311,7 +311,7 @@ export function EditBox() {
 								<IconButton
 									key={style}
 									label={STYLE_LABELS[style]()}
-									className="size-8"
+									size="sm"
 									disabled={!cue}
 									onClick={() => {
 										wrap(style);
@@ -323,7 +323,7 @@ export function EditBox() {
 						})}
 						<span className="flex-1" />
 						{cue && (
-							<span className="text-caption x-tabular text-muted px-2 whitespace-nowrap">
+							<span className="text-caption x-tabular text-fg-faint px-2 whitespace-nowrap">
 								{m.subs_characters({ count: characters })}
 								{' · '}
 								<span
@@ -369,7 +369,7 @@ export function EditBox() {
 							}
 						}}
 						onBlur={settle}
-						className="text-ink placeholder:text-muted min-h-12 w-full flex-1 resize-none bg-transparent px-3 py-2.5 text-[1.0625rem] leading-snug outline-none disabled:opacity-45"
+						className="text-fg placeholder:text-fg-faint min-h-12 w-full flex-1 resize-none bg-transparent px-3 py-2.5 text-[1.0625rem] leading-snug outline-none disabled:opacity-45"
 					/>
 				</div>
 			)}
@@ -403,7 +403,7 @@ export function EditBox() {
 								preview((present) => updateCue(present, cue.id, { fields: { ...cue.fields, name } }));
 							}}
 							onBlur={settle}
-							className="border-field bg-raised text-ui hover:border-muted placeholder:text-muted h-10 w-36 min-w-0 rounded-xs border px-2.5 transition-colors max-sm:flex-1"
+							className="border-control-border bg-raised text-ui hover:border-fg-faint placeholder:text-fg-faint h-10 w-36 min-w-0 rounded-sm border px-2.5 transition-colors max-sm:flex-1"
 						/>
 					)}
 				</div>

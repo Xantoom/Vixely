@@ -130,7 +130,7 @@ export function LayerLanes({
 				const shown = overlay.span ?? { start: 0, end: duration };
 				const active = overlay.id === selected;
 				return (
-					<div key={overlay.id} className="bg-surface relative h-6 rounded-xs">
+					<div key={overlay.id} className="bg-sunken relative h-6 rounded-sm">
 						{isVisible(shown, view) && (
 							<div
 								role="button"
@@ -144,7 +144,7 @@ export function LayerLanes({
 								className={`group text-caption absolute inset-y-0.5 flex min-w-2 cursor-grab touch-none items-center overflow-hidden rounded-[4px] px-2 font-medium whitespace-nowrap transition-[background-color,box-shadow] select-none active:cursor-grabbing ${
 									active
 										? 'bg-ed text-ed-ink shadow-[0_0_0_1.5px_var(--ed)]'
-										: 'bg-ed-soft text-ink shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--ed)_45%,transparent)] hover:bg-[color-mix(in_srgb,var(--ed)_28%,var(--bg))]'
+										: 'bg-ed-soft text-fg shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--ed)_45%,transparent)] hover:bg-[color-mix(in_srgb,var(--ed)_28%,var(--x-bg))]'
 								}`}
 								style={rangeBox(shown, view)}
 							>

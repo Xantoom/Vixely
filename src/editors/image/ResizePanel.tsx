@@ -92,7 +92,7 @@ export function ResizePanel({ source }: { source: Size }) {
 				/>
 				<div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-2">
 					<label className="grid gap-1.5">
-						<span className="text-ui text-ink-2">{m.field_width()}</span>
+						<span className="text-ui text-fg-muted">{m.field_width()}</span>
 						<NumberField value={current.width} unit="px" min={1} max={LARGEST} onCommit={setWidth} />
 					</label>
 					<IconButton
@@ -105,7 +105,7 @@ export function ResizePanel({ source }: { source: Size }) {
 						{linked ? <Link2 className="size-5" /> : <Unlink2 className="size-5" />}
 					</IconButton>
 					<label className="grid gap-1.5">
-						<span className="text-ui text-ink-2">{m.field_height()}</span>
+						<span className="text-ui text-fg-muted">{m.field_height()}</span>
 						<NumberField value={current.height} unit="px" min={1} max={LARGEST} onCommit={setHeight} />
 					</label>
 				</div>

@@ -144,11 +144,11 @@ export function LineGrid() {
 			onScroll={(event) => {
 				setScrollTop(event.currentTarget.scrollTop);
 			}}
-			className="bg-raised focus-visible:outline-ed relative h-full min-h-0 overflow-auto rounded-xs shadow-[inset_0_0_0_1px_var(--line)] outline-offset-[-2px]"
+			className="bg-raised focus-visible:outline-ed relative h-full min-h-0 overflow-auto rounded-sm shadow-[inset_0_0_0_1px_var(--x-line)] outline-offset-[-2px]"
 		>
 			<div
 				role="row"
-				className="bg-surface border-line text-caption text-muted sticky top-0 z-10 grid border-b font-medium"
+				className="bg-sunken border-line text-caption text-fg-faint sticky top-0 z-10 grid border-b font-medium"
 				style={{ gridTemplateColumns: columns, height: ROW }}
 			>
 				{header.map((label) => (
@@ -166,9 +166,9 @@ export function LineGrid() {
 					const flagged = hasError(found) ? found : undefined;
 					// Grey on the tinted rows of the chosen lines falls under 4.5:1: it darkens there.
 					const tinted = line.id === active || selected;
-					const quiet = tinted ? 'text-ink-2' : 'text-muted';
+					const quiet = tinted ? 'text-fg-muted' : 'text-fg-faint';
 					// Red too, pulled towards the text colour.
-					const alarm = tinted ? 'text-[color-mix(in_srgb,var(--danger)_80%,var(--ink))]' : 'text-danger';
+					const alarm = tinted ? 'text-[color-mix(in_srgb,var(--x-danger)_80%,var(--x-fg))]' : 'text-danger';
 					return (
 						<div
 							key={line.id}
@@ -185,8 +185,8 @@ export function LineGrid() {
 									: selected
 										? 'bg-ed-soft'
 										: flagged
-											? 'bg-[color-mix(in_srgb,var(--danger)_6%,var(--bg))] hover:bg-surface'
-											: 'hover:bg-surface'
+											? 'bg-[color-mix(in_srgb,var(--x-danger)_6%,var(--x-bg))] hover:bg-sunken'
+											: 'hover:bg-sunken'
 							}`}
 							style={{ top: index * ROW, height: ROW, gridTemplateColumns: columns }}
 						>
@@ -196,7 +196,7 @@ export function LineGrid() {
 									index === current
 										? 'shadow-[inset_3px_0_0_var(--ed)]'
 										: flagged
-											? 'shadow-[inset_3px_0_0_var(--danger)]'
+											? 'shadow-[inset_3px_0_0_var(--x-danger)]'
 											: ''
 								}`}
 							>
@@ -263,7 +263,7 @@ export function LineGrid() {
 								});
 								state.select([created]);
 							}}
-							className="text-ui text-muted hover:text-ink hover:bg-surface flex w-full items-center gap-2 px-2.5 py-2.5 text-left font-medium transition-colors"
+							className="text-ui text-fg-faint hover:text-fg hover:bg-sunken flex w-full items-center gap-2 px-2.5 py-2.5 text-left font-medium transition-colors"
 						>
 							<Plus size={16} aria-hidden="true" />
 							{m.subs_add_line()}

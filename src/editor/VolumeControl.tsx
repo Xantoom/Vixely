@@ -96,7 +96,7 @@ export function VolumeControl() {
 					}
 					show();
 				}}
-				className="text-muted hover:bg-surface hover:text-ink aria-expanded:bg-surface aria-expanded:text-ink grid size-10 flex-none place-items-center rounded-sm transition-colors duration-150"
+				className="text-fg-faint hover:bg-sunken hover:text-fg aria-expanded:bg-sunken aria-expanded:text-fg grid size-10 flex-none place-items-center rounded-md transition-colors duration-150"
 			>
 				<Icon size={18} aria-hidden="true" />
 			</button>
@@ -115,7 +115,7 @@ export function VolumeControl() {
 								close(true);
 							}
 						}}
-						className="menu-in bg-raised text-ink fixed z-50 flex items-center gap-2 rounded-md py-1.5 pr-3.5 pl-1.5 shadow-[0_0_0_1px_var(--line-2),0_18px_44px_-14px_rgb(0_0_0/0.4)]"
+						className="menu-in bg-raised text-fg fixed z-50 flex items-center gap-2 rounded-lg py-1.5 pr-3.5 pl-1.5 shadow-[0_0_0_1px_var(--x-line-strong),0_18px_44px_-14px_rgb(0_0_0/0.4)]"
 						style={place ? { top: place.top, left: place.left } : { top: 0, left: 0, visibility: 'hidden' }}
 					>
 						<button
@@ -123,7 +123,7 @@ export function VolumeControl() {
 							aria-label={silent ? m.volume_unmute() : m.volume_mute()}
 							data-tip={silent ? m.volume_unmute() : m.volume_mute()}
 							onClick={toggleMute}
-							className="text-ink-2 hover:bg-surface hover:text-ink grid size-9 flex-none place-items-center rounded-sm transition-colors"
+							className="text-fg-muted hover:bg-sunken hover:text-fg grid size-9 flex-none place-items-center rounded-md transition-colors"
 						>
 							<Icon className="size-[1.15rem]" aria-hidden="true" />
 						</button>
@@ -142,7 +142,7 @@ export function VolumeControl() {
 							className="volume-range w-32"
 							style={{ '--level': `${percent}%` }}
 						/>
-						<output className="text-small x-tabular text-ink w-12 text-right whitespace-nowrap">
+						<output className="text-small x-tabular text-fg w-12 text-right whitespace-nowrap">
 							{percent} %
 						</output>
 					</div>,
