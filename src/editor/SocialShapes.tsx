@@ -1,8 +1,9 @@
 import { useState } from 'react';
+import { SearchField } from 'xantoom-design/react';
 import type { FixedAspect } from '@/editors/image/store';
+import { searchable } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
 import { BrandLogo, type LogoId } from '@/ui/BrandLogo';
-import { SearchField, searchable } from '@/ui/SearchField';
 
 export interface SocialShape {
 	id: string;
@@ -131,7 +132,13 @@ export function SocialShapes({ chosen, onChoose }: { chosen: string | null; onCh
 	})).filter((entry) => entry.formats.length > 0);
 	return (
 		<div className="grid gap-3">
-			<SearchField value={query} onChange={setQuery} label={m.social_search()} />
+			<SearchField
+				value={query}
+				onChange={setQuery}
+				label={m.social_search()}
+				placeholder={m.social_search()}
+				clearLabel={m.search_clear()}
+			/>
 			<div role="radiogroup" aria-label={m.crop_social()} className="grid">
 				{shown.map(({ network, formats }) => (
 					<div
@@ -152,7 +159,7 @@ export function SocialShapes({ chosen, onChoose }: { chosen: string | null; onCh
 										role="radio"
 										aria-checked={chosen === shape.id}
 										aria-label={`${network.name} ${format.label()} ${format.aspect}`}
-										title={`${format.width} × ${format.height}`}
+										data-tip={`${format.width} × ${format.height}`}
 										onClick={() => {
 											onChoose(shape);
 										}}

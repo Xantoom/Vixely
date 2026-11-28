@@ -1,6 +1,7 @@
 import { createRouter, RouterProvider } from '@tanstack/react-router';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { tooltips } from 'xantoom-design/js';
 import { countPage } from './app/analytics';
 import { ErrorScreen } from './app/ErrorScreen';
 import { barePath, localePath, setAddressReplacer, startLocale } from './app/locale';
@@ -14,6 +15,8 @@ import '@fontsource-variable/jetbrains-mono';
 import './styles/app.css';
 
 startLocale();
+// One shared tooltip for every [data-tip], on mouse hover, keyboard focus and a touch tap.
+tooltips();
 
 const router = createRouter({
 	routeTree,

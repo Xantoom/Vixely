@@ -185,7 +185,7 @@ export function QualityBar() {
 			) : flagged > 0 ? (
 				<>
 					<TriangleAlert className="text-danger ml-1 size-4 flex-none" aria-hidden="true" />
-					<span className="min-w-0 flex-1 truncate font-medium" title={m.subs_check_title()}>
+					<span className="min-w-0 flex-1 truncate font-medium" data-tip={m.subs_check_title()}>
 						{m.subs_check_count({ count: flagged })}
 					</span>
 					<button

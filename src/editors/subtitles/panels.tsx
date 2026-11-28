@@ -84,7 +84,7 @@ function TracksSection({ fileName }: { fileName: string }) {
 							role="radio"
 							aria-checked={current === track.key}
 							disabled={!usable}
-							title={reason}
+							data-tip={reason}
 							onClick={() => {
 								choose(track.key);
 							}}
@@ -97,7 +97,7 @@ function TracksSection({ fileName }: { fileName: string }) {
 									{track.edited && (
 										<span
 											className="bg-ed size-2 flex-none rounded-full"
-											title={m.subs_track_edited()}
+											data-tip={m.subs_track_edited()}
 											aria-label={m.subs_track_edited()}
 										/>
 									)}

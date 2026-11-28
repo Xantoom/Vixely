@@ -1,19 +1,13 @@
 import { Volume1, Volume2, VolumeX } from 'lucide-react';
 import { useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import { Popover } from 'xantoom-design/react';
 import { isTyping } from '@/editor/shortcuts';
 import { formatPercent } from '@/lib/format';
 import { listeningGain, useListening } from '@/media/listening';
 import { m } from '@/paraglide/messages.js';
-import { layerOf } from '@/ui/layer';
-import { usePopover } from '@/ui/use-popover';
 
 /** Volume moved by one notch of the wheel over the button. */
 const WHEEL_STEP = 0.05;
-
-/** Room between the bubble and the speaker, and kept from the window's edges. */
-const GAP = 6;
-const EDGE = 8;
 
 /**
  * How loud the editors play, as in video players: a speaker in the player's bar opens a bubble
@@ -30,25 +24,7 @@ export function VolumeControl() {
 	const shown = muted ? 0 : volume;
 	const percent = Math.round(shown * 100);
 
-	// Above the speaker, centred on it like a tooltip; under it only when there is no room above.
-	const { open, place, media, buttonRef, popoverRef, show, close } = usePopover((button, bubble) => {
-		const rect = button.getBoundingClientRect();
-		const width = bubble.offsetWidth;
-		const height = bubble.offsetHeight;
-		const up = rect.top - GAP - height >= EDGE;
-		return {
-			top: up ? rect.top - GAP - height : rect.bottom + GAP,
-			left: Math.max(EDGE, Math.min(rect.left + rect.width / 2 - width / 2, window.innerWidth - EDGE - width)),
-			down: !up,
-		};
-	});
-	const sliderRef = useRef<HTMLInputElement>(null);
-
-	// Once placed (hidden until then, it can't take the focus), the slider has the keyboard.
-	const placed = place !== null;
-	useEffect(() => {
-		if (placed) sliderRef.current?.focus({ preventScroll: true });
-	}, [placed]);
+	const buttonRef = useRef<HTMLButtonElement>(null);
 
 	// M mutes and brings the sound back, as in video players.
 	useEffect(() => {
@@ -81,73 +57,51 @@ export function VolumeControl() {
 	}, []);
 
 	return (
-		<>
-			<button
-				ref={buttonRef}
-				type="button"
-				aria-label={m.volume_title()}
-				data-tip={open ? undefined : m.volume_title()}
-				aria-haspopup="dialog"
-				aria-expanded={open}
-				onClick={() => {
-					if (open) {
-						close(false);
-						return;
-					}
-					show();
-				}}
-				className="text-fg-faint hover:bg-sunken hover:text-fg aria-expanded:bg-sunken aria-expanded:text-fg grid size-10 flex-none place-items-center rounded-md transition-colors duration-150"
-			>
-				<Icon size={18} aria-hidden="true" />
-			</button>
-			{open &&
-				createPortal(
-					<div
-						ref={popoverRef}
-						role="dialog"
-						aria-label={m.volume_listening()}
-						data-media={media ?? undefined}
-						data-down={place?.down ?? true}
-						onKeyDown={(event) => {
-							if (event.key === 'Escape') {
-								event.preventDefault();
-								event.stopPropagation();
-								close(true);
-							}
-						}}
-						className="menu-in bg-raised text-fg fixed z-50 flex items-center gap-2 rounded-lg py-1.5 pr-3.5 pl-1.5 shadow-[0_0_0_1px_var(--x-line-strong),0_18px_44px_-14px_rgb(0_0_0/0.4)]"
-						style={place ? { top: place.top, left: place.left } : { top: 0, left: 0, visibility: 'hidden' }}
-					>
-						<button
-							type="button"
-							aria-label={silent ? m.volume_unmute() : m.volume_mute()}
-							data-tip={silent ? m.volume_unmute() : m.volume_mute()}
-							onClick={toggleMute}
-							className="text-fg-muted hover:bg-sunken hover:text-fg grid size-9 flex-none place-items-center rounded-md transition-colors"
-						>
-							<Icon className="size-[1.15rem]" aria-hidden="true" />
-						</button>
-						<input
-							ref={sliderRef}
-							type="range"
-							aria-label={m.volume_listening()}
-							min={0}
-							max={100}
-							step={1}
-							value={percent}
-							aria-valuetext={formatPercent(percent)}
-							onChange={(event) => {
-								setVolume(Number(event.target.value) / 100);
-							}}
-							className="volume-range w-32"
-							style={{ '--level': `${percent}%` }}
-						/>
-						<output className="text-small x-tabular text-fg w-12 text-right whitespace-nowrap">
-							{percent} %
-						</output>
-					</div>,
-					layerOf(buttonRef.current),
-				)}
-		</>
+		<Popover
+			label={m.volume_listening()}
+			// Above the speaker, centred on it like a tooltip.
+			className="[position-area:top] [position-try-fallbacks:flip-block] py-1.5 pr-3.5 pl-1.5"
+			trigger={(props) => (
+				<button
+					{...props}
+					ref={buttonRef}
+					type="button"
+					aria-label={m.volume_title()}
+					data-tip={props['aria-expanded'] ? undefined : m.volume_title()}
+					className="text-fg-faint hover:bg-sunken hover:text-fg aria-expanded:bg-sunken aria-expanded:text-fg grid size-10 flex-none place-items-center rounded-md transition-colors duration-150"
+				>
+					<Icon size={18} aria-hidden="true" />
+				</button>
+			)}
+		>
+			<div className="flex items-center gap-2">
+				<button
+					type="button"
+					aria-label={silent ? m.volume_unmute() : m.volume_mute()}
+					data-tip={silent ? m.volume_unmute() : m.volume_mute()}
+					onClick={toggleMute}
+					className="text-fg-muted hover:bg-sunken hover:text-fg grid size-9 flex-none place-items-center rounded-md transition-colors"
+				>
+					<Icon className="size-[1.15rem]" aria-hidden="true" />
+				</button>
+				<input
+					// Opened, the slider has the keyboard.
+					autoFocus
+					type="range"
+					aria-label={m.volume_listening()}
+					min={0}
+					max={100}
+					step={1}
+					value={percent}
+					aria-valuetext={formatPercent(percent)}
+					onChange={(event) => {
+						setVolume(Number(event.target.value) / 100);
+					}}
+					className="volume-range w-32"
+					style={{ '--level': `${percent}%` }}
+				/>
+				<output className="text-small x-tabular text-fg w-12 text-right whitespace-nowrap">{percent} %</output>
+			</div>
+		</Popover>
 	);
 }

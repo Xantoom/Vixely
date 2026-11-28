@@ -154,7 +154,7 @@ export function BatchStrip({ statuses, locked }: { statuses: ReadonlyMap<number,
 								type="button"
 								onClick={() => void select(item)}
 								aria-current={selected}
-								title={item.file.name}
+								data-tip={item.file.name}
 								className={`bg-sunken-2 relative block h-16 w-24 overflow-hidden rounded-sm transition-shadow ${
 									selected
 										? 'shadow-[0_0_0_2px_var(--ed)]'

@@ -137,7 +137,7 @@ export function LayerLanes({
 								tabIndex={-1}
 								aria-pressed={active}
 								aria-label={`${label(overlay)}, ${formatClock(shown.start)}–${formatClock(shown.end)}`}
-								title={`${label(overlay)} · ${overlay.span ? `${formatClock(shown.start)}–${formatClock(shown.end)}` : m.layers_always()}`}
+								data-tip={`${label(overlay)} · ${overlay.span ? `${formatClock(shown.start)}–${formatClock(shown.end)}` : m.layers_always()}`}
 								onPointerDown={(event) => {
 									onPointerDown(event, overlay);
 								}}

@@ -1,17 +1,23 @@
 import { Lock, RotateCcw } from 'lucide-react';
-import { type ReactNode, useId, useLayoutEffect, useRef, useState } from 'react';
-import { formatPreciseTime, parseTime } from '@/lib/format';
+import { type ReactNode, useId, useLayoutEffect, useRef } from 'react';
+import {
+	type Choice,
+	DurationField,
+	NumberField as DsNumberField,
+	Select as DsSelect,
+	Switch as DsSwitch,
+	TextField as DsTextField,
+	type SelectProps,
+} from 'xantoom-design/react';
 import { m } from '@/paraglide/messages.js';
-import { Dropdown, type DropdownOption } from './Dropdown';
-
-const FIELD =
-	'h-10 w-full rounded-sm border border-control-border bg-raised text-small text-fg transition-colors hover:border-fg-faint';
+import { getLocale } from '@/paraglide/runtime.js';
 
 /** A label and its control on one row: the label reads left, the value sits right. */
 export function FieldRow({ label, htmlFor, children }: { label: string; htmlFor?: string; children: ReactNode }) {
 	return (
 		<div className="grid grid-cols-[minmax(0,1fr)_160px] items-center gap-3">
-			<label htmlFor={htmlFor} className="text-ui text-fg-muted">
+			{/* The id lets a design-system Select read "label, choice". */}
+			<label htmlFor={htmlFor} id={htmlFor ? `${htmlFor}-label` : undefined} className="text-ui text-fg-muted">
 				{label}
 			</label>
 			{children}
@@ -19,29 +25,26 @@ export function FieldRow({ label, htmlFor, children }: { label: string; htmlFor?
 	);
 }
 
-export type SelectOption<T extends string> = DropdownOption<T>;
-
-/** A choice in a panel: fills its column, named by the label of its row. */
-export function Select<T extends string>({
-	id,
-	label = '',
-	value,
-	options,
-	onChange,
-}: {
-	id?: string;
-	label?: string;
-	value: T;
-	options: SelectOption<T>[];
-	onChange: (value: T) => void;
-}) {
-	return <Dropdown id={id} label={label} value={value} options={options} onChange={onChange} />;
-}
+export type SelectOption<T extends string> = Choice<T>;
 
 /**
- * Whole-number input with a unit. Edits are applied on Enter or when leaving the field, so typing
- * `1920` doesn't go through `1`, `19` and `192` on the way.
+ * The design system's Select, adapted: `label` is its accessible name (a FieldRow's label names it through `id`
+ * otherwise), and long lists get the app's search.
  */
+export function Select<T extends string>({
+	label,
+	...props
+}: Omit<SelectProps<T>, 'label' | 'hint' | 'error' | 'required' | 'search'> & { label?: string }) {
+	return (
+		<DsSelect
+			aria-label={label || undefined}
+			search={{ label: m.search_list(), empty: m.search_nothing() }}
+			{...props}
+		/>
+	);
+}
+
+/** A whole number with a unit, applied on Enter or when leaving the field (the design system's NumberField). */
 export function NumberField({
 	id,
 	value,
@@ -57,36 +60,20 @@ export function NumberField({
 	max: number;
 	onCommit: (value: number) => void;
 }) {
-	const [draft, setDraft] = useState<string | null>(null);
-	const commitDraft = () => {
-		if (draft === null) return;
-		const parsed = Number.parseInt(draft, 10);
-		setDraft(null);
-		if (Number.isFinite(parsed)) onCommit(Math.min(max, Math.max(min, parsed)));
-	};
 	return (
-		<span className="relative block">
-			<input
-				id={id}
-				type="text"
-				inputMode="numeric"
-				value={draft ?? String(value)}
-				onChange={(event) => {
-					setDraft(event.target.value.replace(/[^\d]/g, ''));
-				}}
-				onBlur={commitDraft}
-				onKeyDown={(event) => {
-					if (event.key === 'Enter') commitDraft();
-					if (event.key === 'Escape') setDraft(null);
-				}}
-				className={`${FIELD} cursor-text px-2.5 ${unit ? 'pr-8' : ''}`}
-			/>
-			{unit && (
-				<span className="text-caption text-fg-faint pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2">
-					{unit}
-				</span>
-			)}
-		</span>
+		<DsNumberField
+			id={id}
+			value={value}
+			unit={unit}
+			min={min}
+			max={max}
+			locale={getLocale()}
+			// Sizes and rates read as one number: 1920, never 1 920.
+			format={{ useGrouping: false }}
+			// It fills its column, beside a label or in a narrow cell.
+			className="w-full"
+			onChange={onCommit}
+		/>
 	);
 }
 
@@ -102,29 +89,21 @@ export function TextField({
 	placeholder?: string;
 	onChange: (value: string) => void;
 }) {
-	const id = useId();
 	return (
-		<div className="grid gap-1.5">
-			<label htmlFor={id} className="text-ui text-fg-muted">
-				{label}
-			</label>
-			<input
-				id={id}
-				type="text"
-				value={value}
-				placeholder={placeholder}
-				onChange={(event) => {
-					onChange(event.target.value);
-				}}
-				className="border-control-border bg-raised text-ui text-fg hover:border-fg-faint placeholder:text-fg-faint h-8 pointer-coarse:h-10 w-full cursor-text rounded-sm border px-2.5 transition-colors"
-			/>
-		</div>
+		<DsTextField
+			label={label}
+			value={value}
+			placeholder={placeholder}
+			onChange={(event) => {
+				onChange(event.target.value);
+			}}
+		/>
 	);
 }
 
 /**
- * Time input in minutes, seconds and milliseconds. Accepts what people type: `1:04.25`, `64.25`,
- * `64,25`. Applied on Enter or when leaving the field; anything that isn't a time is discarded.
+ * A time to the millisecond (m:ss.mmm): typed as people write it (`1:04.25`, `64.25`, `64,25`), applied on Enter or
+ * when leaving the field. The design system's DurationField.
  */
 export function TimeField({
 	id,
@@ -139,29 +118,15 @@ export function TimeField({
 	max: number;
 	onCommit: (value: number) => void;
 }) {
-	const [draft, setDraft] = useState<string | null>(null);
-	const commitDraft = () => {
-		if (draft === null) return;
-		const parsed = parseTime(draft);
-		setDraft(null);
-		if (parsed !== null) onCommit(Math.min(max, Math.max(min, parsed)));
-	};
 	return (
-		<input
+		<DurationField
 			id={id}
-			type="text"
-			inputMode="decimal"
-			spellCheck={false}
-			value={draft ?? formatPreciseTime(value)}
-			onChange={(event) => {
-				setDraft(event.target.value);
-			}}
-			onBlur={commitDraft}
-			onKeyDown={(event) => {
-				if (event.key === 'Enter') commitDraft();
-				if (event.key === 'Escape') setDraft(null);
-			}}
-			className={`${FIELD} x-tabular cursor-text px-2.5`}
+			value={value}
+			min={min}
+			max={max}
+			step={0.001}
+			locale={getLocale()}
+			onChange={onCommit}
 		/>
 	);
 }
@@ -226,7 +191,7 @@ export function Slider({
 					<button
 						type="button"
 						aria-label={m.reset()}
-						title={m.reset()}
+						data-tip={m.reset()}
 						disabled={value === defaultValue}
 						onClick={() => {
 							onChange(defaultValue);
@@ -269,7 +234,7 @@ export function Slider({
 	);
 }
 
-/** A list of mutually exclusive choices, each with an optional technical detail on the right. */
+/** A list of mutually exclusive choices (native radios), each with an optional technical detail on the right. */
 export function OptionList<T extends string>({
 	label,
 	value,
@@ -280,29 +245,34 @@ export function OptionList<T extends string>({
 	value: T;
 	/**
 	 * `description` says what the choice does, under its label; `reason` says why a disabled
-	 * choice can't be picked, on hover.
+	 * choice can't be picked, in its tooltip.
 	 */
 	options: { value: T; label: string; description?: string; detail?: string; disabled?: boolean; reason?: string }[];
 	onChange: (value: T) => void;
 }) {
+	const name = useId();
 	return (
-		<div role="radiogroup" aria-label={label} className="-mx-2.5 grid gap-0.5">
+		<fieldset className="-mx-2.5 grid gap-0.5">
+			<legend className="sr-only">{label}</legend>
 			{options.map((option) => (
-				<button
+				<label
 					key={option.value}
-					type="button"
-					role="radio"
-					aria-checked={option.value === value}
-					disabled={option.disabled}
-					title={option.disabled ? option.reason : undefined}
-					onClick={() => {
-						onChange(option.value);
-					}}
-					className="enabled:hover:bg-sunken group grid grid-cols-[16px_minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-0.5 rounded-sm px-2.5 py-2 text-left disabled:cursor-not-allowed"
+					data-tip={option.disabled ? option.reason : undefined}
+					className="has-enabled:hover:bg-sunken grid cursor-pointer grid-cols-[16px_minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-0.5 rounded-sm px-2.5 py-2 has-disabled:cursor-not-allowed has-disabled:opacity-45"
 				>
-					<span className="size-4 translate-y-0.5 self-start rounded-full shadow-[inset_0_0_0_1.5px_var(--x-control-border)] group-disabled:opacity-45 group-aria-checked:shadow-[inset_0_0_0_5px_var(--ed)]" />
-					<span className="text-body group-disabled:opacity-45">{option.label}</span>
-					<span className="text-small text-fg-faint flex items-center gap-1.5 group-disabled:opacity-45">
+					<input
+						type="radio"
+						className="x-radio translate-y-0.5 self-start"
+						name={name}
+						value={option.value}
+						checked={option.value === value}
+						disabled={option.disabled}
+						onChange={() => {
+							onChange(option.value);
+						}}
+					/>
+					<span className="text-body">{option.label}</span>
+					<span className="text-small text-fg-faint flex items-center gap-1.5">
 						{option.disabled && option.reason && <Lock size={12} aria-hidden="true" />}
 						{option.detail}
 					</span>
@@ -311,13 +281,16 @@ export function OptionList<T extends string>({
 							{option.description}
 						</span>
 					)}
-				</button>
+				</label>
 			))}
-		</div>
+		</fieldset>
 	);
 }
 
-/** An on and off setting, its label on the left. */
+/**
+ * An on and off setting (the design system's Switch). Beside what it names already, as at the start of a list's
+ * line, `hideLabel` leaves the label to assistive tech; `title` says why it can't be changed, in a tooltip.
+ */
 export function Switch({
 	label,
 	checked,
@@ -329,36 +302,18 @@ export function Switch({
 	label: string;
 	checked: boolean;
 	onChange: (checked: boolean) => void;
-	/** Beside what it names already, as at the start of a list's line: the label is for assistive tech. */
 	hideLabel?: boolean;
 	disabled?: boolean;
-	/** Why it can't be changed, when disabled. */
 	title?: string;
 }) {
 	return (
-		<button
-			type="button"
-			role="switch"
-			aria-checked={checked}
+		<DsSwitch
+			label={hideLabel ? undefined : label}
 			aria-label={hideLabel ? label : undefined}
+			checked={checked}
 			disabled={disabled}
-			title={title}
-			onClick={() => {
-				onChange(!checked);
-			}}
-			className={
-				hideLabel
-					? 'group grid flex-none place-items-center disabled:cursor-not-allowed disabled:opacity-45 pointer-coarse:min-h-11'
-					: 'group text-ui text-fg-muted flex items-center justify-between gap-3 py-1 text-left disabled:cursor-not-allowed disabled:opacity-45 pointer-coarse:min-h-11'
-			}
-		>
-			{!hideLabel && label}
-			<span
-				aria-hidden="true"
-				className="bg-(--track-base) group-aria-checked:bg-ed ease-spring relative h-6 w-10 flex-none rounded-full transition-colors duration-200"
-			>
-				<span className="ease-spring absolute top-0.5 left-0.5 size-5 rounded-full bg-white shadow-sm transition-transform duration-200 group-aria-checked:translate-x-4 motion-reduce:transition-none" />
-			</span>
-		</button>
+			data-tip={title}
+			onChange={onChange}
+		/>
 	);
 }

@@ -123,7 +123,7 @@ function BatchTable({
 							className="border-line/60 grid h-8 items-center border-b text-small"
 							style={{ gridTemplateColumns: columns }}
 						>
-							<span role="cell" className="truncate px-2" title={item.file.name}>
+							<span role="cell" className="truncate px-2" data-tip={item.file.name}>
 								{item.file.name}
 							</span>
 							<span role="cell" className="text-fg-faint flex items-center gap-1 px-2">
@@ -151,7 +151,7 @@ function BatchTable({
 									</>
 								)}
 								{doc === null && (
-									<span className="text-danger font-sans" title={m.subs_unreadable()}>
+									<span className="text-danger font-sans" data-tip={m.subs_unreadable()}>
 										<X size={14} aria-label={m.subs_unreadable()} />
 									</span>
 								)}
@@ -164,7 +164,7 @@ function BatchTable({
 									<button
 										type="button"
 										aria-label={m.batch_remove({ name: item.file.name })}
-										title={m.batch_remove({ name: item.file.name })}
+										data-tip={m.batch_remove({ name: item.file.name })}
 										onClick={() => {
 											remove(item.id);
 										}}

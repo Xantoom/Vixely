@@ -107,7 +107,7 @@ function ColorPicker({ label, value, onChange }: { label: string; value: string;
 						role="radio"
 						aria-checked={current === swatch}
 						aria-label={swatch}
-						title={swatch}
+						data-tip={swatch}
 						onClick={() => {
 							onChange(swatch);
 						}}
@@ -533,7 +533,7 @@ function ShapePicker({ color, onAdd }: { color: string; onAdd: (overlay: Overlay
 					key={id}
 					type="button"
 					aria-label={SHAPE_LABELS[id]()}
-					title={SHAPE_LABELS[id]()}
+					data-tip={SHAPE_LABELS[id]()}
 					onClick={() => {
 						onAdd(createShape(id, color));
 					}}
@@ -769,7 +769,7 @@ function LayerList({ editing }: { editing: OverlayEditing }) {
 						role="button"
 						tabIndex={0}
 						aria-pressed={overlay.id === selectedId}
-						title={m.layers_edit()}
+						data-tip={m.layers_edit()}
 						onClick={() => {
 							select(overlay.id);
 						}}

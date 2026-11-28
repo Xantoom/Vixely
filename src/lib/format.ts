@@ -174,3 +174,11 @@ export function signedDb(db: number): string {
 export function formatDb(db: number): string {
 	return `${signedDb(db)} dB`;
 }
+
+/** Lowercase, without accents: what matching ignores. */
+export function searchable(text: string): string {
+	return text
+		.normalize('NFD')
+		.replace(/\p{Diacritic}/gu, '')
+		.toLowerCase();
+}

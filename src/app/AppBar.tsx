@@ -70,7 +70,7 @@ function EditorTabs({ current, from }: { current: MediaKind; from: MediaKind | n
 						to={EDITORS[kind].path}
 						data-media={kind}
 						aria-current={kind === current ? 'page' : undefined}
-						title={EDITORS[kind].label()}
+						data-tip={EDITORS[kind].label()}
 						className="group text-ui text-fg-faint hover:text-fg aria-[current=page]:text-fg relative flex h-8 items-center gap-2 rounded-[0.45rem] px-3 font-medium transition-colors duration-150 max-xl:px-2.5"
 					>
 						{kind === current && (
@@ -108,7 +108,7 @@ export function AppBar({ editor, fileName, actions, onSearch, heading, from = nu
 					<Link
 						to="/"
 						aria-label={m.app_home()}
-						title={m.app_home()}
+						data-tip={m.app_home()}
 						className={`hover:bg-sunken x-touch-target relative grid size-9 flex-none place-items-center rounded-md transition-colors ${editor ? 'md:size-10' : ''}`}
 					>
 						<LogoMark size={26} className={editor ? 'md:size-8' : undefined} />

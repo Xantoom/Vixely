@@ -135,7 +135,7 @@ function VideoBar({ name, onReplace, onRemove }: { name: string; onReplace: () =
 	return (
 		<div className="flex min-w-0 items-center gap-2 max-lg:px-3">
 			<Film className="text-fg-faint size-4 flex-none" aria-hidden="true" />
-			<span className="text-small text-fg-muted min-w-0 flex-1 truncate" title={name}>
+			<span className="text-small text-fg-muted min-w-0 flex-1 truncate" data-tip={name}>
 				{name}
 			</span>
 			<button
@@ -235,7 +235,7 @@ export function SubtitleViewer({
 						{(failed || rendererFailed) && (
 							<span
 								className="bg-danger absolute top-2 right-2 grid size-7 place-items-center rounded-full text-white"
-								title={rendererFailed ? m.subs_renderer_failed() : m.subs_media_failed()}
+								data-tip={rendererFailed ? m.subs_renderer_failed() : m.subs_media_failed()}
 							>
 								<TriangleAlert size={15} aria-hidden="true" />
 							</span>

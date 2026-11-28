@@ -4,7 +4,7 @@ import { decimal, formatPreciseTime, parseTime } from '@/lib/format';
 import { usePlayback } from '@/media/playback';
 import { m } from '@/paraglide/messages.js';
 import { IconButton } from '@/ui/Button';
-import { Dropdown } from '@/ui/Dropdown';
+import { Select } from '@/ui/fields';
 import { Menu } from '@/ui/Menu';
 import {
 	type Cue,
@@ -327,7 +327,7 @@ export function EditBox() {
 								{m.subs_characters({ count: characters })}
 								{' · '}
 								<span
-									title={m.subs_reading_speed()}
+									data-tip={m.subs_reading_speed()}
 									className={
 										speed > (chosen?.rules.maxReadingSpeed ?? FAST_READING)
 											? 'text-danger font-semibold'
@@ -377,7 +377,7 @@ export function EditBox() {
 				<div className="flex flex-wrap items-center gap-2">
 					{styles.length > 0 && cue && (
 						<div className="w-44 min-w-0 max-sm:flex-1">
-							<Dropdown
+							<Select
 								label={m.subs_style()}
 								value={cue.fields?.style ?? 'Default'}
 								options={[...new Set([...styles, cue.fields?.style ?? 'Default'])].map((style) => ({
@@ -395,7 +395,7 @@ export function EditBox() {
 					{cue && doc.format === 'ass' && (
 						<input
 							aria-label={m.subs_actor()}
-							title={m.subs_actor()}
+							data-tip={m.subs_actor()}
 							placeholder={m.subs_actor()}
 							value={cue.fields?.name ?? ''}
 							onChange={(event) => {

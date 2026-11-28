@@ -235,7 +235,7 @@ function Lanes({ file, aspect, cutting }: { file: File; aspect: number; cutting:
 									start: formatPreciseTime(removed.start),
 									end: formatPreciseTime(removed.end),
 								})}
-								title={m.removed_restore()}
+								data-tip={m.removed_restore()}
 								onPointerDown={(event) => {
 									event.stopPropagation();
 								}}
@@ -253,7 +253,7 @@ function Lanes({ file, aspect, cutting }: { file: File; aspect: number; cutting:
 			{kept.map((range) => (
 				<div
 					key={range.start}
-					title={m.copy_keyframe_kept()}
+					data-tip={m.copy_keyframe_kept()}
 					className="absolute inset-y-0 bg-[color-mix(in_srgb,var(--video-1)_22%,transparent)] shadow-[inset_0_2px_0_var(--video-1)]"
 					style={rangeBox(range, view)}
 				/>

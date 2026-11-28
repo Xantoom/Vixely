@@ -321,7 +321,7 @@ function WaveArea({ engine, trimmable, fill }: { engine: AudioEngine; trimmable:
 								start: formatPreciseTime(removed.start),
 								end: formatPreciseTime(removed.end),
 							})}
-							title={m.removed_restore()}
+							data-tip={m.removed_restore()}
 							onPointerDown={(event) => {
 								event.stopPropagation();
 							}}

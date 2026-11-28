@@ -1,7 +1,7 @@
 import { Monitor, Plus } from 'lucide-react';
 import { type ReactNode, useRef } from 'react';
 import { m } from '@/paraglide/messages.js';
-import { Dropdown, type DropdownOption } from '@/ui/Dropdown';
+import { Select, type SelectOption } from '@/ui/fields';
 import { BUNDLED_FONTS } from './font-catalog';
 import { previewFont } from './font-preview';
 import {
@@ -41,7 +41,7 @@ export function FontField({
 	const system = useSystemFonts();
 	const inputRef = useRef<HTMLInputElement>(null);
 
-	const options: DropdownOption<string>[] = [];
+	const options: SelectOption<string>[] = [];
 	const listed = new Set<string>();
 	const push = (family: string, group: string, choice: FontChoice = fontOrigin(family, videoFonts)) => {
 		const key = family.trim().toLowerCase();
@@ -53,7 +53,7 @@ export function FontField({
 			label: family,
 			group,
 			detail: choice.origin === 'equivalent' ? choice.shownAs : undefined,
-			labelStyle: font ? { fontFamily: `${font}, var(--font-sans, sans-serif)` } : undefined,
+			style: font ? { fontFamily: `${font}, var(--font-sans, sans-serif)` } : undefined,
 		});
 	};
 	const sorted = (names: Iterable<string>) => [...new Set(names)].sort((a, b) => a.localeCompare(b));
@@ -92,7 +92,7 @@ export function FontField({
 					<span className="text-ui text-fg-muted" aria-hidden="true">
 						{m.style_font()}
 					</span>
-					<Dropdown label={m.style_font()} value={value} options={options} onChange={onChange} />
+					<Select label={m.style_font()} value={value} options={options} onChange={onChange} />
 				</div>
 				{beside}
 			</div>
@@ -116,7 +116,7 @@ export function FontField({
 					<button
 						type="button"
 						disabled={system.state === 'denied'}
-						title={system.state === 'denied' ? m.fonts_system_denied() : undefined}
+						data-tip={system.state === 'denied' ? m.fonts_system_denied() : undefined}
 						onClick={() => void system.request()}
 						className="text-small text-fg-muted enabled:hover:text-fg flex items-center gap-1 font-medium disabled:cursor-not-allowed disabled:opacity-50"
 					>

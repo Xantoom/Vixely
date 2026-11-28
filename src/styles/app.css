@@ -208,7 +208,7 @@
 	}
 }
 
-/* Things that open (menus, lists, tooltips) grow out of what opened them. */
+/* Things that open (a selection's bar, a format's list) grow out of what opened them. */
 @keyframes menu-in {
 	from {
 		opacity: 0;
@@ -219,20 +219,6 @@
 .menu-in {
 	transform-origin: top center;
 	animation: menu-in 150ms var(--x-ease-out);
-}
-
-.menu-in[data-down='false'] {
-	--from-y: 6px;
-	transform-origin: bottom center;
-}
-
-.tooltip-in {
-	--from-y: 3px;
-	animation: menu-in 120ms var(--x-ease-out);
-}
-
-.tooltip-in[data-below='true'] {
-	--from-y: -3px;
 }
 
 /* A panel's content coming in when its tool is chosen. */
@@ -315,7 +301,6 @@
  */
 @media (prefers-reduced-motion: reduce) {
 	.menu-in,
-	.tooltip-in,
 	.panel-in,
 	.page-forward > *,
 	.page-back > *,

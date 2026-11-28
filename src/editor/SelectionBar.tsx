@@ -19,7 +19,7 @@ function BarButton({
 	return (
 		<button
 			type="button"
-			title={shortcut ? `${label} (${shortcut})` : label}
+			data-tip={shortcut ? `${label} (${shortcut})` : label}
 			onClick={onClick}
 			className="text-ui hover:bg-sunken-2 flex h-8 items-center gap-1.5 rounded-sm px-2.5 font-medium transition-colors"
 		>
@@ -82,7 +82,7 @@ export function SelectionBar<T extends Kept>({
 			<button
 				type="button"
 				aria-label={m.selection_clear()}
-				title={`${m.selection_clear()} (Esc)`}
+				data-tip={`${m.selection_clear()} (Esc)`}
 				onClick={onClear}
 				className="text-fg-faint hover:bg-sunken-2 hover:text-fg grid size-8 place-items-center rounded-sm transition-colors"
 			>

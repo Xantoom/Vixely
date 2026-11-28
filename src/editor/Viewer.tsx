@@ -45,7 +45,7 @@ function FromVideo({ kind }: { kind: MediaKind }) {
 			<Tile kind="video" size="lg" />
 			<span className="grid min-w-0">
 				<span className="text-body font-semibold">{m.use_open_video()}</span>
-				<span className="text-small text-fg-faint truncate" title={video.file.name}>
+				<span className="text-small text-fg-faint truncate" data-tip={video.file.name}>
 					{video.file.name}
 				</span>
 			</span>

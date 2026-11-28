@@ -72,7 +72,7 @@ export function Group({
 				</button>
 				{onReset && <ResetButton disabled={!changed} onClick={onReset} />}
 				{/* A larger target for the mouse; the keyboard and assistive tech use the title. */}
-				<IconButton label={title} tip={false} aria-hidden="true" tabIndex={-1} onClick={toggle}>
+				<IconButton label={title} tooltip={false} aria-hidden="true" tabIndex={-1} onClick={toggle}>
 					<ChevronDown
 						className={`ease-out size-[1.15rem] transition-transform duration-300 ${open ? '' : '-rotate-90'}`}
 					/>
@@ -97,7 +97,7 @@ export function ToolButton({ label, icon, onClick }: { label: string; icon: Reac
 		<button
 			type="button"
 			aria-label={label}
-			title={label}
+			data-tip={label}
 			onClick={onClick}
 			className="text-fg-muted hover:bg-sunken hover:text-fg grid h-10 place-items-center rounded-md shadow-[inset_0_0_0_1px_var(--x-line-strong)] transition-colors"
 		>

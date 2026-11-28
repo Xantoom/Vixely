@@ -7,7 +7,6 @@ import { SiteHeader } from '@/app/SiteHeader';
 import { EDITOR_ORDER, EDITORS } from '@/editors/registry';
 import { m } from '@/paraglide/messages.js';
 import { Tile } from '@/ui/Tile';
-import { Tooltips } from '@/ui/Tooltips';
 
 function NotFound() {
 	usePageHead('404');
@@ -61,7 +60,6 @@ function Root() {
 		<>
 			<Outlet />
 			<GlobalDrop />
-			<Tooltips />
 		</>
 	);
 }

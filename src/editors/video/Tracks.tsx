@@ -2,6 +2,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { ChevronRight, Pencil, Plus, Trash2 } from 'lucide-react';
 import { ALL_FORMATS, type AudioCodec, BlobSource, Input } from 'mediabunny';
 import { createContext, type ReactNode, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { Options } from 'xantoom-design/react';
 import { useDropHandler } from '@/app/GlobalDrop';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { Section } from '@/editor/panel-parts';
@@ -15,7 +16,6 @@ import { type OpenedFile, useSession } from '@/media/session';
 import { m } from '@/paraglide/messages.js';
 import { Button, IconButton } from '@/ui/Button';
 import { FieldRow, Select, Slider, Switch } from '@/ui/fields';
-import { Segmented } from '@/ui/Segmented';
 import { isAdded, useSubtitleProject } from '../subtitles/project';
 import { CONTAINERS, audioBitrates, type TrackEncode, type VideoContainer } from './export';
 import { audioCodecName, audioId, type MuxKind, type MuxTrack, useMuxSettings, useMuxTracks } from './mux';
@@ -568,8 +568,9 @@ function TrackPage({
 				<Section title={m.track_sound()}>
 					<div data-media="audio" className="grid gap-3.5">
 						<div className="grid gap-1.5">
-							<Segmented
-								label={m.tracks_encoding()}
+							<Options
+								name={`encoding-${track.key}`}
+								legend={m.tracks_encoding()}
 								value={track.encode ? 'encode' : 'default'}
 								options={[
 									{ value: 'default', label: m.track_like_others() },

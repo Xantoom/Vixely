@@ -8,8 +8,7 @@ import { EQ_BANDS, EQ_PRESET_IDS, EQ_PRESETS, EQ_RANGE, type EqPresetId, FLAT_EQ
 import { PITCH_RANGE } from '@/media/stretch';
 import { m } from '@/paraglide/messages.js';
 import { Button } from '@/ui/Button';
-import { Dropdown } from '@/ui/Dropdown';
-import { OptionList, Slider } from '@/ui/fields';
+import { OptionList, Select, Slider } from '@/ui/fields';
 import {
 	AUDIO_SPEEDS,
 	audioLength,
@@ -569,7 +568,7 @@ export function SoundPanel({ engine, fades = false }: { engine: AudioEngine; fad
 				<label htmlFor={presetsId} className="sr-only">
 					{m.eq_presets()}
 				</label>
-				<Dropdown
+				<Select
 					id={presetsId}
 					label={m.eq_presets()}
 					value={chosen ?? CUSTOM_EQ}

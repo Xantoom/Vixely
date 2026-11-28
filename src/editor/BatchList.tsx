@@ -80,7 +80,7 @@ export function BatchList({ statuses, locked, count, addLabel, accept }: BatchLi
 								type="button"
 								onClick={() => void select(item)}
 								aria-current={selected}
-								title={item.file.name}
+								data-tip={item.file.name}
 								className={`text-ui flex h-8 max-w-56 items-center gap-2 rounded-md px-3 transition-colors ${
 									selected
 										? 'bg-ed-soft text-ed-text font-medium'

@@ -178,7 +178,7 @@ export function LineGrid() {
 							onPointerDown={(event) => {
 								if (event.button === 0) pick(index, event);
 							}}
-							title={flagged?.map((issue) => label(issue)).join('\n')}
+							data-tip={flagged?.map((issue) => label(issue)).join('\n')}
 							className={`border-line/60 absolute inset-x-0 grid cursor-pointer border-b text-ui ${
 								line.id === active
 									? 'bg-ed/25'

@@ -446,7 +446,7 @@ export function AudioBox({ transport = true }: { transport?: boolean }) {
 					<span
 						role="img"
 						className="text-fg-faint pointer-events-none absolute right-2 bottom-2"
-						title={m.subs_no_audio()}
+						data-tip={m.subs_no_audio()}
 						aria-label={m.subs_no_audio()}
 					>
 						<AudioLines size={16} aria-hidden="true" />

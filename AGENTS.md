@@ -54,10 +54,7 @@ bun run test:rust
 
 Personal tooling stays out of the repository: `.claude/`, `.impeccable/` and the like are ignored and must not be added.
 
-<!-- xantoom-design:start -->
-
 ## Design system
 
 This project uses the Xantoom design system. Before any UI work (pages, components, styles, motion, icons,
-layout), read `.agents/skills/xantoom-design/SKILL.md` and follow it.
-<!-- xantoom-design:end -->
+layout), load the `xantoom-design` skill (installed on the machine, not in this repository) and follow it.

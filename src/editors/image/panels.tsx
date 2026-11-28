@@ -5,6 +5,7 @@ import {
 	TrianglesCenterlineDashedVertical,
 } from 'lucide-react';
 import { useState } from 'react';
+import { Options } from 'xantoom-design/react';
 import { PanelTitle } from '@/editor/EditorLayout';
 import { ASPECT_LABELS, Group, ResetButton, Section, ToolButton } from '@/editor/panel-parts';
 import { SocialShapes, type SocialShape } from '@/editor/SocialShapes';
@@ -13,7 +14,6 @@ import { ICO_SIZES } from '@/media/image-formats';
 import type { PhotoMetadata } from '@/media/probe';
 import { m } from '@/paraglide/messages.js';
 import { FieldRow, NumberField, Select, type SelectOption, Slider, Switch } from '@/ui/fields';
-import { Segmented } from '@/ui/Segmented';
 import { TRACKS } from '@/ui/tracks';
 import { containRect, fitRatio } from './crop';
 import {
@@ -170,8 +170,9 @@ export function CropPanel({
 			</PanelTitle>
 
 			<Section title={m.crop_aspect()}>
-				<Segmented
-					label={m.crop_aspect()}
+				<Options
+					name="crop-view"
+					legend={m.crop_aspect()}
 					value={view}
 					options={[
 						{ value: 'ratios', label: m.crop_ratios() },

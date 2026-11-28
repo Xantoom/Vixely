@@ -21,7 +21,7 @@ export function UpdateButton() {
 		<>
 			<Button
 				variant="primary"
-				title={m.app_update_title()}
+				data-tip={m.app_update_title()}
 				aria-label={m.app_update()}
 				onClick={() => {
 					if (fileOpen) setAsking(true);

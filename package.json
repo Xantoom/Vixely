@@ -17,8 +17,7 @@
 		"fmt": "oxfmt src --write",
 		"fmt:check": "oxfmt src --check",
 		"test": "vitest run",
-		"test:rust": "cargo test --workspace --profile ci",
-		"postinstall": "xantoom-design sync"
+		"test:rust": "cargo test --workspace --profile ci"
 	},
 	"dependencies": {
 		"@fontsource-variable/caveat": "^5.3.0",
@@ -58,7 +57,7 @@
 		"react": "^19.3.1",
 		"react-dom": "^19.3.1",
 		"wasm-feature-detect": "^1.10.1",
-		"xantoom-design": "github:Xantoom/xantoom-design#v0.4.2",
+		"xantoom-design": "github:Xantoom/xantoom-design#v0.7.5",
 		"zustand": "^5.1.0"
 	},
 	"devDependencies": {

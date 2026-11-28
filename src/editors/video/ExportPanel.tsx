@@ -260,7 +260,7 @@ function Destination({ upright, batch = false }: { upright: Size; batch?: boolea
 							value,
 							label: PRESETS[value].label,
 							detail: presetDetail(value, height),
-							leading: <BrandLogo logo={PRESETS[value].logo} size={18} />,
+							icon: <BrandLogo logo={PRESETS[value].logo} size={18} />,
 							group: PRESET_GROUPS[PRESETS[value].group](),
 						})),
 					]}

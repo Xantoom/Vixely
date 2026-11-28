@@ -48,7 +48,7 @@ export function EditorSwitcher({ current }: { current: MediaKind }) {
 				aria-haspopup="menu"
 				aria-expanded={open}
 				aria-controls={menuId}
-				title={m.switch_editor()}
+				data-tip={m.switch_editor()}
 				onClick={() => {
 					setOpen((value) => !value);
 				}}
