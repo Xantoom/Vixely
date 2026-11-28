@@ -1,10 +1,11 @@
-import { Lock, RotateCcw } from 'lucide-react';
-import { type ReactNode, useId, useLayoutEffect, useRef } from 'react';
+import { Lock } from 'lucide-react';
+import { type ReactNode, useId } from 'react';
 import {
 	type Choice,
 	DurationField,
 	NumberField as DsNumberField,
 	Select as DsSelect,
+	Slider as DsSlider,
 	Switch as DsSwitch,
 	TextField as DsTextField,
 	type SelectProps,
@@ -132,8 +133,8 @@ export function TimeField({
 }
 
 /**
- * Range slider with its value. `onChange` fires while dragging, `onEnd` once released, so a drag
- * can be previewed live and recorded as a single undo step. Double click resets to `defaultValue`.
+ * A range setting (the design system's Slider): `onChange` follows the drag, `onEnd` comes once released, so a drag is
+ * previewed live and kept as one undo step. Double click returns to `defaultValue`, where the fill starts.
  */
 export function Slider({
 	label,
@@ -168,69 +169,22 @@ export function Slider({
 	onChange: (value: number) => void;
 	onEnd: () => void;
 }) {
-	const id = useId();
-	const inputRef = useRef<HTMLInputElement>(null);
-	const at = (v: number) => ((Math.min(max, Math.max(min, v)) - min) / (max - min)) * 100;
-	const low = Math.min(at(defaultValue), at(value));
-	const high = Math.max(at(defaultValue), at(value));
-	const background =
-		track ??
-		`linear-gradient(90deg, var(--track-base) ${low}%, var(--ed) ${low}% ${high}%, var(--track-base) ${high}%)`;
-	// Pseudo-elements can't be styled inline: the track reads a CSS variable.
-	useLayoutEffect(() => {
-		inputRef.current?.style.setProperty('--track', background);
-	}, [background]);
 	return (
-		<div className="grid gap-1.5">
-			<div className="flex items-center justify-between gap-2">
-				<label htmlFor={id} className={hideLabel ? 'sr-only' : 'text-ui text-fg-muted min-w-0 flex-1 truncate'}>
-					{label}
-				</label>
-				{resettable && (
-					// Before the value, inside the panel; it fades in once the setting has moved.
-					<button
-						type="button"
-						aria-label={m.reset()}
-						data-tip={m.reset()}
-						disabled={value === defaultValue}
-						onClick={() => {
-							onChange(defaultValue);
-							onEnd();
-						}}
-						className="text-fg-faint enabled:hover:bg-sunken enabled:hover:text-fg x-touch-target relative -my-1 ml-auto grid size-6 flex-none cursor-pointer place-items-center rounded-sm transition-[opacity,color,background-color] duration-200 disabled:pointer-events-none disabled:opacity-0"
-					>
-						<RotateCcw className="size-3.5" aria-hidden="true" />
-					</button>
-				)}
-				<output
-					className={`x-tabular text-small text-fg flex-none text-right ${resettable ? '' : 'ml-auto'}`}
-					aria-label={m.slider_value({ label })}
-				>
-					{format(value)}
-				</output>
-			</div>
-			<input
-				ref={inputRef}
-				id={id}
-				type="range"
-				min={min}
-				max={max}
-				step={step}
-				value={value}
-				onChange={(event) => {
-					onChange(Number(event.target.value));
-				}}
-				// Keyboard steps stay one undo step until the slider loses focus.
-				onPointerUp={onEnd}
-				onBlur={onEnd}
-				onDoubleClick={() => {
-					onChange(defaultValue);
-					onEnd();
-				}}
-				className="slider h-6 w-full cursor-pointer touch-pan-y appearance-none bg-transparent"
-			/>
-			{hint && <p className="text-small text-fg-faint -mt-0.5">{hint}</p>}
-		</div>
+		<DsSlider
+			label={label}
+			hideLabel={hideLabel}
+			value={value}
+			min={min}
+			max={max}
+			step={step}
+			neutral={defaultValue}
+			format={format}
+			track={track}
+			hint={hint}
+			reset={resettable ? m.reset() : undefined}
+			onChange={onChange}
+			onCommit={onEnd}
+		/>
 	);
 }
 

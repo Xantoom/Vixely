@@ -938,7 +938,6 @@
 	"convert_no_video_encoder": "This browser can't encode the pictures with these settings. Try another codec or a smaller height.",
 	"convert_no_audio_encoder": "This browser can't encode the sound with these settings. Try another codec.",
 	"close_panel": "Close the panel",
-	"slider_value": "{label} value",
 	"command_search": "Search an action",
 	"command_none": "No action found",
 	"shortcuts_title": "Keyboard shortcuts",

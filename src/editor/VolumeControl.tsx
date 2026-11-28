@@ -97,8 +97,8 @@ export function VolumeControl() {
 					onChange={(event) => {
 						setVolume(Number(event.target.value) / 100);
 					}}
-					className="volume-range w-32"
-					style={{ '--level': `${percent}%` }}
+					className="x-range w-32"
+					style={{ '--_high': `${percent}%` }}
 				/>
 				<output className="text-small x-tabular text-fg w-12 text-right whitespace-nowrap">{percent} %</output>
 			</div>

@@ -953,7 +953,6 @@
 	"convert_no_video_encoder": "Ce navigateur ne sait pas encoder l’image avec ces réglages. Essayez un autre codec ou une hauteur plus petite.",
 	"convert_no_audio_encoder": "Ce navigateur ne sait pas encoder le son avec ces réglages. Essayez un autre codec.",
 	"close_panel": "Fermer le panneau",
-	"slider_value": "Valeur : {label}",
 	"command_search": "Rechercher une action",
 	"command_none": "Aucune action trouvée",
 	"shortcuts_title": "Raccourcis clavier",
