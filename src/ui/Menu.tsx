@@ -17,7 +17,7 @@ export interface MenuItem<T extends string> {
 
 /**
  * A button that opens a short menu of choices, one of them current: the language, the theme, the track played. Unlike
- * `Dropdown`, the button is drawn by the caller (an icon, a flag) and shows nothing of the choice by itself. The menu is
+ * a `Select`, the button is drawn by the caller (an icon, a flag) and shows nothing of the choice by itself. The menu is
  * the design system's: a popover in the top layer (above a fullscreen player too), with its keyboard.
  */
 export function Menu<T extends string>({
